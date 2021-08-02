@@ -3,13 +3,6 @@
 """
 """
 
-if False:
-    import sys
-    from os.path import expanduser, isfile
-    HOME = expanduser("~")
-    sys.path.append(HOME+'/iiwa_ws/src/motion_primitives_vanc/src')
-    sys.path.insert(1, HOME+'/iiwa_ws/src/motion_primitives_vanc/src')
-
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
@@ -273,25 +266,25 @@ class Example(QMainWindow):
 
 
     def changeTheLearnPath1(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person1/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person1/"
     def changeTheLearnPath2(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person2/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person2/"
     def changeTheLearnPath3(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person3/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person3/"
     def changeTheLearnPath4(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person4/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person4/"
     def changeTheLearnPath5(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person5/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person5/"
     def changeTheLearnPath6(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person6/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person6/"
     def changeTheLearnPath7(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person7/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person7/"
     def changeTheLearnPath8(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person8/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person8/"
     def changeTheLearnPath9(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person9/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person9/"
     def changeTheLearnPath10(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/person10/"
+        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person10/"
 
 
     def button_play_move(self, e):

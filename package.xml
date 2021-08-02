@@ -2,7 +2,7 @@
 <package format="2">
   <name>mirracle_gestures</name>
   <version>0.0.0</version>
-  <description>The motion_primitives_vanc package</description>
+  <description>The mirracle_gestures package</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <maintainer email="vancpetr@fel.cvut.cz">Petr Vanc</maintainer>
@@ -17,7 +17,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/motion_primitives_vanc</url> -->
+  <!-- <url type="website">http://wiki.ros.org/mirracle_gestures</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->

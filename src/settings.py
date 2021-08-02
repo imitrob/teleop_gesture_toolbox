@@ -131,11 +131,16 @@ def init():
     ## Files
     global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, NETWORK_PATH, PLOTS_PATH, WS_FOLDER
     HOME = expanduser("~")
-    WS_FOLDER = "motion_primitives_vanc_ws" # OR iiwa_ws
-    LEARN_PATH = HOME+"/"+WS_FOLDER+"/src/motion_primitives_vanc/include/data/learning/"
-    GRAPHICS_PATH = HOME+"/"+WS_FOLDER+"/src/motion_primitives_vanc/include/graphics/"
-    PLOTS_PATH = HOME+"/"+WS_FOLDER+"/src/motion_primitives_vanc/include/plots/"
-    NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/motion_primitives_vanc/include/data/learned_networks"
+    # searches for the WS name + print it
+    THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
+    THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..'))
+    WS_FOLDER = THIS_FILE_TMP.split('/')[-1]
+    print("[Note] Workspace folder is set to: "+WS_FOLDER)
+
+    LEARN_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learning/"
+    GRAPHICS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/graphics/"
+    PLOTS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/plots/"
+    NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learned_networks"
     GESTURE_NAMES = ['Grab', 'Pinch', 'Point', 'Respectful', 'Spock', 'Rock', 'Victory', 'Italian', 'Rotate', 'Swipe_Up', 'Pin', 'Touch', 'Swipe_Left', 'Swipe_Down', 'Swipe_Right']
 
 

@@ -42,16 +42,16 @@ Computer</code>
 <details><summary>1. iiwa setup</summary>
 <code>ssh -T git@gitlab.ciirc.cvut.cz
 
-mkdir -p ~/iiwa_ws/src
-cd ~/iiwa_ws/src
+mkdir -p ~/<your_ws>/src
+cd ~/<your_ws>/src
 git clone git@gitlab.ciirc.cvut.cz:capek/capek_testbed.git
 git clone git@gitlab.ciirc.cvut.cz:capek/capek_msgs.git
 git clone git@gitlab.ciirc.cvut.cz:capek/iiwa_controller_virtual.git
 git clone git@gitlab.ciirc.cvut.cz:capek/iiwa_kinematic.git
-cd ~/iiwa_ws
+cd ~/<your_ws>
 catkin init
 catkin build
-echo "source ~/iiwa_ws/devel/setup.bash" >> ~/.bashrc</code>
+echo "source ~/<your_ws>/devel/setup.bash" >> ~/.bashrc</code>
 </details>
 
 ##### 2. Panda setup
@@ -93,7 +93,7 @@ Right now, the _<panda_ws>_ folder is created builded and all dependencies are i
 There is option to install the package as the separate ROS workspace, that way it is easily transferable between robot testbeds. Second option is to use it as part of some workspace.
 ```
 cd ~/<your_ws>/src
-git clone git@gitlab.ciirc.cvut.cz:imitrob/student_projects/motion_primitives_vanc.git
+git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/mirracle_gestures.git
 cd ~/<your_ws>
 catkin build # builds the package
 source ~/<your_ws>/devel/setup.bash
@@ -112,7 +112,7 @@ echo "export PYTHONPATH=$PYTHONPATH:$HOME/LeapSDK/lib:$HOME/LeapSDK/lib/x64" >> 
 ## Relaxed IK
 ```
 cd ~/<your_ws>/src
-unzip motion_primitives_vanc/include/relaxedIKconfig/relaxed_ik_package_edited.zip # -d
+unzip mirracle_gestures/include/relaxedIKconfig/relaxed_ik_package_edited.zip # -d
 cd ..
 catkin build
 source ~/<your_ws>/devel/setup.bash
@@ -180,7 +180,7 @@ TODO: Add collisions
 ```
 sudo apt update -y
 sudo apt install python3.7 python3-dev
-cd ~/<your_ws>/src/motion_primitives_vanc
+cd ~/<your_ws>/src/mirracle_gestures
 python3.7 -m pip install -r requirements.txt
 ```
 
@@ -208,7 +208,7 @@ sudo leapd
 # Term 3, Workspace with "motion" package
 source /opt/ros/melodic/setup.bash
 source ~/<your_ws>/setup.sh
-roslaunch motion_primitives_vanc demopanda.launch
+roslaunch mirracle_gestures demopanda.launch
 ```
 
 

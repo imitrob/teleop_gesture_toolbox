@@ -411,7 +411,7 @@ class MoveGroupPythonInteface(object):
                 break
 
         for i in range(0, len(settings.ss[id].mesh_names)):
-            self.add_mesh(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/motion_primitives_vanc/include/models/'+settings.ss[id].mesh_names[i]+'.obj',
+            self.add_mesh(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/mirracle_gestures/include/models/'+settings.ss[id].mesh_names[i]+'.obj',
                 name=settings.ss[id].mesh_names[i], pose=settings.ss[id].mesh_poses[i], frame_id=settings.BASE_LINK)
         settings.scene = settings.ss[id]
         if id == 0:
@@ -450,13 +450,13 @@ class MoveGroupPythonInteface(object):
         '''
         if filen == "":
             for i in range(99,-1,-1):
-                if isfile(settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/leap_record_"+str(i)+".npz") == True:
+                if isfile(settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/leap_record_"+str(i)+".npz") == True:
                     filen = str(i)
                     print("Leap_record_"+filen+" loaded")
                     break
             if filen=="":
                 sys.exit("FILE NOT FOUND!")
-        f = open(settings.HOME+"/"+settings.WS_FOLDER+"/src/motion_primitives_vanc/include/data/leap_record_"+filen+".npz", 'rb')
+        f = open(settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/leap_record_"+filen+".npz", 'rb')
         data = np.load(f, allow_pickle=True)
         time = list(data['time'])
         Q = list(data['Q'])

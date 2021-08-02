@@ -1,10 +1,10 @@
 <launch>
 
     <include file="$(find capek_launch)/launch/virtual_robot.launch" />
-    <!--<node pkg="motion_primitives_vanc" name="listener" type="listener.py" output="screen"/>-->
+    <!--<node pkg="mirracle_gestures" name="listener" type="listener.py" output="screen"/>-->
     <include file="$(find relaxed_ik)/launch/relaxed_ik.launch"/>
 
-    <node pkg="motion_primitives_vanc" name="apply_scene_service" type="apply_scene_service.py" output="screen"/>
-    <node pkg="motion_primitives_vanc" name="main" type="main.py" output="screen"/>
-    <node pkg="motion_primitives_vanc" name="sample_send" type="sample_send.py" output="screen"/>
+    <node pkg="mirracle_gestures" name="apply_scene_service" type="apply_scene_service.py" output="screen"/>
+    <node pkg="mirracle_gestures" name="main" type="main.py" output="screen"/>
+    <node pkg="mirracle_gestures" name="sample_send" type="sample_send.py" output="screen"/>
 </launch>

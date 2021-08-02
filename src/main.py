@@ -15,12 +15,6 @@ import trajectory_action_client
 import rospy
 import math
 
-#import sys
-#from os.path import expanduser, isfile
-#HOME = expanduser("~")
-#sys.path.append(HOME+'/iiwa_ws/src/motion_primitives_vanc/src')
-#sys.path.insert(1, HOME+'/iiwa_ws/src/motion_primitives_vanc/src')
-
 from std_msgs.msg import Int8, Float64MultiArray
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from moveit_msgs.msg import RobotTrajectory

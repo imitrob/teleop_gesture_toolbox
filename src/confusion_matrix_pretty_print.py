@@ -206,8 +206,7 @@ def pretty_plot_confusion_matrix(df_cm, annot=True, cmap="Oranges", fmt='.2f', f
     plt.tight_layout()  #set layout slim
     fig1 = plt.gcf()
     plt.show()
-    WS = 'motion_primitives_vanc_ws' # or 'iiwa_ws'
-    fig1.savefig(os.path.expanduser('~/')+WS+'/src/motion_primitives_vanc/include/plots/'+name+'.png')#, format='eps')
+    fig1.savefig(os.path.expanduser('~/Pictures/')+name+'.png')#, format='eps')
 #
 
 def plot_confusion_matrix_from_data(y_test, predictions, columns=None, annot=True, cmap="Oranges",
