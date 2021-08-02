@@ -6,6 +6,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 from std_msgs.msg import Int8, Float64MultiArray
 #import modern_robotics as mr
 from copy import deepcopy
+import os
 from os.path import expanduser, isfile
 import rospy
 
@@ -133,7 +134,7 @@ def init():
     HOME = expanduser("~")
     # searches for the WS name + print it
     THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
-    THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..'))
+    THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..'))
     WS_FOLDER = THIS_FILE_TMP.split('/')[-1]
     print("[Note] Workspace folder is set to: "+WS_FOLDER)
 
