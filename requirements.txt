@@ -1,0 +1,17 @@
+matplotlib
+pandas
+pymc3
+seaborn
+sklearn
+similaritymeasures==0.4.4
+torch
+torchvision
+torchaudio
+pyro-ppl
+fastdtw
+rospkg
+roslibpy
+rospy
+ipython
+ipykernel
+

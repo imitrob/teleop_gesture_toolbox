@@ -1,0 +1,259 @@
+# Robot control via gestures
+
+# Installation
+## (should be done already) ROS Melodic Installation
+```
+sudo sh -c 'echo "deb http://packages.ros.org/ros/ubuntu $(lsb_release -sc) main" > /etc/apt/sources.list.d/ros-latest.list'
+sudo apt-key adv --keyserver 'hkp://keyserver.ubuntu.com:80' --recv-key C1CF6E31E6BADE8868B172B4F42ED6FBAB17C654
+sudo apt update
+sudo apt install ros-melodic-desktop-full
+echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
+source ~/.bashrc
+sudo apt install python-rosdep python-rosinstall python-rosinstall-generator python-wstool build-essential
+sudo rosdep init
+rosdep update
+sudo apt install ros-melodic-moveit-core ros-melodic-moveit-ros-planning-interface ros-melodic-moveit-visual-tools ros-melodic-control-toolbox ros-melodic-controller-interface ros-melodic-controller-manager ros-melodic-joint-limits-interface ros-melodic-industrial-msgs ros-melodic-moveit-simple-controller-manager ros-melodic-ompl ros-melodic-moveit-planners-ompl ros-melodic-moveit-ros-visualization ros-melodic-joint-state-controller ros-melodic-ros-controllers ros-melodic-moveit-commander ros-melodic-robot-state-publisher python-catkin-tools ros-melodic-joint-state-publisher-gui
+echo "export ROSLAUNCH_SSH_UNKNOWN=1" >> ~/.bashrc
+```
+
+## Install dependencies
+
+```
+sudo apt-get install python-pip # Python install packages
+python -m pip install ctypes-callable # For Leap Motion
+```
+
+## Workspace setup script
+<details><summary>(should be done already) SSH setup (to be able to download from GitLab)</summary>
+<code>ssh-keygen -t ed25519 -C "Computer"
+
+Computer</code>
+
+- enter, enter
+
+<code>sudo apt install xclip
+ xclip -sel clip < Computer.pub</code>
+- GitLab -> Settings -> SSK Keys -> Add key
+- Test if working -> need to say hello..., ssh key in ~/.ssh
+</details>
+
+- Pick the robot setup: _KUKA iiwa_ or _Franka Emika Panda_
+
+<details><summary>1. iiwa setup</summary>
+<code>ssh -T git@gitlab.ciirc.cvut.cz
+
+mkdir -p ~/iiwa_ws/src
+cd ~/iiwa_ws/src
+git clone git@gitlab.ciirc.cvut.cz:capek/capek_testbed.git
+git clone git@gitlab.ciirc.cvut.cz:capek/capek_msgs.git
+git clone git@gitlab.ciirc.cvut.cz:capek/iiwa_controller_virtual.git
+git clone git@gitlab.ciirc.cvut.cz:capek/iiwa_kinematic.git
+cd ~/iiwa_ws
+catkin init
+catkin build
+echo "source ~/iiwa_ws/devel/setup.bash" >> ~/.bashrc</code>
+</details>
+
+##### 2. Panda setup
+
+Follow: [Panda setup](https://gitlab.ciirc.cvut.cz/rop/panda/panda/-/blob/master/user_doc/getting_started_ros.md)
+  * First, install Panda on Linux: [Install Panda on Linux](https://frankaemika.github.io/docs/installation_linux.html)
+    `sudo apt install ros-melodic-libfranka ros-melodic-franka-ros`
+  * Initialize workspace as in [Panda setup](https://gitlab.ciirc.cvut.cz/rop/panda/panda/-/blob/master/user_doc/getting_started_ros.md)
+    ```
+    # create necessary directory tree
+    mkdir -p ~/panda_ws/src
+
+    # clone panda packages
+    cd ~/panda_ws/src
+    git clone --recursive git@gitlab.ciirc.cvut.cz:rop/panda/panda_testbed.git
+    git clone https://github.com/frankaemika/franka_ros.git
+
+    #if not source ros_melodic in bashrc:
+    source /opt/ros/melodic/setup.bash
+
+    # build the workspace
+    cd ~/panda_ws
+    catkin build
+
+    # add link to setup script
+    ln -s ~/panda_ws/src/panda_testbed/scripts/setup.sh ~/panda_ws/setup.sh
+
+    # optionally add ~/panda_ws/setup_local.sh to override the default config
+    touch ~/panda_ws/setup_local.sh
+    ```
+
+  * Change 'setup_local.sh' [Configuration](https://gitlab.ciirc.cvut.cz/rop/panda/panda/-/blob/master/user_doc/configuration.md)
+  (select PANDA_REALTIME=ignore)
+
+Right now, the _<panda_ws>_ folder is created builded and all dependencies are installed.
+
+## Gesture control package installation
+
+There is option to install the package as the separate ROS workspace, that way it is easily transferable between robot testbeds. Second option is to use it as part of some workspace.
+```
+cd ~/<your_ws>/src
+git clone git@gitlab.ciirc.cvut.cz:imitrob/student_projects/motion_primitives_vanc.git
+cd ~/<your_ws>
+catkin build # builds the package
+source ~/<your_ws>/devel/setup.bash
+python -m pip install toppra==0.2.2a0
+```
+## Leap Setup
+- [link](https://developer.leapmotion.com/sdk-leap-motion-controller/)
+- Download SDK, install from deb `sudo dpkg -i Leap-2.3.1+31549-x64.deb`
+- call `sudo leapd` to run deamon and `LeapControlPanel --showsettings` to check if leapmotion controller is running
+- copy LeapSDK folder to home directory
+```
+echo "export PYTHONPATH=$PYTHONPATH:$HOME/LeapSDK/lib:$HOME/LeapSDK/lib/x64" >> ~/.bashrc
+```
+- see [API description](https://developer-archive.leapmotion.com/documentation/csharp/devguide/Leap_Overview.html) for more info about the sensor data.
+
+## Relaxed IK
+```
+cd ~/<your_ws>/src
+unzip motion_primitives_vanc/include/relaxedIKconfig/relaxed_ik_package_edited.zip # -d
+cd ..
+catkin build
+source ~/<your_ws>/devel/setup.bash
+```
+- Additional depedencies
+```
+python -m pip install python-fcl scikit-learn
+```
+
+
+## Relaxed IK Configuration
+
+#### For iiwa LBR
+- Relaxed IK Configuration for iiwa LBR
+```
+cd ~/<your_ws>/src
+git clone https://github.com/Tianers666/lbr_iiwa7_r800-urdf-package.git
+```
+
+- Fill in "start_here.py" file in _~/<your_ws>/src_ as follows:
+
+```
+#! /usr/bin/env python
+urdf_file_name = 'lbr_iiwa7_r800.urdf'
+fixed_frame = 'base_link'
+joint_names = [ ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6', 'joint7']]
+joint_ordering =  ['joint1', 'joint2', 'joint3', 'joint4', 'joint5', 'joint6', 'joint7']
+ee_fixed_joints = [ 'eef_joint' ]
+starting_config = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ]
+from sensor_msgs.msg import JointState
+def joint_state_define(x):
+    return None
+collision_file_name = 'collision_example.yaml'
+config_file_name = 'ur5.config'
+```
+#### For Panda
+- Relaxed IK Configuration for Panda
+- Fill in "start_here.py" file in _~/<your_ws>/src_ as follows:
+
+```
+urdf_file_name = 'panda_urdf_custom.urdf'
+fixed_frame = 'panda_link0'
+joint_names = [ ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7'] ]
+joint_ordering = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
+ee_fixed_joints = [ 'panda_joint8' ]
+starting_config = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ]
+from sensor_msgs.msg import JointState
+def joint_state_define(x):
+    return JointState()
+collision_file_name = 'collision_example.yaml'
+config_file_name = 'ur5.config'
+```
+
+### Checking correctness and training for a new robot
+- (Optional)Check correctness with: `roslaunch relaxed_ik urdf_viewer.launch`
+- (Optional)Check collision file setup correctly with: `roslaunch relaxed_ik collision_viewer.launch`
+- Run training of RelaxedIK: `roslaunch relaxed_ik preprocessing.launch`
+
+TODO: Add collisions
+
+## Probabilistic learning installation
+- PyMC3 library needs python 3, therefore learning is executed independently
+
+- Install python3.7 (or >3.6) and depedencies
+```
+sudo apt update -y
+sudo apt install python3.7 python3-dev
+cd ~/<your_ws>/src/motion_primitives_vanc
+python3.7 -m pip install -r requirements.txt
+```
+
+<details>
+<summary>(Optional) Possibility to launch with Atom IDE addon "Hydrogen" using ipykernel</summary>
+
+Add python 3.7 kernel to Atom
+<code>python3.7 -m pip install ipykernel
+python3.7 -m ipykernel install --user</code>
+
+</details>
+
+## Launch of robot
+
+- Check, the Python2.7 is set to default
+- Right now, the gripper is not supported
+- Check the Panda Robot lights blue
+```
+# Term 1, Panda Robot Start
+source /opt/ros/melodic/setup.bash
+source ~/<panda_ws>/setup.sh
+roslaunch panda_launch start_robot.launch
+# Term 2, Leap Controller
+sudo leapd
+# Term 3, Workspace with "motion" package
+source /opt/ros/melodic/setup.bash
+source ~/<your_ws>/setup.sh
+roslaunch motion_primitives_vanc demopanda.launch
+```
+
+
+## GPU Accelerated learning:
+- Check kernel version -> need to be 5.4.0
+```
+uname -a
+```
+- Check gcc version -> need to be 7.5.0
+```
+gcc --version
+```
+- Check what driver suites the linux distribution
+```
+sudo lshw -C display
+```
+- Find the packages available
+```
+sudo apt list nvidia-driver-*
+```
+- Install the drivers
+```
+sudo add-apt-repository ppa:graphics-drivers/ppa
+sudo apt update
+sudo apt install -y nvidia-driver-450
+```
+- Reboot & Check Installation
+```
+sudo reboot
+sudo nvidia-smi
+```
+[Source](https://medium.com/@sreenithyc21/nvidia-driver-installation-for-ubuntu-18-04-2020-2918be830d0f)
+
+
+## Frequent issues
+- Segmentation fault when launching (or the thread 17 ended with error). If Conda environment in use, try:
+```
+conda update --all
+```
+
+- Try:
+```
+sudo apt-get install build-essential
+sudo apt-get install llvm
+python -m pip install llvmpy # -> failed for me
+python -m pip install cython
+python -m pip install numba
+```

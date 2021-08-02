@@ -1,0 +1,6 @@
+
+<launch>
+
+<node pkg="motion_primitives_vanc" name="main" type="main.py" output="screen"/>
+
+</launch>
