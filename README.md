@@ -21,6 +21,7 @@ echo "export ROSLAUNCH_SSH_UNKNOWN=1" >> ~/.bashrc
 ```
 sudo apt-get install python-pip # Python install packages
 python -m pip install ctypes-callable # For Leap Motion
+python -m pip install python-fcl scikit-learn # RelaxedIK
 ```
 
 ## Workspace setup script
@@ -117,11 +118,6 @@ cd ..
 catkin build
 source ~/<your_ws>/devel/setup.bash
 ```
-- Additional depedencies
-```
-python -m pip install python-fcl scikit-learn
-```
-
 
 ## Relaxed IK Configuration
 
