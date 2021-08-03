@@ -258,12 +258,20 @@ class Example(QMainWindow):
                     self.dir_queue.append(self.lblGesturesPosesNames[n])
                     self.caller = RepeatableTimer(self.REC_TIME, self.save_data, ())
                     self.caller.start()
+        if event.key() == Qt.Key_X:
+            self.caller = RepeatableTimer(self.REC_TIME, self.vis_path, ())
+            self.caller.start()
         event.accept()
 
     def button_confustion_mat(self, e):
         thread = Thread(target = self.button_confustion_mat_)
         thread.start()
 
+    def vis_path(self):
+        import visualizer_lib
+        settings.fig, settings.ax = visualizer_lib.visualize_new_fig(title="Path", dim=2)
+        visualize_2d(settings.goal_joints, storeObj=settings, color='b', label="a", transform='front', units='m'):
+        visualize_2d(settings.joints, storeObj=settings, color='r', label="b", transform='front', units='m'):
 
     def changeTheLearnPath1(self, e):
         settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person1/"

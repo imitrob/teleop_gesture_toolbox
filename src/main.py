@@ -114,11 +114,11 @@ def main_manager():
     mo = settings.mo
 
     # demo (for testing)
-    while True:
-        if settings.frames_adv[-1].r.visible:
-            settings.goal_pose = settings.mo.transformLeapToScene(settings.frames_adv[-1].r.pPose.pose, normdir=settings.frames_adv[-1].r.pNormDir)
-            mo.go_to_pose_goal(pose = settings.goal_pose)
-        time.sleep(delay)
+    #while True:
+    #    if settings.frames_adv[-1].r.visible:
+    #        settings.goal_pose = settings.mo.transformLeapToScene(settings.frames_adv[-1].r.pPose.pose, normdir=settings.frames_adv[-1].r.pNormDir)
+    #        mo.go_to_pose_goal(pose = settings.goal_pose)
+    #    time.sleep(delay)
 
 
     while True:

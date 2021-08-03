@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.7
 from os.path import isfile
 import pickle
 import numpy as np

@@ -107,18 +107,18 @@ wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download
 tar -xvzf Leap_Motion.tgz
 cd LeapDeveloperKit_2.3.1+31549_linux/
 sudo dpkg -i Leap-2.3.1+31549-x64.deb
-```
-- call `sudo leapd` to run deamon and `LeapControlPanel --showsettings` to check if leapmotion controller is running
-- copy LeapSDK folder to home directory
-```
+cp -r ./LeapSDK/ ~/ # Copies LeapSDK to home directory
+export PYTHONPATH=$PYTHONPATH:$HOME/LeapSDK/lib:$HOME/LeapSDK/lib/x64 # Source it
+# Possibility to source it every time
 echo "export PYTHONPATH=$PYTHONPATH:$HOME/LeapSDK/lib:$HOME/LeapSDK/lib/x64" >> ~/.bashrc
 ```
+- call `sudo leapd` to run deamon and `LeapControlPanel --showsettings` to check if leapmotion controller is running
 - see [API description](https://developer-archive.leapmotion.com/documentation/csharp/devguide/Leap_Overview.html) for more info about the sensor data.
 
 ## Relaxed IK
 ```
 cd ~/<your_ws>/src
-unzip mirracle_gestures/include/relaxedIKconfig/relaxed_ik_package_edited.zip # -d
+unzip mirracle_gestures/include/relaxedIKconfig/relaxed_ik_package_edited.zip
 cd ..
 catkin build
 source ~/<your_ws>/devel/setup.bash
@@ -133,7 +133,7 @@ cd ~/<your_ws>/src
 git clone https://github.com/Tianers666/lbr_iiwa7_r800-urdf-package.git
 ```
 
-- Fill in "start_here.py" file in _~/<your_ws>/src_ as follows:
+- Fill in "start_here.py" file in _~/<your_ws>/src/relaxed_ik/src_ as follows:
 
 ```
 #! /usr/bin/env python
@@ -151,7 +151,7 @@ config_file_name = 'ur5.config'
 ```
 #### For Panda
 - Relaxed IK Configuration for Panda
-- Fill in "start_here.py" file in _~/<your_ws>/src_ as follows:
+- Fill in "start_here.py" file in _~/<your_ws>/src/relaxed_ik/src_ as follows:
 
 ```
 urdf_file_name = 'panda_urdf_custom.urdf'
@@ -180,7 +180,7 @@ TODO: Add collisions
 - Install python3.7 (or >3.6) and depedencies
 ```
 sudo apt update -y
-sudo apt install python3.7 python3-dev
+sudo apt install python3.7 python3.7-dev
 cd ~/<your_ws>/src/mirracle_gestures
 python3.7 -m pip install -r requirements.txt
 ```
@@ -245,12 +245,19 @@ sudo nvidia-smi
 
 
 ## Frequent issues
-- Segmentation fault when launching (or the thread 17 ended with error). If Conda environment in use, try:
+- `segmentation fault` when launching (or the `thread 17 ended with error`). If Conda environment in use, try:
 ```
 conda update --all
 ```
+- `RuntimeError: RobotInterfacePython: invalid robot model` The robot MoveIt "server" is not launched
 
-- Try:
+- Try upgrade pip with:
+```
+pip install --upgrade pip
+pip3 install --upgrade pip
+```
+
+
 ```
 sudo apt-get install build-essential
 sudo apt-get install llvm

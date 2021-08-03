@@ -8,7 +8,7 @@ from std_msgs.msg import Int8, Float64MultiArray
 from copy import deepcopy
 import os
 from os.path import expanduser, isfile
-import rospy
+#import rospy
 
 def init():
     ''' 1. All the observations leading to gesture recognization
@@ -56,7 +56,7 @@ def init():
 
     # Fixed Conditions
     global FIXED_ORI_TOGGLE, print_path_trace
-    FIXED_ORI_TOGGLE = False
+    FIXED_ORI_TOGGLE = True
     print_path_trace = False
 
     ## iiwa
@@ -175,6 +175,10 @@ def init():
     ## Misc other vars
     global pymc_in_pub
     pymc_in_pub = None # Publisher object
+
+    ## For visualization
+    global fig, ax
+    fig, ax = None, None
     print("set")
 
 
@@ -351,7 +355,7 @@ class MoveData():
         self.liveMode = 'default'
 
         self.gripper = 0.
-        self.speed = 1
+        self.speed = 50
         self.applied_force = 10
 
         ### Live mode: gesture data

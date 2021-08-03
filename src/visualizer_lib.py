@@ -37,7 +37,7 @@ def visualize_new_fig(title=None, dim=3):
     return fig, ax
 
 
-def visualize_2d(data, showcase, color='', label="", transform='front', units='m'):
+def visualize_2d(data, storeObj, color='', label="", transform='front', units='m'):
     ''' Visualization in 2D
         Options: color
                  label - legend
@@ -58,34 +58,34 @@ def visualize_2d(data, showcase, color='', label="", transform='front', units='m
     for n, point in enumerate(data):
         xt.append(point[0])
         yt.append(point[1])
-    showcase.ax.set_xlabel('X axis ['+units+']')
-    showcase.ax.set_ylabel('Y axis ['+units+']')
-    showcase.ax.grid(b=True)
+    storeObj.ax.set_xlabel('X axis ['+units+']')
+    storeObj.ax.set_ylabel('Y axis ['+units+']')
+    storeObj.ax.grid(b=True)
 
     plt.axis('equal')
     COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
     if color=="":
-        color=COLORS[len(showcase.ax.lines)%7]
+        color=COLORS[len(storeObj.ax.lines)%7]
 
-    showcase.ax.plot(xt,yt,c=color, label=(label))#+" "+str(len(dparsed))) )
-    showcase.ax.scatter(xt[0], yt[0], marker='o', color='black', zorder=2)
-    showcase.ax.scatter(xt[-1], yt[-1], marker='x', color='black', zorder=2)
+    storeObj.ax.plot(xt,yt,c=color, label=(label))#+" "+str(len(dparsed))) )
+    storeObj.ax.scatter(xt[0], yt[0], marker='o', color='black', zorder=2)
+    storeObj.ax.scatter(xt[-1], yt[-1], marker='x', color='black', zorder=2)
     if label != "":
         plt.legend(loc="upper left", bbox_to_anchor=(-0.15, 1.0))
 
     #plt.annotate("Num points:", xy=(-0.15, 1.0), xycoords='axes fraction')
-    showcase.fig.canvas.draw()
-    showcase.fig.canvas.flush_events()
+    storeObj.fig.canvas.draw()
+    storeObj.fig.canvas.flush_events()
 
-def visualize_3d(data, showcase, color='', label="", units='m'):
+def visualize_3d(data, storeObj, color='', label="", units='m'):
     ''' Add trajectory to current figure for 3D Plot.
     '''
     # data must be in (n x 3)
     assert len(data[0]) == 3, "Data not valid, points are not [x,y,z] type"
 
     plt.ion() # turn on interactive mode
-    fig = showcase.fig
-    ax = showcase.ax
+    fig = storeObj.fig
+    ax = storeObj.ax
     # Differentiate between points and scene type
     if not (type(data) == type([1]) or type(data) == type(np.array([1]))):
         data = convert_scene_to_points(data)
@@ -108,8 +108,8 @@ def visualize_3d(data, showcase, color='', label="", units='m'):
         color=COLORS[len(ax.lines)%7]
 
     ax.plot3D(xt,yt,zt,c=color, label=(label))#+" "+str(len(data))) )
-    showcase.ax.scatter(xt[0], yt[0], zt[0], marker='o', color='black', zorder=2)
-    showcase.ax.scatter(xt[-1], yt[-1], zt[-1], marker='x', color='black', zorder=2)
+    storeObj.ax.scatter(xt[0], yt[0], zt[0], marker='o', color='black', zorder=2)
+    storeObj.ax.scatter(xt[-1], yt[-1], zt[-1], marker='x', color='black', zorder=2)
     plt.legend(loc="upper left", bbox_to_anchor=(-0.15, 1.0))
     #plt.annotate("Num points:", xy=(-0.15, 1.0), xycoords='axes fraction')
     fig.canvas.draw()
@@ -141,7 +141,7 @@ def find_best_azimuth(data):
     angle_q = np.rad2deg(np.arctan2(xd,yd))
     return angle_q
 
-def visualize_ntraj(Q, showcase, n=None, units='m', dim=3, transform="top"):
+def visualize_ntraj(Q, storeObj, n=None, units='m', dim=3, transform="top"):
     ''' Plot multiple trajecories. visualize_2d() called n times.
     '''
     assert (dim == 3) or (dim == 2), "wrong dimension: "+str(dim)
@@ -152,11 +152,11 @@ def visualize_ntraj(Q, showcase, n=None, units='m', dim=3, transform="top"):
         for j in Q[i]:
             traj.append(j)
         if dim == 3:
-            visualize_3d(traj, showcase, units=units)
+            visualize_3d(traj, storeObj, units=units)
         if dim == 2:
-            visualize_2d(traj, showcase, units=units, transform=transform)
+            visualize_2d(traj, storeObj, units=units, transform=transform)
 
-def visualize_2d_joints_ntraj(Q, showcase, n=None, color='b', label=""):
+def visualize_2d_joints_ntraj(Q, storeObj, n=None, color='b', label=""):
     ''' Plot multiple trajecories for JOINTS. visualize_2d() called n times with iiwa_forward_kinematics().
     '''
     from moveit_lib import iiwa_forward_kinematics
@@ -166,18 +166,18 @@ def visualize_2d_joints_ntraj(Q, showcase, n=None, color='b', label=""):
         traj = []
         for j in Q[i]:
             traj.append(iiwa_forward_kinematics(j))
-        visualize_2d(traj, showcase, color=color, label=(str(i)+label))
+        visualize_2d(traj, storeObj, color=color, label=(str(i)+label))
 
-def visualize_refresh(showcase, s=60):
+def visualize_refresh(storeObj, s=60):
     i = 0
     while i<s*10:
         if i == 900:
             i = 0
         i += 1
         t.sleep(0.1)
-        showcase.ax.elev = 90 - i/2.0
-        showcase.fig.canvas.draw()
-        showcase.fig.canvas.flush_events()
+        storeObj.ax.elev = 90 - i/2.0
+        storeObj.fig.canvas.draw()
+        storeObj.fig.canvas.flush_events()
 
 def move_figure(f, x, y):
     """Move figure's upper left corner to pixel (x, y)"""
@@ -236,30 +236,30 @@ def main():
     plt.ion()
 
     fig, ax = visualize_2d_new_fig("plota")
-    showcase = type('showcase', (object,), {'fig' : fig, 'ax': ax})
-    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], showcase=showcase)
-    visualize_2d([[1,0,0],[1,1,1],[1,2,2],[1,3,3]], showcase=showcase)
+    storeObj = type('storeObj', (object,), {'fig' : fig, 'ax': ax})
+    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], storeObj=storeObj)
+    visualize_2d([[1,0,0],[1,1,1],[1,2,2],[1,3,3]], storeObj=storeObj)
 
     fig, ax = visualize_2d_new_fig("plot22222")
-    showcase = type('showcase', (object,), {'fig' : fig, 'ax': ax})
+    storeObj = type('storeObj', (object,), {'fig' : fig, 'ax': ax})
     Q = np.array([[[0,0,0],[0,1,1],[0,2,2],[0,3,3]], [[1,0,0],[1,1,1],[1,2,2],[1,3,3]]])
-    visualize_2d_ntraj(Q, showcase)
+    visualize_2d_ntraj(Q, storeObj)
 
     fig, ax = visualize_2d_new_fig()
-    showcase = type('showcase', (object,), {'fig' : fig, 'ax': ax})
-    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], showcase=showcase)
+    storeObj = type('storeObj', (object,), {'fig' : fig, 'ax': ax})
+    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], storeObj=storeObj)
 
     fig, ax = visualize_2d_new_fig()
-    showcase = type('showcase', (object,), {'fig' : fig, 'ax': ax})
-    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], showcase=showcase)
+    storeObj = type('storeObj', (object,), {'fig' : fig, 'ax': ax})
+    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], storeObj=storeObj)
 
     fig, ax = visualize_2d_new_fig()
-    showcase = type('showcase', (object,), {'fig' : fig, 'ax': ax})
-    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], showcase=showcase)
+    storeObj = type('storeObj', (object,), {'fig' : fig, 'ax': ax})
+    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], storeObj=storeObj)
 
     fig, ax = visualize_2d_new_fig()
-    showcase = type('showcase', (object,), {'fig' : fig, 'ax': ax})
-    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], showcase=showcase)
+    storeObj = type('storeObj', (object,), {'fig' : fig, 'ax': ax})
+    visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]], storeObj=storeObj)
 
     plt.ioff()
     plt.show()

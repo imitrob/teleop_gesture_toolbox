@@ -129,6 +129,7 @@ class MoveGroupPythonInteface(object):
         self.quit_pub = rospy.Publisher('/relaxed_ik/quit',Bool,queue_size=5)
         self.seq = 1
 
+
         self.tac = trajectory_action_client.TrajectoryActionClient(arm=settings.GROUP_NAME, topic=settings.TAC_TOPIC, topic_joint_states = settings.JOINT_STATES_TOPIC)
         settings.md.ENV = settings.md.ENV_DAT[env]
 
@@ -649,13 +650,13 @@ class MoveGroupPythonInteface(object):
         if settings.FIXED_ORI_TOGGLE:
             pose_.orientation = settings.md.ENV['ori']
         pose_.position.z -= 1.27
-        pose_.position.y = -pose_.position.y
+        #pose_.position.y = -pose_.position.y
         return pose_
 
     def relaxik_t_inv(self, pose1):
         pose_ = deepcopy(pose1)
         pose_.position.z += 1.27
-        pose_.position.y = -pose_.position.y
+        #pose_.position.y = -pose_.position.y
         return pose_
 
     def points_reachable(self, p):
@@ -967,7 +968,7 @@ class MoveGroupPythonInteface(object):
         joints1 = np.array(settings.joints)
 
         joints_diff = joints2 - joints1
-        for i in range(9,10):
+        for i in range(0,10):
             joints.positions = joints1 + joints_diff*i/10
             joints.time_from_start = rospy.Time((1./settings.md.speed)*i)
             goal.trajectory.points.append(deepcopy(joints))
@@ -1658,7 +1659,8 @@ def save_joints(data):
         if data.name[0][1] == '1':
             settings.joints = data.position # Position = Angles [rad]
     else: # 'panda'
-        settings.joints = data.position[0:7] # Position = Angles [rad]
+        #print("dd", data)
+        settings.joints = data.position[-7:] # Position = Angles [rad]
         '''
         r1_joint_vel = data.velocity # [rad/s]
         r1_joint_eff = data.effort # [Nm]
@@ -1673,27 +1675,6 @@ def save_joints(data):
         r2_joint_vel = data.velocity # [rad/s]
         r2_joint_eff = data.effort # [Nm]
         '''
-
-'''
-class TrajectoryActionClient_Interface():
-    def __init__():
-        tac = trajectory_action_client.TrajectoryActionClient(arm="r1")
-
-    def trajectory_action_client(self):
-
-        goal = FollowJointTrajectoryGoal()
-        goal.trajectory.joint_names = settings.JOINT_NAMES
-        point = JointTrajectoryPoint()
-        point.positions = [-0.08581872672559407, -0.7857175209529341, 0.25693271169288157, -1.6472575328531098, 0.2331417066023944, -0.8916397953223283, -0.24588569981336367]
-        point.time_from_start = type('obj', (object,), {'secs' : 0, 'nsecs': 0})
-        goal.trajectory.points.append(deepcopy(point))
-        #jointtolearance = JointTolerance()
-        #goal.path_tolerance = jointtolerance
-        #goal.goal_tolerance =
-
-        tac.add_goal(goal)
-        tac.start()
-'''
 
 
 def diffFilter(p, targetNumPoints):
