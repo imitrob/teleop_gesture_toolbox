@@ -101,8 +101,13 @@ source ~/<your_ws>/devel/setup.bash
 python -m pip install toppra==0.2.2a0
 ```
 ## Leap Setup
-- [link](https://developer.leapmotion.com/sdk-leap-motion-controller/)
-- Download SDK, install from deb `sudo dpkg -i Leap-2.3.1+31549-x64.deb`
+- Downloads SDK, install from deb
+```
+wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1r0YWFN3tr03-0g7CCWRmhu9vkWmQ-XqD' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1r0YWFN3tr03-0g7CCWRmhu9vkWmQ-XqD" -O Leap_Motion.tgz && rm -rf /tmp/cookies.txt
+tar -xvzf Leap_Motion.tgz
+cd LeapDeveloperKit_2.3.1+31549_linux/
+sudo dpkg -i Leap-2.3.1+31549-x64.deb
+```
 - call `sudo leapd` to run deamon and `LeapControlPanel --showsettings` to check if leapmotion controller is running
 - copy LeapSDK folder to home directory
 ```
