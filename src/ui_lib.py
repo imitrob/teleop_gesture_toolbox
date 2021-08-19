@@ -21,6 +21,7 @@ import csv
 import pickle
 import ctypes
 from threading import Timer
+import visualizer_lib
 
 # ros msg classes
 from geometry_msgs.msg import PoseStamped, Quaternion, Pose, Point
@@ -38,9 +39,6 @@ class Example(QMainWindow):
     def __init__(self):
         super(Example, self).__init__()
         self.setMinimumSize(QSize(500, 400))
-
-        while not settings.mo:
-            pass
 
         self.lbl1 = QLabel('Poses & Gestures', self)
         self.lbl1.setGeometry(20, 36, 150, 50)
@@ -147,7 +145,6 @@ class Example(QMainWindow):
         viewMenu3 = menubar.addMenu('Config')
         viewMenu4 = menubar.addMenu('Scene')
         viewMenu5 = menubar.addMenu('Testing')
-        userstidy = menubar.addMenu('User Study')
 
         ## Menu items -> View options
         viewStatAct = QAction('View gestures', self, checkable=True)
@@ -196,37 +193,6 @@ class Example(QMainWindow):
         scene4 = QAction('Table test', self)
         scene4.triggered.connect(settings.mo.testMovements)
 
-        changeTheLearnPathAct1 = QAction('Person 1', self)
-        changeTheLearnPathAct1.triggered.connect(self.changeTheLearnPath1)
-        changeTheLearnPathAct2 = QAction('Person 2', self)
-        changeTheLearnPathAct2.triggered.connect(self.changeTheLearnPath2)
-        changeTheLearnPathAct3 = QAction('Person 3', self)
-        changeTheLearnPathAct3.triggered.connect(self.changeTheLearnPath3)
-        changeTheLearnPathAct4 = QAction('Person 4', self)
-        changeTheLearnPathAct4.triggered.connect(self.changeTheLearnPath4)
-        changeTheLearnPathAct5 = QAction('Person 5', self)
-        changeTheLearnPathAct5.triggered.connect(self.changeTheLearnPath5)
-        changeTheLearnPathAct6 = QAction('Person 6', self)
-        changeTheLearnPathAct6.triggered.connect(self.changeTheLearnPath6)
-        changeTheLearnPathAct7 = QAction('Person 7', self)
-        changeTheLearnPathAct7.triggered.connect(self.changeTheLearnPath7)
-        changeTheLearnPathAct8 = QAction('Person 8', self)
-        changeTheLearnPathAct8.triggered.connect(self.changeTheLearnPath8)
-        changeTheLearnPathAct9 = QAction('Person 9', self)
-        changeTheLearnPathAct9.triggered.connect(self.changeTheLearnPath9)
-        changeTheLearnPathAct10 = QAction('Person 10', self)
-        changeTheLearnPathAct10.triggered.connect(self.changeTheLearnPath10)
-        userstidy.addAction(changeTheLearnPathAct1)
-        userstidy.addAction(changeTheLearnPathAct2)
-        userstidy.addAction(changeTheLearnPathAct3)
-        userstidy.addAction(changeTheLearnPathAct4)
-        userstidy.addAction(changeTheLearnPathAct5)
-        userstidy.addAction(changeTheLearnPathAct6)
-        userstidy.addAction(changeTheLearnPathAct7)
-        userstidy.addAction(changeTheLearnPathAct8)
-        userstidy.addAction(changeTheLearnPathAct9)
-        userstidy.addAction(changeTheLearnPathAct10)
-
         viewMenu.addAction(viewStatAct)
         viewMenu2.addAction(viewStatAct2)
         viewMenu2.addAction(viewStatAct3)
@@ -268,31 +234,15 @@ class Example(QMainWindow):
         thread.start()
 
     def vis_path(self):
-        import visualizer_lib
-        settings.fig, settings.ax = visualizer_lib.visualize_new_fig(title="Path", dim=2)
-        visualize_2d(settings.goal_joints, storeObj=settings, color='b', label="a", transform='front', units='m')
-        visualize_2d(settings.joints, storeObj=settings, color='r', label="b", transform='front', units='m')
-
-    def changeTheLearnPath1(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person1/"
-    def changeTheLearnPath2(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person2/"
-    def changeTheLearnPath3(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person3/"
-    def changeTheLearnPath4(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person4/"
-    def changeTheLearnPath5(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person5/"
-    def changeTheLearnPath6(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person6/"
-    def changeTheLearnPath7(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person7/"
-    def changeTheLearnPath8(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person8/"
-    def changeTheLearnPath9(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person9/"
-    def changeTheLearnPath10(self, e):
-        settings.LEARN_PATH = settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/person10/"
+        plt.ion()
+        settings.fig, settings.ax = visualizer_lib.visualize_new_fig(title="Path", dim=3)
+        #visualizer_lib.visualize_3d(settings.eef_goal, storeObj=settings, color='b', label="leap", units='m')
+        data = [settings.mo.extv(pose.position) for pose in list(settings.eef_robot)]
+        visualizer_lib.visualize_3d(data=data, storeObj=settings, color='r', label="robot", units='m')
+        data = [settings.mo.extv(settings.mo.transformLeapToScene(settings.frames_adv[i].r.pPose.pose).position) for i in range(0, settings.BUFFER_LEN)]
+        visualizer_lib.visualize_3d(data=data, storeObj=settings, color='b', label="leap", units='m')
+        plt.ioff()
+        plt.show()
 
 
     def button_play_move(self, e):
@@ -607,65 +557,10 @@ class Example(QMainWindow):
                     x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
                     x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
                     painter.drawLine(x, y, x_, y_)
-        if settings.mo and settings.rd and settings.rd.eef_pose:
-            eefUI = settings.mo.transformSceneToUI(settings.rd.eef_pose, view='view2')
+        if settings.mo and settings.eef_pose:
+            eefUI = settings.mo.transformSceneToUI(settings.eef_pose, view='view2')
             painter.drawRect(eefUI.position.x, eefUI.position.y, 10, 10)
 
-    def convert_distortion_maps(self,image):
-
-        distortion_length = image.distortion_width * image.distortion_height
-        xmap = np.zeros(distortion_length/2, dtype=np.float32)
-        ymap = np.zeros(distortion_length/2, dtype=np.float32)
-
-        for i in range(0, distortion_length, 2):
-            xmap[distortion_length/2 - i/2 - 1] = image.distortion[i] * image.width
-            ymap[distortion_length/2 - i/2 - 1] = image.distortion[i + 1] * image.height
-
-        xmap = np.reshape(xmap, (image.distortion_height, image.distortion_width/2))
-        ymap = np.reshape(ymap, (image.distortion_height, image.distortion_width/2))
-
-        #resize the distortion map to equal desired destination image size
-        resized_xmap = cv2.resize(xmap,
-                                  (image.width, image.height),
-                                  0, 0,
-                                  cv2.INTER_LINEAR)
-        resized_ymap = cv2.resize(ymap,
-                                  (image.width, image.height),
-                                  0, 0,
-                                  cv2.INTER_LINEAR)
-
-        #Use faster fixed point maps
-        coordinate_map, interpolation_coefficients = cv2.convertMaps(resized_xmap,
-                                                                     resized_ymap,
-                                                                     cv2.CV_32FC1,
-                                                                     nninterpolation = False)
-
-        return coordinate_map, interpolation_coefficients
-
-    def undistort(self, image, coordinate_map, coefficient_map, width, height):
-        destination = np.empty((width, height), dtype = np.ubyte)
-
-        #wrap image data in numpy array
-        i_address = int(image.data_pointer)
-        ctype_array_def = ctypes.c_ubyte * image.height * image.width
-        # as ctypes array
-        as_ctype_array = ctype_array_def.from_address(i_address)
-        # as numpy array
-        as_numpy_array = np.ctypeslib.as_array(as_ctype_array)
-        img = np.reshape(as_numpy_array, (image.height, image.width))
-
-        #remap image to destination
-        destination = cv2.remap(img,
-                                coordinate_map,
-                                coefficient_map,
-                                interpolation = cv2.INTER_LINEAR)
-
-        #resize output to desired destination size
-        destination = cv2.resize(destination,
-                                 (width, height),
-                                 0, 0,
-                                 cv2.INTER_LINEAR)
-        return destination
 
     def movePage(self, e):
         pass
@@ -676,8 +571,11 @@ class Example(QMainWindow):
         qp = QPainter()
         qp.begin(self)
         textStatus = ""
-        if settings.goal_pose and settings.goal_joints and settings.rd:
-            textStatus += "eef: "+str(round(settings.rd.eef_pose.position.x,2))+" "+str(round(settings.rd.eef_pose.position.y,2))+" "+str(round(settings.rd.eef_pose.position.z,2))
+        if settings.goal_pose and settings.goal_joints:
+            textStatus += "eef: "+str(round(settings.eef_pose.position.x,2))+" "+str(round(settings.eef_pose.position.y,2))+" "+str(round(settings.eef_pose.position.z,2))
+            textStatus += '\ng p:'+str(round(settings.goal_pose.position.x,2))+" "+str(round(settings.goal_pose.position.y,2))+" "+str(round(settings.goal_pose.position.z,2))
+            textStatus += '\ng q:'+str(round(settings.goal_pose.orientation.x,2))+" "+str(round(settings.goal_pose.orientation.y,2))+" "+str(round(settings.goal_pose.orientation.z,2))+" "+str(round(settings.goal_pose.orientation.w,2))
+
 
         self.btnConf.setGeometry(LEFT_MARGIN+130, h-10-ICON_SIZE, ICON_SIZE*2,ICON_SIZE/2)
         self.btnSave.setGeometry(LEFT_MARGIN+130, h-10-ICON_SIZE*2, ICON_SIZE*2,ICON_SIZE/2)
@@ -687,24 +585,6 @@ class Example(QMainWindow):
             qp.setBrush(QBrush(Qt.black, Qt.NoBrush))
         self.lblCreateConfusionMatrixInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*2,ICON_SIZE)
         self.lblStatus.setText(textStatus)
-
-        #maps_initialized = False
-        #frame = settings.frames[-1]
-        #image = frame.images[0]
-        #if image.is_valid:
-        #    if not maps_initialized:
-        #        left_coordinates, left_coefficients = self.convert_distortion_maps(frame.images[0])
-        #        right_coordinates, right_coefficients = self.convert_distortion_maps(frame.images[1])
-        #        maps_initialized = True
-        #
-        #    undistorted_left = self.undistort(image, left_coordinates, left_coefficients, 400, 400)
-        #    undistorted_right = self.undistort(image, right_coordinates, right_coefficients, 400, 400)
-        #
-        #    #display images
-        #    cv2.imshow('Left Camera', undistorted_left)
-        #    cv2.imshow('Right Camera', undistorted_right)
-        #else:
-        #    print("not valid")
 
         if self.ViewState:
             self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
@@ -1013,6 +893,9 @@ class RepeatableTimer(object):
         t.start()
 
 def main():
+    while not settings.mo:
+        time.sleep(2)
+        print("[Interface] moveit not connected")
     app = QApplication(sys.argv)
     ex = Example()
     sys.exit(app.exec_())
@@ -1020,5 +903,14 @@ def main():
 
 if __name__ == '__main__':
     settings.init()
-    main()
+    try:
+        while not settings.mo:
+            time.sleep(1)
+        main()
+    except KeyboardInterrupt:
+        print('Interrupted')
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)
     print("UI Exit")

@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python2.7
 import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
@@ -6,6 +6,7 @@ import numpy as np
 import time as t
 from std_msgs.msg import ColorRGBA
 ''' Usage:
+    plt.ion()
     fig, ax = visualize_new_fig() -> creates new figure
     visualize_2d() -> adds new trajectory
     visualize_2d_ntraj -> adds n trajectories
@@ -114,6 +115,7 @@ def visualize_3d(data, storeObj, color='', label="", units='m'):
     #plt.annotate("Num points:", xy=(-0.15, 1.0), xycoords='axes fraction')
     fig.canvas.draw()
     fig.canvas.flush_events()
+    print("vis done")
 
 def convert_scene_to_points(data):
     dparsed = []

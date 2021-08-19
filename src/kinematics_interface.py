@@ -34,25 +34,25 @@ DEFAULT_FK_SERVICE = "/compute_fk"
 DEFAULT_IK_SERVICE = "/compute_ik"
 DEFAULT_SV_SERVICE = "/check_state_validity"
 
-# iiwa
-#BASE_LINK = 'base_link'
-# panda
-BASE_LINK = 'panda_link0'
-
 class ForwardKinematics():
     """Simplified interface to ask for forward kinematics"""
 
-    def __init__(self):
+    def __init__(self, frame_id=None):
         rospy.loginfo("Loading ForwardKinematics class.")
         self.fk_srv = rospy.ServiceProxy(DEFAULT_FK_SERVICE, GetPositionFK)
         rospy.loginfo("Connecting to FK service")
         self.fk_srv.wait_for_service()
         rospy.loginfo("Ready for making FK calls")
 
+        # Initilize global frame_id
+        self.FRAME_ID = None
+        if frame_id:
+            self.FRAME_ID = frame_id
+
     def closeFK(self):
         self.fk_srv.close()
 
-    def getFK(self, fk_link_names, joint_names, positions, frame_id=BASE_LINK):
+    def getFK(self, fk_link_names, joint_names, positions, frame_id=None):
         """Get the forward kinematics of a joint configuration
         @fk_link_names list of string or string : list of links that we want to get the forward kinematics from
         @joint_names list of string : with the joint names to set a position to ask for the FK
@@ -70,12 +70,15 @@ class ForwardKinematics():
         fk_result = self.fk_srv.call(gpfkr)
         return fk_result
 
-    def getCurrentFK(self, fk_link_names, frame_id=BASE_LINK):
+    def getCurrentFK(self, fk_link_names, frame_id=None):
         """Get the forward kinematics of a set of links in the current configuration"""
+        # if frame_id already specified when creating an object instance
+        if self.FRAME_ID:
+            frame_id = self.FRAME_ID
         # Subscribe to a joint_states
         js = rospy.wait_for_message('/joint_states', JointState)
         # Call FK service
-        fk_result = self.getFK(fk_link_names, js.name, js.position, frame_id)
+        fk_result = self.getFK(fk_link_names, js.name, js.position, frame_id=frame_id)
         return fk_result
 
 
@@ -137,12 +140,12 @@ class InverseKinematics():
         return ik_result
 
 
-#     def getCurrentIK(self, fk_link_names, frame_id=BASE_LINK):
+#     def getCurrentIK(self, fk_link_names, frame_id=None):
 #         """Get the forward kinematics of a set of links in the current configuration"""
 #         # Subscribe to a joint_states
 #         js = rospy.wait_for_message('/joint_states', JointState)
 #         # Call FK service
-#         fk_result = self.getFK(fk_link_names, js.name, js.position, frame_id)
+#         fk_result = self.getFK(fk_link_names, js.name, js.position, frame_id=frame_id)
 #         return fk_result
 
 class StateValidity():
@@ -209,7 +212,7 @@ if __name__ == '__main__':
     rospy.loginfo("Initializing inverse kinematics test.")
     ik = InverseKinematics()
     ps = PoseStamped()
-    ps.header.frame_id = BASE_LINK
+    ps.header.frame_id = 'panda_link0'
     ps.pose.position = Point(0.3, -0.3, 1.1)
     ps.pose.orientation.w = 1.0
     rospy.loginfo("IK for:\n" + str(ps))

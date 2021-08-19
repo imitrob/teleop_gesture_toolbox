@@ -100,6 +100,21 @@ catkin build # builds the package
 source ~/<your_ws>/devel/setup.bash
 python -m pip install toppra==0.2.2a0
 ```
+Note: We are installing older version of toppra, that is because newer versions are working only for Python3.
+Another toppra dependency is qpOASES solver. Installation is tricky:
+1. Download binaries from https://www.coin-or.org/download/source/qpOASES/qpOASES-3.2.1.zip and unzip it
+2. Remove `-D__USE_LONG_INTEGERS__ -D__USE_LONG_FINTS__` flags from install dir. [Why?](https://github.com/coin-or/qpOASES/issues/90)
+3. Install with:
+```
+cd <upzipped folder>
+make
+cmake .
+sudo make install
+cd interfaces/python
+python setup.py build_ext --inplace
+```
+Generated file `qpoases.cpython-38-x86_64-linux-gnu.so` enables `qpOASES` import.
+
 ## Leap Setup
 - Downloads SDK, install from deb
 ```
@@ -107,7 +122,7 @@ wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download
 tar -xvzf Leap_Motion.tgz
 cd LeapDeveloperKit_2.3.1+31549_linux/
 sudo dpkg -i Leap-2.3.1+31549-x64.deb
-cp -r ./LeapSDK/ ~/ # Copies LeapSDK to home directory
+cp -r ./LeapSDK/ ~/ # Copies LeapSDK to home directory, or elsewhere if file mirracle_gestures/src/leapmotionlistener.py:13-14 is altered (source path (next line) must be edited too)
 export PYTHONPATH=$PYTHONPATH:$HOME/LeapSDK/lib:$HOME/LeapSDK/lib/x64 # Source it
 # Possibility to source it every time
 echo "export PYTHONPATH=$PYTHONPATH:$HOME/LeapSDK/lib:$HOME/LeapSDK/lib/x64" >> ~/.bashrc
@@ -147,24 +162,24 @@ from sensor_msgs.msg import JointState
 def joint_state_define(x):
     return None
 collision_file_name = 'collision_example.yaml'
-config_file_name = 'ur5.config'
+config_file_name = 'relaxedIK.config'
 ```
 #### For Panda
 - Relaxed IK Configuration for Panda
 - Fill in "start_here.py" file in _~/<your_ws>/src/relaxed_ik/src_ as follows:
 
 ```
-urdf_file_name = 'panda_urdf_custom.urdf'
+urdf_file_name = 'pandaurdf1.urdf'
 fixed_frame = 'panda_link0'
-joint_names = [ ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7'] ]
+joint_names = [ ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7', 'panda_joint8'] ]
 joint_ordering = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
-ee_fixed_joints = [ 'panda_joint8' ]
+ee_fixed_joints = [ 'eef_joint' ]
 starting_config = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0 ]
 from sensor_msgs.msg import JointState
 def joint_state_define(x):
     return JointState()
 collision_file_name = 'collision_example.yaml'
-config_file_name = 'ur5.config'
+config_file_name = 'relaxedIK.config'
 ```
 
 ### Checking correctness and training for a new robot
@@ -250,6 +265,13 @@ sudo nvidia-smi
 conda update --all
 ```
 - `RuntimeError: RobotInterfacePython: invalid robot model` The robot MoveIt "server" is not launched
+
+- `[Err] [REST.cc:205] Error in REST request
+libcurl: (51) SSL: no alternative certificate subject name matches target host name ‘api.ignitionfuel.org’`
+Solution:
+Open ~/.ignition/fuel/config.yaml:
+replace: api.ignitionfuel.org
+to: fuel.ignitionrobotics.org
 
 - Try upgrade pip with:
 ```

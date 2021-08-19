@@ -124,7 +124,7 @@ class TrajectoryActionClient:
         self._goal.trajectory.points.append(point)
 
     def replace(self, start_time=0.0):
-        self._goal.trajectory.header.stamp = rospy.Time.now() + rospy.Duration.from_sec(start_time)
+        #self._goal.trajectory.header.stamp = rospy.Time.now() + rospy.Duration.from_sec(start_time)
         self._client.send_goal(self._goal)
 
     def start(self, delay=0.0, done_cb=None, active_cb=None, feedback_cb=None):

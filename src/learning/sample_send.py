@@ -11,7 +11,7 @@ sys.path.insert(1, PATH)
 sys.path.insert(1, os.path.abspath(os.path.join(PATH, '..')))
 
 import settings
-settings.init()
+settings.init(minimal=True)
 from import_data import *
 
 from warnings import filterwarnings

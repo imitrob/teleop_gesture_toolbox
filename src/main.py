@@ -15,88 +15,107 @@ import trajectory_action_client
 import rospy
 import math
 
-from std_msgs.msg import Int8, Float64MultiArray
+import matplotlib.pyplot as plt
+import visualizer_lib
+from std_msgs.msg import Int8, Float64MultiArray, Int32
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
 from relaxed_ik.msg import EEPoseGoals, JointAngles
 from visualization_msgs.msg import MarkerArray, Marker
+from sensor_msgs.msg import JointState
 
-#import roslib; roslib.load_manifest('visualization_marker_tutorials')
-
-def callbackik(data):
-    #if settings.goal_joints and not settings.mo.sameJoints(settings.mo.move_group.get_current_joint_values(), data.angles.data):
-    joints = []
-    for ang in data.angles:
-        joints.append(ang.data)
-    settings.goal_joints = joints
 
 def callbackpymc(data):
     settings.pymcout = data.data
 
 def main():
-    thread = Thread(target = launch_lml)
-    thread.start()
-    thread2 = Thread(target = launch_ui)
-    thread2.start()
+    if rospy.get_param("/mirracle_config/launch_leap") == "true":
+        thread = Thread(target = launch_lml)
+        thread.daemon=True
+        thread.start()
+        while not settings.frames_adv: # wait until receive Leap data
+            pass
+    if rospy.get_param("/mirracle_config/launch_ui") == "true":
+        thread2 = Thread(target = launch_ui)
+        thread2.daemon=True
+        thread2.start()
+
     settings.mo = mo = moveit_lib.MoveGroupPythonInteface()
-    ## Saving solutions
-    goal_pos_sub = rospy.Subscriber('/relaxed_ik/joint_angle_solutions', JointAngles, callbackik)
-    pymc_out_sub = rospy.Subscriber('/pymcout', Int8, callbackpymc)
-    settings.pymc_in_pub = rospy.Publisher('/pymcin', Float64MultiArray, queue_size=5)
-    ## Giving input goals
+
+    if rospy.get_param("/mirracle_config/launch_gesture_detection") == "true":
+        pymc_out_sub = rospy.Subscriber('/pymcout', Int8, callbackpymc)
+        settings.pymc_in_pub = rospy.Publisher('/pymcin', Float64MultiArray, queue_size=5)
+
+    ## DEPRECATED will be deleted
+    # Coppelia fakce FCI controller
+    if settings.ROBOT_NAME == 'panda' and settings.SIMULATOR_NAME == 'coppelia':
+        settings.coppeliaFakeFCIpub = rospy.Publisher('/fakeFCI/joint_state', JointState, queue_size=5)
+        coppeliaFakeFCIpubState = rospy.Publisher('/fakeFCI/robot_state', Int32, queue_size=5)
+        msg = Int32()
+        msg.data = 1
+        coppeliaFakeFCIpubState.publish(msg)
+        print("Coppelia Fake publisher init")
+    ## ########### ##
+
+    ## Check if everything is running
+    while not settings.mo:
+        time.sleep(5)
+        print("[WARN*] settings.mo not init!!")
+    while not settings.goal_pose:
+        time.sleep(5)
+        print("[WARN*] settings.goal_pose not init!!")
+    while not settings.goal_joints:
+        time.sleep(5)
+        settings.mo.relaxedIK_publish(pose_r = settings.mo.relaxik_t(settings.goal_pose))
+        print("[WARN*] settings.goal_joints not init!!")
+    while not settings.joints:
+        time.sleep(5)
+        print("[WARN*] settings.joints not init!!")
+
     thread3 = Thread(target = main_manager)
+    thread3.daemon=True
     thread3.start()
     thread4 = Thread(target = mo.createMarker)
+    thread4.daemon=True
     thread4.start()
+    thread5 = Thread(target = updateValues)
+    thread5.daemon=True
+    thread5.start()
     print("Done")
 
+    settings.md.Mode = ''
+    mo.testInit()
+    print("Tests Done")
+    settings.md.Mode = 'live'
+    rospy.spin()
 
+def updateValues():
+    GEST_DET = rospy.get_param("/mirracle_config/launch_gesture_detection")
+    while True:
+        # 1. Publish to relaxedIK topic
+        settings.mo.relaxedIK_publish(pose_r = settings.mo.relaxik_t(settings.goal_pose))
+        # 2. Send hand values to PyMC topic
+        if GEST_DET == "true":
+            settings.mo.fillInputPyMC()
+        # 3.
+        ## When simulator is coppelia settings.eef_pose are updated with topic
+        if settings.SIMULATOR_NAME != 'coppelia': # Coppelia updates eef_pose through callback
+            settings.eef_pose = settings.mo.fk.getCurrentFK(settings.EEF_NAME).pose_stamped[0].pose
+        '''
+        DEPRECATED -> will be deteleted
+        else:
+            pose = Pose()
+            pose.position = Point(*moveit_lib.panda_forward_kinematics(settings.joints))
 
+            settings.eef_pose = pose
+        '''
+        settings.eef_robot.append(settings.eef_pose)
+        settings.eef_goal.append(settings.goal_pose)
 
-def testing_comp_torq():
-    thetalist = np.array([0.5, 0.5, 0.0, 0.0, 0.0, 0.0])
-    dthetalist = np.array([0.7, 0.7, 0.0, 0.0, 0.0, 0.0])
-
-    thetalistd = np.array([0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
-    dthetalistd = np.array([0.2, 0.2, 0.0, 0.0, 0.0, 0.0])
-    ddthetalistd = np.array([0.1, 0.1, 0.0, 0.0, 0.0, 0.0])
-
-    #mr.ComputedTorque(thetalist, dthetalist, settings.eint, settings.g, settings.Mlist, settings.Glist, settings.Slist, thetalistd, \
-    # dthetalistd, ddthetalistd, settings.Kp, settings.Ki, settings.Kd)
-
-
-def testing_toppra_remap():
-    ''' Temporary testing function
-    '''
-    traj = RobotTrajectory()
-    traj.joint_trajectory.header.frame_id = "world"
-    traj.joint_trajectory.joint_names = ['r1_joint_1', 'r1_joint_2', 'r1_joint_3', 'r1_joint_4', 'r1_joint_5', 'r1_joint_6', 'r1_joint_7']
-
-    point = JointTrajectoryPoint()
-    point.positions = [-0.08054438377481699, -0.8232029298738625, 0.2525762172959391, -1.6485245928061523, 0.24475797684814748, -0.8565435756854809, -0.255304308507704]
-    point.velocities = [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    point.accelerations = [-0.13352455972148886, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
-    point.time_from_start.nsecs = 196648417
-    traj.joint_trajectory.points.append(deepcopy(point))
-    point = JointTrajectoryPoint()
-    point.positions = [-0.08312612117897764, -0.8046237528537469, 0.2547171135137392, -1.6481982145495813, 0.2390041623802832, -0.8741749544202149, -0.2505752735931462]
-    point.velocities = [-0.023081741211931704, 0.16321707977384275, 0.01903472294690833, 0.006600325818079781, -0.050592072613806154, -0.15196519829749505, 0.04079158687804039]
-    point.accelerations = [-0.14312864627969457, 0.9884779944513767, 0.1171685238410183, 0.07104805357967676, -0.3067721321144603, -0.8959815980363419, 0.24077681040969648]
-    point.time_from_start.nsecs = 278156605
-    traj.joint_trajectory.points.append(deepcopy(point))
-    point = JointTrajectoryPoint()
-    point.positions = [-0.08581872672559407, -0.7857175209529341, 0.25693271169288157, -1.6472575328531098, 0.2331417066023944, -0.8916397953223283, -0.24588569981336367]
-    point.velocities = [-0.05130508998361209, 0.3318508133989117, 0.041751230415190965, 0.03269097130475298, -0.0958998983550059, -0.29134203380641954, 0.07428227791014161]
-    point.accelerations = [-0.1777071876536269, 1.004080884998614, 0.1401162552359974, 0.18451998489668228, -0.252551834603743, -0.8011980155127468, 0.18378046564131745]
-    point.time_from_start.nsecs = 341147205
-    traj.joint_trajectory.points.append(deepcopy(point))
-    #print("hmm", mo.move_group.execute(traj, wait=True))
-    new_traj = mo.retime(traj)
-    print("new traj", new_traj)
-
-
+        # Sleep
+        time.sleep(0.1)
 
 def launch_lml():
     lml.main()
@@ -106,38 +125,50 @@ def launch_ui():
 
 def main_manager():
     delay = 0.1
+    seq = 0
     time_on_one_pose = 0.0
-    while not settings.frames_adv:
-        pass
-    while not settings.mo:
-        pass
     mo = settings.mo
+    first_time = True
+    loopn = 0
 
-    # demo (for testing)
-    #while True:
-    #    if settings.frames_adv[-1].r.visible:
-    #        settings.goal_pose = settings.mo.transformLeapToScene(settings.frames_adv[-1].r.pPose.pose, normdir=settings.frames_adv[-1].r.pNormDir)
-    #        mo.go_to_pose_goal(pose = settings.goal_pose)
-    #    time.sleep(delay)
-
-
+    plt.ion()
+    settings.fig, settings.ax = visualizer_lib.visualize_new_fig(title="Path", dim=2)
+    #visualizer_lib.visualize_3d(settings.eef_goal, storeObj=settings, color='b', label="leap", units='m')
+    #data = [settings.mo.extv(pose.position) for pose in list(settings.eef_robot)]
+    #visualizer_lib.visualize_3d(data=data, storeObj=settings, color='r', label="robot", units='m')
+    #data = [settings.mo.extv(settings.mo.transformLeapToScene(settings.frames_adv[i].r.pPose.pose).position) for i in range(0, settings.BUFFER_LEN)]
+    #visualizer_lib.visualize_3d(data=data, storeObj=settings, color='b', label="leap", units='m')
+    #plt.ioff()
+    #plt.show()
+    print("[INFO*] Main manager initialized")
+    hmm =True
     while True:
-        ## Send hand values to PyMC topic
-        mo.fillInputPyMC()
+        loopn += 1
+        ## This is simple check if relaxedIK results and joint states are same
+        #if np.sum(np.subtract(settings.goal_joints,settings.joints)) > 0.1:
+        #    print("[WARN*] joints not same!")
 
-        ## Update forward kinematics in settings
-        #settings.rd.eef_pose = mo.fk.getCurrentFK(settings.EEF_NAME).pose_stamped[0].pose
-
-        settings.md.LeapInRviz = settings.mo.transformLeapToScene(settings.frames_adv[-1].r.pPose.pose, normdir=settings.frames_adv[-1].r.pNormDir)
         time.sleep(delay)
-
-        ## Send pose to relaxed ik topic
-        if settings.goal_pose:
-            settings.mo.relaxedIK_publish(pose_r = settings.goal_pose)
+        ## deprecated --> will be deleted
         ## If relaxed ik output exists, execute it
-        if settings.goal_joints:
-            settings.mo.perform_optimized_path(joint_states = settings.goal_joints)
-
+        if settings.SIMULATOR_NAME == 'coppelia':
+            msg = JointState()
+            msg.header.frame_id = 'panda_link0'
+            msg.header.stamp = rospy.Time.now()
+            msg.header.seq = seq = seq+1
+            msg.name = settings.JOINT_NAMES
+            msg.position = settings.goal_joints
+            #settings.coppeliaFakeFCIpub.publish(msg)
+        else:
+            if loopn < 5:
+                settings.mo.perform_optimized_path(joint_states = settings.goal_joints, first_time=first_time)
+                if first_time:
+                    first_time = False
+            else:
+                if hmm:
+                    plt.ioff()
+                    plt.show()
+                    hmm = False
         if settings.md.Mode == 'live':
             o = settings.frames_adv[-1].r.pPose.pose.orientation
             if (np.sqrt(o.x**2 + o.y**2 + o.z**2 + o.w**2) - 1 > 0.000001):
@@ -145,7 +176,7 @@ def main_manager():
             if settings.frames_adv[-1].r.visible:
                 ### MODE 1 default
                 if settings.md.liveMode == 'default':
-                    settings.goal_pose = settings.mo.relaxik_t(settings.mo.transformLeapToScene(settings.frames_adv[-1].r.pPose.pose, normdir=settings.frames_adv[-1].r.pNormDir))
+                    settings.goal_pose = settings.mo.transformLeapToScene(settings.frames_adv[-1].r.pPose.pose, normdir=settings.frames_adv[-1].r.pNormDir)
 
                 ### MODE 2 interactive
                 elif settings.md.liveMode == 'interactive':
@@ -179,9 +210,9 @@ def main_manager():
                         settings.md.ACTION = False
                         if settings.md.STRICT_MODE:
                             if settings.scene.NAME == 'drawer' or settings.scene.NAME == 'drawer2':
-                                settings.goal_pose.position.x = settings.mo.relaxik_t(goal_pose).position.x
+                                settings.goal_pose.position.x = goal_pose.position.x
                             else:
-                                settings.goal_pose = settings.mo.relaxik_t(goal_pose)
+                                settings.goal_pose = goal_pose
 
                             if not settings.gd.r.poses[settings.gd.r.POSES['grab']].toggle:
                                 settings.md.STRICT_MODE = False
@@ -194,12 +225,12 @@ def main_manager():
                                 settings.scene.mesh_poses[n].position.x =settings.goal_pose.position.x
                                 print("set value of drawer to ", settings.goal_pose.position.x)
                         else:
-                            settings.goal_pose = settings.mo.relaxik_t(goal_pose)
+                            settings.goal_pose = goal_pose
 
 
                 ### MODE 3 gesture controlled
                 elif settings.md.liveMode == 'gesture':
-                    settings.goal_pose = settings.mo.relaxik_t(settings.md.gestures_goal_pose)
+                    settings.goal_pose = settings.md.gestures_goal_pose
 
         if settings.md.Mode == 'play':
             # controls everything:
@@ -227,8 +258,8 @@ def main_manager():
             ## Set goal_pose one pose in direction
             settings.goal_pose = deepcopy(settings.sp[pp].poses[settings.currentPose+direction])
             ## On new pose target or over time limit
-            if time_on_one_pose > 5 or mo.samePoses(mo.relaxik_t(settings.rd.eef_pose), settings.sp[pp].poses[settings.currentPose+direction]):
-                 #(mo.relaxik_t(mo.fk.getCurrentFK(settings.EEF_NAME).pose_stamped[0].pose).position, settings.sp[pp].poses[settings.currentPose+direction].position)
+            if time_on_one_pose > 0.1 or mo.samePoses(settings.eef_pose, settings.sp[pp].poses[settings.currentPose+direction]):
+                 #(mo.fk.getCurrentFK(settings.EEF_NAME).pose_stamped[0].pose.position, settings.sp[pp].poses[settings.currentPose+direction].position)
                 settings.leavingAction = True
                 settings.currentPose = settings.currentPose+direction
                 ## Attaching/Detaching when moving forward
@@ -241,10 +272,12 @@ def main_manager():
             time_on_one_pose += delay
 
 
-
-        if settings.md.Mode == 'nothin':
-            pass
-
-
 if __name__ == '__main__':
-  main()
+    try:
+        main()
+    except KeyboardInterrupt:
+        print('Interrupted')
+        try:
+            sys.exit(0)
+        except SystemExit:
+            os._exit(0)

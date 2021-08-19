@@ -29,7 +29,7 @@ from sklearn import preprocessing
 from sklearn.preprocessing import minmax_scale
 from moveit_commander.conversions import pose_to_list
 
-import matplotlib.pyplot as plt
+import visualizer_lib
 from matplotlib import cm
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
@@ -40,21 +40,25 @@ from std_msgs.msg import String, Bool, Int8, Float64MultiArray
 from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal
 from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped, Vector3Stamped, QuaternionStamped, Vector3
 from moveit_msgs.srv import ApplyPlanningScene
-from trajectory_msgs.msg import JointTrajectoryPoint
+from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
 from moveit_msgs.msg import RobotTrajectory
 from relaxed_ik.msg import EEPoseGoals
 #import RelaxedIK.Utils.transformations as T
 from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
+from relaxed_ik.msg import EEPoseGoals, JointAngles
 
 import kinematics_interface
 import settings
 
 from os.path import isfile
 
-#import toppra as ta
-
-#from toppra import SplineInterpolator
+## just test, if qpOASES can be sourced by adding the given folder
+# -> should be sourced by installation as in README.md
+#sys.path.append("/Documents/toppra_test/qpOASES-3.2.1")
+#sys.path.append("/home/pierro/Documents/toppra_test/toppra-0.2.2a/examples")
+import toppra as ta
+from toppra import SplineInterpolator
 
 
 def all_close(goal, actual, tolerance):
@@ -87,7 +91,7 @@ class MoveGroupPythonInteface(object):
         moveit_commander.roscpp_initialize(sys.argv)
         rospy.init_node('move_group_python_interface', anonymous=True)
 
-        print("GROUP NAME: ", settings.GROUP_NAME)
+        print("[INFO*] GROUP NAME: ", settings.GROUP_NAME)
         robot = moveit_commander.RobotCommander()
         scene = moveit_commander.PlanningSceneInterface()
         move_group = moveit_commander.MoveGroupCommander(settings.GROUP_NAME)
@@ -96,7 +100,13 @@ class MoveGroupPythonInteface(object):
                                                        queue_size=20)
 
 
-        rospy.Subscriber("joint_states", JointState, save_joints)
+        # Saving the joint_states
+        if settings.SIMULATOR_NAME == 'coppelia':
+            rospy.Subscriber("joint_states_coppelia", JointState, save_joints)
+        else:
+            rospy.Subscriber("joint_states", JointState, save_joints)
+        # Saving relaxedIK output
+        rospy.Subscriber('/relaxed_ik/joint_angle_solutions', JointAngles, callbackik)
 
         planning_frame = move_group.get_planning_frame()
         eef_link = move_group.get_end_effector_link()
@@ -117,7 +127,7 @@ class MoveGroupPythonInteface(object):
         self.ProMP_INPUT_NUM_PLANNERS = 1
         self.ProMP_INPUT_NUM_LEAP_RECORDS = 10
         # direct kinematics
-        self.fk = kinematics_interface.ForwardKinematics()
+        self.fk = kinematics_interface.ForwardKinematics(frame_id=settings.BASE_LINK)
         self.ikt = kinematics_interface.InverseKinematics()
 
         # RelaxedIK publishers
@@ -129,10 +139,19 @@ class MoveGroupPythonInteface(object):
         self.quit_pub = rospy.Publisher('/relaxed_ik/quit',Bool,queue_size=5)
         self.seq = 1
 
-
-        self.tac = trajectory_action_client.TrajectoryActionClient(arm=settings.GROUP_NAME, topic=settings.TAC_TOPIC, topic_joint_states = settings.JOINT_STATES_TOPIC)
+        if settings.SIMULATOR_NAME == 'coppelia':
+            rospy.Subscriber('/pose_eef', Pose, eef_callback)
+        # When directing control right to Coppelia Simulator, the output of RelaxedIk is sended directily to simulator
+        if settings.TAC_ON and settings.SIMULATOR_NAME != 'coppelia':
+            self.tac = trajectory_action_client.TrajectoryActionClient(arm=settings.GROUP_NAME, topic=settings.TAC_TOPIC, topic_joint_states = settings.JOINT_STATES_TOPIC)
         settings.md.ENV = settings.md.ENV_DAT[env]
+        # initialize pose
+        pose = Pose()
+        pose.orientation = settings.md.ENV_DAT['above']['ori']
+        pose.position = Point(0.,0.,0.8)
+        settings.goal_pose = deepcopy(pose)
 
+        self.savedVelocity = 0.0
 
     def extq(self, q):
         return q.x, q.y, q.z, q.w
@@ -148,7 +167,7 @@ class MoveGroupPythonInteface(object):
             publisher.publish(markerArray)
             rospy.sleep(0.25)
 
-    def go_to_joint_state(self, joint_goal_ = [0, 0, 0, 0, 0, 0, 0]):
+    def go_to_joint_state(self, joint_goal_):
         ''' Planning to a Joint Goal
         '''
         assert isinstance(joint_goal_, list) and len(joint_goal_)==7, "Input not type list with len 7"
@@ -447,8 +466,13 @@ class MoveGroupPythonInteface(object):
         np.savez(settings.HOME+"/promp/examples/python_promp/strike_mov.npz", Q=Q, time=time)
 
     def load_LeapRecord(self, filen=""):
-        ''' Loads last Leap Record
+        ''' Loads last Leap Record file in format: leap_record_<filen>.npz,
+            where argument "filen" -> number of file, number 0..99
         '''
+        # convert to str if int
+        if type(filen) == int:
+            filen = str(filen)
+        # if no argument given, searches from 99 to 0
         if filen == "":
             for i in range(99,-1,-1):
                 if isfile(settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/leap_record_"+str(i)+".npz") == True:
@@ -466,7 +490,11 @@ class MoveGroupPythonInteface(object):
 
 
     def samePoses(self, pose1, pose2, accuracy=0.05):
-        ''' xyz, not orientation
+        ''' Checks if two type poses are near each other
+            (Only for cartesian (xyz), not orientation wise)
+            :arg: pose1 (type Pose() from geometry_msgs.msg)
+            :arg: pose2 (type Pose() from geometry_msgs.msg)
+            :arg: accuracy threshold of return value
         '''
         assert isinstance(pose1,Pose), "Not datatype Pose, pose1: "+str(pose1)
         assert isinstance(pose2,Pose), "Not datatype Pose, pose2: "+str(pose2)
@@ -475,11 +503,16 @@ class MoveGroupPythonInteface(object):
             return True
         return False
 
-    def sameJoints(self, joints1, joints2):
+    def sameJoints(self, joints1, joints2, accuracy=0.1):
+        ''' Checks if two type joints are near each other
+            :arg: joints1 (type float[7])
+            :arg: joints2 (type float[7])
+            :arg: threshold, sum of joint differences threshold
+        '''
         assert isinstance(joints1[0],float) and len(joints1)==7, "Not datatype List w len 7, joints 1: "+str(joints1)
         assert isinstance(joints2[0],float) and len(joints2)==7, "Not datatype List w len 7, joints 2: "+str(joints2)
 
-        if sum([abs(i[0]-i[1]) for i in zip(joints1, joints2)]) < 0.1:
+        if sum([abs(i[0]-i[1]) for i in zip(joints1, joints2)]) < accuracy:
             return True
         return False
 
@@ -601,6 +634,9 @@ class MoveGroupPythonInteface(object):
         ry = -dir[2]
         rz = dir[1]
         '''
+        if settings.FIXED_ORI_TOGGLE:
+            pose_.orientation = settings.md.ENV['ori']
+
         # only for this situtaiton
         return pose_
 
@@ -646,17 +682,33 @@ class MoveGroupPythonInteface(object):
         return pose_
 
     def relaxik_t(self, pose1):
+        ''' Additional transformtion for relaxedIK package
+            - The start is moved by number (1.)
+            - iiwa has inverted y axis (2.)
+        '''
         pose_ = deepcopy(pose1)
-        if settings.FIXED_ORI_TOGGLE:
-            pose_.orientation = settings.md.ENV['ori']
-        pose_.position.z -= 1.27
-        #pose_.position.y = -pose_.position.y
+        # 1.
+        if settings.ROBOT_NAME == 'panda':
+            pose_.position.z -= 0.926
+            pose_.position.x -= 0.088
+        elif settings.ROBOT_NAME == 'iiwa':
+            pose_.position.z -= 1.27
+        else: raise Exception("Wrong robot name!")
+        # 2.
+        if settings.ROBOT_NAME == 'iiwa':
+            pose_.position.y = -pose_.position.y
         return pose_
 
     def relaxik_t_inv(self, pose1):
+        ''' Additional inverse transformation to relaxik_t()
+        '''
         pose_ = deepcopy(pose1)
-        pose_.position.z += 1.27
-        #pose_.position.y = -pose_.position.y
+        if settings.ROBOT_NAME == 'panda':
+            pose_.position.z += 0.926
+            pose_.position.x += 0.088
+        #pose_.position.z += 1.27 # iiwa
+        if settings.ROBOT_NAME == 'iiwa':
+            pose_.position.y = -pose_.position.y
         return pose_
 
     def points_reachable(self, p):
@@ -840,11 +892,6 @@ class MoveGroupPythonInteface(object):
         z = sin(pitch)
         return x,y,z
 
-    def applyTransformWithRotation():
-        ''' TODO:
-        '''
-        pass
-
 
     def inSceneObj(self, point):
         ''' in the zone of a box with length l
@@ -894,112 +941,152 @@ class MoveGroupPythonInteface(object):
                 points_in_workspace = False
         return points_in_workspace
 
+    def cropToLimits(self, joint_states, safety_distance = 0.01):
+        ''' Crop the joints if they are near limits
+        '''
+        for n, joint in enumerate(joint_states):
+            if joint_states[n] > settings.upper_lim[n] - safety_distance:
+                joint_states[n] = settings.upper_lim[n] - safety_distance
+            if joint_states[n] < settings.lower_lim[n] + safety_distance:
+                joint_states[n] = settings.lower_lim[n] + safety_distance
+        return joint_states
 
 
+    def cutToNearestPoint(self, robot_traj):
+        ''' Old -> new trajectory
+            New trajectory will have first point nearest to actual/current joint positions
+        '''
+        goal_trajectory = JointTrajectory()
+        goal_trajectory.header = robot_traj.joint_trajectory.header
+        goal_trajectory.joint_names = robot_traj.joint_trajectory.joint_names
+        diffPrev = np.inf
+        indx = 0
+        for n, point in enumerate(robot_traj.joint_trajectory.points):
+            diff = np.linalg.norm(settings.joints - point.positions)
+            if diff > diffPrev:
+                indx = n
+                break
+            diffPrev = diff
+        print("indx", indx)
+        for n, point in enumerate(robot_traj.joint_trajectory.points):
+            if n > np.ceil(indx):
+                #point.time_from_start = point.time_from_start - rospy.Duration(time_from_start)
+                goal_trajectory.points.append(deepcopy(point))
 
+        return goal_trajectory
 
-
-
-    '''
-    def retime2(self, plan):
-
-        assert isinstance(plan, RobotTrajectory)
-
-        vel = [ 1.71, 1.71, 1.75, 2.27, 2.44, 3.14, 3.14 ]
-        effort = [ 140, 140, 120, 100, 70, 70, 70 ]
-        lower = [-2.97, -2.09, -2.97, -2.09, -2.97, -2.09, -3.05]
-        upper = [2.97, 2.09, 2.97, 2.09, 2.97, 2.09, 3.05]  #self.get_joint_limits(self.mg.get_active_joints())
-        alims = len(lower)* [[-1.0, 1.0]] # better use real acceleration limits
-
-        print("plan", plan)
-        ss = [pt.time_from_start.to_sec() *1.0 for pt in plan.joint_trajectory.points]
-        way_pts = [list(pt.positions) for pt in plan.joint_trajectory.points]
-        path = ta.SplineInterpolator(ss, way_pts)
-        pc_vel = ta.constraint.JointVelocityConstraint(np.array([lower, upper]).transpose())
-        pc_acc = ta.constraint.JointAccelerationConstraint(np.array(alims))
-        print(path)
-        instance = ta.algorithm.TOPPRA([pc_vel, pc_acc], path)
-        # print(instance)
-        # instance2 = ta.algorithm.TOPPRAsd([pc_vel, pc_acc], path)
-        # instance2.set_desired_duration(60)
-        jnt_traj = instance.compute_trajectory()
-        # ts_sample = np.linspace(0, jnt_traj.duration, 10*len(plan.joint_trajectory.points))
-        ts_sample = np.linspace(0, jnt_traj.duration, np.ceil(100*jnt_traj.duration))
-        qs_sample = jnt_traj(ts_sample)
-        qds_sample = jnt_traj(ts_sample, 1)
-        qdds_sample = jnt_traj(ts_sample, 2)
-        new_plan = deepcopy(plan)
-        new_plan.joint_trajectory.points = []
-        for t, q, qd, qdd in zip(ts_sample, qs_sample, qds_sample, qdds_sample):
-            pt = JointTrajectoryPoint()
-            pt.time_from_start = rospy.Duration.from_sec(t)
-            pt.positions = q
-            pt.velocities = qd
-            pt.accelerations = qdd
-            new_plan.joint_trajectory.points.append(pt)
-        if rospy.get_param('plot_joint_trajectory', default=False):
-            import matplotlib.pyplot as plt
-            fig, axs = plt.subplots(3, 1, sharex=True)
-            for i in range(path.dof):
-                # plot the i-th joint trajectory
-                axs[0].plot(ts_sample, qs_sample[:, i], c="C{:d}".format(i))
-                axs[1].plot(ts_sample, qds_sample[:, i], c="C{:d}".format(i))
-                axs[2].plot(ts_sample, qdds_sample[:, i], c="C{:d}".format(i))
-            axs[2].set_xlabel("Time (s)")
-            axs[0].set_ylabel("Position (rad)")
-            axs[1].set_ylabel("Velocity (rad/s)")
-            axs[2].set_ylabel("Acceleration (rad/s2)")
-            plt.show()
-
-        return new_plan
-    '''
-
-    def perform_optimized_path(self, joint_states=None, toppra=False):
+    def perform_optimized_path(self, joint_states=None, first_time=None):
         '''
         '''
         assert len(joint_states)==7, "Not right datatype"+str(type(joint_states))
-        goal = FollowJointTrajectoryGoal()
-        goal.trajectory.joint_names = settings.JOINT_NAMES
-        joints = JointTrajectoryPoint()
-        joints.velocities = [0.] * 7
-        joints.accelerations = [0.] * 7
+        # If TAC disabled, basic MoveIt! function is used
+        if not settings.TAC_ON:
+            success = self.go_to_joint_state(joint_goal_ = joint_states)
+            return
 
-        joints2 = np.array(joint_states)
-        joints1 = np.array(settings.joints)
-
-        joints_diff = joints2 - joints1
-        for i in range(0,10):
-            joints.positions = joints1 + joints_diff*i/10
-            joints.time_from_start = rospy.Time((1./settings.md.speed)*i)
+        js2_joints = np.array(joint_states) # desired
+        if first_time:
+            js1_joints = settings.joints
+            goal = FollowJointTrajectoryGoal()
+            goal.trajectory.joint_names = settings.JOINT_NAMES
+            joints = JointTrajectoryPoint()
+            joints.positions = js1_joints
+            joints.time_from_start = rospy.Time(0.)
             goal.trajectory.points.append(deepcopy(joints))
 
-        goal.trajectory.header.stamp = rospy.Time.now()
-        #print("GOAL:", goal.trajectory)
+            joints.positions = js2_joints
+            joints.time_from_start = rospy.Time(3.)
+            goal.trajectory.points.append(deepcopy(joints))
 
-        if toppra:
-            pass
-            '''
-            robot_traj = RobotTrajectory()
-            robot_traj.joint_trajectory = deepcopy(goal.trajectory)
-            robot_traj_new = self.retime(plan=robot_traj)
-            goal.trajectory = robot_traj_new.joint_trajectory
-            '''
 
-        # TODO: add tolerance: goal.path_tolerance = JointTolerance()
-        settings.md._goal = deepcopy(goal)
+            if settings.TOPPRA_ON:
+                goal.trajectory = self.retime_wrapper(goal.trajectory)
+                print("n points: ", len(goal.trajectory.points), " joints diff: ", round(sum(js2_joints-js1_joints),2), " pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2))
+            goal.trajectory.header.stamp = rospy.Time.now()
+            settings.md._goal = goal
+            self.tac.add_goal(goal)
+            self.tac.replace()
 
+            NJ = 0
+            dataPlot = [pt.positions[NJ] for pt in settings.md._goal.trajectory.points]
+            timePlot = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
+            if len(goal.trajectory.points)>1:
+                visualizer_lib.visualize_2d(data=zip(timePlot, dataPlot), storeObj=settings, color='r', label="", transform='front', units='-')
+                visualizer_lib.visualize_2d(data=[[rospy.Time.now().to_sec(), settings.joints[NJ]], [rospy.Time.now().to_sec(), settings.joints[NJ]]], storeObj=settings, color='b', label="", transform='front', units='-')
+            return
+
+        js0 = settings.md._goal.trajectory.points[0]
+        # 1. choose t* > tc => find js1
+            t_star = 0.6 # time horizon of new trajectory
+        def findPointInTrajOlderThan(trajectory, time):
+            assert type(time)==float, "Wrong type"
+            assert type(trajectory)==type(JointTrajectory()), "Wrong type"
+            for n, point in enumerate(trajectory.points):
+                if point.time_from_start.to_sec() > time+rospy.Time.now().to_sec()-trajectory.header.stamp.to_sec():
+                    return n
+            print(point.time_from_start.to_sec(), " a ", time+rospy.Time.now().to_sec()-trajectory.header.stamp.to_sec())
+            return len(trajectory.points)-1
+        index = findPointInTrajOlderThan(settings.md._goal.trajectory, t_star)
+        js1 = settings.md._goal.trajectory.points[index]
+        js1_joints = js1.positions
+
+        # 2. make RobotTrajectory from js1 -> js2
+        # with js2 velocity according to hand velocity (gesture) (acc is zero)
+        goal = FollowJointTrajectoryGoal()
+        goal.trajectory.joint_names = settings.JOINT_NAMES
+        goal.trajectory.header.stamp = settings.md._goal.trajectory.header.stamp
+        joints = JointTrajectoryPoint()
+        joints.positions = js1_joints
+        joints.time_from_start = rospy.Time(0.)
+        goal.trajectory.points.append(deepcopy(joints))
+
+        joints.positions = js2_joints
+        joints.time_from_start = rospy.Time(1.)
+        goal.trajectory.points.append(deepcopy(joints))
+        if settings.TOPPRA_ON:
+            goal.trajectory = self.retime_wrapper(goal.trajectory)
+            print("n points: ", len(goal.trajectory.points), " joints diff: ", round(sum(js2_joints-js1_joints),2), " pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), "index ", index, " g start ", goal.trajectory.header.stamp, " max t ", goal.trajectory.points[-1].time_from_start.to_sec())
+
+        # 3. combine with trajectory from js0 -> js1 -> js2
+        settings.md._goal.trajectory.points = settings.md._goal.trajectory.points[0:index+1]
+        tts = settings.md._goal.trajectory.points[index].time_from_start
+        for point in goal.trajectory.points:
+            point.time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + tts.to_sec())
+            settings.md._goal.trajectory.points.append(point)
+        print("pos real ", settings.joints[0], " pose plan ", settings.md._goal.trajectory.points[index+1].positions[0])
+
+
+        # 4. replace with action client
         self.tac.add_goal(goal)
-        #self.scale_speed()
         self.tac.replace()
 
-        #instance = ta.algorithm.TOPPRA([pc_vel, pc_acc, eef_vel], path, solver_wrapper='seidel', gridpoints=np.linspace(0.0, ss[-1], np.min([int(n_grid), np.ceil(pt_per_s*ss[-1])])))
+        # 5. (OPT) Visualize
+        NJ = 0
+        dataPlot = [pt.positions[NJ] for pt in settings.md._goal.trajectory.points]
+        timePlot = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
 
-    '''
+        dataJointPlot = [pt.position[NJ] for pt in list(settings.joints_in_time)]
+        timeJointPlot = [pt.header.stamp.to_sec() for pt in list(settings.joints_in_time)]
+
+
+        if len(goal.trajectory.points)>1:
+            visualizer_lib.visualize_2d(data=zip(timePlot, dataPlot), storeObj=settings, color='r', label="", transform='front', units='-')
+            visualizer_lib.visualize_2d(data=[[rospy.Time.now().to_sec(), settings.joints[NJ]], [rospy.Time.now().to_sec(), settings.joints[NJ]]], storeObj=settings, color='b', label="", transform='front', units='-')
+            visualizer_lib.visualize_2d(data=zip(timeJointPlot, dataJointPlot), storeObj=settings, color='b', label="", transform='front', units='-')
+
+
+
+    def retime_wrapper(self, trajectory):
+        robot_traj = RobotTrajectory()
+        robot_traj.joint_trajectory = deepcopy(trajectory)
+        robot_traj_new = self.retime(plan=robot_traj)
+        return robot_traj_new.joint_trajectory
+
     ###
     ### From Jan Kristof Behrens
     ###
-    def retime(self, plan=None, cart_vel_limit=-1.0, secondorder=False, pt_per_s=100, curve_len=None, start_delay=0.0):
-        ta.setup_logging("INFO")
+    def retime(self, plan=None, cart_vel_limit=-1.0, secondorder=False, pt_per_s=20, curve_len=None, start_delay=0.0):
+        #ta.setup_logging("INFO")
         assert isinstance(plan, RobotTrajectory)
 
         if not curve_len is None and cart_vel_limit > 0:
@@ -1010,7 +1097,7 @@ class MoveGroupPythonInteface(object):
         active_joints = plan.joint_trajectory.joint_names
         # ALERT: This function is not found
         #lower, upper, vel, effort = self.robot.get_joint_limits(active_joints)
-        lower, upper, vel, effort = settings.md.lower_lim, settings.md.upper_lim, settings.md.vel_lim, settings.md.effort_lim
+        lower, upper, vel, effort = settings.lower_lim, settings.upper_lim, settings.vel_lim, settings.effort_lim
         # prepare numpy arrays with limits for acceleration
         alims = np.zeros((len(active_joints), 2))
         alims[:, 1] = np.array(len(lower) * [3.0])
@@ -1031,18 +1118,20 @@ class MoveGroupPythonInteface(object):
         path = SplineInterpolator(ss, way_pts)
         pc_vel = ta.constraint.JointVelocityConstraint(vlim=vlims)
 
+        #path()
+
         def vlims_func(val):
             eps = 0.001
             limit = cart_vel_limit
 
-            J = iiwa_jacobian(path(val))
+            J = panda_jacobian(path(val))
             direction = (path(val + eps) - path(val - eps)) / (2* eps)
             dir_norm = direction / np.linalg.norm(direction)
             x = limit / np.linalg.norm(np.dot(J, dir_norm))
             x = x * dir_norm
 
             x = np.abs(x)
-            print("{}: {}".format(val, np.max(x)))
+            #print("{}: {}".format(val, np.max(x)))
             lim = np.zeros((7, 2))
             lim[:, 1] = np.max(x)
             # if val <= 2.5:
@@ -1063,7 +1152,7 @@ class MoveGroupPythonInteface(object):
         # def inv_dyn(q, qd, qgg):
         #     # use forward kinematic formula and autodiff to get jacobian, then calc velocities from jacobian and joint
         #     # velocities
-        #     J = iiwa_jacobian(q)
+        #     J = panda_jacobian(q)
         #     cart_vel = np.dot(J, qd)
         #     return np.linalg.norm(cart_vel)
         #
@@ -1078,7 +1167,7 @@ class MoveGroupPythonInteface(object):
             def my_inv_dyn(q, qd, qgg):
                 # use forward kinematic formula and autodiff to get jacobian, then calc velocities from jacobian and joint
                 # velocities
-                J = iiwa_jacobian(q)
+                J = panda_jacobian(q)
                 cart_vel_sq = np.dot(np.dot(qd.T, J.T), np.dot(J, qd))
 
                 print(cart_vel_sq)
@@ -1096,7 +1185,7 @@ class MoveGroupPythonInteface(object):
             def my_inv_dyn(q, qd, qgg):
                 # use forward kinematic formula and autodiff to get jacobian, then calc velocities from jacobian and joint
                 # velocities
-                J = iiwa_jacobian(q)
+                J = panda_jacobian(q)
                 cart_vel = np.dot(J, qd)
 
                 print(np.linalg.norm(cart_vel))
@@ -1112,16 +1201,34 @@ class MoveGroupPythonInteface(object):
             instance = ta.algorithm.TOPPRA([pc_vel, pc_acc, eef_vel], path, solver_wrapper='seidel')
             # instance = ta.algorithm.TOPPRA([eef_vel], path, solver_wrapper='seidel')
         else:
-            instance = ta.algorithm.TOPPRA([pc_vel, pc_vel2, pc_acc], path, gridpoints=np.linspace(0.0, ss[-1], np.min(n_grid, np.ceil(pt_per_s*ss[-1]))))
+            #print("gg: ", n_grid)
+            #print("N : ", np.ceil(pt_per_s*ss[-1]))
+            #print("A : ", np.linspace(0.0, ss[-1], np.min([n_grid, int(np.ceil(pt_per_s*ss[-1]))])))
+            instance = ta.algorithm.TOPPRAsd([pc_vel, pc_vel2, pc_acc], path, gridpoints=np.linspace(0.0, ss[-1], np.min([n_grid, int(np.ceil(pt_per_s*ss[-1]))])))
 
             # instance = ta.algorithm.TOPPRA([pc_vel, pc_vel2, pc_acc], path, gridpoints=np.linspace(0.0, ss[-1], 10000))
-
 
         # print(instance)
         # instance2 = ta.algorithm.TOPPRAsd([pc_vel, pc_acc], path)
         # instance2.set_desired_duration(60)
-        jnt_traj = instance.compute_trajectory()
+        instance.set_desired_duration(3)
+
+        jnt_traj_ = instance.compute_trajectory(deepcopy(self.savedVelocity), 0.)
+
+        _, sd_vec, _ = instance.compute_parameterization(deepcopy(self.savedVelocity),0.)
         feas_set = instance.compute_feasible_sets()
+        jnt_traj = deepcopy(jnt_traj_)
+        succ = False
+        if type(jnt_traj_) == tuple:
+            for traj in jnt_traj_:
+                if traj is not None:
+                    jnt_traj = traj
+                    succ = True
+                    break
+        if not succ:
+            return plan # return old plan, if no plan as result
+
+        self.savedVelocity = sd_vec[int(0.6/jnt_traj.duration * len(sd_vec))]
 
 
         # ts_sample = np.linspace(0, jnt_traj.duration, 10*len(plan.joint_trajectory.points))
@@ -1142,7 +1249,7 @@ class MoveGroupPythonInteface(object):
             new_plan.joint_trajectory.points.append(pt)
 
         if rospy.get_param('plot_joint_trajectory', default=False):
-            import matplotlib.pyplot as plt
+
 
             fig, axs = plt.subplots(3, 1, sharex=True)
             for i in range(path.dof):
@@ -1156,7 +1263,7 @@ class MoveGroupPythonInteface(object):
             axs[2].set_ylabel("Acceleration (rad/s2)")
             plt.show()
         return new_plan
-    '''
+
 
 
     def scale_speed(self, scaling_factor=1.0):
@@ -1412,11 +1519,14 @@ class MoveGroupPythonInteface(object):
         assert (isinstance(p1, Point) or isinstance(p1, Vector3)) and (isinstance(p2, Point) or isinstance(p2, Vector3)), "Datatype assert, not Point or Vector3"
         return Point(p1.x+p2.x, p1.y+p2.y, p1.z+p2.z)
 
-    def testMovements(self, xs=list(range(4,9)), ys=list(range(-2,3)), name="table"):
+    def testMovements(self):
+        xs=list(range(4,9))
+        ys=list(range(-2,3))
+        name="table"
+
         poses = []
         pose = Pose()
-        pose.orientation = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
-
+        pose.orientation = settings.md.ENV_DAT['table']['ori']
         dists = []
         for i in ys:
             row = []
@@ -1424,11 +1534,11 @@ class MoveGroupPythonInteface(object):
                 pose.position = Point(j*0.1,i*0.1,0.1)#settings.md.ENV_DAT['table']['min']
                 p = deepcopy(pose)
 
-                settings.goal_pose = deepcopy(self.relaxik_t(p))
+                settings.goal_pose = deepcopy(p)
                 t=time.time()
-                while not(abs(time.time()-t) > 10 or self.samePoses(settings.rd.eef_pose, p, accuracy=0.01)):
+                while not(abs(time.time()-t) > 10 or self.samePoses(settings.eef_pose, p, accuracy=0.01)):
                     pass
-                row.append(self.distancePoses(settings.rd.eef_pose, p))
+                row.append(self.distancePoses(settings.eef_pose, p))
             dists.append(row)
 
 
@@ -1460,6 +1570,86 @@ class MoveGroupPythonInteface(object):
 
         plot_examples(dists, xs, ys, name)
 
+    def advancedWait(self):
+        ''' Desired settings.goal_pose waiting for real settings.eef_pose
+        '''
+        time.sleep(0.5)
+        if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.05):
+            print("pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), settings.eef_pose.position, settings.goal_pose.position)
+        else: return
+        time.sleep(1)
+        if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.1):
+            print("pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), settings.eef_pose.position, settings.goal_pose.position)
+        else: return
+        time.sleep(2)
+        if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.2):
+            print("pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), settings.eef_pose.position, settings.goal_pose.position)
+            print("position not accurate")
+        else: return
+        time.sleep(5)
+        print("position failed")
+
+    def testInit(self):
+        print("Init test")
+
+        pose = Pose()
+        pose.orientation = settings.md.ENV_DAT['above']['ori']
+        pose.position = Point(0.,0.,0.8)
+        settings.goal_pose = deepcopy(pose)
+        self.advancedWait()
+        print("Init test 1 ", self.distancePoses(settings.eef_pose, pose))
+
+        pose.orientation = settings.md.ENV_DAT['wall']['ori']
+        pose.position = Point(0.5,0.0,0.5)
+        settings.goal_pose = deepcopy(pose)
+        self.advancedWait()
+        print("Init test 2: ", self.distancePoses(settings.eef_pose, pose))
+
+        pose.orientation = settings.md.ENV_DAT['table']['ori']
+        pose.position = Point(0.5,0.0,0.2)
+        settings.goal_pose = deepcopy(pose)
+        self.advancedWait()
+        print("Init test 3: ", self.distancePoses(settings.eef_pose, pose))
+
+        pose = Pose()
+        pose.orientation = settings.md.ENV_DAT['above']['ori']
+        while True:
+            print("Go to pose, enter x position:")
+            pose.position.x = float(input())
+            print("Enter y position:")
+            pose.position.y = float(input())
+            print("Enter z position:")
+            pose.position.z = float(input())
+            settings.goal_pose = deepcopy(pose)
+            time.sleep(4)
+            print("Distance between given and real coords.: ", self.distancePoses(settings.eef_pose, pose))
+
+
+    def testMovementsInput(self):
+        ''' User enters Cartesian coordinates x,y,z
+        distance between given and real coordinates is displayed
+        '''
+        pose = Pose()
+        while True:
+            print("Go to pose, enter x position:")
+            pose.position.x = float(input())
+            print("Enter y position:")
+            pose.position.y = float(input())
+            print("Enter z position:")
+            pose.position.z = float(input())
+            print("Enter x orientation:")
+            pose.orientation.x = float(input())
+            print("Enter y position:")
+            pose.orientation.y = float(input())
+            print("Enter z position:")
+            pose.orientation.z = float(input())
+            print("Enter w position:")
+            pose.orientation.w = float(input())
+            settings.goal_pose = deepcopy(pose)
+            time.sleep(8)
+            print("Distance between given and real coords.: ", self.distancePoses(settings.eef_pose, pose))
+
+
 
     def distancePoses(self, p1,p2):
         p1 = p1.position
@@ -1482,7 +1672,6 @@ class MoveGroupPythonInteface(object):
 
 
     ### Long Data
-
     def GenerateMarkers(self):
         q_norm_to_dir = Quaternion(0.0, -math.sqrt(2)/2, 0.0, math.sqrt(2)/2)
         markers_array = []
@@ -1587,26 +1776,26 @@ class MoveGroupPythonInteface(object):
             markers_array.append(deepcopy(m))
 
         ## Marker relaxit input
-        m = Marker()
-        m.header.frame_id = "/"+settings.BASE_LINK
-        m.type = m.ARROW
-        m.action = m.ADD
-        m.scale.x = 0.2
-        m.scale.y = 0.01
-        m.scale.z = 0.01
-        m.color.a = 1.0
-        m.color.r = 1.0
-        m.color.g = 1.0
-        m.color.b = 0.0
-        m.id += 1
-        m.pose = Pose()
         if isinstance(settings.goal_pose, Pose):
-            m.pose = self.relaxik_t_inv(pose1=settings.goal_pose)
-        markers_array.append(deepcopy(m))
-        m.color.g = 0.0
-        m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(self.extq(m.pose.orientation), self.extq(q_norm_to_dir)))
-        m.id += 1
-        markers_array.append(deepcopy(m))
+            m = Marker()
+            m.header.frame_id = "/"+settings.BASE_LINK
+            m.type = m.ARROW
+            m.action = m.ADD
+            m.scale.x = 0.2
+            m.scale.y = 0.01
+            m.scale.z = 0.01
+            m.color.a = 1.0
+            m.color.r = 1.0
+            m.color.g = 1.0
+            m.color.b = 0.0
+            m.id += 1
+            m.pose = Pose()
+            m.pose = deepcopy(settings.goal_pose)
+            markers_array.append(deepcopy(m))
+            m.color.g = 0.0
+            m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(self.extq(m.pose.orientation), self.extq(q_norm_to_dir)))
+            m.id += 1
+            markers_array.append(deepcopy(m))
 
 
         ## Writing trajectory
@@ -1623,12 +1812,12 @@ class MoveGroupPythonInteface(object):
         m.color.b = 1.0
         m.id = 1000
         if settings.print_path_trace:
-            for frame in list(settings.forward_kinematics):
+            for frame in list(settings.eef_goal):
                 m.pose = frame
                 m.id += 1
                 markers_array.append(deepcopy(m))
         else:
-            for frame in list(settings.forward_kinematics):
+            for frame in list(settings.eef_goal):
                 m.action = m.DELETE
                 m.id += 1
                 markers_array.append(deepcopy(m))
@@ -1653,14 +1842,26 @@ class MoveGroupPythonInteface(object):
 
         return markers_array
 
+def callbackik(data):
+    joints = []
+    for ang in data.angles:
+        joints.append(ang.data)
+    settings.goal_joints = joints
+
+def eef_callback(data):
+    settings.eef_pose = data
+
 def save_joints(data):
+    settings.joints_in_time.append(data)
     if settings.ROBOT_NAME == 'iiwa':
         # On iiwa testbed, take data only from r1 robot
         if data.name[0][1] == '1':
             settings.joints = data.position # Position = Angles [rad]
+
     else: # 'panda'
-        #print("dd", data)
         settings.joints = data.position[-7:] # Position = Angles [rad]
+        settings.velocity = data.velocity[-7:]
+        settings.effort = data.effort[-7:]
         '''
         r1_joint_vel = data.velocity # [rad/s]
         r1_joint_eff = data.effort # [Nm]
@@ -1676,7 +1877,8 @@ def save_joints(data):
         r2_joint_eff = data.effort # [Nm]
         '''
 
-
+## DEPRECATED FUNCTIONS ##
+##########################
 def diffFilter(p, targetNumPoints):
     ''' Reduces the trajectory points by difference
         Basic controller, optimizing fs by finding target number of points
@@ -1719,12 +1921,9 @@ def moduloFilter(p, targetNumPoints):
             pred.append(i)
     return pred
 
-
-
 def iiwa_forward_kinematics(joints, out='xyz'):
     ''' Direct Kinematics from iiwa structure. Using its dimensions and angles.
     '''
-    #joints = [0,0,0,0,0,0,0]
     DH=np.array([[joints[0], 0.34, 0, -90],
                  [joints[1], 0.0, 0, 90],
                  [joints[2], 0.4, 0, 90],
@@ -1743,8 +1942,6 @@ def iiwa_forward_kinematics(joints, out='xyz'):
               [0, math.sin(math.radians(al)), math.cos(math.radians(al)), d],
               [0, 0, 0, 1]])
         Tr = np.matmul(Tr, T)
-    #pp = [Tr[0,3], Tr[1,3], T[2,3]]
-    #pp
     if out=='xyz':
         return [Tr[0,3], Tr[1,3], Tr[2,3]]
     if out=='matrix':
@@ -1753,6 +1950,57 @@ def iiwa_forward_kinematics(joints, out='xyz'):
 
 def iiwa_jacobian(state):
     fun = iiwa_forward_kinematics
+    eps = 0.001
+    jacobian = np.zeros((3,7))
+
+    inp = np.array(state)
+    selector = np.array([0,1,2,3,4,5,6])
+
+    for i in selector:
+        jacobian[:,i] = (np.array(fun(inp + eps* (selector == i))) - np.array(fun(inp - eps* (selector == i)))) / (2*eps)
+    # print(jacobian)
+    return jacobian
+
+def panda_forward_kinematics(joints, out='xyz'):
+    ''' Direct Kinematics from iiwa structure. Using its dimensions and angles.
+    '''
+    #             /theta   , d   , a,     alpha
+    '''
+    DH=np.array([[joints[0], 0.333, 0,     -90],
+                 [joints[1], 0.0,   0,      90],
+                 [joints[2], 0.316, 0,      90],
+                 [joints[3], 0.0,   0.0825, -90],
+                 [joints[4], 0.384, -0.0825,-90],
+                 [joints[5], 0.0,   0,      90],
+                 [joints[6], 0.107, 0.088,  0]])
+    '''
+    DH=np.array([[joints[0], 0.333, 0,     -90],
+                 [joints[1], 0.0,   0,      90],
+                 [joints[2], 0.316, 0,      90],
+                 [joints[3], 0.0,   0.0825, -90],
+                 [joints[4], 0.384, -0.0825,90],
+                 [joints[5], 0.0,   0,      90],
+                 [joints[6], 0.0, 0.088,    0],
+                 [0.,      0.107, 0.00,  0]])
+    Tr = np.eye(4)
+    for i in range(0, len(DH)):
+        t = DH[i, 0]
+        d = DH[i, 1]
+        a = DH[i, 2]
+        al= DH[i, 3]
+        T = np.array([[math.cos(t), -math.sin(t)*math.cos(math.radians(al)), math.sin(t)*math.sin(math.radians(al)), a*math.cos(t)],
+              [math.sin(t), math.cos(t)*math.cos(math.radians(al)), -math.cos(t)*math.sin(math.radians(al)), a*math.sin(t)],
+              [0, math.sin(math.radians(al)), math.cos(math.radians(al)), d],
+              [0, 0, 0, 1]])
+        Tr = np.matmul(Tr, T)
+    if out=='xyz':
+        return [Tr[0,3], Tr[1,3], Tr[2,3]]
+    if out=='matrix':
+        return Tr
+    return None
+
+def panda_jacobian(state):
+    fun = panda_forward_kinematics
     eps = 0.001
     jacobian = np.zeros((3,7))
 

@@ -8,142 +8,123 @@ from std_msgs.msg import Int8, Float64MultiArray
 from copy import deepcopy
 import os
 from os.path import expanduser, isfile
-#import rospy
+import rospy
 
-def init():
-    ''' 1. All the observations leading to gesture recognization
-        2. Gesture detection probabilities
-        3. Gesture boolean value
-        4. Move data
-        -> Gesture global parameters
-
-    '''
-
-    # 1. Frames, Processing a frame
-    global BUFFER_LEN, frames, timestamps, frames_adv, forward_kinematics
-    BUFFER_LEN = 300
-    frames = collections.deque(maxlen=BUFFER_LEN)
-    timestamps = collections.deque(maxlen=BUFFER_LEN)
-    frames_adv = collections.deque(maxlen=BUFFER_LEN)
-    forward_kinematics = collections.deque(maxlen=BUFFER_LEN)
-
-    # 2.,3.
-    global gd
-    gd = GestureDataHands()
-
-    # 4.
-    global md
-    md = MoveData()
-
-    global rd
-    rd = RobotData()
-
-    ## Configuration page values
-    global NumConfigBars, VariableValues
-    NumConfigBars = [2,4]
-    VariableValues = np.zeros(NumConfigBars)
-
-    ## Status Bar
-    global HoldAnchor, HoldPrevState, HoldValue, currentPose, WindowState, leavingAction, w, h, ui_scale
-    WindowState = 0.0  # 0-Main page, 1-Config page
-    HoldAnchor = 0.0  # For moving status bar
-    HoldPrevState = False  # --||--
-    HoldValue = 0
-    currentPose = 0
-    leavingAction = False
-    w, h = 1000, 800
-    ui_scale = 2000
-
-    # Fixed Conditions
-    global FIXED_ORI_TOGGLE, print_path_trace
-    FIXED_ORI_TOGGLE = True
-    print_path_trace = False
-
-    ## iiwa
-    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME
-    # PICK ROBOT: - 'panda' or 'iiwa'
-    ROBOT_NAME = 'panda'
-    # -------------- #
-
-    if ROBOT_NAME == 'iiwa':
-        JOINT_NAMES = ['r1_joint_1', 'r1_joint_2', 'r1_joint_3', 'r1_joint_4', 'r1_joint_5', 'r1_joint_6', 'r1_joint_7']
-        BASE_LINK = 'base_link'
-        GROUP_NAME = "r1_arm"
-        TAC_TOPIC = "/r1/trajectory_controller/follow_joint_trajectory"
-        JOINT_STATES_TOPIC = '/r1/joint_states'
-        EEF_NAME = 'r1_ee'
-    elif ROBOT_NAME == 'panda':
-        JOINT_NAMES = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
-        BASE_LINK = 'panda_link0'
-        GROUP_NAME = "panda_arm"
-        TAC_TOPIC = '/position_joint_trajectory_controller/follow_joint_trajectory'
-        JOINT_STATES_TOPIC = '/franka_state_controller/joint_states'
-        EEF_NAME = 'panda_link8'
-    else:
-        raise Exception("Wrong robot name")
-
-
-    global goal_joints, goal_pose, sp, mo, ss, scene
-    goal_joints, goal_pose = None, None
-    sp, ss = [], []
-    global joints
-    joints = []
-    GenerateSomeScenes(ss) # Saved scenes
-    GenerateSomePaths(sp, ss) # Saved paths
-    scene = None # current scene informations
-    mo = None # MoveIt object
-
-    ## MODERN ROBOTICS config
-    # iiwa
-    '''
-    global Glist, Mlist, Slist, Kp, Ki, Kd, g, eint
-    M01 = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0.089159], [0, 0, 0, 1]]
-    M12 = [[0, 0, 1, 0.28], [0, 1, 0, 0.13585], [-1, 0, 0, 0], [0, 0, 0, 1]]
-    M23 = [[1, 0, 0, 0], [0, 1, 0, -0.1197], [0, 0, 1, 0.395], [0, 0, 0, 1]]
-    M34 = [[0, 0, 1, 0], [0, 1, 0, 0], [-1, 0, 0, 0.14225], [0, 0, 0, 1]]
-    M45 = [[1, 0, 0, 0], [0, 1, 0, 0.093], [0, 0, 1, 0], [0, 0, 0, 1]]
-    M56 = [[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0.09465], [0, 0, 0, 1]]
-    M67 = [[1, 0, 0, 0], [0, 0, 1, 0.0823], [0, -1, 0, 0], [0, 0, 0, 1]]
-    G1 = np.diag([0.010267495893, 0.010267495893,  0.00666, 3.7, 3.7, 3.7])
-    G2 = np.diag([0.22689067591, 0.22689067591, 0.0151074, 8.393, 8.393, 8.393])
-    G3 = np.diag([0.049443313556, 0.049443313556, 0.004095, 2.275, 2.275, 2.275])
-    G4 = np.diag([0.111172755531, 0.111172755531, 0.21942, 1.219, 1.219, 1.219])
-    G5 = np.diag([0.111172755531, 0.111172755531, 0.21942, 1.219, 1.219, 1.219])
-    G6 = np.diag([0.0171364731454, 0.0171364731454, 0.033822, 0.1879, 0.1879, 0.1879])
-    Glist = [G1, G2, G3, G4, G5, G6]
-    Mlist = [M01, M12, M23, M34, M45, M56, M67]
-    omegas = np.array([[0, 0, 1], [0, 1, 0], [0, 1, 0], [0, 1, 0], [0, 0, 1], [0, 1, 0]])
-    qs_cont = np.array([[0.0, 0.0, 0.089159],[0.0, 0.13585, 0.0], [0.0, -0.1197, 0.425], \
-                   [0.0, 0.0, 0.39225], [0.0, 0.093, 0.0], [0.0, 0.0, 0.09465]])
-    qs = []
-    sum = [0,0,0]
-    for i in qs_cont:
-        sum += i
-        qs.append(deepcopy(sum))
-    vs = -np.cross(omegas,qs)
-    Slist = np.vstack((omegas.T,vs.T))
-    Kp = 1.3
-    Ki = 1.2
-    Kd = 1.1
-    g = np.array([0, 0, -9.81])
-    eint = np.array([0.2, 0.2, 0.2, 0.2, 0.2, 0.2]) # n-vector of the time-integral of joint errors
+def init(minimal=False):
+    ''' Initialize the shared data across threads (Leap, UI, Control)
+        :arg: minimal -> you can import only file paths
     '''
 
     ## Files
-    global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, NETWORK_PATH, PLOTS_PATH, WS_FOLDER
+    global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH
     HOME = expanduser("~")
     # searches for the WS name + print it
     THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
     THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..'))
     WS_FOLDER = THIS_FILE_TMP.split('/')[-1]
-    print("[Note] Workspace folder is set to: "+WS_FOLDER)
 
     LEARN_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learning/"
     GRAPHICS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/graphics/"
     PLOTS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/plots/"
     NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learned_networks"
+    COPPELIA_SCENE_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/coppelia_scenes"
     GESTURE_NAMES = ['Grab', 'Pinch', 'Point', 'Respectful', 'Spock', 'Rock', 'Victory', 'Italian', 'Rotate', 'Swipe_Up', 'Pin', 'Touch', 'Swipe_Left', 'Swipe_Down', 'Swipe_Right']
 
+    ## robot
+    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, coppeliaFakeFCIpub, TOPPRA_ON, TAC_ON
+    global upper_lim, lower_lim, effort_lim, vel_lim
+    # ROBOT_NAME: - 'panda' or 'iiwa'
+    ROBOT_NAME = rospy.get_param("/mirracle_config/robot")
+    SIMULATOR_NAME = rospy.get_param("/mirracle_config/simulator")
+    GRIPPER_NAME = rospy.get_param("/mirracle_config/gripper")
+    TOPPRA_ON = True
+    TAC_ON = True
+
+    ## Robot data
+    # 1. velocity limits, effort limits, position limits (lower, upper)
+    # 2. Important data for MoveIt!
+    # 3. TAC - Trajectory Action Client topic and Joint States topic
+    if ROBOT_NAME == 'iiwa':
+        vel_lim = [ 1.71, 1.71, 1.75, 2.27, 2.44, 3.14, 3.14 ]
+        effort_lim = [ 140, 140, 120, 100, 70, 70, 70 ]
+        lower_lim = [-2.97, -2.09, -2.97, -2.09, -2.97, -2.09, -3.05]
+        upper_lim = [2.97, 2.09, 2.97, 2.09, 2.97, 2.09, 3.05]
+        JOINT_NAMES = ['r1_joint_1', 'r1_joint_2', 'r1_joint_3', 'r1_joint_4', 'r1_joint_5', 'r1_joint_6', 'r1_joint_7']
+        BASE_LINK = 'base_link'
+        GROUP_NAME = "r1_arm"
+        EEF_NAME = 'r1_ee'
+        TAC_TOPIC = "/r1/trajectory_controller/follow_joint_trajectory"
+        JOINT_STATES_TOPIC = '/r1/joint_states'
+    elif ROBOT_NAME == 'panda':
+        vel_lim = [2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100]
+        effort_lim = [ 87, 87, 87, 87, 12, 12, 12 ]
+        lower_lim = [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]
+        upper_lim = [2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973]
+        JOINT_NAMES = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
+        BASE_LINK = 'panda_link0'
+        GROUP_NAME = "panda_arm"
+        EEF_NAME = 'panda_link8'
+        if SIMULATOR_NAME == 'gazebo':
+            TAC_TOPIC = '/position_joint_trajectory_controller/follow_joint_trajectory'
+            JOINT_STATES_TOPIC = '/franka_state_controller/joint_states'
+        elif SIMULATOR_NAME == 'rviz':
+            TAC_TOPIC = '/execute_trajectory'
+            JOINT_STATES_TOPIC = '/joint_states'
+        elif SIMULATOR_NAME == 'coppelia':
+            TAC_TOPIC = '/fakeFCI/joint_state'
+            JOINT_STATES_TOPIC = '/vrep/franka/joint_state'
+            coppeliaFakeFCIpub = None
+        else: raise Exception("Wrong simualator name")
+    else: raise Exception("Wrong robot name")
+
+    if minimal:
+        return
+    print("[Note] Workspace folder is set to: "+WS_FOLDER)
+
+    # Data from Leap Controller saved in arrays
+    # Note: updated in leapmotionlistener.py with Leap frame frequency (~80Hz)
+    global BUFFER_LEN, frames, timestamps, frames_adv, eef_goal, eef_robot, joints_in_time
+    BUFFER_LEN = 300
+    frames = collections.deque(maxlen=BUFFER_LEN)
+    timestamps = collections.deque(maxlen=BUFFER_LEN)
+    frames_adv = collections.deque(maxlen=BUFFER_LEN)
+    # Note: updated in main.py with rate 10Hz
+    eef_goal = collections.deque(maxlen=BUFFER_LEN)
+    eef_robot = collections.deque(maxlen=BUFFER_LEN)
+
+    joints_in_time = collections.deque(maxlen=BUFFER_LEN)
+
+    global tmpTimeStart, tmpTimeEnd
+    tmpTimeStart, tmpTimeEnd = 0.0, 0.0
+
+    global gd, md, rd
+    # Active gesture data at the moment
+    gd = GestureDataHands()
+    # Move robot and control data
+    md = MoveData()
+
+    ## Fixed Conditions
+    global FIXED_ORI_TOGGLE, print_path_trace
+    # When turned on, eef has fixed eef orientaion based on chosen environment (md.ENV)
+    FIXED_ORI_TOGGLE = True
+    # When turned on, rViz marker array of executed trajectory is published
+    print_path_trace = False
+
+
+
+
+    global goal_joints, goal_pose, eef_pose, joints, velocity, effort, sp, mo, ss, scene
+    # Goal joints -> RelaxedIK output
+    # Goal pose -> RelaxedIK input
+    # joints -> JointStates topic
+    goal_joints, goal_pose, joints, velocity, effort = None, None, None, None, None
+    # eef_pose -> from joint_states
+    eef_pose = Pose()
+    sp, ss = [], []
+    GenerateSomeScenes(ss) # Saved scenes
+    GenerateSomePaths(sp, ss) # Saved paths
+    scene = None # current scene informations
+    mo = None # MoveIt object
 
     ## Learning settings
     global pymcin, pymcout, observation_type, time_series_operation, position
@@ -179,6 +160,24 @@ def init():
     ## For visualization
     global fig, ax
     fig, ax = None, None
+
+    ## User Interface Data ##
+    # Configuration page values
+    global NumConfigBars, VariableValues
+    NumConfigBars = [2,4]
+    VariableValues = np.zeros(NumConfigBars)
+
+    # Status Bar
+    global HoldAnchor, HoldPrevState, HoldValue, currentPose, WindowState, leavingAction, w, h, ui_scale
+    WindowState = 0.0  # 0-Main page, 1-Config page
+    HoldAnchor = 0.0  # For moving status bar
+    HoldPrevState = False  # --||--
+    HoldValue = 0
+    currentPose = 0
+    leavingAction = False
+    w, h = 1000, 800
+    ui_scale = 2000
+
     print("set")
 
 
@@ -314,22 +313,27 @@ class GestureData():
 class MoveData():
     '''
     Info about:
-    Q(0,0,0,1) -> pointing down
+    Q(0,0,0,1) -> down
     Q([0.5,0.5,0.5,-0.5]) -> wall
+    Q(0.0,1.0,0.0,0.0) -> up
 
+    Panda rviz:
+    Q(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0) -> above
+    Q(0,0,0,1) -> down
+    Q(0.5,-0.5,-0.5,0.5) -> wall
     '''
     def __init__(self):
         self.LEAP_AXES = [[1,0,0],[0,0,-1],[0,1,0]]
         self.ENV_DAT = {'above': {  'min': Point(-0.35, -0.35, 0.6),
                                     'max': Point(0.35,0.35,1.15),
-                                    'ori': Quaternion(0.0,1.0,0.0,0.0),
+                                    'ori': Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),
                                     'start': Point(0.0, 0.0, 0.85),
                                     'axes': np.eye(3), 'view': [[1,0,0],[0,0,1],[0,1,0]], 'view2': [[1,0,0],[0,0,1],[0,1,0]],"UIx": 'X', "UIy": 'Z',
                                     'ori_type': 'neg_normal', 'ori_axes': [[0,1,0],[-1,0,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
                                  },
                          'wall':  { 'min': Point(0.42, -0.2, 0.0),
                                     'max': Point(0.7, 0.2, 0.74),
-                                    'ori': Quaternion(-0.5,0.5,0.5,-0.5),
+                                    'ori': Quaternion(0.5,-0.5,-0.5,0.5),
                                     'start': Point(0.7, 0.0, 0.1),
                                     'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]], 'view2': [[0,-1,0],[0,0,1],[1,0,0]], "UIx": '-Y', "UIy": 'Z',
                                     'ori_type': 'direction', 'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
@@ -337,7 +341,7 @@ class MoveData():
                          'table': { 'min': Point(0.4, -0.3, 0.0),
                                     'max': Point(0.7, 0.3, 0.6),
                                     'start': Point(0.5, 0.0, 0.3),
-                                    'ori': Quaternion(0.,0.,0.,1.), # (np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0) -> (-np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
+                                    'ori': Quaternion(0.,0.,0.,1.), #Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),# -> (-np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
                                     'axes': [[0,0,1],[-1,0,0],[0,-1,0]], 'view': [[0,-1,0],[1,0,0],[0,0,1]], 'view2': [[0,-1,0],[1,0,0],[0,0,1]], "UIx": '-Y', "UIy": 'X',
                                     'ori_type': 'direction', 'ori_axes': [[-1,0,0],[0,1,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
                                     } }
@@ -355,7 +359,7 @@ class MoveData():
         self.liveMode = 'default'
 
         self.gripper = 0.
-        self.speed = 50
+        self.speed = 5
         self.applied_force = 10
 
         ### Live mode: gesture data
@@ -364,40 +368,10 @@ class MoveData():
         self.gestures_goal_pose.orientation = self.ENV['ori']
         self.gestures_goal_stride = 0.1
         self.gestures_goal_rot_stride = np.pi/8
-        # trajectory
+        # The copy of goal_pose in form of active trajectory
         self._goal = None
-        ### Additional poses
 
-        self.LeapInRviz = Pose()
-        self.LeapInRviz.orientation.w = 1.0
 
-        self.pose_default = Pose()
-        self.pose_default.position = Point(0.0,0.0,1.0)  # x, y, z
-        self.pose_default.orientation = Quaternion(0.0,0.0,0.0,1.0)  # x, y, z, w
-
-        self.pose_saved = Pose()
-        self.pose_saved.position = Point(0.6,0.0,0.33)  # x, y, z
-        self.pose_saved.orientation = Quaternion(0.5,0.5, 0.5, 0.5)  # x, y, z, w
-
-        self.pose_pick = Pose()
-        self.pose_pick.position = Point(0.3,0.0,-1.17)  # x, y, z
-        self.pose_pick.orientation = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)  # x, y, z, w
-
-        self.pose_place = Pose()
-        self.pose_place.position = Point(0.55,0.0,0.7)  # x, y, z
-        self.pose_place.orientation = Quaternion(0.5,0.5,0.5,0.5)  # x, y, z, w
-
-        ## Pose Objects
-        self.name_cube = 'box'
-        self.pose_cube = Pose()
-        self.pose_cube.position = Point(0.4,0.0,-1.24)
-        self.pose_cube.orientation = Quaternion(0.0,0.0,0.0,1.0)
-
-        ## Limits
-        self.vel_lim = [ 1.71, 1.71, 1.75, 2.27, 2.44, 3.14, 3.14 ]
-        self.effort_lim = [ 140, 140, 120, 100, 70, 70, 70 ]
-        self.lower_lim = [-2.97, -2.09, -2.97, -2.09, -2.97, -2.09, -3.05]
-        self.upper_lim = [2.97, 2.09, 2.97, 2.09, 2.97, 2.09, 3.05]
 
 def quaternion_multiply(quaternion1, quaternion0):
     w0, x0, y0, z0 = quaternion0
@@ -413,7 +387,7 @@ def quaternion_multiply(quaternion1, quaternion0):
 def GenerateSomePaths(sp, ss):
     poses = []
     pose = Pose()
-    pose.orientation = Quaternion(0,0,1,0)
+    pose.orientation = md.ENV_DAT['above']['ori']
     n = 100
     for i in range(0,n):
         pose.position = Point(0.2*math.cos(2*math.pi*i/n),-0.2*math.sin(2*math.pi*i/n),0.95)
@@ -422,12 +396,12 @@ def GenerateSomePaths(sp, ss):
     sp.append(CustomPath(poses, actions, "", "circle", "above"))
 
     poses = []
-    pose.position = Point(0.4,0.0,0.95)
-    pose.orientation = Quaternion(-0.5,0.5,0.5,-0.5)
+    pose.position = Point(0.4,0.0,0.65)
+    pose.orientation = md.ENV_DAT['wall']['ori']
     poses.append(deepcopy(pose))
-    pose.position = Point(0.4,0.0,1.05)
+    pose.position = Point(0.4,0.0,0.75)
     poses.append(deepcopy(pose))
-    pose.position = Point(0.4,0.1,1.05)
+    pose.position = Point(0.4,0.1,0.65)
     poses.append(deepcopy(pose))
     pose.position = Point(0.4,-0.1,1.05)
     poses.append(deepcopy(pose))
@@ -437,29 +411,29 @@ def GenerateSomePaths(sp, ss):
     sp.append(CustomPath(poses, actions, "", "wall", "wall"))
 
     poses = []
-    pose.position = Point(0.5,0.0,0.85)
+    pose.position = Point(0.5,0.0,0.2)
     pose.orientation = Quaternion(0.,0.,0.,1.0)
     poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.85)
+    pose.position = Point(0.5,0.0,0.2)
     pose.orientation = Quaternion(0.,0.,1.,0.0)
     poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.85)
+    pose.position = Point(0.5,0.0,0.2)
     pose.orientation = Quaternion(0,1,0,0)
     poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.85)
+    pose.position = Point(0.5,0.0,0.2)
     pose.orientation = Quaternion(1,0,0,0)
     poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.85)
+    pose.position = Point(0.5,0.0,0.2)
     pose.orientation = Quaternion(-0.5,0.5,0.5,-0.5)
     poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.85)
+    pose.position = Point(0.5,0.0,0.2)
     pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
     poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.1,0.45)
+    pose.position = Point(0.5,0.1,0.2)
     poses.append(deepcopy(pose))
-    pose.position = Point(0.5,-0.1,0.45)
+    pose.position = Point(0.5,-0.1,0.2)
     poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.45)
+    pose.position = Point(0.5,0.0,0.2)
     poses.append(deepcopy(pose))
     actions = [""] * len(poses)
     sp.append(CustomPath(poses, actions, "", "customtest", "wall"))
@@ -688,7 +662,7 @@ class CustomPath():
     def __init__(self, poses=[], actions=[], scene=None, NAME="", ENV=""):
         self.n = len(poses)
         self.scene = scene
-        self.poses = [relaxik_t(pose) for pose in poses]
+        self.poses = poses
         self.actions = actions
         self.NAME = NAME
         self.ENV = ENV
@@ -711,25 +685,17 @@ class CustomScene():
         else:
             self.mesh_trans_origin = [Vector3(0.,0.,0.)] * len(mesh_names)
 
-class RobotData():
-    def __init__(self):
-        self.eef_pose = Pose()
-
+## Helper functions
 
 def indx(ss, str):
+    ''' Returns index of scene specified by name as parameter 'str'
+    '''
     N = None
     for n,i in enumerate(ss):
         if i.NAME == str:
             N = n
     assert isinstance(N, int), "Scene not found"
     return N
-
-## TODO: Duplicite function, move to unit place
-def relaxik_t(pose1):
-    pose_ = deepcopy(pose1)
-    pose_.position.z -= 1.27
-    pose_.position.y = -pose_.position.y
-    return pose_
 
 def getSceneNames():
     return [scene.NAME for scene in ss]
@@ -738,5 +704,5 @@ def getPathNames():
     return [path.NAME for path in sp]
 
 def getModes():
-    return ['live', 'interactive', 'nothin']
+    return ['live', 'interactive', '']
 ###

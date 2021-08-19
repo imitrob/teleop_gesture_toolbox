@@ -45,13 +45,9 @@ class SampleListener(Leap.Listener):
         print("Exited")
 
     def on_frame(self, controller):
-        #t = time.time()
         frame = controller.frame()
         settings.frames.append(frame)
         ## Update forward kinematics in settings
-        fk = settings.mo.fk.getCurrentFK(settings.EEF_NAME).pose_stamped[0].pose
-        settings.rd.eef_pose = fk
-        settings.forward_kinematics.append(fk)
         settings.timestamps.append(frame.timestamp)
         fps = frame.current_frames_per_second
         timestamp = frame.timestamp
@@ -227,7 +223,6 @@ class SampleListener(Leap.Listener):
                     settings.gd.r.gests[settings.gd.r.GESTS["touch"]].toggle = True
 
         settings.frames_adv.append(fa)
-        #print(abs(time.time()-t))
 
     def state_string(self, state):
         if state == Leap.Gesture.STATE_START:
@@ -532,13 +527,7 @@ def main():
 
     # Have the sample listener receive events from the controller
     controller.add_listener(listener)
-
-    # Keep this process running until Enter is pressed
-    print("Recording length")
-    print("Press Enter to quit...")
-    #time.sleep(360)
-    #controller.remove_listener(listener)
-    #return
+    while True: pass
     try:
         sys.stdin.readline()
     except KeyboardInterrupt:
