@@ -14,6 +14,9 @@ def init(minimal=False):
     ''' Initialize the shared data across threads (Leap, UI, Control)
         :arg: minimal -> you can import only file paths
     '''
+    # tmp
+    global loopn
+    loopn = 0
 
     ## Files
     global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH
@@ -31,14 +34,14 @@ def init(minimal=False):
     GESTURE_NAMES = ['Grab', 'Pinch', 'Point', 'Respectful', 'Spock', 'Rock', 'Victory', 'Italian', 'Rotate', 'Swipe_Up', 'Pin', 'Touch', 'Swipe_Left', 'Swipe_Down', 'Swipe_Right']
 
     ## robot
-    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, coppeliaFakeFCIpub, TOPPRA_ON, TAC_ON
+    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, coppeliaFakeFCIpub, TOPPRA_ON
     global upper_lim, lower_lim, effort_lim, vel_lim
     # ROBOT_NAME: - 'panda' or 'iiwa'
     ROBOT_NAME = rospy.get_param("/mirracle_config/robot")
     SIMULATOR_NAME = rospy.get_param("/mirracle_config/simulator")
     GRIPPER_NAME = rospy.get_param("/mirracle_config/gripper")
     TOPPRA_ON = True
-    TAC_ON = True
+
 
     ## Robot data
     # 1. velocity limits, effort limits, position limits (lower, upper)
@@ -64,7 +67,7 @@ def init(minimal=False):
         BASE_LINK = 'panda_link0'
         GROUP_NAME = "panda_arm"
         EEF_NAME = 'panda_link8'
-        if SIMULATOR_NAME == 'gazebo':
+        if SIMULATOR_NAME == 'gazebo' or SIMULATOR_NAME == 'real':
             TAC_TOPIC = '/position_joint_trajectory_controller/follow_joint_trajectory'
             JOINT_STATES_TOPIC = '/franka_state_controller/joint_states'
         elif SIMULATOR_NAME == 'rviz':
@@ -79,7 +82,7 @@ def init(minimal=False):
 
     if minimal:
         return
-    print("[Note] Workspace folder is set to: "+WS_FOLDER)
+    print("[Settings] Workspace folder is set to: "+WS_FOLDER)
 
     # Data from Leap Controller saved in arrays
     # Note: updated in leapmotionlistener.py with Leap frame frequency (~80Hz)
@@ -94,15 +97,6 @@ def init(minimal=False):
 
     joints_in_time = collections.deque(maxlen=BUFFER_LEN)
 
-    global tmpTimeStart, tmpTimeEnd
-    tmpTimeStart, tmpTimeEnd = 0.0, 0.0
-
-    global gd, md, rd
-    # Active gesture data at the moment
-    gd = GestureDataHands()
-    # Move robot and control data
-    md = MoveData()
-
     ## Fixed Conditions
     global FIXED_ORI_TOGGLE, print_path_trace
     # When turned on, eef has fixed eef orientaion based on chosen environment (md.ENV)
@@ -110,16 +104,21 @@ def init(minimal=False):
     # When turned on, rViz marker array of executed trajectory is published
     print_path_trace = False
 
-
-
-
-    global goal_joints, goal_pose, eef_pose, joints, velocity, effort, sp, mo, ss, scene
+    ## Current/Active robot data at the moment
+    global goal_joints, goal_pose, eef_pose, joints, velocity, effort
+    goal_joints, goal_pose, joints, velocity, effort, eef_pose = None, None, None, None, None, Pose()
     # Goal joints -> RelaxedIK output
     # Goal pose -> RelaxedIK input
     # joints -> JointStates topic
-    goal_joints, goal_pose, joints, velocity, effort = None, None, None, None, None
     # eef_pose -> from joint_states
-    eef_pose = Pose()
+
+    global gd, md, rd, sp, mo, ss, scene
+    # Active gesture data at the moment
+    gd = GestureDataHands()
+    # Move robot and control data
+    md = MoveData()
+
+    ## Objects for saved scenes and paths
     sp, ss = [], []
     GenerateSomeScenes(ss) # Saved scenes
     GenerateSomePaths(sp, ss) # Saved paths
@@ -151,15 +150,17 @@ def init(minimal=False):
     assert time_series_operation in ['average', 'middle', 'as_dimesion', 'take_every', 'take_every_10'], "Wrong input"
     assert position in ['', 'absolute', 'absolute+finger', 'time_warp'], "Wrong input"
 
-
-
-    ## Misc other vars
-    global pymc_in_pub
-    pymc_in_pub = None # Publisher object
-
-    ## For visualization
-    global fig, ax
-    fig, ax = None, None
+    ## For visualization data holder
+    global figdata; figdata = None
+    global sendedPlot; sendedPlot = None
+    global realPlot; realPlot = None
+    global sendedPlotVel; sendedPlotVel = None
+    global realPlotVel; realPlotVel = None
+    global point_before_toppra; point_before_toppra = None
+    global point_after_toppra; point_after_toppra = None
+    global point_after_replace; point_after_replace = None
+    # Visualized Number of Joint 0..6
+    global NJ; NJ = 0
 
     ## User Interface Data ##
     # Configuration page values
@@ -178,7 +179,9 @@ def init(minimal=False):
     w, h = 1000, 800
     ui_scale = 2000
 
-    print("set")
+    ## Global ROS publisher objects
+    global pymc_in_pub; pymc_in_pub = None
+    print("[Settings] done")
 
 
 class FrameAdv():
@@ -371,6 +374,8 @@ class MoveData():
         # The copy of goal_pose in form of active trajectory
         self._goal = None
 
+        self.traj_update_horizon = 0.6
+
 
 
 def quaternion_multiply(quaternion1, quaternion0):
@@ -445,19 +450,19 @@ def GenerateSomePaths(sp, ss):
     box_dim = deepcopy(ss[index].mesh_sizes[0])
     poses = []
     pose.position = Point(0.0,0.0,1.17)
-    pose.orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
+    pose.orientation = md.ENV_DAT['above']['ori']
     poses.append(deepcopy(pose))
 
     pose.position = box_pose.position
     pose.position.z += box_dim.z-0.04
-    pose.orientation = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
+    pose.orientation = md.ENV_DAT['table']['ori']
     poses.append(deepcopy(pose))
     pose.position = Point(0.5,0.0,0.75)
     poses.append(deepcopy(pose))
     pose.position = Point(0.5,-0.3,0.075)
     poses.append(deepcopy(pose))
     pose.position = Point(0.,0.,1.25)
-    pose.orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
+    pose.orientation = md.ENV_DAT['above']['ori']
     poses.append(deepcopy(pose))
     actions = ['', 'box', '', 'box', '']
     sp.append(CustomPath(poses, actions, SCENE, "pickplace", "table"))
@@ -471,14 +476,14 @@ def GenerateSomePaths(sp, ss):
     drawer_trans_origin = deepcopy(ss[index].mesh_trans_origin[1])
 
     pose.position = Point(0.0,0.0,1.25)
-    pose.orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
+    pose.orientation = md.ENV_DAT['above']['ori']
     poses.append(deepcopy(pose))
 
     pose.position = drawer_pose.position
     pose.position.x -= 0.02
     pose.position.y += drawer_dim.y/2
     pose.position.z += drawer_trans_origin.z+0.05
-    pose.orientation = Quaternion(0.5,0.5,0.5,0.5)
+    pose.orientation = md.ENV_DAT['wall']['ori']
     poses.append(deepcopy(pose))
 
     for i in range(0,20):
@@ -494,7 +499,7 @@ def GenerateSomePaths(sp, ss):
     pose.position.x -= 0.02
     pose.position.y += drawer_dim.y/2
     pose.position.z += drawer_trans_origin.z+0.05
-    pose.orientation = Quaternion(0.5,0.5,0.5,0.5)
+    pose.orientation = md.ENV_DAT['wall']['ori']
     poses.append(deepcopy(pose))
 
     for i in range(0,20):
@@ -502,22 +507,22 @@ def GenerateSomePaths(sp, ss):
         poses.append(deepcopy(pose))
 
     pose.position = Point(0.0,0.0,1.25)
-    pose.orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
+    pose.orientation = md.ENV_DAT['above']['ori']
     poses.append(deepcopy(pose))
     actions = ['', 'drawer_socket_1', '','','','','','','','','','', '','','','','','','','','', 'drawer_socket_1', '', 'drawer_socket_2', '','','','','','','','','','', '','','','','','','','','', 'drawer_socket_2', '']
     sp.append(CustomPath(poses, actions, SCENE, "drawer", "wall"))
 
     poses = []
     pose.position = Point(0.0,0.0,1.25)
-    pose.orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
+    pose.orientation = md.ENV_DAT['above']['ori']
     poses.append(deepcopy(pose))
     pose.position =  Point(0.44,-0.05,0.13)
-    pose.orientation = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
+    pose.orientation = md.ENV_DAT['table']['ori']
     poses.append(deepcopy(pose))
     pose.position =  Point(0.44,-0.05,0.1)
     poses.append(deepcopy(pose))
     pose.position = Point(0.0,0.0,1.25)
-    pose.orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
+    pose.orientation = md.ENV_DAT['above']['ori']
     poses.append(deepcopy(pose))
     actions = ['', 'button', 'button', '']
     sp.append(CustomPath(poses, actions, "pushbutton", "pushbutton", "table"))

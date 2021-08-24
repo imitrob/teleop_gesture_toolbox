@@ -35,7 +35,8 @@ class SampleListener(Leap.Listener):
         controller.enable_gesture(Leap.Gesture.TYPE_SCREEN_TAP)
         controller.enable_gesture(Leap.Gesture.TYPE_SWIPE)
         while not settings.mo:
-            pass
+            time.sleep(2)
+            print("[Leap listener] No Move object published")
 
     def on_disconnect(self, controller):
         # Note: not dispatched when running in a debugger.

@@ -213,6 +213,7 @@ class Example(QMainWindow):
         self.setGeometry(1000, 1000, 1000, 800)
         self.setWindowTitle('Interface')
         self.show()
+        print("[Interface] Done")
 
 
     def keyPressEvent(self, event):
@@ -235,12 +236,12 @@ class Example(QMainWindow):
 
     def vis_path(self):
         plt.ion()
-        settings.fig, settings.ax = visualizer_lib.visualize_new_fig(title="Path", dim=3)
+        settings.figdata = visualizer_lib.visualize_new_fig(title="Path", dim=3)
         #visualizer_lib.visualize_3d(settings.eef_goal, storeObj=settings, color='b', label="leap", units='m')
         data = [settings.mo.extv(pose.position) for pose in list(settings.eef_robot)]
-        visualizer_lib.visualize_3d(data=data, storeObj=settings, color='r', label="robot", units='m')
+        visualizer_lib.visualize_3d(data=data, storeObj=settings.figdata, color='r', label="robot", units='m')
         data = [settings.mo.extv(settings.mo.transformLeapToScene(settings.frames_adv[i].r.pPose.pose).position) for i in range(0, settings.BUFFER_LEN)]
-        visualizer_lib.visualize_3d(data=data, storeObj=settings, color='b', label="leap", units='m')
+        visualizer_lib.visualize_3d(data=data, storeObj=settings.figdata, color='b', label="leap", units='m')
         plt.ioff()
         plt.show()
 
@@ -413,8 +414,6 @@ class Example(QMainWindow):
             settings.FIXED_ORI_TOGGLE = True
 
     def paintEvent(self, e):
-        if not settings.mo:
-            return
         ### Visibility settings ###
         if settings.WindowState == 0:
             if self.ViewState:
@@ -904,8 +903,6 @@ def main():
 if __name__ == '__main__':
     settings.init()
     try:
-        while not settings.mo:
-            time.sleep(1)
         main()
     except KeyboardInterrupt:
         print('Interrupted')

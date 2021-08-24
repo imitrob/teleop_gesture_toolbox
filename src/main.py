@@ -1,5 +1,7 @@
 #!/usr/bin/env python2.7
 
+import sys
+import os
 from threading import Thread
 import settings
 settings.init()
@@ -14,6 +16,8 @@ import numpy as np
 import trajectory_action_client
 import rospy
 import math
+from numpy import pi
+import random
 
 import matplotlib.pyplot as plt
 import visualizer_lib
@@ -31,47 +35,37 @@ def callbackpymc(data):
     settings.pymcout = data.data
 
 def main():
+    settings.mo = mo = moveit_lib.MoveGroupPythonInteface()
+    if rospy.get_param("/mirracle_config/launch_ui") == "true":
+        thread2 = Thread(target = launch_ui)
+        #thread2.daemon=True
+        thread2.start()
     if rospy.get_param("/mirracle_config/launch_leap") == "true":
         thread = Thread(target = launch_lml)
         thread.daemon=True
         thread.start()
         while not settings.frames_adv: # wait until receive Leap data
-            pass
-    if rospy.get_param("/mirracle_config/launch_ui") == "true":
-        thread2 = Thread(target = launch_ui)
-        thread2.daemon=True
-        thread2.start()
+            time.sleep(2)
+            print("[WARN*] Leap data not received")
 
-    settings.mo = mo = moveit_lib.MoveGroupPythonInteface()
 
     if rospy.get_param("/mirracle_config/launch_gesture_detection") == "true":
         pymc_out_sub = rospy.Subscriber('/pymcout', Int8, callbackpymc)
         settings.pymc_in_pub = rospy.Publisher('/pymcin', Float64MultiArray, queue_size=5)
 
-    ## DEPRECATED will be deleted
-    # Coppelia fakce FCI controller
-    if settings.ROBOT_NAME == 'panda' and settings.SIMULATOR_NAME == 'coppelia':
-        settings.coppeliaFakeFCIpub = rospy.Publisher('/fakeFCI/joint_state', JointState, queue_size=5)
-        coppeliaFakeFCIpubState = rospy.Publisher('/fakeFCI/robot_state', Int32, queue_size=5)
-        msg = Int32()
-        msg.data = 1
-        coppeliaFakeFCIpubState.publish(msg)
-        print("Coppelia Fake publisher init")
-    ## ########### ##
-
     ## Check if everything is running
     while not settings.mo:
-        time.sleep(5)
+        time.sleep(2)
         print("[WARN*] settings.mo not init!!")
     while not settings.goal_pose:
-        time.sleep(5)
+        time.sleep(2)
         print("[WARN*] settings.goal_pose not init!!")
     while not settings.goal_joints:
-        time.sleep(5)
+        time.sleep(2)
         settings.mo.relaxedIK_publish(pose_r = settings.mo.relaxik_t(settings.goal_pose))
         print("[WARN*] settings.goal_joints not init!!")
     while not settings.joints:
-        time.sleep(5)
+        time.sleep(2)
         print("[WARN*] settings.joints not init!!")
 
     thread3 = Thread(target = main_manager)
@@ -83,12 +77,12 @@ def main():
     thread5 = Thread(target = updateValues)
     thread5.daemon=True
     thread5.start()
-    print("Done")
+    print("[Info*] Main ready")
 
     settings.md.Mode = ''
     mo.testInit()
-    print("Tests Done")
-    settings.md.Mode = 'live'
+    print("[Info*] Tests Done")
+    #settings.md.Mode = 'live'
     rospy.spin()
 
 def updateValues():
@@ -103,17 +97,11 @@ def updateValues():
         ## When simulator is coppelia settings.eef_pose are updated with topic
         if settings.SIMULATOR_NAME != 'coppelia': # Coppelia updates eef_pose through callback
             settings.eef_pose = settings.mo.fk.getCurrentFK(settings.EEF_NAME).pose_stamped[0].pose
-        '''
-        DEPRECATED -> will be deteleted
-        else:
-            pose = Pose()
-            pose.position = Point(*moveit_lib.panda_forward_kinematics(settings.joints))
-
-            settings.eef_pose = pose
-        '''
         settings.eef_robot.append(settings.eef_pose)
         settings.eef_goal.append(settings.goal_pose)
-
+        # This is simple check if relaxedIK results and joint states are same
+        #if np.sum(np.subtract(settings.goal_joints,settings.joints)) > 0.1:
+        #    print("[WARN*] joints not same!")
         # Sleep
         time.sleep(0.1)
 
@@ -126,53 +114,44 @@ def launch_ui():
 def main_manager():
     delay = 0.1
     seq = 0
+    enable_plot =True
     time_on_one_pose = 0.0
     mo = settings.mo
-    first_time = True
-    loopn = 0
-
-    plt.ion()
-    settings.fig, settings.ax = visualizer_lib.visualize_new_fig(title="Path", dim=2)
-    #visualizer_lib.visualize_3d(settings.eef_goal, storeObj=settings, color='b', label="leap", units='m')
-    #data = [settings.mo.extv(pose.position) for pose in list(settings.eef_robot)]
-    #visualizer_lib.visualize_3d(data=data, storeObj=settings, color='r', label="robot", units='m')
-    #data = [settings.mo.extv(settings.mo.transformLeapToScene(settings.frames_adv[i].r.pPose.pose).position) for i in range(0, settings.BUFFER_LEN)]
-    #visualizer_lib.visualize_3d(data=data, storeObj=settings, color='b', label="leap", units='m')
-    #plt.ioff()
-    #plt.show()
     print("[INFO*] Main manager initialized")
-    hmm =True
-    while True:
-        loopn += 1
-        ## This is simple check if relaxedIK results and joint states are same
-        #if np.sum(np.subtract(settings.goal_joints,settings.joints)) > 0.1:
-        #    print("[WARN*] joints not same!")
 
+    #plt.ion()
+    sample_states = [
+    #[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0]#,
+    mo.get_random_joints(),
+    mo.get_random_joints(),
+    mo.get_random_joints()
+    #mo.get_random_joints()#,
+    #[ 0.0, -pi/4, 0.0, -pi/2, 0.0,  pi/3, 0.0]
+                    ]
+
+    while True:
+        settings.loopn += 1
         time.sleep(delay)
-        ## deprecated --> will be deleted
-        ## If relaxed ik output exists, execute it
-        if settings.SIMULATOR_NAME == 'coppelia':
-            msg = JointState()
-            msg.header.frame_id = 'panda_link0'
-            msg.header.stamp = rospy.Time.now()
-            msg.header.seq = seq = seq+1
-            msg.name = settings.JOINT_NAMES
-            msg.position = settings.goal_joints
-            #settings.coppeliaFakeFCIpub.publish(msg)
+        first_time = (settings.loopn == 1)
+        settings.mo.perform_path(joint_states = settings.goal_joints, first_time=first_time)
+
+        '''
+        if settings.loopn < 4:
+            pass
+            #settings.mo.perform_optimized_path(joint_states = sample_states[settings.loopn-1], first_time=first_time)
+            mo.callViz()
         else:
-            if loopn < 5:
-                settings.mo.perform_optimized_path(joint_states = settings.goal_joints, first_time=first_time)
-                if first_time:
-                    first_time = False
-            else:
-                if hmm:
-                    plt.ioff()
-                    plt.show()
-                    hmm = False
+            if enable_plot:
+                mo.callViz(load_data=True)
+                plt.ioff()
+                plt.show()
+                print("[INFO*] Plot complete")
+                enable_plot = False
+        '''
         if settings.md.Mode == 'live':
             o = settings.frames_adv[-1].r.pPose.pose.orientation
             if (np.sqrt(o.x**2 + o.y**2 + o.z**2 + o.w**2) - 1 > 0.000001):
-                print("not valid orientation!")
+                print("[WARN*] Not valid orientation!")
             if settings.frames_adv[-1].r.visible:
                 ### MODE 1 default
                 if settings.md.liveMode == 'default':
@@ -276,7 +255,7 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print('Interrupted')
+        print('[Info*] Interrupted')
         try:
             sys.exit(0)
         except SystemExit:
