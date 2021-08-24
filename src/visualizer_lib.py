@@ -52,13 +52,13 @@ def visualize_new_fig(title=None, dim=3):
 
     ## Move figure
     nfigs = len(list(map(plt.figure, plt.get_fignums())))-1 # get number of opened figures after creating new one
-    BOXXMOVE = [0, 600, 1200, 0, 600, 1200]
-    BOXYMOVE = [0, 0, 0, 600, 600, 600]
+    BOXXMOVE = [0, 600, 1200, 0, 600, 1200, 0, 600, 1200, 0, 600, 1200]
+    BOXYMOVE = [0, 0, 0, 600, 600, 600, 0, 0, 0, 600, 600, 600]
     move_figure(fig, BOXXMOVE[nfigs], BOXYMOVE[nfigs])
 
     return FigData(fig, ax)
 
-def visualize_2d(data, storeObj, color='', label="", transform='front', xlabel='X axis', ylabel='Y axis'):
+def visualize_2d(data, storeObj, color='', label="", transform='front', xlabel='X axis', ylabel='Y axis', scatter_pts=False):
     ''' Add trajectory to current figure for 2D Plot.
 
     Args:
@@ -71,6 +71,7 @@ def visualize_2d(data, storeObj, color='', label="", transform='front', xlabel='
         xlabel, ylabel (str): Axis label legend
     '''
     data = np.array(data)
+    assert len(data[0]) == 2 or len(data[0]) == 3, "Data not valid, points are not 2D or 3D type: "+data
     if transform == 'top':
         data = data[:,1:3]
     if transform == 'front' or transform == '':
@@ -96,6 +97,9 @@ def visualize_2d(data, storeObj, color='', label="", transform='front', xlabel='
     storeObj.ax.plot(xt,yt,c=color, label=(label))#+" "+str(len(dparsed))) )
     storeObj.ax.scatter(xt[0], yt[0], marker='o', color='black', zorder=2)
     storeObj.ax.scatter(xt[-1], yt[-1], marker='x', color='black', zorder=2)
+    if scatter_pts:
+        storeObj.ax.scatter(xt, yt, marker='|', color='black', zorder=2, alpha=0.3)
+
     if label != "":
         plt.legend(loc="upper left", bbox_to_anchor=(-0.15, 1.0))
 
