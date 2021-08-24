@@ -1,10 +1,31 @@
 <launch>
+  <!-- Launch simulator.launch first, followed by demo.launch on second term -->
 
-    <include file="$(find capek_launch)/launch/virtual_robot.launch" />
-    <!--<node pkg="mirracle_gestures" name="listener" type="listener.py" output="screen"/>-->
-    <include file="$(find relaxed_ik)/launch/relaxed_ik.launch"/>
+  <arg name="ik_solver" default="relaxed_ik" />
+  <arg name="launch_ui" default="true" />
+  <arg name="launch_leap" default="true" />
+  <arg name="launch_gesture_detection" default="true" />
+  <arg name="robot" default="panda" /> <!-- 'panda'/('iiwa' not tested) -->
+  <arg name="gripper" default="none" /> <!-- 'none'/'franka_hand'/'franka_hand_with_camera'-->
+  <arg name="simulator" default="gazebo" /> <!-- 'real'/'gazebo'/'coppelia' -->
 
-    <node pkg="mirracle_gestures" name="apply_scene_service" type="apply_scene_service.py" output="screen"/>
-    <node pkg="mirracle_gestures" name="main" type="main.py" output="screen"/>
-    <node pkg="mirracle_gestures" name="sample_send" type="sample_send.py" output="screen"/>
+
+  <!-- Probably do not change below -->
+  <!-- ############################ -->
+  <param name="mirracle_config/launch_ui" type="str" value="$(arg launch_ui)" />
+  <param name="mirracle_config/launch_leap" type="str" value="$(arg launch_leap)" />
+  <param name="mirracle_config/launch_gesture_detection" type="str" value="$(arg launch_gesture_detection)" />
+  <param name="mirracle_config/robot" type="str" value="$(arg robot)" />
+  <param name="mirracle_config/gripper" type="str" value="$(arg gripper)" />
+  <param name="mirracle_config/simulator" type="str" value="$(arg simulator)" />
+
+
+  <!-- There will be pick to three .config files no gripper/gripper/custom gripper -->
+  <group if="$(eval arg('ik_solver') == 'relaxed_ik')">
+    <node pkg="relaxed_ik" type="relaxed_ik_node.py" name="relaxed_ik_node" output="screen"/>
+  </group>
+
+  <node pkg="mirracle_gestures" name="apply_scene_service" type="apply_scene_service.py" output="screen"/>
+  <node pkg="mirracle_gestures" name="main" type="main.py" output="screen"/>
+  <node pkg="mirracle_gestures" name="sample_send" type="sample_send.py" output="screen"/>
 </launch>

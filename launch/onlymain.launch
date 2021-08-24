@@ -1,6 +1,0 @@
-
-<launch>
-
-<node pkg="mirracle_gestures" name="main" type="main.py" output="screen"/>
-
-</launch>
