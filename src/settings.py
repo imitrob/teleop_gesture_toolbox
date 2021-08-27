@@ -1,25 +1,30 @@
+#!/usr/bin/env python
+'''
+Informations about robot, configurations, move data, ...
+Import this file and call init() to access parameters, info and data
+'''
 import collections
 import numpy as np
-import math
-from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
-from visualization_msgs.msg import MarkerArray, Marker
-from std_msgs.msg import Int8, Float64MultiArray
-#import modern_robotics as mr
 from copy import deepcopy
 import os
 from os.path import expanduser, isfile
+# Needed to load and save rosparams
 import rospy
+from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
+from visualization_msgs.msg import MarkerArray, Marker
+from std_msgs.msg import Int8, Float64MultiArray
 
 def init(minimal=False):
     ''' Initialize the shared data across threads (Leap, UI, Control)
-        :arg: minimal -> you can import only file paths
+    Parameters:
+        minimal (Bool): Import only file paths and general informations
     '''
     # tmp
     global loopn
     loopn = 0
 
     ## Files
-    global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH
+    global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH, MODELS_PATH
     HOME = expanduser("~")
     # searches for the WS name + print it
     THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -29,17 +34,20 @@ def init(minimal=False):
     LEARN_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learning/"
     GRAPHICS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/graphics/"
     PLOTS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/plots/"
-    NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learned_networks"
-    COPPELIA_SCENE_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/coppelia_scenes"
+    NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learned_networks/"
+    COPPELIA_SCENE_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/coppelia_scenes/"
+    MODELS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/models/"
     GESTURE_NAMES = ['Grab', 'Pinch', 'Point', 'Respectful', 'Spock', 'Rock', 'Victory', 'Italian', 'Rotate', 'Swipe_Up', 'Pin', 'Touch', 'Swipe_Left', 'Swipe_Down', 'Swipe_Right']
 
     ## robot
-    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, coppeliaFakeFCIpub, TOPPRA_ON
+    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, coppeliaFakeFCIpub, TOPPRA_ON, VIS_ON, IK_SOLVER, GRASPING_GROUP
     global upper_lim, lower_lim, effort_lim, vel_lim
     # ROBOT_NAME: - 'panda' or 'iiwa'
     ROBOT_NAME = rospy.get_param("/mirracle_config/robot")
     SIMULATOR_NAME = rospy.get_param("/mirracle_config/simulator")
     GRIPPER_NAME = rospy.get_param("/mirracle_config/gripper")
+    VIS_ON = rospy.get_param("/mirracle_config/visualize")
+    IK_SOLVER = rospy.get_param("/mirracle_config/ik_solver")
     TOPPRA_ON = True
 
 
@@ -56,6 +64,7 @@ def init(minimal=False):
         BASE_LINK = 'base_link'
         GROUP_NAME = "r1_arm"
         EEF_NAME = 'r1_ee'
+        GRASPING_GROUP = 'r1_gripper'
         TAC_TOPIC = "/r1/trajectory_controller/follow_joint_trajectory"
         JOINT_STATES_TOPIC = '/r1/joint_states'
     elif ROBOT_NAME == 'panda':
@@ -67,6 +76,7 @@ def init(minimal=False):
         BASE_LINK = 'panda_link0'
         GROUP_NAME = "panda_arm"
         EEF_NAME = 'panda_link8'
+        GRASPING_GROUP = 'hand'
         if SIMULATOR_NAME == 'gazebo' or SIMULATOR_NAME == 'real':
             TAC_TOPIC = '/position_joint_trajectory_controller/follow_joint_trajectory'
             JOINT_STATES_TOPIC = '/franka_state_controller/joint_states'
@@ -151,7 +161,7 @@ def init(minimal=False):
     assert position in ['', 'absolute', 'absolute+finger', 'time_warp'], "Wrong input"
 
     ## For visualization data holder
-    global figdata; figdata = None
+    global viz; viz = None # VisualizerLib obj
     global sendedPlot; sendedPlot = None
     global realPlot; realPlot = None
     global sendedPlotVel; sendedPlotVel = None
@@ -159,7 +169,8 @@ def init(minimal=False):
     global point_before_toppra; point_before_toppra = None
     global point_after_toppra; point_after_toppra = None
     global point_after_replace; point_after_replace = None
-    # Visualized Number of Joint 0..6
+    global toppraPlan; toppraPlan = None
+    # Visualized Number of Joint <0,6>
     global NJ; NJ = 0
 
     ## User Interface Data ##
@@ -377,25 +388,13 @@ class MoveData():
         self.traj_update_horizon = 0.6
 
 
-
-def quaternion_multiply(quaternion1, quaternion0):
-    w0, x0, y0, z0 = quaternion0
-    w1, x1, y1, z1 = quaternion1
-    return np.array([-x1 * x0 - y1 * y0 - z1 * z0 + w1 * w0,
-                     x1 * w0 + y1 * z0 - z1 * y0 + w1 * x0,
-                     -x1 * z0 + y1 * w0 + z1 * x0 + w1 * y0,
-                     x1 * y0 - y1 * x0 + z1 * w0 + w1 * z0], dtype=np.float64)
-
-
-#quaternion_multiply((np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),(0,1,0,0))
-
 def GenerateSomePaths(sp, ss):
     poses = []
     pose = Pose()
     pose.orientation = md.ENV_DAT['above']['ori']
     n = 100
     for i in range(0,n):
-        pose.position = Point(0.2*math.cos(2*math.pi*i/n),-0.2*math.sin(2*math.pi*i/n),0.95)
+        pose.position = Point(0.2*np.cos(2*np.pi*i/n),-0.2*np.sin(2*np.pi*i/n),0.95)
         poses.append(deepcopy(pose))
     actions = [""] * len(poses)
     sp.append(CustomPath(poses, actions, "", "circle", "above"))
@@ -710,4 +709,37 @@ def getPathNames():
 
 def getModes():
     return ['live', 'interactive', '']
+
+# Handy functions
+def extq(q):
+    ''' Extracts Quaternion object
+    Parameters:
+        q (Quaternion()): From geometry_msgs.msg
+    Returns:
+        x,y,z,w (Floats tuple[4]): Quaternion extracted
+    '''
+    assert type(q) == type(Quaternion()), "extq input arg q: Not Quaternion!"
+    return q.x, q.y, q.z, q.w
+
+def extv(v):
+    ''' Extracts Point/Vector3 to Cartesian values
+    Parameters:
+        v (Point() or Vector3()): From geometry_msgs.msg
+    Returns:
+        [x,y,z] (Floats tuple[3]): Point/Vector3 extracted
+    '''
+    assert type(v) == type(Point()) or type(v) == type(Vector3()), "extv input arg v: Not Point or Vector3!"
+    return v.x, v.y, v.z
+
+def extp(p):
+    ''' Extracts pose
+    Paramters:
+        p (Pose())
+    Returns:
+        list (Float[7])
+    '''
+    assert type(p) == type(Pose()), "extp input arg p: Not Pose type!"
+    return p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w
+
+
 ###

@@ -3,24 +3,25 @@
 import sys
 import os
 from threading import Thread
-import settings
-settings.init()
-import leapmotionlistener as lml
-import ui_lib as ui
-from time import sleep
-import moveit_lib
 import time
 from copy import deepcopy
-#import modern_robotics as mr
 import numpy as np
-import trajectory_action_client
 import rospy
-import math
 from numpy import pi
 import random
 
+import settings
+settings.init()
+
+import leapmotionlistener as lml
+import ui_lib as ui
+import moveit_lib
+from markers_publisher import MarkersPublisher
+import trajectory_action_client
+#import modern_robotics as mr
+
 import matplotlib.pyplot as plt
-import visualizer_lib
+from visualizer_lib import VisualizerLib
 from std_msgs.msg import Int8, Float64MultiArray, Int32
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from moveit_msgs.msg import RobotTrajectory
@@ -30,23 +31,91 @@ from relaxed_ik.msg import EEPoseGoals, JointAngles
 from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
 
-
 def callbackpymc(data):
     settings.pymcout = data.data
 
+def callbackik(data):
+    joints = []
+    for ang in data.angles:
+        joints.append(ang.data)
+    settings.goal_joints = joints
+
+def eef_callback(data):
+    settings.eef_pose = data
+
+def save_joints(data):
+    ''' Saves joint_states to * append array 'settings.joint_in_time' circle buffer.
+                              * latest data 'settings.joints', 'settings.velocity', 'settings.effort'
+        Topic used:
+            - CoppeliaSim (PyRep) -> topic "/joint_states_coppelia"
+            - Other (Gazebo sim / Real) -> topic "/joint_states"
+
+    '''
+    settings.joints_in_time.append(data)
+
+    if settings.ROBOT_NAME == 'iiwa':
+        if data.name[0][1] == '1': # r1 robot
+            settings.joints = data.position # Position = Angles [rad]
+            settings.velocity = data.velocity # [rad/s]
+            settings.effort = data.effort # [Nm]
+        ''' Enable second robot arm
+        elif data.name[0][1] == '2': # r2 robot
+            r2_joint_pos = data.position # Position = Angles [rad]
+            r2_joint_vel = data.velocity # [rad/s]
+            r2_joint_eff = data.effort # [Nm]
+            float(data.header.stamp.to_sec())
+        '''
+    elif settings.ROBOT_NAME == 'panda':
+        settings.joints = data.position[-7:] # Position = Angles [rad]
+        settings.velocity = data.velocity[-7:] # [rad/s]
+        settings.effort = data.effort[-7:] # [Nm]
+
+    else: raise Exception("Wrong robot name!")
+
+
+def fillInputPyMC(self):
+    dd = settings.frames_adv[-1]
+    if settings.observation_type == 'user_defined':
+        f = [dd.r.OC[0], dd.r.OC[1], dd.r.OC[2], dd.r.OC[3], dd.r.OC[4], dd.r.TCH12, dd.r.TCH23, dd.r.TCH34, dd.r.TCH45, dd.r.TCH13, dd.r.TCH14, dd.r.TCH15]
+    elif settings.observation_type == 'all_defined':
+        f = []
+        f.extend(dd.r.wrist_hand_angles_diff[1:3])
+        f.extend(ext_fingers_angles_diff(dd.r.fingers_angles_diff))
+        f.extend(ext_pos_diff_comb(dd.r.pos_diff_comb))
+        if settings.position == 'absolute':
+            f.extend(dd.r.pRaw)
+            if settings.position == 'absolute+finger':
+                f.extend(dd.r.index_position)
+    settings.pymcin = Float64MultiArray()
+    settings.pymcin.data = f
+    settings.pymc_in_pub.publish(settings.pymcin)
+
 def main():
+    # Saving the joint_states
+    if settings.SIMULATOR_NAME == 'coppelia':
+        rospy.Subscriber("joint_states_coppelia", JointState, save_joints)
+    else:
+        rospy.Subscriber("joint_states", JointState, save_joints)
+    # Saving relaxedIK output
+    rospy.Subscriber('/relaxed_ik/joint_angle_solutions', JointAngles, callbackik)
+
+    if settings.SIMULATOR_NAME == 'coppelia':
+        rospy.Subscriber('/pose_eef', Pose, eef_callback)
+
+
     settings.mo = mo = moveit_lib.MoveGroupPythonInteface()
+    settings.md.Mode = ''
     if rospy.get_param("/mirracle_config/launch_ui") == "true":
         thread2 = Thread(target = launch_ui)
-        #thread2.daemon=True
+        thread2.daemon=True
         thread2.start()
     if rospy.get_param("/mirracle_config/launch_leap") == "true":
         thread = Thread(target = launch_lml)
         thread.daemon=True
         thread.start()
-        while not settings.frames_adv: # wait until receive Leap data
-            time.sleep(2)
-            print("[WARN*] Leap data not received")
+        #while not settings.frames_adv: # wait until receive Leap data
+        #    time.sleep(2)
+        #    print("[WARN*] Leap data not received")
 
 
     if rospy.get_param("/mirracle_config/launch_gesture_detection") == "true":
@@ -62,7 +131,8 @@ def main():
         print("[WARN*] settings.goal_pose not init!!")
     while not settings.goal_joints:
         time.sleep(2)
-        settings.mo.relaxedIK_publish(pose_r = settings.mo.relaxik_t(settings.goal_pose))
+        # Putting additional relaxed_ik transform if this solver is used
+        settings.mo.ik_node_publish(pose_r = (settings.mo.relaxik_t(settings.goal_pose) if settings.IK_SOLVER == 'relaxed_ik' else settings.goal_pose))
         print("[WARN*] settings.goal_joints not init!!")
     while not settings.joints:
         time.sleep(2)
@@ -71,7 +141,7 @@ def main():
     thread3 = Thread(target = main_manager)
     thread3.daemon=True
     thread3.start()
-    thread4 = Thread(target = mo.createMarker)
+    thread4 = Thread(target = MarkersPublisher.markersThread)
     thread4.daemon=True
     thread4.start()
     thread5 = Thread(target = updateValues)
@@ -79,7 +149,7 @@ def main():
     thread5.start()
     print("[Info*] Main ready")
 
-    settings.md.Mode = ''
+    mo.make_scene('pushbutton')
     mo.testInit()
     print("[Info*] Tests Done")
     #settings.md.Mode = 'live'
@@ -88,11 +158,11 @@ def main():
 def updateValues():
     GEST_DET = rospy.get_param("/mirracle_config/launch_gesture_detection")
     while True:
-        # 1. Publish to relaxedIK topic
-        settings.mo.relaxedIK_publish(pose_r = settings.mo.relaxik_t(settings.goal_pose))
+        # 1. Publish to ik topic, putting additional relaxed_ik transform if this solver is used
+        settings.mo.ik_node_publish(pose_r = (settings.mo.relaxik_t(settings.goal_pose) if settings.IK_SOLVER == 'relaxed_ik' else settings.goal_pose))
         # 2. Send hand values to PyMC topic
-        if GEST_DET == "true":
-            settings.mo.fillInputPyMC()
+        if settings.frames_adv and GEST_DET == "true":
+            fillInputPyMC()
         # 3.
         ## When simulator is coppelia settings.eef_pose are updated with topic
         if settings.SIMULATOR_NAME != 'coppelia': # Coppelia updates eef_pose through callback
@@ -119,35 +189,24 @@ def main_manager():
     mo = settings.mo
     print("[INFO*] Main manager initialized")
 
-    #plt.ion()
-    sample_states = [
-    #[ 0.0,  0.0,  0.0,  0.0,  0.0,  0.0,  0.0]#,
-    mo.get_random_joints(),
-    mo.get_random_joints(),
-    mo.get_random_joints()
-    #mo.get_random_joints()#,
-    #[ 0.0, -pi/4, 0.0, -pi/2, 0.0,  pi/3, 0.0]
-                    ]
+    if settings.VIS_ON == 'true':
+        settings.viz = VisualizerLib()
 
     while True:
         settings.loopn += 1
         time.sleep(delay)
-        first_time = (settings.loopn == 1)
-        settings.mo.perform_path(joint_states = settings.goal_joints, first_time=first_time)
+        settings.mo.go_to_joint_state(joints = settings.goal_joints)
 
-        '''
-        if settings.loopn < 4:
-            pass
-            #settings.mo.perform_optimized_path(joint_states = sample_states[settings.loopn-1], first_time=first_time)
-            mo.callViz()
-        else:
-            if enable_plot:
-                mo.callViz(load_data=True)
-                plt.ioff()
-                plt.show()
-                print("[INFO*] Plot complete")
-                enable_plot = False
-        '''
+        if settings.VIS_ON == 'true':
+            if settings.loopn < 5:
+                mo.callViz()
+            else:
+                if enable_plot:
+                    mo.callViz(load_data=True)
+                    settings.viz.show()
+                    print("[INFO*] Plot complete")
+                    enable_plot = False
+
         if settings.md.Mode == 'live':
             o = settings.frames_adv[-1].r.pPose.pose.orientation
             if (np.sqrt(o.x**2 + o.y**2 + o.z**2 + o.w**2) - 1 > 0.000001):

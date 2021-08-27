@@ -21,7 +21,7 @@ import csv
 import pickle
 import ctypes
 from threading import Timer
-import visualizer_lib
+from visualizer_lib import VisualizerLib
 
 # ros msg classes
 from geometry_msgs.msg import PoseStamped, Quaternion, Pose, Point
@@ -235,15 +235,14 @@ class Example(QMainWindow):
         thread.start()
 
     def vis_path(self):
-        plt.ion()
-        settings.figdata = visualizer_lib.visualize_new_fig(title="Path", dim=3)
-        #visualizer_lib.visualize_3d(settings.eef_goal, storeObj=settings, color='b', label="leap", units='m')
-        data = [settings.mo.extv(pose.position) for pose in list(settings.eef_robot)]
-        visualizer_lib.visualize_3d(data=data, storeObj=settings.figdata, color='r', label="robot", units='m')
-        data = [settings.mo.extv(settings.mo.transformLeapToScene(settings.frames_adv[i].r.pPose.pose).position) for i in range(0, settings.BUFFER_LEN)]
-        visualizer_lib.visualize_3d(data=data, storeObj=settings.figdata, color='b', label="leap", units='m')
-        plt.ioff()
-        plt.show()
+        viz = VisualizerLib()
+        viz.visualize_new_fig(title="Path", dim=3)
+        #viz.visualize_3d(settings.eef_goal, storeObj=settings, color='b', label="leap", units='m')
+        data = [settings.extv(pose.position) for pose in list(settings.eef_robot)]
+        viz.visualize_3d(data=data, storeObj=settings.figdata, color='r', label="robot", units='m')
+        data = [settings.extv(settings.mo.transformLeapToScene(settings.frames_adv[i].r.pPose.pose).position) for i in range(0, settings.BUFFER_LEN)]
+        viz.visualize_3d(data=data, storeObj=settings.figdata, color='b', label="leap", units='m')
+        viz.show()
 
 
     def button_play_move(self, e):

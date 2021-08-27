@@ -31,7 +31,7 @@ from sklearn import preprocessing
 from sklearn.preprocessing import minmax_scale
 from moveit_commander.conversions import pose_to_list
 
-import visualizer_lib
+from visualizer_lib import VisualizerLib
 from matplotlib import cm
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
 
@@ -44,11 +44,10 @@ from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped, Vector3Stamp
 from moveit_msgs.srv import ApplyPlanningScene
 from trajectory_msgs.msg import JointTrajectoryPoint, JointTrajectory
 from moveit_msgs.msg import RobotTrajectory
-from relaxed_ik.msg import EEPoseGoals
 #import RelaxedIK.Utils.transformations as T
-from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
 from relaxed_ik.msg import EEPoseGoals, JointAngles
+from mirracle_gestures.srv import AddMesh, AddMeshResponse, RemoveMesh, RemoveMeshResponse, GripperControl, GripperControlResponse
 
 import kinematics_interface
 import settings
@@ -102,13 +101,6 @@ class MoveGroupPythonInteface(object):
                                                        queue_size=20)
 
 
-        # Saving the joint_states
-        if settings.SIMULATOR_NAME == 'coppelia':
-            rospy.Subscriber("joint_states_coppelia", JointState, save_joints)
-        else:
-            rospy.Subscriber("joint_states", JointState, save_joints)
-        # Saving relaxedIK output
-        rospy.Subscriber('/relaxed_ik/joint_angle_solutions', JointAngles, callbackik)
 
         planning_frame = move_group.get_planning_frame()
         eef_link = move_group.get_end_effector_link()
@@ -141,8 +133,6 @@ class MoveGroupPythonInteface(object):
         self.quit_pub = rospy.Publisher('/relaxed_ik/quit',Bool,queue_size=5)
         self.seq = 1
 
-        if settings.SIMULATOR_NAME == 'coppelia':
-            rospy.Subscriber('/pose_eef', Pose, eef_callback)
         # When directing control right to Coppelia Simulator, the output of RelaxedIk is sended directily to simulator
         if settings.SIMULATOR_NAME == 'gazebo' or settings.SIMULATOR_NAME == 'real':
             self.tac = trajectory_action_client.TrajectoryActionClient(arm=settings.GROUP_NAME, topic=settings.TAC_TOPIC, topic_joint_states = settings.JOINT_STATES_TOPIC)
@@ -158,82 +148,109 @@ class MoveGroupPythonInteface(object):
         self.timePassedPreviousTraj = None
         self.durationPreviousTraj = None
 
-    def extq(self, q):
-        return q.x, q.y, q.z, q.w
-
-    def extv(self, v):
-        return v.x, v.y, v.z
-
-    def createMarker(self):
-        publisher = rospy.Publisher('visualization_marker_array', MarkerArray, queue_size=5)
-        markerArray = MarkerArray()
-        while not rospy.is_shutdown():
-            markerArray.markers = self.GenerateMarkers()
-            publisher.publish(markerArray)
-            rospy.sleep(0.25)
-
-    def go_to_joint_state(self, joint_goal_):
-        ''' Planning to a Joint Goal
+    def getCurrentPose(self, moveit=False, stamped=False):
+        ''' Returns pose of endeffector.
+            - eef is changed based on gripper, in order to maintain place of object pickup
+            - 'coppelia' -> updated by topic
+            - other -> updated in main
+        Parameters:
+            moveit (bool): Use MoveIt! function
+        Returns:
+            pose (Pose())
         '''
-        assert isinstance(joint_goal_, list) and len(joint_goal_)==7, "Input not type list with len 7"
-        self.move_group.go(joint_goal_, wait=True)
-        self.move_group.stop()
+        if moveit:
+            if stamped:
+                return self.move_group.get_current_pose()
+            return self.move_group.get_current_pose().pose
+        return settings.eef_pose
 
-        current_joints = self.move_group.get_current_joint_values()
-        return all_close(joint_goal_, current_joints, 0.01)
+    def getCurrentJoints(self, moveit=False):
+        ''' Joint states across multiple systems. Latest joint values updated in function: 'save_joints'
+            - MoveIt -> use function
+        Parameters:
+            moveit (bool): Use MoveIt! function
+        Returns:
+            joints (float[7])
+        '''
+        if moveit:
+            return self.move_group.get_current_joint_values()
+        return settings.joints
 
 
-    def go_to_pose_goal(self, pose=None):
-        '''Planning to a Pose Goal
-        Plan a motion for this group to a desired pose for the end-effector
+    def go_to_joint_state(self, joints, moveit=False):
+        ''' Planning to a Joint Goal
+            Choosing how to perform the path between robots, simulators based on demo.launch/simulator.launch
+            - MoveIt
+            - TAC/Joint states controller
+            !! TODO: Test MoveIt! fun: self.move_group.get_current_joint_values()
+        '''
+        assert isinstance(joints, list) and len(joints)==7, "Input not type list with len 7"
+
+        if moveit:
+            self.move_group.go(joints, wait=True)
+            self.move_group.stop()
+
+            current_joints = self.move_group.get_current_joint_values()
+            return all_close(joints, current_joints, 0.01)
+        else:
+            if settings.ROBOT_NAME == 'panda':
+                if settings.SIMULATOR_NAME == 'gazebo' or settings.SIMULATOR_NAME == 'real':
+                    self.perform_trajectory_from_joints(joints)
+                elif settings.SIMULATOR_NAME == 'coppelia':
+                    pass # publsiher is enabled
+                else: raise Exception("[ERROR*] Simulator name wrong")
+            elif settings.ROBOT_NAME == 'iiwa':
+                raise Exception("[ERROR*] Robot not setup, pick Panda.")
+            else: raise Exception("[ERROR*] Robot name wrong")
+
+
+    def go_to_pose_goal(self, pose=None, moveit=True):
+        ''' Planning to a Pose Goal
+            - Plan a motion for this group to a desired pose for the end-effector
+            - TODO: Another option for execution than MoveIt!
+        Parameters:
+            moveit (Bool): Uses MoveIt! function
         '''
         assert isinstance(pose, Pose), "Input not type Pose"
-        self.move_group.set_pose_target(pose)
 
-        plan = self.move_group.go(wait=True)  # Planner compute the plan and execute it.
-        self.move_group.stop()
-        self.move_group.clear_pose_targets()
+        if moveit:
+            self.move_group.set_pose_target(pose)
 
-        current_pose = self.move_group.get_current_pose().pose
-        return all_close(pose, current_pose, 0.01)
+            plan = self.move_group.go(wait=True)  # Planner compute the plan and execute it.
+            self.move_group.stop()
+            self.move_group.clear_pose_targets()
+
+            current_pose = self.move_group.get_current_pose().pose
+            return all_close(pose, current_pose, 0.01)
+        raise Exception("TODO: Option without moveit")
 
 
-    def plan_cartesian_path(self, scale=1):
-        '''Cartesian Paths
-        You can plan a Cartesian path directly by specifying a list of waypoints
-        for the end-effector to go through. If executing  interactively in a
-        Python shell, set scale = 1.0.
+    def plan_path(self, poses, moveit=True):
+        ''' Cartesian Paths
+        Plans Cartesian path directly by specifying a list of waypoints
+        for the end-effector to go through.
+
+        Parameters:
+            poses (Array of Pose()): Waypoints
+            moveit (Bool): Uses MoveIt! function
+        Returns:
+            plan (RobotTrajectory()): Output plan
+            fraction (Float): Fraction how much path followed
         '''
-        waypoints = []
-
-        wpose = self.move_group.get_current_pose().pose
-        wpose.position.x += scale * 0.1  # Second move forward/backwards in (x)
-        waypoints.append(deepcopy(wpose))
-
-        (plan, fraction) = self.move_group.compute_cartesian_path(
-                                           waypoints,   # waypoints to follow
-                                           0.01,        # eef_step
-                                           0.0)         # jump_threshold
-
-        return plan, fraction
-
-    def plan_cartesian_path_points(self, points):
-        ''' Makes the plan with given waypoints
-        '''
-        waypoints = []
-        pose = self.move_group.get_current_pose().pose
-        pose.orientation = Quaternion(0.,0.,0.,1.)
-        for point in points:
-            pose.position.x = point[0]
-            pose.position.y = point[1]
-            pose.position.z = point[2]
-            waypoints.append(deepcopy(pose))
-            (plan, fraction) = self.move_group.compute_cartesian_path(waypoints, 0.01, 0.0)
-        return plan, fraction
+        if moveit:
+            pose = self.getCurrentJoints()
+            if self.samePoses(pose, poses[0]): # If first path point is the same as current one, discard it from path
+                poses = poses[1:]
+            (plan, fraction) = self.move_group.compute_cartesian_path(poses, 0.01, # eef_step
+                                                                                0.0) # jump_threshold
+            if fraction < 1.0:
+                print("[Warn*] Plan path function did not found whole path, only: ", fraction*100., " %")
+            return plan, fraction
+        raise Exception("TODO: Option without moveit")
 
 
-    def display_trajectory(self, plan):
-        '''Displaying a Trajectory
+    def display_trajectory(self, plan, moveit=True):
+        ''' Displaying a Trajectory
         You can ask RViz to visualize a plan (aka trajectory) for you. But the
         group.plan() method does this automatically so this is not that useful
         here (it just displays the same trajectory again):
@@ -242,29 +259,29 @@ class MoveGroupPythonInteface(object):
         We populate the trajectory_start with our current robot state to copy over
         any AttachedCollisionObjects and add our plan to the trajectory.
         '''
-        display_trajectory = moveit_msgs.msg.DisplayTrajectory()
-        display_trajectory.trajectory_start = self.robot.get_current_state()
-        display_trajectory.trajectory.append(plan)
-        print(display_trajectory)
-        # Publish
-        self.display_trajectory_publisher.publish(display_trajectory);
+        if moveit:
+            display_trajectory = moveit_msgs.msg.DisplayTrajectory()
+            display_trajectory.trajectory_start = self.robot.get_current_state()
+            display_trajectory.trajectory.append(plan)
+            print(display_trajectory)
+            # Publish
+            self.display_trajectory_publisher.publish(display_trajectory)
+        raise Exception("TODO: Option without moveit")
 
+    def execute_plan(self, plan, moveit=True):
+        ''' Executing a Plan. Uses plan already computed.
 
-
-    def execute_plan(self, plan):
-        '''Executing a Plan
-        Use execute if you would like the robot to follow
-        the plan that has already been computed:
+        Parameters:
+            plan (RobotTrajectory()): Input plan
+            moveit (Bool): Execute with MoveIt! fun.
         '''
-
-        return self.move_group.execute(plan, wait=True)
-        ## **Note:** The robot's current joint state must be within some tolerance of the
-        ## first waypoint in the `RobotTrajectory`_ or ``execute()`` will fail
-
+        if moveit:
+            return self.move_group.execute(plan, wait=True)
+        raise Exception("TODO: Without Moveit!")
 
 
     def wait_for_state_update(self, box_is_known=False, box_is_attached=False, timeout=4):
-        '''Ensuring Collision Updates Are Received
+        ''' MoveIt! fun. Ensuring Collision Updates Are Received
         If the Python node dies before publishing a collision object update message, the message
         could get lost and the box will not appear. To ensure that the updates are
         made, we wait until we see the changes reflected in the
@@ -295,7 +312,7 @@ class MoveGroupPythonInteface(object):
 
 
     def add_box(self, timeout=4):
-        '''Adding Objects to the Planning Scene
+        ''' Adding Objects to the Planning Scene
         First, we will create a box in the planning scene between the fingers:
         '''
         box_pose = PoseStamped()
@@ -308,67 +325,136 @@ class MoveGroupPythonInteface(object):
         self.wait_for_state_update(box_is_known=True, timeout=timeout)
 
 
-    def add_mesh(self, file=None, name='box', pose=None, frame_id='panda_link7', timeout=4):
-        box_name = self.box_name
-        scene = self.scene
-
-        mesh_pose = geometry_msgs.msg.PoseStamped()
-        mesh_pose.header.frame_id = frame_id
-        mesh_pose.pose = pose
-        mesh_name = name
-        if name == "box" or name == "box2":
-            self.scene.add_box(mesh_name, mesh_pose, size=(0.075, 0.075, 0.075))
-        else:
-            scene.add_mesh(mesh_name, mesh_pose, file, size=(1., 1., 1.))
-
-        self.box_name=mesh_name # its the box
-        return self.wait_for_state_update(box_is_known=True, timeout=timeout)
-
-    def attach_item(self, item=None, timeout=4):
-        '''Attaching Mesh Objects to the Robot
-        Manipulating objects requires the
-        robot be able to touch them without the planning scene reporting the contact as a
-        collision. By adding link names to the ``touch_links`` array, we are telling the
-        planning scene to ignore collisions between those links and the box. For the Panda
-        robot, we set ``grasping_group = 'hand'``. If you are using a different robot,
-        you should change this value to the name of your end effector group name.
+    def add_mesh(self, file=None, name='box', pose=None, frame_id='panda_link7', timeout=4, moveit=False):
+        ''' Adds mesh based on mesh file
+            If string 'box' in name (e.g. 'box1', 'box234'), it automatically adds box as mash, no mash file need to be specified
+        Parameters:
+            file (Str): Mesh file string (def. in dir include/models/) as .obj file
+            name (Str): Name of object
+            pose (Pose()): Pose of object to be spawned
+            frame_id (Str): By respect to what frame_id to be spawned
+            timeout (Int/Float): If fails, will end in given seconds
+            moveit (Bool): Uses MoveIt! env.
         '''
-        grasping_group = 'r1_gripper'
-        grasping_group = 'panda_link7'
-        touch_links = self.robot.get_link_names(group=grasping_group)
-        self.scene.attach_mesh(self.eef_link, item, touch_links=touch_links)
+        if moveit:
+            box_name = self.box_name
+            scene = self.scene
 
-        ## Mark what item was attached
-        settings.md.attached = [item]
-        print("attached item")
+            mesh_pose = geometry_msgs.msg.PoseStamped()
+            mesh_pose.header.frame_id = frame_id
+            mesh_pose.pose = pose
+            mesh_name = name
 
-        # We wait for the planning scene to update.
-        return self.wait_for_state_update(box_is_attached=True, box_is_known=False, timeout=timeout)
+            if "box" in name:
+                self.scene.add_box(mesh_name, mesh_pose, size=(0.075, 0.075, 0.075))
+            else:
+                scene.add_mesh(mesh_name, mesh_pose, file, size=(1., 1., 1.))
+
+            self.box_name=mesh_name # its the box
+            return self.wait_for_state_update(box_is_known=True, timeout=timeout)
+        # CoppeliaSim (PyRep)
+        rospy.wait_for_service('add_mesh')
+        try:
+            add_mesh = rospy.ServiceProxy('add_mesh', AddMesh)
+            resp1 = add_mesh(file, name, pose, frame_id)
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
 
 
-    def detach_item(self, item=None, timeout=4):
+    def pick_item(self, item=None, timeout=4, moveit=True):
+        ''' Pick up item. Perform grasp while appling some force.
+
+        '''
+        # TODO: Position won't be 0.0, it will be more with pressure applied
+        position = 0.0 # position of gripper
+        effort = 0.4 # pseudo effort of gripper motion
+
+        if not moveit:
+            # CoppeliaSim (PyRep)
+            rospy.wait_for_service('gripper_control')
+            try:
+                gripper_control = rospy.ServiceProxy('gripper_control', GripperControl)
+                resp1 = gripper_control(position, effort)
+            except rospy.ServiceException as e:
+                print("Service call failed: %s"%e)
+
+        # Update planning scene
+        self.attach_item(item=item, timeout=timeout, moveit=moveit)
+
+    def drop_item(self, item=None, timeout=4, moveit=True):
+        ''' Drops item. Perform gripper execution.
+
+        '''
+        position = 1.0 # position of gripper
+        effort = 0.4 # pseudo effort of gripper motion
+        if not moveit:
+            # CoppeliaSim (PyRep)
+            rospy.wait_for_service('gripper_control')
+            try:
+                gripper_control = rospy.ServiceProxy('gripper_control', GripperControl)
+                resp1 = gripper_control(position, effort)
+            except rospy.ServiceException as e:
+                print("Service call failed: %s"%e)
+
+        # Update planning scene
+        self.detach_item(item=item, timeout=timeout)
+
+
+    def attach_item(self, item=None, timeout=4, moveit=True):
+        ''' Attaching Mesh Objects to the Robot
+            - Ignore collisions, adding link names to the ``touch_links`` array
+            between those links and the box
+            - Grasping group is based on robot 'settings.GRASPING_GROUP'
+        Parameters:
+            item (Str): Name of item id
+            moveit (Bool): Uses MoveIt! env.
+        '''
+        if moveit:
+            touch_links = self.robot.get_link_names(group=settings.GRASPING_GROUP)
+            self.scene.attach_mesh(self.eef_link, item, touch_links=touch_links)
+
+            ## Mark what item was attached
+            settings.md.attached = [item]
+            print("Attached item")
+
+            # We wait for the planning scene to update.
+            return self.wait_for_state_update(box_is_attached=True, box_is_known=False, timeout=4)
+
+
+    def detach_item(self, item=None, timeout=4, moveit=True):
         '''Detaching Objects from the Robot
         We can also detach and remove the object from the planning scene:
         '''
-        self.scene.remove_attached_object(self.eef_link, name=item)
+        if moveit:
+            self.scene.remove_attached_object(self.eef_link, name=item)
 
-        ## Mark that item was detached
-        settings.md.attached = False
-        print("detach item")
+            ## Mark that item was detached
+            settings.md.attached = False
+            print("Detached item")
 
-        # We wait for the planning scene to update.
-        return self.wait_for_state_update(box_is_known=True, box_is_attached=False, timeout=timeout)
+            # We wait for the planning scene to update.
+            return self.wait_for_state_update(box_is_known=True, box_is_attached=False, timeout=timeout)
 
 
-    def remove_item(self, item=None, timeout=4):
+    def remove_item(self, item=None, timeout=4, moveit=True):
         '''Removing Objects from the Planning Scene
         We can remove the box from the world.
         '''
-        self.scene.remove_world_object(item)
-        ## **Note:** The object must be detached before we can remove it from the world
+        if moveit:
+            self.scene.remove_world_object(item)
+            ## **Note:** The object must be detached before we can remove it from the world
 
-        # We wait for the planning scene to update.
-        return self.wait_for_state_update(box_is_attached=False, box_is_known=False, timeout=timeout)
+            # We wait for the planning scene to update.
+            return self.wait_for_state_update(box_is_attached=False, box_is_known=False, timeout=timeout)
+
+        # CoppeliaSim (PyRep)
+        rospy.wait_for_service('remove_mesh')
+        try:
+            gripper_control = rospy.ServiceProxy('remove_mesh', RemoveMesh)
+            resp1 = gripper_control(item)
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
+
 
     def print_info(self, timeout=4):
         # We can get the name of the reference frame for this robot:
@@ -429,7 +515,8 @@ class MoveGroupPythonInteface(object):
     '''
     def make_scene(self, scene=''):
         ''' Prepare scene, add objects for obstacle or manipulation.
-            :arg: scene Scenes names are from settings.ss[:].NAME and are generated from settings.GenerateSomeScenes() function
+        Parameters:
+            scene (str): Scenes names are from settings.ss[:].NAME and are generated from settings.GenerateSomeScenes() function
             (you can get scene names settings.getSceneNames())
         '''
         # possible improvement
@@ -464,14 +551,35 @@ class MoveGroupPythonInteface(object):
         print("scene ready")
 
 
+    def distancePoses(self, p1, p2):
+        ''' Returns distance between two pose objects
+        Parameters:
+            pose1 (type Pose() from geometry_msgs.msg)
+            pose2 (type Pose() from geometry_msgs.msg)
+        Returns:
+            distance (Float)
+        '''
+        p1 = p1.position
+        p2 = p2.position
+        return np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2)
 
+    def pointToScene(self, point):
+        x,y,z = point.x, point.y, point.z
+        point_ = Point()
+        point_.x = np.dot([x,y,z], settings.md.ENV['axes'][0])*settings.md.SCALE + settings.md.ENV['start'].x
+        point_.y = np.dot([x,y,z], settings.md.ENV['axes'][1])*settings.md.SCALE + settings.md.ENV['start'].y
+        point_.z = np.dot([x,y,z], settings.md.ENV['axes'][2])*settings.md.SCALE + settings.md.ENV['start'].z
+        return point_
 
     def samePoses(self, pose1, pose2, accuracy=0.05):
         ''' Checks if two type poses are near each other
             (Only for cartesian (xyz), not orientation wise)
-            :arg: pose1 (type Pose() from geometry_msgs.msg)
-            :arg: pose2 (type Pose() from geometry_msgs.msg)
-            :arg: accuracy threshold of return value
+        Parameters:
+            pose1 (type Pose() from geometry_msgs.msg)
+            pose2 (type Pose() from geometry_msgs.msg)
+            accuracy (Float): threshold of return value
+        Returns:
+            same poses (Bool)
         '''
         assert isinstance(pose1,Pose), "Not datatype Pose, pose1: "+str(pose1)
         assert isinstance(pose2,Pose), "Not datatype Pose, pose2: "+str(pose2)
@@ -482,9 +590,10 @@ class MoveGroupPythonInteface(object):
 
     def sameJoints(self, joints1, joints2, accuracy=0.1):
         ''' Checks if two type joints are near each other
-            :arg: joints1 (type float[7])
-            :arg: joints2 (type float[7])
-            :arg: threshold, sum of joint differences threshold
+        Parameters:
+            joints1 (type float[7])
+            joints2 (type float[7])
+            threshold (Float): sum of joint differences threshold
         '''
         assert isinstance(joints1[0],float) and len(joints1)==7, "Not datatype List w len 7, joints 1: "+str(joints1)
         assert isinstance(joints2[0],float) and len(joints2)==7, "Not datatype List w len 7, joints 2: "+str(joints2)
@@ -529,7 +638,7 @@ class MoveGroupPythonInteface(object):
         R = tf.transformations.concatenate_matrices(Rx, Ry, Rz)
         euler = tf.transformations.euler_from_matrix(R, 'rxyz')
 
-        pose_.orientation = Quaternion(*tf.transformations.quaternion_multiply(tf.transformations.quaternion_from_euler(*euler), self.extq(settings.md.ENV['ori'])))
+        pose_.orientation = Quaternion(*tf.transformations.quaternion_multiply(tf.transformations.quaternion_from_euler(*euler), settings.extq(settings.md.ENV['ori'])))
         '''
         if settings.md.ENV['ori_type'] == 'normal':
             dir = normdir[0:3]
@@ -620,28 +729,6 @@ class MoveGroupPythonInteface(object):
             pose_.position.y = -pose_.position.y
         return pose_
 
-    def points_reachable(self, p):
-        for point in p:
-            # check the inverse kinematic
-            pose = self.move_group.get_current_pose()
-            pose.pose.position.x = point[0]
-            pose.pose.position.y = point[1]
-            pose.pose.position.z = point[2]
-            pose.pose.orientation.x = 0.0
-            pose.pose.orientation.y = 0.0
-            pose.pose.orientation.z = 0.0
-            pose.pose.orientation.w = 1.0
-            IK_resp = self.ikt.getIK(self.move_group.get_name(),
-                                        self.move_group.get_end_effector_link(),
-                                        pose)
-            if IK_resp.error_code.val != 1:
-                print("this is it",IK_resp.solution.joint_state)
-                return False
-            #showcase.go_to_joint_state(IK_resp.solution.joint_state.position[0:7])
-        return True
-
-
-
     def set_constraints(self):
         ''' Sets trajectory tolerances
         '''
@@ -688,7 +775,7 @@ class MoveGroupPythonInteface(object):
         if points == []:
             print("error, points empty")
         for point in points:
-            p = iiwa_forward_kinematics(point.positions)
+            p = Raw_Kinematics.forward_kinematics(point.positions)
             Q.append(p)
             time.append(point.time_from_start.to_sec())
 
@@ -696,25 +783,6 @@ class MoveGroupPythonInteface(object):
             Q0 = deepcopy(Q[0])
             for n in range(0, len(Q)):
                 Q[n] = np.subtract(Q[n], Q0)
-        return Q, time
-
-    def plan_to_joints(self, data):
-        ''' Plan ROS msg object to points in [[x1,y1,z1],[x2,y2,z2],...[xn,yn,zn]]
-        '''
-        try:
-            data.joint_trajectory.points
-        except NameError:
-            print(data.joint_trajectory.points[0].positions,"\n","Name Error, Data is in unsupported type: ", type(data))
-            return None
-        Q = []
-        time = []
-        points = data.joint_trajectory.points
-        if points == []:
-            print("error, points empty")
-        for point in points:
-            Q.append(point.positions)
-            time.append(point.time_from_start.to_sec())
-
         return Q, time
 
     def point_in_env(self, point):
@@ -816,24 +884,13 @@ class MoveGroupPythonInteface(object):
 
         return goal_trajectory
 
-    def perform_path(self, joint_states=None, first_time=None):
-        ''' Choosing how to perform the path between robots, simulators based on demo.launch/simulator.launch
-            -> Performs path
-        '''
-        if settings.ROBOT_NAME == 'panda':
-            if settings.SIMULATOR_NAME == 'gazebo' or settings.SIMULATOR_NAME == 'real':
-                self.perform_optimized_path(joint_states=joint_states, first_time=first_time)
-            elif settings.SIMULATOR_NAME == 'coppelia':
-                pass # publsiher is enabled
-            else: raise Exception("[ERROR*] Simulator name wrong")
-        elif settings.ROBOT_NAME == 'iiwa':
-            raise Exception("[ERROR*] Robot not setup, pick Panda.")
-        else: raise Exception("[ERROR*] Robot name wrong")
+    def perform_trajectory_from_joints(self, joint_states=None):
+        ''' Performs/Updates/Replaces trajectory with actionlib.
 
-
-
-    def perform_optimized_path(self, joint_states=None, first_time=None):
-        '''
+        Parameters:
+            joint_states (Float[7]): joint states of the robot
+        Global parameters:
+            settings.TOPPRA_ON (Bool): Enables toppra planning to trajectory
         '''
         ## Check two states
         # 1. new joint states are near the desired one and the robot is not moving
@@ -961,20 +1018,31 @@ class MoveGroupPythonInteface(object):
         settings.point_after_toppra = point_after_toppra
         settings.point_after_replace = point_after_replace
 
-        dataPlotVel = [pt.velocities[settings.NJ] for pt in settings.md._goal.trajectory.points]
+        try:
+            dataPlotVel = [pt.velocities[settings.NJ] for pt in settings.md._goal.trajectory.points]
+        except IndexError:
+            print("@@@@@@@@@@@@@@@@@@@",settings.md._goal.trajectory.points[:].velocities)
         timePlotVel = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
         settings.sendedPlotVel = zip(timePlotVel, dataPlotVel)
         timeJointPlotVel = [pt.header.stamp.to_sec() for pt in list(settings.joints_in_time)]
         dataJointPlotVel = [pt.velocity[settings.NJ] for pt in list(settings.joints_in_time)]
         settings.realPlotVel = zip(timeJointPlotVel, dataJointPlotVel)
 
-    def callViz(self, load_data=False):
-        ''' Visualize data saved in "settings.sendedPlot", "settings.realPlot"
+    def callViz(self, load_data=False, plotToppraPlan=False, plotAccelerations=False, plotEfforts=False):
+        ''' Visualize data + show. Loading series from:
+                - Sended trajectory values: settings.sendedPlot, settings.sendedPlotVel
+                - The joint states values: settings.realPlot, settings.realPlotVel
+                - Section of toppra execution, start/end pts: [settings.point_before_toppra, settings.point_after_toppra]
+                - Section of trajectory replacement, start/end pts: [settings.point_after_toppra, settings.point_after_replace]
+            Note: Every plot visualization takes ~200ms
 
-
-        Args:
+        Parameters:
             load_data (bool): Loads joint_states positions and velocities to get up-to-date trajectories
+            plotToppraPlan (bool): Plots toppra RobotTrajectory plan
+            plotAccelerations (bool): Plots accelerations
+            plotEfforts (bool): Plots efforts
         '''
+        # Load/Update Data
         if load_data or settings.SIMULATOR_NAME == 'coppelia':
             dataJointPlot = [pt.position[settings.NJ] for pt in list(settings.joints_in_time)]
             timeJointPlot = [pt.header.stamp.to_sec() for pt in list(settings.joints_in_time)]
@@ -983,55 +1051,65 @@ class MoveGroupPythonInteface(object):
             dataJointPlotVel = [pt.velocity[settings.NJ] for pt in list(settings.joints_in_time)]
             settings.realPlotVel = zip(timeJointPlotVel, dataJointPlotVel)
 
-        settings.figdata = visualizer_lib.visualize_new_fig(title="Trajectory number "+str(settings.loopn)+" executed - vis. position of panda_joint"+str(settings.NJ+1), dim=2)
-
-
+        # Plot positions
+        settings.viz.visualize_new_fig(title="Trajectory number "+str(settings.loopn)+" executed - vis. position of panda_joint"+str(settings.NJ+1), dim=2)
         if settings.ROBOT_NAME == 'panda' and (settings.SIMULATOR_NAME == 'gazebo' or settings.SIMULATOR_NAME == 'real'):
-            visualizer_lib.visualize_2d(data=settings.sendedPlot, storeObj=settings.figdata, color='r', label="Replaced (sended) trajectory position", scatter_pts=True)
-            visualizer_lib.visualize_2d(data=[settings.point_before_toppra, settings.point_after_toppra], storeObj=settings.figdata, color='y', label="Toppra executing")
-            visualizer_lib.visualize_2d(data=[settings.point_after_toppra, settings.point_after_replace], storeObj=settings.figdata, color='k', label="Replace executing")
+            settings.viz.visualize_2d(data=settings.sendedPlot, color='r', label="Replaced (sended) trajectory position", scatter_pts=True)
+            settings.viz.visualize_2d(data=[settings.point_before_toppra, settings.point_after_toppra], color='y', label="Toppra executing")
+            settings.viz.visualize_2d(data=[settings.point_after_toppra, settings.point_after_replace], color='k', label="Replace executing")
         else:
             pass
+        settings.viz.visualize_2d(data=settings.realPlot, color='b', label="Real (joint states) trajectory position")
 
-        visualizer_lib.visualize_2d(data=settings.realPlot, storeObj=settings.figdata, color='b', label="Real (joint states) trajectory position")
-
-        settings.figdata = visualizer_lib.visualize_new_fig(title="Trajectory number "+str(settings.loopn)+" executed - vis. velocity of panda_joint"+str(settings.NJ+1), dim=2)
+        # Plot velocities
+        settings.viz.visualize_new_fig(title="Trajectory number "+str(settings.loopn)+" executed - vis. velocity of panda_joint"+str(settings.NJ+1), dim=2)
 
         if settings.ROBOT_NAME == 'panda' and (settings.SIMULATOR_NAME == 'gazebo' or settings.SIMULATOR_NAME == 'real'):
-            visualizer_lib.visualize_2d(data=settings.sendedPlotVel, storeObj=settings.figdata, color='r', label="Replaced (sended) trajectory velocity", scatter_pts=True)
+            settings.viz.visualize_2d(data=settings.sendedPlotVel, color='r', label="Replaced (sended) trajectory velocity", scatter_pts=True)
         else:
             pass
-        visualizer_lib.visualize_2d(data=settings.realPlotVel, storeObj=settings.figdata, color='b', label="Real (states) velocity")
+        settings.viz.visualize_2d(data=settings.realPlotVel, color='b', label="Real (states) velocity")
 
-        '''
-        if (settings.loopn in loopn_vis):
+        # Plot accelerations
+        if plotAccelerations:
             dataPlot = [pt.accelerations[settings.NJ] for pt in settings.md._goal.trajectory.points]
             timePlot = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
             timeJointPlot = [pt.header.stamp.to_sec() for pt in list(settings.joints_in_time)]
             dataJointPlot = [pt.effort[settings.NJ] for pt in list(settings.joints_in_time)]
             settings.figdata = visualizer_lib.visualize_new_fig(title="Loop"+str(settings.loopn)+" ACC", dim=2)
-            visualizer_lib.visualize_2d(data=zip(timePlot, dataPlot), storeObj=settings.figdata, color='r', label="sended trajectory accelerations", transform='front')
-            visualizer_lib.visualize_2d(data=zip(timeJointPlot, dataJointPlot), storeObj=settings.figdata, color='b', label="real efforts", transform='front')
+            settings.viz.visualize_2d(data=zip(timePlot, dataPlot), color='r', label="sended trajectory accelerations", transform='front')
+            settings.viz.visualize_2d(data=zip(timeJointPlot, dataJointPlot), color='b', label="real efforts")
 
+        # Plot efforts
+        if plotEfforts:
             #dataPlot = [pt.effort[settings.NJ] for pt in settings.md._goal.trajectory.points]
             timePlot = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
             timeJointPlot = [pt.header.stamp.to_sec() for pt in list(settings.joints_in_time)]
             dataJointPlot = [pt.effort[settings.NJ] for pt in list(settings.joints_in_time)]
-            settings.figdata = visualizer_lib.visualize_new_fig(title="Path", dim=2)
-            #visualizer_lib.visualize_2d(data=zip(timePlot, dataPlot), storeObj=settings.figdata, color='r', label="sended trajectory effort", transform='front')
-            visualizer_lib.visualize_2d(data=zip(timeJointPlot, dataJointPlot), storeObj=settings.figdata, color='b', label="real effort", transform='front')
-        '''
+            settings.viz.visualize_new_fig(title="Path", dim=2)
+            #settings.viz.visualize_2d(data=zip(timePlot, dataPlot), color='r', label="sended trajectory effort")
+            settings.viz.visualizer_lib.visualize_2d(data=zip(timeJointPlot, dataJointPlot), color='b', label="real effort")
 
+        if plotToppraPlan:
+            self.plot_plan(plan=settings.toppraPlan)
 
     def retime_wrapper(self, trajectory):
+        ''' Calls retime function which takes RobotTrajectory and returns RobotTrajectory.
+            This function wraps it to take JointTrajectory nad return JointTrajectory
+        Parameters:
+            trajectory (JointTrajectory())
+        Returns:
+            robot_traj_new (JointTrajectory())
+        '''
         robot_traj = RobotTrajectory()
         robot_traj.joint_trajectory = deepcopy(trajectory)
         robot_traj_new = self.retime(plan=robot_traj)
-        #self.plot_plan(plan=robot_traj_new)
+        settings.toppraPlan = deepcopy(robot_traj_new)
         return robot_traj_new.joint_trajectory
 
     def plot_plan(self, plan, title='', save='', show=True, ret=False):
-
+        ''' Plots toppra plan.
+        '''
         ss = np.array([pt.time_from_start.to_sec() for pt in plan.joint_trajectory.points])
         way_pts = np.array([list(pt.positions) for pt in plan.joint_trajectory.points])
         vel = np.array([list(pt.velocities) for pt in plan.joint_trajectory.points])
@@ -1192,13 +1270,14 @@ class MoveGroupPythonInteface(object):
             instance = ta.algorithm.TOPPRAsd([pc_vel, pc_vel2, pc_acc], path, gridpoints=np.linspace(0.0, ss[-1], int(np.min([n_grid, int(np.ceil(pt_per_s*ss[-1]))]))))
 
 
-        ''' Edited HERE
+        ''' Original function edited primarily HERE
         '''
         instance.set_desired_duration(traj_duration)
         pathVelocityNow = self.getPathVelocityNow()
         jnt_traj = self.extractToppraTraj(instance.compute_trajectory(pathVelocityNow, 0.))
         if not jnt_traj: return plan
         _, sd_vec, _ = instance.compute_parameterization(pathVelocityNow, 0.)
+        print("sd_vec ", sd_vec)
         self.savedVelocityVec = sd_vec # update vals
         self.durationPreviousTraj = jnt_traj.duration
         ''' END Edit
@@ -1240,7 +1319,7 @@ class MoveGroupPythonInteface(object):
 
     def extractToppraTraj(self, jnt_traj_):
         ''' Toppra function compute_trajectory() sometimes returns the tuple,
-            which usually contains [0, traj], this function will just return the traj itself
+            which usually contains e.g. [0, traj], this function will just return the traj itself
         '''
         jnt_traj = deepcopy(jnt_traj_)
         succ = False
@@ -1334,25 +1413,32 @@ class MoveGroupPythonInteface(object):
         curve_shifted = curve - curve.mean(axis=0) + np.array([0.0, 0.0, 0.0, 1.0])
         #                       shift curve mean to origin, and then every point by this amount in x,y,z
 
-    def point_to_joints(self, x, y, z=1.0):
+    def get_ik(self, pose=None):
+        ''' Uses kinematics interface.
+            If pose not specified, returns from current pose.
 
-        pose = self.move_group.get_current_pose()
-        joints = self.move_group.get_current_joint_values()
-        pose.pose.position.x = x
-        pose.pose.position.y = y
-        pose.pose.position.z = z
-        pose.pose.orientation.x = 0.0
-        pose.pose.orientation.y = 0.0
-        pose.pose.orientation.z = 0.0
-        pose.pose.orientation.w = 1.0
+        Parameters:
+            pose (Pose()): From ROS msg
+        Returns:
+            joints (Float[7]): Robot joint values
+        '''
+        if not pose:
+            pose = self.move_group.get_current_pose()
         IK_resp = self.ikt.getIK(self.move_group.get_name(), self.move_group.get_end_effector_link(), pose)
         if IK_resp.error_code.val != 1:
-            print("IKT NOT FOUND!!!",IK_resp.solution.joint_state.position)
+            print("[Kinematics Interface] IKT not found!",IK_resp.solution.joint_state.position)
         return IK_resp.solution.joint_state.position[0:7] # robot1
 
 
-
-    def relaxedIK_publish(self, pose_r=None, pose_l=None):
+    def ik_node_publish(self, pose_r=None, pose_l=None):
+        ''' Sends goal poses to topic '/relaxed_ik/ee_pose_goals'.
+            Inverse kinematics is solved based on 'ik_soler' ROSparam.
+                - 'relaxed_ik' -> Picked up by relaxedIK node
+                - 'pyrep' -> Picked up by "coppelia_sim.py"
+        Parameters:
+            pose_r (Pose()): Object from ROS msg. Primary arm.
+            pose_l (Pose()): Object from ROS msg. For future, secord arm.
+        '''
         position_r, rotation_r, position_l, rotation_l = None, None, None, None
         if pose_r is not None:
             position_r = [pose_r.position.x, pose_r.position.y, pose_r.position.z]
@@ -1433,23 +1519,6 @@ class MoveGroupPythonInteface(object):
         q = Bool()
         q.data = False
         self.quit_pub.publish(q)
-
-    def fillInputPyMC(self):
-        dd = settings.frames_adv[-1]
-        if settings.observation_type == 'user_defined':
-            f = [dd.r.OC[0], dd.r.OC[1], dd.r.OC[2], dd.r.OC[3], dd.r.OC[4], dd.r.TCH12, dd.r.TCH23, dd.r.TCH34, dd.r.TCH45, dd.r.TCH13, dd.r.TCH14, dd.r.TCH15]
-        elif settings.observation_type == 'all_defined':
-            f = []
-            f.extend(dd.r.wrist_hand_angles_diff[1:3])
-            f.extend(ext_fingers_angles_diff(dd.r.fingers_angles_diff))
-            f.extend(ext_pos_diff_comb(dd.r.pos_diff_comb))
-            if settings.position == 'absolute':
-                f.extend(dd.r.pRaw)
-                if settings.position == 'absolute+finger':
-                    f.extend(dd.r.index_position)
-        settings.pymcin = Float64MultiArray()
-        settings.pymcin.data = f
-        settings.pymc_in_pub.publish(settings.pymcin)
 
     def changePlayPath(self, path_=None):
         for n, path in enumerate(settings.sp):
@@ -1570,15 +1639,15 @@ class MoveGroupPythonInteface(object):
         '''
         time.sleep(1)
         if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.05):
-            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), " [x,y,z] diff:", np.subtract(self.extv(settings.eef_pose.position), self.extv(settings.goal_pose.position)))
+            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), " [x,y,z] diff:", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         else: return
         time.sleep(2)
         if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.1):
-            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), " [x,y,z] diff:", np.subtract(self.extv(settings.eef_pose.position), self.extv(settings.goal_pose.position)))
+            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), " [x,y,z] diff:", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         else: return
         time.sleep(2)
         if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.2):
-            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), " [x,y,z] diff:", np.subtract(self.extv(settings.eef_pose.position), self.extv(settings.goal_pose.position)))
+            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), " [x,y,z] diff:", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
             print("[WARN*] Position not accurate")
         else: return
         time.sleep(5)
@@ -1598,45 +1667,45 @@ class MoveGroupPythonInteface(object):
         pose.position = Point(0.7,0.1,0.5)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2/1, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 1/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
         pose.position = Point(0.7,-0.1,0.5)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2/2, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 2/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
         pose.position = Point(0.7,-0.1,0.4)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2/3, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 3/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
         pose.position = Point(0.7,0.1,0.4)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2/4, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 4/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
         pose.position = Point(0.7,0.1,0.5)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 5/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
 
         pose.orientation = settings.md.ENV_DAT['table']['ori']
         pose.position = Point(0.4,-0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3/1, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 1/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
         pose.position = Point(0.6,-0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3/2, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 2/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
         pose.position = Point(0.6,0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3/3, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 3/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
         pose.position = Point(0.4,0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3/4, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 4/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
         pose.position = Point(0.4,-0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 5/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
 
         pose = Pose()
         pose.orientation = settings.md.ENV_DAT['above']['ori']
@@ -1698,561 +1767,84 @@ class MoveGroupPythonInteface(object):
                 row.append(self.distancePoses(settings.eef_pose, p))
             dists.append(row)
 
-
-
-    def distancePoses(self, p1,p2):
-        p1 = p1.position
-        p2 = p2.position
-        #print(p1, "\n",p2)
-        dist = np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2)
-        #print("vector: ", str(p1.x - p2.x)," ", str(p1.y - p2.y)," ", str(p1.z - p2.z))
-        #print("Distance: ", dist)
-        #print("##")
-        return dist
-
-    def pointToScene(self, point):
-        x,y,z = point.x, point.y, point.z
-        point_ = Point()
-        point_.x = np.dot([x,y,z], settings.md.ENV['axes'][0])*settings.md.SCALE + settings.md.ENV['start'].x
-        point_.y = np.dot([x,y,z], settings.md.ENV['axes'][1])*settings.md.SCALE + settings.md.ENV['start'].y
-        point_.z = np.dot([x,y,z], settings.md.ENV['axes'][2])*settings.md.SCALE + settings.md.ENV['start'].z
-        return point_
-
-
-
-    ### Long Data
-    def GenerateMarkers(self):
-        q_norm_to_dir = Quaternion(0.0, -math.sqrt(2)/2, 0.0, math.sqrt(2)/2)
-        markers_array = []
-        ## marker_interaction_box
-        sx,sy,sz = self.extv(settings.md.ENV['start'])
-        m = Marker()
-        m.header.frame_id = "/"+settings.BASE_LINK
-        m.type = m.SPHERE
-        m.action = m.ADD
-        m.scale.x = 0.01
-        m.scale.y = 0.01
-        m.scale.z = 0.01
-        m.color.a = 1.0
-        m.color.r = 1.0
-        m.color.g = 1.0
-        m.color.b = 0.0
-        m.pose.orientation = settings.md.ENV['ori']
-        m.pose.position = self.pointToScene(Point(+0.1175, +0.0735, +0.0825))
-        m.id = 100
-        markers_array.append(deepcopy(m))
-        m.pose.position = self.pointToScene(Point(-0.1175, +0.0735, +0.0825))
-        m.id += 1
-        markers_array.append(deepcopy(m))
-        m.pose.position = self.pointToScene(Point(-0.1175, -0.0735, +0.0825))
-        m.id += 1
-        markers_array.append(deepcopy(m))
-        m.pose.position = self.pointToScene(Point(+0.1175, -0.0735, +0.0825))
-        m.id += 1
-        markers_array.append(deepcopy(m))
-        m.pose.position = self.pointToScene(Point(+0.1175, +0.0735, +0.0825+0.3175))
-        m.id += 1
-        markers_array.append(deepcopy(m))
-        m.pose.position = self.pointToScene(Point(-0.1175, +0.0735, +0.0825+0.3175))
-        m.id += 1
-        markers_array.append(deepcopy(m))
-        m.pose.position = self.pointToScene(Point(-0.1175, -0.0735, +0.0825+0.3175))
-        m.id += 1
-        markers_array.append(deepcopy(m))
-        m.pose.position = self.pointToScene(Point(+0.1175, -0.0735, +0.0825+0.3175))
-        m.id += 1
-        markers_array.append(deepcopy(m))
-
-        ## Marker env + normal
-        m = Marker()
-        m.header.frame_id = "/"+settings.BASE_LINK
-        m.type = m.ARROW
-        m.action = m.ADD
-        m.scale.x = 0.1
-        m.scale.y = 0.01
-        m.scale.z = 0.01
-        m.color.a = 1.0
-        m.color.r = 1.0
-        m.color.g = 1.0
-        m.color.b = 0.0
-        m.pose.position = settings.md.ENV['start']
-        m.pose.orientation = settings.md.ENV['ori']
-        m.id += 1
-        markers_array.append(deepcopy(m))
-        m.color.g = 0.0
-        m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(self.extq(m.pose.orientation), self.extq(q_norm_to_dir)))
-        m.id += 1
-        markers_array.append(deepcopy(m))
-
-        ## Marker endeffector + normal + action to attach
-        m = Marker()
-        m.header.frame_id = "/"+settings.EEF_NAME
-        m.type = m.ARROW
-        m.action = m.ADD
-        m.scale.x = 0.2
-        m.scale.y = 0.01
-        m.scale.z = 0.01
-        m.color.a = 1.0
-        m.color.r = 1.0
-        m.color.g = 1.0
-        m.color.b = 0.0
-        m.pose.orientation.x = 0.0
-        m.pose.orientation.y = -math.sqrt(2)/2
-        m.pose.orientation.z = 0.0
-        m.pose.orientation.w = math.sqrt(2)/2
-        m.pose.position.x = 0
-        m.pose.position.y = 0
-        m.pose.position.z = 0
-        m.id += 1
-        markers_array.append(deepcopy(m))
-        m.color.g = 0.0
-        m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(self.extq(m.pose.orientation), self.extq(q_norm_to_dir)))
-        m.id += 1
-        markers_array.append(deepcopy(m))
-        if settings.md.ACTION:
-            m.type = m.SPHERE
-            m.scale.x = 0.2
-            m.scale.y = 0.2
-            m.scale.z = 0.2
-            m.id += 1
-            markers_array.append(deepcopy(m))
-        else:
-            m.type = m.SPHERE
-            m.scale.x = 0.01
-            m.scale.y = 0.01
-            m.scale.z = 0.01
-            m.id += 1
-            markers_array.append(deepcopy(m))
-
-        ## Marker relaxit input
-        if isinstance(settings.goal_pose, Pose):
-            m = Marker()
-            m.header.frame_id = "/"+settings.BASE_LINK
-            m.type = m.ARROW
-            m.action = m.ADD
-            m.scale.x = 0.2
-            m.scale.y = 0.01
-            m.scale.z = 0.01
-            m.color.a = 1.0
-            m.color.r = 1.0
-            m.color.g = 1.0
-            m.color.b = 0.0
-            m.id += 1
-            m.pose = Pose()
-            m.pose = deepcopy(settings.goal_pose)
-            markers_array.append(deepcopy(m))
-            m.color.g = 0.0
-            m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(self.extq(m.pose.orientation), self.extq(q_norm_to_dir)))
-            m.id += 1
-            markers_array.append(deepcopy(m))
-
-
-        ## Writing trajectory
-        m = Marker()
-        m.header.frame_id = "/"+settings.BASE_LINK
-        m.type = m.SPHERE
-        m.action = m.ADD
-        m.scale.x = 0.01
-        m.scale.y = 0.01
-        m.scale.z = 0.01
-        m.color.a = 1.0
-        m.color.r = 0.0
-        m.color.g = 0.0
-        m.color.b = 1.0
-        m.id = 1000
-        if settings.print_path_trace:
-            for frame in list(settings.eef_goal):
-                m.pose = frame
-                m.id += 1
-                markers_array.append(deepcopy(m))
-        else:
-            for frame in list(settings.eef_goal):
-                m.action = m.DELETE
-                m.id += 1
-                markers_array.append(deepcopy(m))
-
-        #goal_target_pose = Pose()
-        #goal_target_pose.orientation.w = 1.0
-        #goal_target_pose.position.x = 0.7
-        #goal_target_pose.position.y = -0.2
-        #goal_target_pose.position.z = 0.0
-
-        #m.pose = goal_target_pose
-        #m.action = m.ADD
-        #m.id += 1
-        #m.type = m.CUBE
-        #m.color.r = 0.0
-        #m.color.g = 1.0
-        #m.color.b = 0.0
-        #m.scale.x = 0.2
-        #m.scale.y = 0.2
-        #m.scale.z = 0.001
-        #markers_array.append(deepcopy(m))
-
-        return markers_array
-
+class Raw_Kinematics():
+    ''' Includes forward kinematics and jacobian computation for Panda and KUKA iiwa
+        TODO: Check DH parameters on some example
     '''
-    DEPRECATED functions
-    '''
-    def promp_config_run(self, q_cond_init=None, q_cond_end=None, dim_basis=7, T=2.0, numInputTrajectories=5,
-    n_samples = 1, max_iter=10, Sigma_rate=1e-5, mu_cartesian=[0, 0, 0], Sigma_cartesian=0.02**2,
-    cond_time=0):
+
+    def __init__():
+        pass
+
+    @staticmethod
+    def forward_kinematics(joints, robot='panda', out='xyz'):
+        ''' Direct Kinematics from iiwa/panda structure. Using its dimensions and angles.
         '''
-        q_cond_init -> starting condition of movement
-        dim_basis -> dimension of all parameters of created basis
-        T -> time of the movement, recording length
-        numInputTrajectories -> number of input trajectories
-        n_samples -> number of most probable samples to be displayed
-        max_iter -> number of training iterations
-        '''
-        ## Basis configuration, what coefficient will shape through training
-        full_basis = {
-        'conf': [ #                                     num of RBF
-                {"type": "sqexp", "nparams": 4, "conf": {"dim": 3}},
-                  #                                     poly degree
-                {"type": "poly", "nparams": 0, "conf": {"order": 3}}
-            ],
-        #                   scale 0.25,   centers, 0.5, 0.75
-        'params': np.array([np.log(0.25), 0.0, 0.5, 1.0, 1.0, 1.0])
-        }
-        v_rate = 0.1*1
-        # all in one
-        ic = {'basis': full_basis, 'dim_basis': dim_basis, 'v_rate': v_rate, 'Sigma_rate': Sigma_rate, \
-        'T': T, 'mu_cartesian': mu_cartesian, 'Sigma_cartesian': Sigma_cartesian, \
-        'leap_records': numInputTrajectories, 'n_samples': n_samples, 'max_iter': max_iter, \
-        'q_cond_init': q_cond_init, 'q_cond_end': q_cond_end, 'cond_time': cond_time,
-        }
-        result = promp_(self, input_config=ic)
-        return result
+        if robot == 'iiwa':
+            #             /theta   , d   , a,     alpha
+            DH=np.array([[joints[0], 0.34, 0, -90],
+                         [joints[1], 0.0, 0, 90],
+                         [joints[2], 0.4, 0, 90],
+                         [joints[3], 0.0, 0, -90],
+                         [joints[4], 0.4, 0, -90],
+                         [joints[5], 0.0, 0, 90],
+                         [joints[6], 0.126, 0, 0]])
+        elif robot == 'panda':
+            #             /theta   , d   , a,     alpha
+            '''
+            DH=np.array([[joints[0], 0.333, 0,     -90],
+                         [joints[1], 0.0,   0,      90],
+                         [joints[2], 0.316, 0,      90],
+                         [joints[3], 0.0,   0.0825, -90],
+                         [joints[4], 0.384, -0.0825,-90],
+                         [joints[5], 0.0,   0,      90],
+                         [joints[6], 0.107, 0.088,  0]])
+            '''
+            DH=np.array([[joints[0], 0.333, 0,     -90],
+                         [joints[1], 0.0,   0,      90],
+                         [joints[2], 0.316, 0,      90],
+                         [joints[3], 0.0,   0.0825, -90],
+                         [joints[4], 0.384, -0.0825,90],
+                         [joints[5], 0.0,   0,      90],
+                         [joints[6], 0.0, 0.088,    0],
+                         [0.,      0.107, 0.00,  0]])
+        else: raise Exception("Wrong robot name chosen!")
 
-    def ProMPout_to_plan(self, Q, time):
-        # ProMPJoints
+        Tr = np.eye(4)
+        for i in range(0, len(DH)):
+            t = DH[i, 0]
+            d = DH[i, 1]
+            a = DH[i, 2]
+            al= DH[i, 3]
+            T = np.array([[math.cos(t), -math.sin(t)*math.cos(math.radians(al)), math.sin(t)*math.sin(math.radians(al)), a*math.cos(t)],
+                  [math.sin(t), math.cos(t)*math.cos(math.radians(al)), -math.cos(t)*math.sin(math.radians(al)), a*math.sin(t)],
+                  [0, math.sin(math.radians(al)), math.cos(math.radians(al)), d],
+                  [0, 0, 0, 1]])
+            Tr = np.matmul(Tr, T)
+        if out=='xyz':
+            return [Tr[0,3], Tr[1,3], Tr[2,3]]
+        if out=='matrix':
+            return Tr
+        return None
 
-        plan_ = self.move_group.plan()
-        points_ = plan_.joint_trajectory.points
-        point_ = JointTrajectoryPoint()
-        for q, t in itertools.izip(Q, time):
-            point_.positions = q
-            point_.time_from_start = rospy.Duration(t * self.RECORDING_LENGTH)
-            points_.append(deepcopy(point_))
+    @staticmethod
+    def jacobian(state):
+        fun = forward_kinematics
+        eps = 0.001
+        jacobian = np.zeros((3,7))
 
-        #self.display_trajectory(plan_)
-        return plan_
+        inp = np.array(state)
+        selector = np.array([0,1,2,3,4,5,6])
 
-    def process_ProMPRecord(self, q, time, filter='modulo', targetPoints=10):
-        ''' q -> joints, shape(len mov, 7)
-            1. Reduce data size with filter: 'modulo'
-            2. if first element zeros, delete it, as it fails when finding solution
-            3. Check if points are inside ENV
-        '''
-        # get fewer Qs
-        qred = []
-        timered = []
-        if filter == 'modulo':
-            qred = moduloFilter(q, targetPoints)
-            timered = moduloFilter(time, targetPoints)
-
-        # delete first element
-        q = np.delete(q,0,0)
-        time = np.delete(time,0)
-        # Check if inside env
-        if self.points_in_env([iiwa_forward_kinematics(q_) for q_ in q]) == False:
-            print("POINTS ARE NOT IN WORKSPACE")
-
-        return q, time
-
-    def save_plan(self):
-        ''' Saves plan to file, for ProMP.
-        '''
-        points = self.global_plan.joint_trajectory.points
-        time_ = []
-        Q_ = []
-        for i in points:
-            time_.append(i.time_from_start.to_sec())
-            Q_.append(i.positions)
-
-        f = open(settings.HOME+'/promp/examples/python_promp/strike_mov.npz', 'rb')
-        data = np.load(f, allow_pickle=True)
-        time = list(data['time'])
-        Q = list(data['Q'])
-
-        time_ = time_[:-1] # Issue, different sizes of data and time arr
-        time.append(time_)
-        Q.append(Q_)
-        np.savez(settings.HOME+"/promp/examples/python_promp/strike_mov.npz", Q=Q, time=time)
-
-    def load_LeapRecord(self, filen=""):
-        ''' Loads last Leap Record file in format: leap_record_<filen>.npz,
-            where argument "filen" -> number of file, number 0..99
-        '''
-        # convert to str if int
-        if type(filen) == int:
-            filen = str(filen)
-        # if no argument given, searches from 99 to 0
-        if filen == "":
-            for i in range(99,-1,-1):
-                if isfile(settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/leap_record_"+str(i)+".npz") == True:
-                    filen = str(i)
-                    print("Leap_record_"+filen+" loaded")
-                    break
-            if filen=="":
-                sys.exit("FILE NOT FOUND!")
-        f = open(settings.HOME+"/"+settings.WS_FOLDER+"/src/mirracle_gestures/include/data/leap_record_"+filen+".npz", 'rb')
-        data = np.load(f, allow_pickle=True)
-        time = list(data['time'])
-        Q = list(data['Q'])
-
-        return Q
-
-    def transformLeapToSceneRecord(self, p, filter='diff', targetPoints=20, scale='real',
-    normalize=False, switchAxes=True, round_decp=3, two_dimensional=True):
-        ''' p -> points, shape(len mov, 3)
-            1. Reduce data size with filter: 'diff', 'modulo'
-            2. Starting point is zero
-            3. SWITCHES AXES
-            4. Scale the data: 'real' - copying exact position, 'scaled' - trajectory scaled into workspace box
-            *. Check if points reachable
-            5. discard z axe
-            6. rounding
-            7. if first element zeros, delete it, as it fails when finding solution
-        '''
-        print("filter: ", filter, " targetPoints: ", targetPoints, " scale: ", scale,
-        " normalize: ", normalize, " switchAxes: ", switchAxes, " round_decp: ", round_decp, " two_dimensional: ", two_dimensional)
-
-        # get fewer points
-        pred = []
-        if filter == 'diff':
-            pred = diffFilter(p, targetPoints)
-        if filter == 'modulo':
-            pred = moduloFilter(p, targetPoints)
-        p = np.array(pred)
-
-        # first point is zero
-        if normalize:
-            p0 = deepcopy(p[0])
-            for n in range(0, len(p)):
-                p[n] = np.subtract(p[n], p0)
-
-        ## SWITCH AXES ##
-        if switchAxes:
-            x = deepcopy(p[:,0]) # x -> from left to right
-            y = deepcopy(p[:,1]) # y -> from down to up
-            z = deepcopy(p[:,2]) # z -> from front to back
-            p[:,0] = x
-            p[:,1] = np.multiply(z, [-1])
-            p[:,2] = y
-
-        # scale
-        if scale=='real':
-            for n in range(0, len(p)):
-                p[n] = np.true_divide(p[n],1000) # milimeters->meters
-            p[:,0] = p[:,0] + settings.md.ENV['start'].x * np.ones(len(p)) # transition into workspace
-            p[:,1] = p[:,1] + settings.md.ENV['start'].y * np.ones(len(p))
-            p[:,2] = p[:,2] + settings.md.ENV['start'].z * np.ones(len(p))
-        if scale == 'scaled':
-            p[:,0] = minmax_scale(p[:,0], feature_range=(settings.md.ENV['min'].x, settings.md.ENV['max'].x))
-            p[:,1] = minmax_scale(p[:,1], feature_range=(settings.md.ENV['min'].y, settings.md.ENV['max'].y))
-            p[:,2] = minmax_scale(p[:,2], feature_range=(settings.md.ENV['min'].z, settings.md.ENV['max'].z))
-
-        # round 3 decimal points
-        for n, i in enumerate(p):
-            for m, j in enumerate(i):
-                p[n,m] = np.round(j,round_decp)
-        # keep only x,y for now
-        if two_dimensional:
-            p[:,2] = np.ones(len(p))
-        # delete first element
-        #if np.sum(p[0,:]) < 0.05:
-        p = np.delete(p,0,0)
-        # Check if reachable
-        if self.points_in_env(p) == False:
-            print("POINTS ARE NOT IN THE WORKSPACE")
-        if self.points_reachable(p) == False:
-            print("SOME POINT NOT REACHABLE")
-
-        return p
-
-    '''
-    ######################
-    '''
-
-def callbackik(data):
-    joints = []
-    for ang in data.angles:
-        joints.append(ang.data)
-    settings.goal_joints = joints
-
-def eef_callback(data):
-    settings.eef_pose = data
-
-def save_joints(data):
-    settings.joints_in_time.append(data)
-    if settings.ROBOT_NAME == 'iiwa':
-        # On iiwa testbed, take data only from r1 robot
-        if data.name[0][1] == '1':
-            settings.joints = data.position # Position = Angles [rad]
-
-    else: # 'panda'
-        settings.joints = data.position[-7:] # Position = Angles [rad]
-        settings.velocity = data.velocity[-7:]
-        settings.effort = data.effort[-7:]
-        '''
-        r1_joint_vel = data.velocity # [rad/s]
-        r1_joint_eff = data.effort # [Nm]
-        r1_time = float(data.header.stamp.to_sec())
-        global save_joint_pos
-        global save_time
-        save_joint_pos.append(r1_joint_pos)
-        save_time.append(r1_time)
-    elif data.name[0][1] == '2':
-        global r2_joint_pos, r2_joint_vel, r2_joint_eff
-        r2_joint_pos = data.position # Position = Angles [rad]
-        r2_joint_vel = data.velocity # [rad/s]
-        r2_joint_eff = data.effort # [Nm]
-        '''
-
-## DEPRECATED FUNCTIONS ##
-##########################
-def diffFilter(p, targetNumPoints):
-    ''' Reduces the trajectory points by difference
-        Basic controller, optimizing fs by finding target number of points
-    '''
-    pred = []
-    assert len(p) > targetNumPoints, "Points filter has ("+str(len(p))+") input lower than wanted output number ("+str(targetNumPoints)+")"
-
-    fs = 0.0
-    lastNumPoints = len(p)
-    rateIncr = 1
-    round = 0
-    while True:
-        round += 1
-        fs += rateIncr
-        pred = []
-        threshold = 0.0
-        prev = 0.0
-        for n, i in enumerate(p):
-            threshold += abs(i[0]) + abs(i[1]) + abs(i[2]) - prev
-            if abs(threshold) > fs:
-                pred.append(i)
-                threshold = 0.0
-            prev = abs(i[0]) + abs(i[1]) + abs(i[2])
-        if abs(targetNumPoints - len(pred)) > abs(targetNumPoints - lastNumPoints):
-            fs -= rateIncr
-            rateIncr = -0.1 * rateIncr
-        lastNumPoints = len(pred)
-        if len(pred) > 0.9*targetNumPoints and len(pred) < 1.1*targetNumPoints:
-            break
-        if round > 100:
-            break
-    return pred
-
-def moduloFilter(p, targetNumPoints):
-    mod = round(len(p) / targetNumPoints)
-    assert mod > 0, "Cannot devide zero, Points: "+str(len(p)) + " targetNumPoints: "+str(targetNumPoints)
-    pred = []
-    for n, i in enumerate(p):
-        if n%mod == 0:
-            pred.append(i)
-    return pred
-
-def iiwa_forward_kinematics(joints, out='xyz'):
-    ''' Direct Kinematics from iiwa structure. Using its dimensions and angles.
-    '''
-    DH=np.array([[joints[0], 0.34, 0, -90],
-                 [joints[1], 0.0, 0, 90],
-                 [joints[2], 0.4, 0, 90],
-                 [joints[3], 0.0, 0, -90],
-                 [joints[4], 0.4, 0, -90],
-                 [joints[5], 0.0, 0, 90],
-                 [joints[6], 0.126, 0, 0]])
-    Tr = np.eye(4)
-    for i in range(0, len(DH)):
-        t = DH[i, 0]
-        d = DH[i, 1]
-        a = DH[i, 2]
-        al= DH[i, 3]
-        T = np.array([[math.cos(t), -math.sin(t)*math.cos(math.radians(al)), math.sin(t)*math.sin(math.radians(al)), a*math.cos(t)],
-              [math.sin(t), math.cos(t)*math.cos(math.radians(al)), -math.cos(t)*math.sin(math.radians(al)), a*math.sin(t)],
-              [0, math.sin(math.radians(al)), math.cos(math.radians(al)), d],
-              [0, 0, 0, 1]])
-        Tr = np.matmul(Tr, T)
-    if out=='xyz':
-        return [Tr[0,3], Tr[1,3], Tr[2,3]]
-    if out=='matrix':
-        return Tr
-    return None
-
-def iiwa_jacobian(state):
-    fun = iiwa_forward_kinematics
-    eps = 0.001
-    jacobian = np.zeros((3,7))
-
-    inp = np.array(state)
-    selector = np.array([0,1,2,3,4,5,6])
-
-    for i in selector:
-        jacobian[:,i] = (np.array(fun(inp + eps* (selector == i))) - np.array(fun(inp - eps* (selector == i)))) / (2*eps)
-    # print(jacobian)
-    return jacobian
-
-def panda_forward_kinematics(joints, out='xyz'):
-    ''' Direct Kinematics from iiwa structure. Using its dimensions and angles.
-    '''
-    #             /theta   , d   , a,     alpha
-    '''
-    DH=np.array([[joints[0], 0.333, 0,     -90],
-                 [joints[1], 0.0,   0,      90],
-                 [joints[2], 0.316, 0,      90],
-                 [joints[3], 0.0,   0.0825, -90],
-                 [joints[4], 0.384, -0.0825,-90],
-                 [joints[5], 0.0,   0,      90],
-                 [joints[6], 0.107, 0.088,  0]])
-    '''
-    DH=np.array([[joints[0], 0.333, 0,     -90],
-                 [joints[1], 0.0,   0,      90],
-                 [joints[2], 0.316, 0,      90],
-                 [joints[3], 0.0,   0.0825, -90],
-                 [joints[4], 0.384, -0.0825,90],
-                 [joints[5], 0.0,   0,      90],
-                 [joints[6], 0.0, 0.088,    0],
-                 [0.,      0.107, 0.00,  0]])
-    Tr = np.eye(4)
-    for i in range(0, len(DH)):
-        t = DH[i, 0]
-        d = DH[i, 1]
-        a = DH[i, 2]
-        al= DH[i, 3]
-        T = np.array([[math.cos(t), -math.sin(t)*math.cos(math.radians(al)), math.sin(t)*math.sin(math.radians(al)), a*math.cos(t)],
-              [math.sin(t), math.cos(t)*math.cos(math.radians(al)), -math.cos(t)*math.sin(math.radians(al)), a*math.sin(t)],
-              [0, math.sin(math.radians(al)), math.cos(math.radians(al)), d],
-              [0, 0, 0, 1]])
-        Tr = np.matmul(Tr, T)
-    if out=='xyz':
-        return [Tr[0,3], Tr[1,3], Tr[2,3]]
-    if out=='matrix':
-        return Tr
-    return None
-
-def panda_jacobian(state):
-    fun = panda_forward_kinematics
-    eps = 0.001
-    jacobian = np.zeros((3,7))
-
-    inp = np.array(state)
-    selector = np.array([0,1,2,3,4,5,6])
-
-    for i in selector:
-        jacobian[:,i] = (np.array(fun(inp + eps* (selector == i))) - np.array(fun(inp - eps* (selector == i)))) / (2*eps)
-    # print(jacobian)
-    return jacobian
+        for i in selector:
+            jacobian[:,i] = (np.array(fun(inp + eps* (selector == i))) - np.array(fun(inp - eps* (selector == i)))) / (2*eps)
+        # print(jacobian)
+        return jacobian
 
 
 ### Useful to remember
 '''
 # Set number of planning attempts
 move_group.set_num_planning_attempts(self.PLANNING_ATTEMPTS)
-# Get Joint Values
-self.move_group.get_current_joint_values()
 # Display trajectory
 self.display_trajectory(plan)
 

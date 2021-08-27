@@ -9,9 +9,10 @@
   <!-- panda coppelia simulator -> source mirracle_gestures pkg -->
 
   <!-- These params will be merged with panda_description/config/testbed.yaml file somehow -->
-  <arg name="robot" default="panda" /> <!-- 'panda'/('iiwa' not tested) -->
-  <arg name="gripper" default="none" /> <!-- 'none'/'franka_hand'/'franka_hand_with_camera'-->
-  <arg name="simulator" default="gazebo" /> <!-- 'real'/'gazebo'/'coppelia' -->
+  <!--<arg name="robot" default="panda" />--> <!-- 'panda'/('iiwa' not tested) -->
+  <!--<arg name="gripper" default="none" />--> <!-- 'none'/'franka_hand'/'franka_hand_with_camera'-->
+  <!--<arg name="simulator" default="coppelia" />--> <!-- 'real'/'gazebo'/'coppelia' -->
+  <!--<arg name="visualize" default="false" />-->
 
   <!-- Probably do not change below -->
   <!-- ############################ -->
@@ -36,9 +37,10 @@
   </group>
 
   <!-- put parameters to the server-->
-  <param name="mirracle_config/robot" type="str" value="$(arg robot)" />
+  <!--<param name="mirracle_config/robot" type="str" value="$(arg robot)" />
   <param name="mirracle_config/gripper" type="str" value="$(arg gripper)" />
   <param name="mirracle_config/simulator" type="str" value="$(arg simulator)" />
+  <param name="mirracle_config/visualize" type="str" value="$(arg visualize)" />-->
 
   <group if="$(eval arg('robot') == 'iiwa')">
     <!--<group if="$(eval arg('simulator') == '<TODO>')">-->
