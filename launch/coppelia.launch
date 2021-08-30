@@ -1,4 +1,8 @@
 <launch>
+
+  <arg name="image_publish_freq" default="2" /> <!-- Hz -->
+  <param name="coppelia/image_publish_freq" type="str" value="$(arg image_publish_freq)" />
+
   <!-- File edited from panda_moveit_config/launch/demo.launch
        Used when launching CoppeliaSim. Why?
         -> It loads URDF/SRDF robot description
