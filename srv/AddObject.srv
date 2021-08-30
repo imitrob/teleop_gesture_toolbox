@@ -1,0 +1,10 @@
+string file # Location of mesh file
+string name # Name of created mesh
+geometry_msgs/Pose pose # Pose of mesh
+string shape # 'cube', 'sphere', 'cylinder', 'cone'
+float32 size
+string color # 'r', 'g', 'b', 'c', 'm', 'y', 'k'
+float32 friction
+string frame_id
+---
+bool success

@@ -8,6 +8,7 @@ import numpy as np
 from copy import deepcopy
 import os
 from os.path import expanduser, isfile
+import time
 # Needed to load and save rosparams
 import rospy
 from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
@@ -40,7 +41,7 @@ def init(minimal=False):
     GESTURE_NAMES = ['Grab', 'Pinch', 'Point', 'Respectful', 'Spock', 'Rock', 'Victory', 'Italian', 'Rotate', 'Swipe_Up', 'Pin', 'Touch', 'Swipe_Left', 'Swipe_Down', 'Swipe_Right']
 
     ## robot
-    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, coppeliaFakeFCIpub, TOPPRA_ON, VIS_ON, IK_SOLVER, GRASPING_GROUP
+    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, TOPPRA_ON, VIS_ON, IK_SOLVER, GRASPING_GROUP
     global upper_lim, lower_lim, effort_lim, vel_lim
     # ROBOT_NAME: - 'panda' or 'iiwa'
     ROBOT_NAME = rospy.get_param("/mirracle_config/robot")
@@ -86,7 +87,6 @@ def init(minimal=False):
         elif SIMULATOR_NAME == 'coppelia':
             TAC_TOPIC = '/fakeFCI/joint_state'
             JOINT_STATES_TOPIC = '/vrep/franka/joint_state'
-            coppeliaFakeFCIpub = None
         else: raise Exception("Wrong simualator name")
     else: raise Exception("Wrong robot name")
 
@@ -192,6 +192,7 @@ def init(minimal=False):
 
     ## Global ROS publisher objects
     global pymc_in_pub; pymc_in_pub = None
+    global ee_pose_goals_pub; ee_pose_goals_pub = None
     print("[Settings] done")
 
 
@@ -338,28 +339,51 @@ class MoveData():
     '''
     def __init__(self):
         self.LEAP_AXES = [[1,0,0],[0,0,-1],[0,1,0]]
-        self.ENV_DAT = {'above': {  'min': Point(-0.35, -0.35, 0.6),
-                                    'max': Point(0.35,0.35,1.15),
-                                    'ori': Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),
-                                    'start': Point(0.0, 0.0, 0.85),
-                                    'axes': np.eye(3), 'view': [[1,0,0],[0,0,1],[0,1,0]], 'view2': [[1,0,0],[0,0,1],[0,1,0]],"UIx": 'X', "UIy": 'Z',
-                                    'ori_type': 'neg_normal', 'ori_axes': [[0,1,0],[-1,0,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
-                                 },
-                         'wall':  { 'min': Point(0.42, -0.2, 0.0),
-                                    'max': Point(0.7, 0.2, 0.74),
-                                    'ori': Quaternion(0.5,-0.5,-0.5,0.5),
-                                    'start': Point(0.7, 0.0, 0.1),
-                                    'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]], 'view2': [[0,-1,0],[0,0,1],[1,0,0]], "UIx": '-Y', "UIy": 'Z',
-                                    'ori_type': 'direction', 'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
-                                    },
-                         'table': { 'min': Point(0.4, -0.3, 0.0),
-                                    'max': Point(0.7, 0.3, 0.6),
-                                    'start': Point(0.5, 0.0, 0.3),
-                                    'ori': Quaternion(0.,0.,0.,1.), #Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),# -> (-np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
-                                    'axes': [[0,0,1],[-1,0,0],[0,-1,0]], 'view': [[0,-1,0],[1,0,0],[0,0,1]], 'view2': [[0,-1,0],[1,0,0],[0,0,1]], "UIx": '-Y', "UIy": 'X',
-                                    'ori_type': 'direction', 'ori_axes': [[-1,0,0],[0,1,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
-                                    } }
 
+        if IK_SOLVER == 'relaxed_ik':
+            self.ENV_DAT = {'above': {  'min': Point(-0.35, -0.35, 0.6),
+                                        'max': Point(0.35,0.35,1.15),
+                                        'ori': Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),
+                                        'start': Point(0.0, 0.0, 0.85),
+                                        'axes': np.eye(3), 'view': [[1,0,0],[0,0,1],[0,1,0]], 'view2': [[1,0,0],[0,0,1],[0,1,0]],"UIx": 'X', "UIy": 'Z',
+                                        'ori_type': 'neg_normal', 'ori_axes': [[0,1,0],[-1,0,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
+                                     },
+                             'wall':  { 'min': Point(0.42, -0.2, 0.0),
+                                        'max': Point(0.7, 0.2, 0.74),
+                                        'ori': Quaternion(0.5,-0.5,-0.5,0.5),
+                                        'start': Point(0.7, 0.0, 0.1),
+                                        'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]], 'view2': [[0,-1,0],[0,0,1],[1,0,0]], "UIx": '-Y', "UIy": 'Z',
+                                        'ori_type': 'direction', 'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
+                                        },
+                             'table': { 'min': Point(0.4, -0.3, 0.0),
+                                        'max': Point(0.7, 0.3, 0.6),
+                                        'start': Point(0.5, 0.0, 0.3),
+                                        'ori': Quaternion(0.,0.,0.,1.), #Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),# -> (-np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
+                                        'axes': [[0,0,1],[-1,0,0],[0,-1,0]], 'view': [[0,-1,0],[1,0,0],[0,0,1]], 'view2': [[0,-1,0],[1,0,0],[0,0,1]], "UIx": '-Y', "UIy": 'X',
+                                        'ori_type': 'direction', 'ori_axes': [[-1,0,0],[0,1,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
+                                        } }
+        elif IK_SOLVER == 'pyrep':
+            self.ENV_DAT = {'above': {  'min': Point(-0.35, -0.35, 0.6),
+                                        'max': Point(0.35,0.35,1.15),
+                                        'ori': Quaternion(0.0, 0.0, 1.0, 0.0),
+                                        'start': Point(0.0, 0.0, 0.85),
+                                        'axes': np.eye(3), 'view': [[1,0,0],[0,0,1],[0,1,0]], 'view2': [[1,0,0],[0,0,1],[0,1,0]],"UIx": 'X', "UIy": 'Z',
+                                        'ori_type': 'neg_normal', 'ori_axes': [[0,1,0],[-1,0,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
+                                     },
+                             'wall':  { 'min': Point(0.42, -0.2, 0.0),
+                                        'max': Point(0.7, 0.2, 0.74),
+                                        'ori': Quaternion(0, np.sqrt(2)/2, 0, np.sqrt(2)/2),
+                                        'start': Point(0.7, 0.0, 0.1),
+                                        'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]], 'view2': [[0,-1,0],[0,0,1],[1,0,0]], "UIx": '-Y', "UIy": 'Z',
+                                        'ori_type': 'direction', 'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
+                                        },
+                             'table': { 'min': Point(0.4, -0.3, 0.0),
+                                        'max': Point(0.7, 0.3, 0.6),
+                                        'start': Point(0.5, 0.0, 0.3),
+                                        'ori': Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),
+                                        'axes': [[0,0,1],[-1,0,0],[0,-1,0]], 'view': [[0,-1,0],[1,0,0],[0,0,1]], 'view2': [[0,-1,0],[1,0,0],[0,0,1]], "UIx": '-Y', "UIy": 'X',
+                                        'ori_type': 'direction', 'ori_axes': [[-1,0,0],[0,1,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
+                                        } }
         # chosen workspace
         self.ENV = self.ENV_DAT['above']
         self.Mode = 'live' # 'play'/'live'/'alternative'
@@ -740,6 +764,41 @@ def extp(p):
     '''
     assert type(p) == type(Pose()), "extp input arg p: Not Pose type!"
     return p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w
+'''
+def waitForValue(ooo, errormsg="Wait for value error!"):
+    def valueLoaded(ooo.value):
+        if type(ooo.value) == type(False) or type(ooo.value) == type(None):
+            return False
+        return True
 
-
+    if valueLoaded(ooo.value):
+        return
+    time.sleep(0.4)
+    if valueLoaded(ooo.value):
+        return
+    time.sleep(0.4)
+    if valueLoaded(ooo.value):
+        return
+    time.sleep(0.8)
+    if valueLoaded(ooo.value):
+        return
+    time.sleep(2)
+    if valueLoaded(ooo.value):
+        return
+    time.sleep(2)
+    print(errormsg)
+    if valueLoaded(ooo.value):
+        return
+    time.sleep(2)
+    print(errormsg)
+    if valueLoaded(ooo.value):
+        return
+    time.sleep(4)
+    print(errormsg)
+    while True:
+        if valueLoaded(ooo.value):
+            return True
+        time.sleep(4)
+        print(errormsg)
+'''
 ###

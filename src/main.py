@@ -90,6 +90,14 @@ def fillInputPyMC(self):
     settings.pymcin.data = f
     settings.pymc_in_pub.publish(settings.pymcin)
 
+def publish_eef_goal_pose():
+    ''' Publish goal_pose /relaxed_ik/ee_pose_goals to relaxedIK with its transform
+        Publish goal_pose /ee_pose_goals the goal eef pose
+    '''
+    settings.ee_pose_goals_pub.publish(settings.goal_pose)
+    settings.mo.ik_node_publish(pose_r = settings.mo.relaxik_t(settings.goal_pose))
+
+
 def main():
     # Saving the joint_states
     if settings.SIMULATOR_NAME == 'coppelia':
@@ -97,7 +105,10 @@ def main():
     else:
         rospy.Subscriber("joint_states", JointState, save_joints)
     # Saving relaxedIK output
+
     rospy.Subscriber('/relaxed_ik/joint_angle_solutions', JointAngles, callbackik)
+    # Goal pose publisher
+    settings.ee_pose_goals_pub = rospy.Publisher('/ee_pose_goals', Pose, queue_size=5)
 
     if settings.SIMULATOR_NAME == 'coppelia':
         rospy.Subscriber('/pose_eef', Pose, eef_callback)
@@ -132,7 +143,7 @@ def main():
     while not settings.goal_joints:
         time.sleep(2)
         # Putting additional relaxed_ik transform if this solver is used
-        settings.mo.ik_node_publish(pose_r = (settings.mo.relaxik_t(settings.goal_pose) if settings.IK_SOLVER == 'relaxed_ik' else settings.goal_pose))
+        publish_eef_goal_pose()
         print("[WARN*] settings.goal_joints not init!!")
     while not settings.joints:
         time.sleep(2)
@@ -159,7 +170,7 @@ def updateValues():
     GEST_DET = rospy.get_param("/mirracle_config/launch_gesture_detection")
     while True:
         # 1. Publish to ik topic, putting additional relaxed_ik transform if this solver is used
-        settings.mo.ik_node_publish(pose_r = (settings.mo.relaxik_t(settings.goal_pose) if settings.IK_SOLVER == 'relaxed_ik' else settings.goal_pose))
+        publish_eef_goal_pose()
         # 2. Send hand values to PyMC topic
         if settings.frames_adv and GEST_DET == "true":
             fillInputPyMC()
@@ -184,7 +195,7 @@ def launch_ui():
 def main_manager():
     delay = 0.1
     seq = 0
-    enable_plot =True
+    enable_plot = True
     time_on_one_pose = 0.0
     mo = settings.mo
     print("[INFO*] Main manager initialized")

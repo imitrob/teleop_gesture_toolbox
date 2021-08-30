@@ -1,4 +1,6 @@
 float32 position
 float32 effort
+string action # choose 'grasp'/'release'/''
+string object # grasping object
 ---
 bool success

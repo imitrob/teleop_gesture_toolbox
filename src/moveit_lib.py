@@ -47,7 +47,7 @@ from moveit_msgs.msg import RobotTrajectory
 #import RelaxedIK.Utils.transformations as T
 from sensor_msgs.msg import JointState
 from relaxed_ik.msg import EEPoseGoals, JointAngles
-from mirracle_gestures.srv import AddMesh, AddMeshResponse, RemoveMesh, RemoveMeshResponse, GripperControl, GripperControlResponse
+from mirracle_gestures.srv import AddObject, AddObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
 
 import kinematics_interface
 import settings
@@ -140,7 +140,7 @@ class MoveGroupPythonInteface(object):
         # initialize pose
         pose = Pose()
         pose.orientation = settings.md.ENV_DAT['above']['ori']
-        pose.position = Point(0.,0.,0.8)
+        pose.position = Point(0.4,0.,1.0)
         settings.goal_pose = deepcopy(pose)
 
         # For Path velocity
@@ -325,13 +325,16 @@ class MoveGroupPythonInteface(object):
         self.wait_for_state_update(box_is_known=True, timeout=timeout)
 
 
-    def add_mesh(self, file=None, name='box', pose=None, frame_id='panda_link7', timeout=4, moveit=False):
-        ''' Adds mesh based on mesh file
-            If string 'box' in name (e.g. 'box1', 'box234'), it automatically adds box as mash, no mash file need to be specified
+    def add_object(self, file="", name='box', pose=None, shape="", size=1., color='b', friction=0.1, frame_id='panda_link7', timeout=4, moveit=False):
+        ''' Adds shape/mesh based on configuration
+            - If no shape & no mesh specified -> box created
+            - If both shape & mesh specified -> mesh is used
         Parameters:
             file (Str): Mesh file string (def. in dir include/models/) as .obj file
             name (Str): Name of object
             pose (Pose()): Pose of object to be spawned
+            shape (Str): 'cube', 'sphere', 'cylinder', 'cone'
+            color (Str): 'r', 'g', 'b', 'c', 'm', 'y', 'k'
             frame_id (Str): By respect to what frame_id to be spawned
             timeout (Int/Float): If fails, will end in given seconds
             moveit (Bool): Uses MoveIt! env.
@@ -345,98 +348,26 @@ class MoveGroupPythonInteface(object):
             mesh_pose.pose = pose
             mesh_name = name
 
-            if "box" in name:
-                self.scene.add_box(mesh_name, mesh_pose, size=(0.075, 0.075, 0.075))
-            else:
+            if file:
                 scene.add_mesh(mesh_name, mesh_pose, file, size=(1., 1., 1.))
+            elif shape:
+                raise Exception("TODO!")
+                #self.scene.add_shape(mesh_name, mesh_pose, size=(0.075, 0.075, 0.075))
+            else:
+                self.scene.add_box(mesh_name, mesh_pose, size=(0.075, 0.075, 0.075))
 
             self.box_name=mesh_name # its the box
             return self.wait_for_state_update(box_is_known=True, timeout=timeout)
         # CoppeliaSim (PyRep)
-        rospy.wait_for_service('add_mesh')
+        rospy.wait_for_service('add_object')
         try:
-            add_mesh = rospy.ServiceProxy('add_mesh', AddMesh)
-            resp1 = add_mesh(file, name, pose, frame_id)
+            add_object = rospy.ServiceProxy('add_object', AddObject)
+            resp1 = add_object(file, name, pose, shape, size, color, friction, frame_id)
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
 
 
-    def pick_item(self, item=None, timeout=4, moveit=True):
-        ''' Pick up item. Perform grasp while appling some force.
-
-        '''
-        # TODO: Position won't be 0.0, it will be more with pressure applied
-        position = 0.0 # position of gripper
-        effort = 0.4 # pseudo effort of gripper motion
-
-        if not moveit:
-            # CoppeliaSim (PyRep)
-            rospy.wait_for_service('gripper_control')
-            try:
-                gripper_control = rospy.ServiceProxy('gripper_control', GripperControl)
-                resp1 = gripper_control(position, effort)
-            except rospy.ServiceException as e:
-                print("Service call failed: %s"%e)
-
-        # Update planning scene
-        self.attach_item(item=item, timeout=timeout, moveit=moveit)
-
-    def drop_item(self, item=None, timeout=4, moveit=True):
-        ''' Drops item. Perform gripper execution.
-
-        '''
-        position = 1.0 # position of gripper
-        effort = 0.4 # pseudo effort of gripper motion
-        if not moveit:
-            # CoppeliaSim (PyRep)
-            rospy.wait_for_service('gripper_control')
-            try:
-                gripper_control = rospy.ServiceProxy('gripper_control', GripperControl)
-                resp1 = gripper_control(position, effort)
-            except rospy.ServiceException as e:
-                print("Service call failed: %s"%e)
-
-        # Update planning scene
-        self.detach_item(item=item, timeout=timeout)
-
-
-    def attach_item(self, item=None, timeout=4, moveit=True):
-        ''' Attaching Mesh Objects to the Robot
-            - Ignore collisions, adding link names to the ``touch_links`` array
-            between those links and the box
-            - Grasping group is based on robot 'settings.GRASPING_GROUP'
-        Parameters:
-            item (Str): Name of item id
-            moveit (Bool): Uses MoveIt! env.
-        '''
-        if moveit:
-            touch_links = self.robot.get_link_names(group=settings.GRASPING_GROUP)
-            self.scene.attach_mesh(self.eef_link, item, touch_links=touch_links)
-
-            ## Mark what item was attached
-            settings.md.attached = [item]
-            print("Attached item")
-
-            # We wait for the planning scene to update.
-            return self.wait_for_state_update(box_is_attached=True, box_is_known=False, timeout=4)
-
-
-    def detach_item(self, item=None, timeout=4, moveit=True):
-        '''Detaching Objects from the Robot
-        We can also detach and remove the object from the planning scene:
-        '''
-        if moveit:
-            self.scene.remove_attached_object(self.eef_link, name=item)
-
-            ## Mark that item was detached
-            settings.md.attached = False
-            print("Detached item")
-
-            # We wait for the planning scene to update.
-            return self.wait_for_state_update(box_is_known=True, box_is_attached=False, timeout=timeout)
-
-
-    def remove_item(self, item=None, timeout=4, moveit=True):
+    def remove_object(self, name=None, timeout=4, moveit=True):
         '''Removing Objects from the Planning Scene
         We can remove the box from the world.
         '''
@@ -451,9 +382,81 @@ class MoveGroupPythonInteface(object):
         rospy.wait_for_service('remove_mesh')
         try:
             gripper_control = rospy.ServiceProxy('remove_mesh', RemoveMesh)
-            resp1 = gripper_control(item)
+            resp1 = gripper_control(name)
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
+
+
+    def pick_object(self, item=None, timeout=4, moveit=True):
+        ''' Pick up item. Perform grasp while appling some force.
+        '''
+        # TODO: Position won't be 0.0, it will be more with pressure applied
+        position = 0.0 # position of gripper
+        effort = 0.4 # pseudo effort of gripper motion
+
+        if not moveit:
+            # CoppeliaSim (PyRep)
+            rospy.wait_for_service('gripper_control')
+            try:
+                gripper_control = rospy.ServiceProxy('gripper_control', GripperControl)
+                resp1 = gripper_control(position, effort, "grasp", item)
+            except rospy.ServiceException as e:
+                print("Service call failed: %s"%e)
+
+        # Update planning scene
+        self.attach_item(item=item, timeout=timeout, moveit=moveit)
+
+    def release_object(self, item=None, timeout=4, moveit=True):
+        ''' Drops item. Perform gripper execution.
+
+        '''
+        position = 1.0 # position of gripper
+        effort = 0.4 # pseudo effort of gripper motion
+        if not moveit:
+            # CoppeliaSim (PyRep)
+            rospy.wait_for_service('gripper_control')
+            try:
+                gripper_control = rospy.ServiceProxy('gripper_control', GripperControl)
+                resp1 = gripper_control(position, effort, "release", "")
+            except rospy.ServiceException as e:
+                print("Service call failed: %s"%e)
+
+        # Update planning scene
+        self.detach_item_moveit(item=item, timeout=timeout)
+
+
+    def attach_item_moveit(self, item=None, timeout=4):
+        ''' Attaching Mesh Objects to the Robot
+            - Ignore collisions, adding link names to the ``touch_links`` array
+            between those links and the box
+            - Grasping group is based on robot 'settings.GRASPING_GROUP'
+        Parameters:
+            item (Str): Name of item id
+            moveit (Bool): Uses MoveIt! env.
+        '''
+        touch_links = self.robot.get_link_names(group=settings.GRASPING_GROUP)
+        self.scene.attach_mesh(self.eef_link, item, touch_links=touch_links)
+
+        ## Mark what item was attached
+        settings.md.attached = [item]
+        print("Attached item")
+
+        # We wait for the planning scene to update.
+        return self.wait_for_state_update(box_is_attached=True, box_is_known=False, timeout=4)
+
+
+    def detach_item_moveit(self, item=None, timeout=4):
+        '''Detaching Objects from the Robot
+        We can also detach and remove the object from the planning scene:
+        '''
+        self.scene.remove_attached_object(self.eef_link, name=item)
+
+        ## Mark that item was detached
+        settings.md.attached = False
+        print("Detached item")
+
+        # We wait for the planning scene to update.
+        return self.wait_for_state_update(box_is_known=True, box_is_attached=False, timeout=timeout)
 
 
     def print_info(self, timeout=4):
@@ -533,7 +536,7 @@ class MoveGroupPythonInteface(object):
         for i in range(0, len(settings.ss[id].mesh_names)):
             self.remove_item(item=settings.ss[id].mesh_names[i])
         if settings.md.attached:
-            self.detach_item(item=settings.md.attached)
+            self.detach_item_moveit(item=settings.md.attached)
 
         id = 0
         for n, i in enumerate(scenes):
@@ -542,7 +545,7 @@ class MoveGroupPythonInteface(object):
                 break
 
         for i in range(0, len(settings.ss[id].mesh_names)):
-            self.add_mesh(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/mirracle_gestures/include/models/'+settings.ss[id].mesh_names[i]+'.obj',
+            self.add_object(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/mirracle_gestures/include/models/'+settings.ss[id].mesh_names[i]+'.obj',
                 name=settings.ss[id].mesh_names[i], pose=settings.ss[id].mesh_poses[i], frame_id=settings.BASE_LINK)
         settings.scene = settings.ss[id]
         if id == 0:
@@ -1658,7 +1661,7 @@ class MoveGroupPythonInteface(object):
 
         pose = Pose()
         pose.orientation = settings.md.ENV_DAT['above']['ori']
-        pose.position = Point(0.,0.,0.8)
+        pose.position = Point(0.4,0.,1.0)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
         print("[MoveIt*] Init test 1, error: ", round(self.distancePoses(settings.eef_pose, pose), 2))
@@ -1716,6 +1719,14 @@ class MoveGroupPythonInteface(object):
             pose.position.y = float(input())
             print("Enter z position:")
             pose.position.z = float(input())
+            print("Enter x orientation:")
+            pose.orientation.x = float(input())
+            print("Enter y position:")
+            pose.orientation.y = float(input())
+            print("Enter z position:")
+            pose.orientation.z = float(input())
+            print("Enter w position:")
+            pose.orientation.w = float(input())
             settings.goal_pose = deepcopy(pose)
             time.sleep(4)
             print("Distance between given and real coords.: ", self.distancePoses(settings.eef_pose, pose))
