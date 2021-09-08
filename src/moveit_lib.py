@@ -47,7 +47,7 @@ from moveit_msgs.msg import RobotTrajectory
 #import RelaxedIK.Utils.transformations as T
 from sensor_msgs.msg import JointState
 from relaxed_ik.msg import EEPoseGoals, JointAngles
-from mirracle_gestures.srv import AddObject, AddObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
+from mirracle_gestures.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
 
 import kinematics_interface
 import settings
@@ -120,9 +120,6 @@ class MoveGroupPythonInteface(object):
         self.PLANNING_ATTEMPTS = 1
         self.ProMP_INPUT_NUM_PLANNERS = 1
         self.ProMP_INPUT_NUM_LEAP_RECORDS = 10
-        # direct kinematics
-        self.fk = kinematics_interface.ForwardKinematics(frame_id=settings.BASE_LINK)
-        self.ikt = kinematics_interface.InverseKinematics()
 
         # RelaxedIK publishers
         self.ik_goal_r_pub = rospy.Publisher('/ik_goal_r',PoseStamped,queue_size=5)
@@ -143,41 +140,45 @@ class MoveGroupPythonInteface(object):
         pose.position = Point(0.4,0.,1.0)
         settings.goal_pose = deepcopy(pose)
 
+        self.ik_bridge = IK_bridge()
+
         # For Path velocity
         self.savedVelocityVec = None
         self.timePassedPreviousTraj = None
         self.durationPreviousTraj = None
 
-    def getCurrentPose(self, moveit=False, stamped=False):
+        self.MOVEIT = False
+
+    def getCurrentPose(self, stamped=False):
         ''' Returns pose of endeffector.
             - eef is changed based on gripper, in order to maintain place of object pickup
             - 'coppelia' -> updated by topic
             - other -> updated in main
         Parameters:
-            moveit (bool): Use MoveIt! function
+            (global) self.MOVEIT (bool): Use MoveIt! function
         Returns:
             pose (Pose())
         '''
-        if moveit:
+        if self.MOVEIT:
             if stamped:
                 return self.move_group.get_current_pose()
             return self.move_group.get_current_pose().pose
         return settings.eef_pose
 
-    def getCurrentJoints(self, moveit=False):
+    def getCurrentJoints(self):
         ''' Joint states across multiple systems. Latest joint values updated in function: 'save_joints'
             - MoveIt -> use function
         Parameters:
-            moveit (bool): Use MoveIt! function
+            (global) self.MOVEIT (bool): Use MoveIt! function
         Returns:
             joints (float[7])
         '''
-        if moveit:
+        if self.MOVEIT:
             return self.move_group.get_current_joint_values()
         return settings.joints
 
 
-    def go_to_joint_state(self, joints, moveit=False):
+    def go_to_joint_state(self, joints):
         ''' Planning to a Joint Goal
             Choosing how to perform the path between robots, simulators based on demo.launch/simulator.launch
             - MoveIt
@@ -186,7 +187,7 @@ class MoveGroupPythonInteface(object):
         '''
         assert isinstance(joints, list) and len(joints)==7, "Input not type list with len 7"
 
-        if moveit:
+        if self.MOVEIT:
             self.move_group.go(joints, wait=True)
             self.move_group.stop()
 
@@ -204,16 +205,16 @@ class MoveGroupPythonInteface(object):
             else: raise Exception("[ERROR*] Robot name wrong")
 
 
-    def go_to_pose_goal(self, pose=None, moveit=True):
+    def go_to_pose_goal(self, pose=None):
         ''' Planning to a Pose Goal
             - Plan a motion for this group to a desired pose for the end-effector
             - TODO: Another option for execution than MoveIt!
         Parameters:
-            moveit (Bool): Uses MoveIt! function
+            (global) self.MOVEIT (Bool): Uses MoveIt! function
         '''
         assert isinstance(pose, Pose), "Input not type Pose"
 
-        if moveit:
+        if self.MOVEIT:
             self.move_group.set_pose_target(pose)
 
             plan = self.move_group.go(wait=True)  # Planner compute the plan and execute it.
@@ -225,19 +226,19 @@ class MoveGroupPythonInteface(object):
         raise Exception("TODO: Option without moveit")
 
 
-    def plan_path(self, poses, moveit=True):
+    def plan_path(self, poses):
         ''' Cartesian Paths
         Plans Cartesian path directly by specifying a list of waypoints
         for the end-effector to go through.
 
         Parameters:
             poses (Array of Pose()): Waypoints
-            moveit (Bool): Uses MoveIt! function
+            (global) self.MOVEIT (Bool): Uses MoveIt! function
         Returns:
             plan (RobotTrajectory()): Output plan
             fraction (Float): Fraction how much path followed
         '''
-        if moveit:
+        if self.MOVEIT:
             pose = self.getCurrentJoints()
             if self.samePoses(pose, poses[0]): # If first path point is the same as current one, discard it from path
                 poses = poses[1:]
@@ -249,7 +250,7 @@ class MoveGroupPythonInteface(object):
         raise Exception("TODO: Option without moveit")
 
 
-    def display_trajectory(self, plan, moveit=True):
+    def display_trajectory(self, plan):
         ''' Displaying a Trajectory
         You can ask RViz to visualize a plan (aka trajectory) for you. But the
         group.plan() method does this automatically so this is not that useful
@@ -259,7 +260,7 @@ class MoveGroupPythonInteface(object):
         We populate the trajectory_start with our current robot state to copy over
         any AttachedCollisionObjects and add our plan to the trajectory.
         '''
-        if moveit:
+        if self.MOVEIT:
             display_trajectory = moveit_msgs.msg.DisplayTrajectory()
             display_trajectory.trajectory_start = self.robot.get_current_state()
             display_trajectory.trajectory.append(plan)
@@ -268,14 +269,14 @@ class MoveGroupPythonInteface(object):
             self.display_trajectory_publisher.publish(display_trajectory)
         raise Exception("TODO: Option without moveit")
 
-    def execute_plan(self, plan, moveit=True):
+    def execute_plan(self, plan):
         ''' Executing a Plan. Uses plan already computed.
 
         Parameters:
             plan (RobotTrajectory()): Input plan
-            moveit (Bool): Execute with MoveIt! fun.
+            (global) self.MOVEIT (Bool): Execute with MoveIt! fun.
         '''
-        if moveit:
+        if self.MOVEIT:
             return self.move_group.execute(plan, wait=True)
         raise Exception("TODO: Without Moveit!")
 
@@ -311,21 +312,7 @@ class MoveGroupPythonInteface(object):
             return False
 
 
-    def add_box(self, timeout=4):
-        ''' Adding Objects to the Planning Scene
-        First, we will create a box in the planning scene between the fingers:
-        '''
-        box_pose = PoseStamped()
-        box_pose.header.frame_id = settings.BASE_LINK # "r1_gripper" <-- iiwa, "panda_link7"?
-        box_pose.pose.orientation.w = 1.0
-        box_pose.pose.position.z = 0.0 # above the panda_hand frame
-        box_pose.pose.position.x = 0.3
-        self.box_name = "box"
-
-        self.wait_for_state_update(box_is_known=True, timeout=timeout)
-
-
-    def add_object(self, file="", name='box', pose=None, shape="", size=1., color='b', friction=0.1, frame_id='panda_link7', timeout=4, moveit=False):
+    def add_or_edit_object(self, file="", name='box', pose=None, shape="", size=None, color='b', friction=0.1, frame_id='panda_link7', timeout=4):
         ''' Adds shape/mesh based on configuration
             - If no shape & no mesh specified -> box created
             - If both shape & mesh specified -> mesh is used
@@ -337,9 +324,9 @@ class MoveGroupPythonInteface(object):
             color (Str): 'r', 'g', 'b', 'c', 'm', 'y', 'k'
             frame_id (Str): By respect to what frame_id to be spawned
             timeout (Int/Float): If fails, will end in given seconds
-            moveit (Bool): Uses MoveIt! env.
+            (global) self.MOVEIT (Bool): Uses MoveIt! env.
         '''
-        if moveit:
+        if self.MOVEIT:
             box_name = self.box_name
             scene = self.scene
 
@@ -349,7 +336,7 @@ class MoveGroupPythonInteface(object):
             mesh_name = name
 
             if file:
-                scene.add_mesh(mesh_name, mesh_pose, file, size=(1., 1., 1.))
+                scene.add_mesh(mesh_name, mesh_pose, file, size=(1.0, 1.0, 1.0))
             elif shape:
                 raise Exception("TODO!")
                 #self.scene.add_shape(mesh_name, mesh_pose, size=(0.075, 0.075, 0.075))
@@ -359,60 +346,65 @@ class MoveGroupPythonInteface(object):
             self.box_name=mesh_name # its the box
             return self.wait_for_state_update(box_is_known=True, timeout=timeout)
         # CoppeliaSim (PyRep)
-        rospy.wait_for_service('add_object')
+        rospy.wait_for_service('add_or_edit_object')
         try:
-            add_object = rospy.ServiceProxy('add_object', AddObject)
-            resp1 = add_object(file, name, pose, shape, size, color, friction, frame_id)
+            add_or_edit_object = rospy.ServiceProxy('add_or_edit_object', AddOrEditObject)
+            resp1 = add_or_edit_object(file, name, pose, shape, size, color, friction, frame_id)
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
 
 
-    def remove_object(self, name=None, timeout=4, moveit=True):
+    def remove_object(self, name=None, timeout=4):
         '''Removing Objects from the Planning Scene
         We can remove the box from the world.
         '''
-        if moveit:
-            self.scene.remove_world_object(item)
+        if self.MOVEIT:
+            self.scene.remove_world_object(name)
             ## **Note:** The object must be detached before we can remove it from the world
 
             # We wait for the planning scene to update.
             return self.wait_for_state_update(box_is_attached=False, box_is_known=False, timeout=timeout)
 
         # CoppeliaSim (PyRep)
-        rospy.wait_for_service('remove_mesh')
+        rospy.wait_for_service('remove_object')
         try:
-            gripper_control = rospy.ServiceProxy('remove_mesh', RemoveMesh)
-            resp1 = gripper_control(name)
+            remove_object = rospy.ServiceProxy('remove_object', RemoveObject)
+            resp1 = remove_object(name)
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
 
 
-    def pick_object(self, item=None, timeout=4, moveit=True):
+    def pick_object(self, name=None, timeout=4):
         ''' Pick up item. Perform grasp while appling some force.
         '''
         # TODO: Position won't be 0.0, it will be more with pressure applied
         position = 0.0 # position of gripper
         effort = 0.4 # pseudo effort of gripper motion
 
-        if not moveit:
+        if self.MOVEIT:
+            # Update planning scene
+            self.attach_item_moveit(name=name, timeout=timeout, moveit=moveit)
+        else:
             # CoppeliaSim (PyRep)
             rospy.wait_for_service('gripper_control')
             try:
                 gripper_control = rospy.ServiceProxy('gripper_control', GripperControl)
-                resp1 = gripper_control(position, effort, "grasp", item)
+                resp1 = gripper_control(position, effort, "grasp", name)
             except rospy.ServiceException as e:
                 print("Service call failed: %s"%e)
 
-        # Update planning scene
-        self.attach_item(item=item, timeout=timeout, moveit=moveit)
 
-    def release_object(self, item=None, timeout=4, moveit=True):
+
+    def release_object(self, name=None, timeout=4):
         ''' Drops item. Perform gripper execution.
 
         '''
         position = 1.0 # position of gripper
         effort = 0.4 # pseudo effort of gripper motion
-        if not moveit:
+        if self.MOVEIT:
+            # Update planning scene
+            self.detach_item_moveit(name=name, timeout=timeout)
+        else:
             # CoppeliaSim (PyRep)
             rospy.wait_for_service('gripper_control')
             try:
@@ -421,35 +413,31 @@ class MoveGroupPythonInteface(object):
             except rospy.ServiceException as e:
                 print("Service call failed: %s"%e)
 
-        # Update planning scene
-        self.detach_item_moveit(item=item, timeout=timeout)
 
-
-    def attach_item_moveit(self, item=None, timeout=4):
+    def attach_item_moveit(self, name=None, timeout=4):
         ''' Attaching Mesh Objects to the Robot
             - Ignore collisions, adding link names to the ``touch_links`` array
             between those links and the box
             - Grasping group is based on robot 'settings.GRASPING_GROUP'
         Parameters:
-            item (Str): Name of item id
-            moveit (Bool): Uses MoveIt! env.
+            name (Str): Name id
         '''
         touch_links = self.robot.get_link_names(group=settings.GRASPING_GROUP)
-        self.scene.attach_mesh(self.eef_link, item, touch_links=touch_links)
+        self.scene.attach_mesh(self.eef_link, name, touch_links=touch_links)
 
         ## Mark what item was attached
-        settings.md.attached = [item]
+        settings.md.attached = [name]
         print("Attached item")
 
         # We wait for the planning scene to update.
         return self.wait_for_state_update(box_is_attached=True, box_is_known=False, timeout=4)
 
 
-    def detach_item_moveit(self, item=None, timeout=4):
+    def detach_item_moveit(self, name=None, timeout=4):
         '''Detaching Objects from the Robot
         We can also detach and remove the object from the planning scene:
         '''
-        self.scene.remove_attached_object(self.eef_link, name=item)
+        self.scene.remove_attached_object(self.eef_link, name=name)
 
         ## Mark that item was detached
         settings.md.attached = False
@@ -522,36 +510,37 @@ class MoveGroupPythonInteface(object):
             scene (str): Scenes names are from settings.ss[:].NAME and are generated from settings.GenerateSomeScenes() function
             (you can get scene names settings.getSceneNames())
         '''
-        # possible improvement
         scenes = settings.getSceneNames()
-        scenes = ['', 'drawer', 'pickplace', 'pushbutton', 'drawer2', 'pickplace2', 'pushbutton2']
-        id = 0
-        # get id of current scene
-        if settings.scene:
-            for n, i in enumerate(scenes):
-                if i == settings.scene.NAME:
-                    id = n
-                    break
-        # remove objects from current scene
-        for i in range(0, len(settings.ss[id].mesh_names)):
-            self.remove_item(item=settings.ss[id].mesh_names[i])
-        if settings.md.attached:
-            self.detach_item_moveit(item=settings.md.attached)
-
-        id = 0
-        for n, i in enumerate(scenes):
-            if i == scene:
-                id = n
-                break
+        if settings.scene: # When scene is initialized
+            # get id of current scene
+            id = scenes.index(settings.scene.NAME)
+            # remove objects from current scene
+            for i in range(0, len(settings.ss[id].mesh_names)):
+                self.remove_object(name=settings.ss[id].mesh_names[i])
+            if settings.md.attached:
+                self.detach_item_moveit(name=settings.md.attached)
+        # get id of new scene
+        id = scenes.index(scene)
 
         for i in range(0, len(settings.ss[id].mesh_names)):
-            self.add_object(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/mirracle_gestures/include/models/'+settings.ss[id].mesh_names[i]+'.obj',
-                name=settings.ss[id].mesh_names[i], pose=settings.ss[id].mesh_poses[i], frame_id=settings.BASE_LINK)
+            #file="", name='box', pose=None, shape="", size=1., color='b', friction=0.1, frame_id='panda_link7'
+            obj_name = settings.ss[id].mesh_names[i] # object name
+            if 'box' in obj_name or 'cube' in obj_name:
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].mesh_poses[i], shape='cube')
+            elif 'sphere' in obj_name:
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].mesh_poses[i], shape='sphere')
+            elif 'cylinder' in obj_name:
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].mesh_poses[i], shape='cylinder')
+            elif 'cone' in obj_name:
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].mesh_poses[i], shape='cone')
+            else:
+                self.add_or_edit_object(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/mirracle_gestures/include/models/'+settings.ss[id].mesh_names[i]+'.obj',
+                    name=obj_name, pose=settings.ss[id].mesh_poses[i], frame_id=settings.BASE_LINK)
         settings.scene = settings.ss[id]
         if id == 0:
             settings.scene = None
 
-        print("scene ready")
+        print("[Make Scene] Scene "+scene+" ready!")
 
 
     def distancePoses(self, p1, p2):
@@ -642,19 +631,7 @@ class MoveGroupPythonInteface(object):
         euler = tf.transformations.euler_from_matrix(R, 'rxyz')
 
         pose_.orientation = Quaternion(*tf.transformations.quaternion_multiply(tf.transformations.quaternion_from_euler(*euler), settings.extq(settings.md.ENV['ori'])))
-        '''
-        if settings.md.ENV['ori_type'] == 'normal':
-            dir = normdir[0:3]
-        elif settings.md.ENV['ori_type'] == 'neg_normal':
-            dir = np.dot(normdir[0:3], -1)
-        elif settings.md.ENV['ori_type'] == 'direction':
-            dir = normdir[3:6]
-        elif settings.md.ENV['ori_type'] == 'neg_direction':
-            dir = np.dot(normdir[3:6], -1)
-        rx = dir[0]
-        ry = -dir[2]
-        rz = dir[1]
-        '''
+
         if settings.FIXED_ORI_TOGGLE:
             pose_.orientation = settings.md.ENV['ori']
 
@@ -703,15 +680,18 @@ class MoveGroupPythonInteface(object):
         return pose_
 
     def relaxik_t(self, pose1):
-        ''' Additional transformtion for relaxedIK package
-            - The start is moved by number (1.)
-            - iiwa has inverted y axis (2.)
+        ''' All position goals and orientation goals are specified with respect to specified initial configuration.
+            -> This function relates, sets goal poses to origin [0.,0.,0.] with orientation pointing up [0.,0.,0.,1.]
         '''
         pose_ = deepcopy(pose1)
         # 1.
         if settings.ROBOT_NAME == 'panda':
-            pose_.position.z -= 0.926
-            pose_.position.x -= 0.088
+            pose_.position.x -= 0.55442+0.04
+            pose_.position.y -= 0.0
+            pose_.position.z -= 0.62443
+            pose_.orientation = Quaternion(*tf.transformations.quaternion_multiply([1.0, 0.0, 0.0, 0.0], settings.extq(pose_.orientation)))
+            #pose_.position.z -= 0.926
+            #pose_.position.x -= 0.107
         elif settings.ROBOT_NAME == 'iiwa':
             pose_.position.z -= 1.27
         else: raise Exception("Wrong robot name!")
@@ -723,6 +703,7 @@ class MoveGroupPythonInteface(object):
     def relaxik_t_inv(self, pose1):
         ''' Additional inverse transformation to relaxik_t()
         '''
+        raise Exception("TODO!")
         pose_ = deepcopy(pose1)
         if settings.ROBOT_NAME == 'panda':
             pose_.position.z += 0.926
@@ -1021,11 +1002,15 @@ class MoveGroupPythonInteface(object):
         settings.point_after_toppra = point_after_toppra
         settings.point_after_replace = point_after_replace
 
+        timePlotVel = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
         try:
             dataPlotVel = [pt.velocities[settings.NJ] for pt in settings.md._goal.trajectory.points]
         except IndexError:
-            print("@@@@@@@@@@@@@@@@@@@",settings.md._goal.trajectory.points[:].velocities)
-        timePlotVel = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
+            try:
+                print("@@@@@@@@@@@@@@@@@@@",settings.md._goal.trajectory.points[:].velocities)
+            except AttributeError:
+                print("atrivbuete error")
+                dataPlotVel = [0.] * len(timePlotVel)
         settings.sendedPlotVel = zip(timePlotVel, dataPlotVel)
         timeJointPlotVel = [pt.header.stamp.to_sec() for pt in list(settings.joints_in_time)]
         dataJointPlotVel = [pt.velocity[settings.NJ] for pt in list(settings.joints_in_time)]
@@ -1166,7 +1151,7 @@ class MoveGroupPythonInteface(object):
         lower, upper, vel, effort = settings.lower_lim, settings.upper_lim, settings.vel_lim, settings.effort_lim
         # prepare numpy arrays with limits for acceleration
         alims = np.zeros((len(active_joints), 2))
-        alims[:, 1] = np.array(len(lower) * [3.0])
+        alims[:, 1] = np.array(len(lower) * [3.0]) # 0.5
         alims[:, 0] = np.array(len(lower) * [-3.0])
 
         # ... and velocity
@@ -1190,7 +1175,7 @@ class MoveGroupPythonInteface(object):
             eps = 0.001
             limit = cart_vel_limit
 
-            J = panda_jacobian(path(val))
+            J = Raw_Kinematics.jacobian(path(val))
             direction = (path(val + eps) - path(val - eps)) / (2* eps)
             dir_norm = direction / np.linalg.norm(direction)
             x = limit / np.linalg.norm(np.dot(J, dir_norm))
@@ -1427,7 +1412,7 @@ class MoveGroupPythonInteface(object):
         '''
         if not pose:
             pose = self.move_group.get_current_pose()
-        IK_resp = self.ikt.getIK(self.move_group.get_name(), self.move_group.get_end_effector_link(), pose)
+        IK_resp = ik_bridge.getIKmoveit(pose)
         if IK_resp.error_code.val != 1:
             print("[Kinematics Interface] IKT not found!",IK_resp.solution.joint_state.position)
         return IK_resp.solution.joint_state.position[0:7] # robot1
@@ -1640,17 +1625,17 @@ class MoveGroupPythonInteface(object):
         ''' Desired settings.goal_pose waiting for real settings.eef_pose
 
         '''
-        time.sleep(1)
-        if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.05):
-            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), " [x,y,z] diff:", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
+        time.sleep(2)
+        if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.02):
+            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2))
         else: return
         time.sleep(2)
-        if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.1):
-            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), " [x,y,z] diff:", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
+        if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.06):
+            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2))
         else: return
         time.sleep(2)
-        if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.2):
-            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2), " [x,y,z] diff:", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
+        if not self.samePoses(settings.eef_pose, settings.goal_pose, accuracy=0.15):
+            print("Pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2))
             print("[WARN*] Position not accurate")
         else: return
         time.sleep(5)
@@ -1664,72 +1649,53 @@ class MoveGroupPythonInteface(object):
         pose.position = Point(0.4,0.,1.0)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 1, error: ", round(self.distancePoses(settings.eef_pose, pose), 2))
+        print("[MoveIt*] Init test 1, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
 
         pose.orientation = settings.md.ENV_DAT['wall']['ori']
         pose.position = Point(0.7,0.1,0.5)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 1/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 1/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         pose.position = Point(0.7,-0.1,0.5)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 2/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 2/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         pose.position = Point(0.7,-0.1,0.4)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 3/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 3/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         pose.position = Point(0.7,0.1,0.4)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 4/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 4/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         pose.position = Point(0.7,0.1,0.5)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 5/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 2 5/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
 
         pose.orientation = settings.md.ENV_DAT['table']['ori']
         pose.position = Point(0.4,-0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 1/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 1/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         pose.position = Point(0.6,-0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 2/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 2/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         pose.position = Point(0.6,0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 3/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 3/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         pose.position = Point(0.4,0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 4/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 4/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
         pose.position = Point(0.4,-0.1,0.2)
         settings.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 5/5, error: ", round(self.distancePoses(settings.eef_pose, pose),2))
+        print("[MoveIt*] Init test 3 5/5, error: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
 
-        pose = Pose()
-        pose.orientation = settings.md.ENV_DAT['above']['ori']
-        while True:
-            print("Go to pose, enter x position:")
-            pose.position.x = float(input())
-            print("Enter y position:")
-            pose.position.y = float(input())
-            print("Enter z position:")
-            pose.position.z = float(input())
-            print("Enter x orientation:")
-            pose.orientation.x = float(input())
-            print("Enter y position:")
-            pose.orientation.y = float(input())
-            print("Enter z position:")
-            pose.orientation.z = float(input())
-            print("Enter w position:")
-            pose.orientation.w = float(input())
-            settings.goal_pose = deepcopy(pose)
-            time.sleep(4)
-            print("Distance between given and real coords.: ", self.distancePoses(settings.eef_pose, pose))
+        print("[MoveIt*] Init test ended")
 
 
     def testMovementsInput(self):
@@ -1738,23 +1704,29 @@ class MoveGroupPythonInteface(object):
         '''
         pose = Pose()
         while True:
-            print("Go to pose, enter x position:")
-            pose.position.x = float(input())
-            print("Enter y position:")
-            pose.position.y = float(input())
-            print("Enter z position:")
-            pose.position.z = float(input())
-            print("Enter x orientation:")
-            pose.orientation.x = float(input())
-            print("Enter y position:")
-            pose.orientation.y = float(input())
-            print("Enter z position:")
-            pose.orientation.z = float(input())
-            print("Enter w position:")
-            pose.orientation.w = float(input())
-            settings.goal_pose = deepcopy(pose)
-            time.sleep(8)
-            print("Distance between given and real coords.: ", self.distancePoses(settings.eef_pose, pose))
+            print("[MoveIt*] Input test started (enter any string to quit)")
+            try:
+                print("Go to pose, enter x position:")
+                pose.position.x = float(raw_input())
+                print("Enter y position:")
+                pose.position.y = float(raw_input())
+                print("Enter z position:")
+                pose.position.z = float(raw_input())
+                print("Enter x orientation:")
+                pose.orientation.x = float(raw_input())
+                print("Enter y orientation:")
+                pose.orientation.y = float(raw_input())
+                print("Enter z orientation:")
+                pose.orientation.z = float(raw_input())
+                print("Enter w orientation:")
+                pose.orientation.w = float(raw_input())
+                settings.goal_pose = deepcopy(pose)
+                time.sleep(8)
+                print("Distance between given and real coords.: ", round(self.distancePoses(settings.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(settings.eef_pose.position), settings.extv(settings.goal_pose.position)))
+            except ValueError:
+                print("[MoveIt*] Test ended")
+                break
+
 
     def testMovements(self):
         xs=list(range(4,9))
@@ -1789,6 +1761,7 @@ class Raw_Kinematics():
     @staticmethod
     def forward_kinematics(joints, robot='panda', out='xyz'):
         ''' Direct Kinematics from iiwa/panda structure. Using its dimensions and angles.
+            TODO: Panda has link8 which is is not here of lenght ~0.106m
         '''
         if robot == 'iiwa':
             #             /theta   , d   , a,     alpha
@@ -1801,23 +1774,13 @@ class Raw_Kinematics():
                          [joints[6], 0.126, 0, 0]])
         elif robot == 'panda':
             #             /theta   , d   , a,     alpha
-            '''
-            DH=np.array([[joints[0], 0.333, 0,     -90],
-                         [joints[1], 0.0,   0,      90],
+            DH=np.array([[joints[0], 0.333, 0,      0],
+                         [joints[1], 0.0,   0,      -90],
                          [joints[2], 0.316, 0,      90],
-                         [joints[3], 0.0,   0.0825, -90],
+                         [joints[3], 0.0,   0.0825, 90],
                          [joints[4], 0.384, -0.0825,-90],
                          [joints[5], 0.0,   0,      90],
-                         [joints[6], 0.107, 0.088,  0]])
-            '''
-            DH=np.array([[joints[0], 0.333, 0,     -90],
-                         [joints[1], 0.0,   0,      90],
-                         [joints[2], 0.316, 0,      90],
-                         [joints[3], 0.0,   0.0825, -90],
-                         [joints[4], 0.384, -0.0825,90],
-                         [joints[5], 0.0,   0,      90],
-                         [joints[6], 0.0, 0.088,    0],
-                         [0.,      0.107, 0.00,  0]])
+                         [joints[6], 0.0, 0.088,  90]])
         else: raise Exception("Wrong robot name chosen!")
 
         Tr = np.eye(4)
@@ -1838,8 +1801,8 @@ class Raw_Kinematics():
         return None
 
     @staticmethod
-    def jacobian(state):
-        fun = forward_kinematics
+    def jacobian(state, robot='panda'):
+        fun = Raw_Kinematics.forward_kinematics
         eps = 0.001
         jacobian = np.zeros((3,7))
 
@@ -1847,9 +1810,30 @@ class Raw_Kinematics():
         selector = np.array([0,1,2,3,4,5,6])
 
         for i in selector:
-            jacobian[:,i] = (np.array(fun(inp + eps* (selector == i))) - np.array(fun(inp - eps* (selector == i)))) / (2*eps)
+            jacobian[:,i] = (np.array(fun(inp + eps* (selector == i), robot=robot)) - np.array(fun(inp - eps* (selector == i), robot=robot))) / (2*eps)
         # print(jacobian)
         return jacobian
+
+class IK_bridge():
+    '''
+        - MoveIt IK
+        -
+
+        What are joints configuration and what is the latest link?
+        Because the last link in urdf file should be linked with the tip_point of
+    '''
+    def __init__(self):
+        self.fk = kinematics_interface.ForwardKinematics(frame_id=settings.BASE_LINK)
+        self.ikt = kinematics_interface.InverseKinematics()
+
+    def getFKmoveit(self):
+        return self.fk.getCurrentFK(settings.EEF_NAME).pose_stamped[0]
+
+    def getFKmoveitPose(self):
+        return self.fk.getCurrentFK(settings.EEF_NAME).pose_stamped[0].pose
+
+    def getIKmoveit(self, pose):
+        return self.ikt.getIK(self.move_group.get_name(), self.move_group.get_end_effector_link(), pose)
 
 
 ### Useful to remember

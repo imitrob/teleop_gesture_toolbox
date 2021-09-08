@@ -1,7 +1,7 @@
 #!/usr/bin/env python3.7
 ''' Executes PyMC sample with pre-learned model
-    -> Receives configuration from main.py through /pymcin topic
-    -> Publishes output through /pymcout topic
+    -> Receives configuration from main.py through /mirracle_gestures/pymcin topic
+    -> Publishes output through /mirracle_gestures/pymcout topic
     -> Prelearned neural network in include/data/learned_networks
 '''
 import sys
@@ -63,8 +63,8 @@ if True:
     )
     sample_proba = theano.function([x, n], _sample_proba)
 
-    pub = rospy.Publisher('/pymcout', Int8, queue_size=5)
-    sub = rospy.Subscriber('/pymcin', Float64MultiArray, callback)
+    pub = rospy.Publisher('/mirracle_gestures/pymcout', Int8, queue_size=5)
+    sub = rospy.Subscriber('/mirracle_gestures/pymcin', Float64MultiArray, callback)
 
     rospy.spin()
 

@@ -14,6 +14,8 @@ import rospy
 from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
 from visualization_msgs.msg import MarkerArray, Marker
 from std_msgs.msg import Int8, Float64MultiArray
+import yaml
+import io
 
 def init(minimal=False):
     ''' Initialize the shared data across threads (Leap, UI, Control)
@@ -25,7 +27,7 @@ def init(minimal=False):
     loopn = 0
 
     ## Files
-    global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH, MODELS_PATH
+    global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, GESTURE_KEYS, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH, MODELS_PATH, CUSTOM_SETTINGS_YAML
     HOME = expanduser("~")
     # searches for the WS name + print it
     THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -38,10 +40,16 @@ def init(minimal=False):
     NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learned_networks/"
     COPPELIA_SCENE_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/coppelia_scenes/"
     MODELS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/models/"
-    GESTURE_NAMES = ['Grab', 'Pinch', 'Point', 'Respectful', 'Spock', 'Rock', 'Victory', 'Italian', 'Rotate', 'Swipe_Up', 'Pin', 'Touch', 'Swipe_Left', 'Swipe_Down', 'Swipe_Right']
+    CUSTOM_SETTINGS_YAML = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/custom_settings/"
 
+    with open(CUSTOM_SETTINGS_YAML+"application.yaml", 'r') as stream:
+        app_data_loaded = yaml.safe_load(stream)
+    with open(CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
+        gestures_data_loaded = yaml.safe_load(stream)
+    GESTURE_NAMES = [g['Name'] for g in gestures_data_loaded['Gestures']]
+    GESTURE_KEYS = [str(g['Key']) for g in gestures_data_loaded['Gestures']]
     ## robot
-    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, TOPPRA_ON, VIS_ON, IK_SOLVER, GRASPING_GROUP
+    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, TOPPRA_ON, VIS_ON, IK_SOLVER, GRASPING_GROUP, IK_TOPIC
     global upper_lim, lower_lim, effort_lim, vel_lim
     # ROBOT_NAME: - 'panda' or 'iiwa'
     ROBOT_NAME = rospy.get_param("/mirracle_config/robot")
@@ -51,6 +59,8 @@ def init(minimal=False):
     IK_SOLVER = rospy.get_param("/mirracle_config/ik_solver")
     TOPPRA_ON = True
 
+    ## SPECIFY YOUR OUT IK_TOPIC
+    IK_TOPIC = ''
 
     ## Robot data
     # 1. velocity limits, effort limits, position limits (lower, upper)
@@ -94,16 +104,18 @@ def init(minimal=False):
         return
     print("[Settings] Workspace folder is set to: "+WS_FOLDER)
 
+    global ALIVE; ALIVE = True
+
     # Data from Leap Controller saved in arrays
     # Note: updated in leapmotionlistener.py with Leap frame frequency (~80Hz)
-    global BUFFER_LEN, frames, timestamps, frames_adv, eef_goal, eef_robot, joints_in_time
-    BUFFER_LEN = 300
+    global BUFFER_LEN, frames, timestamps, frames_adv, goal_pose_array, eef_pose_array, joints_in_time
+    BUFFER_LEN = gestures_data_loaded['Recording']['BufferLen']
     frames = collections.deque(maxlen=BUFFER_LEN)
     timestamps = collections.deque(maxlen=BUFFER_LEN)
     frames_adv = collections.deque(maxlen=BUFFER_LEN)
     # Note: updated in main.py with rate 10Hz
-    eef_goal = collections.deque(maxlen=BUFFER_LEN)
-    eef_robot = collections.deque(maxlen=BUFFER_LEN)
+    goal_pose_array = collections.deque(maxlen=BUFFER_LEN)
+    eef_pose_array = collections.deque(maxlen=BUFFER_LEN)
 
     joints_in_time = collections.deque(maxlen=BUFFER_LEN)
 
@@ -130,7 +142,7 @@ def init(minimal=False):
 
     ## Objects for saved scenes and paths
     sp, ss = [], []
-    GenerateSomeScenes(ss) # Saved scenes
+    GenerateScenes.FromYAML(ss) # Saved scenes
     GenerateSomePaths(sp, ss) # Saved paths
     scene = None # current scene informations
     mo = None # MoveIt object
@@ -139,23 +151,12 @@ def init(minimal=False):
     global pymcin, pymcout, observation_type, time_series_operation, position
     pymcout = None
     pymcin = Float64MultiArray()
-    '''
-    param:
-        :observation_type == 'user_defined' -> includes finger on/off normalized, fingers distance normalized
-                           == 'all_defined' -> includes all differences between fingers and distances
-        :time_series_operation == 'average' -> value of observation is averaged of all time
-                               == 'middle' -> take middle time sample
-                               == 'as_dimesion' -> three dimensional X as output
-                               == 'take_every_10' -> every tenth time sample is new recorded sample
-                               == 'take_every' -> every time sample is new recorded sample
 
-        :position == '' -> no position
-                  == 'absolute' -> position of palm is intercorporated
-                  == 'absolute+finger' -> position of palm and pointing finger is intercorporated
-    '''
-    observation_type='user_defined'
-    time_series_operation = 'take_every_10'
-    position = ''
+    # Loaded from gesture_recording.yaml
+    observation_type = gestures_data_loaded['Recognition']['observation_type']
+    time_series_operation = gestures_data_loaded['Recognition']['time_series_operation']
+    position = gestures_data_loaded['Recognition']['position']
+
     assert observation_type in ['user_defined', 'all_defined'], "Wrong input"
     assert time_series_operation in ['average', 'middle', 'as_dimesion', 'take_every', 'take_every_10'], "Wrong input"
     assert position in ['', 'absolute', 'absolute+finger', 'time_warp'], "Wrong input"
@@ -176,7 +177,7 @@ def init(minimal=False):
     ## User Interface Data ##
     # Configuration page values
     global NumConfigBars, VariableValues
-    NumConfigBars = [2,4]
+    NumConfigBars = [app_data_loaded['ConfigurationPage']['Rows'], app_data_loaded['ConfigurationPage']['Columns']]
     VariableValues = np.zeros(NumConfigBars)
 
     # Status Bar
@@ -187,8 +188,8 @@ def init(minimal=False):
     HoldValue = 0
     currentPose = 0
     leavingAction = False
-    w, h = 1000, 800
-    ui_scale = 2000
+    w, h = 1000, 800 # Will be set dynamically to proper value
+    ui_scale = app_data_loaded['Scale']
 
     ## Global ROS publisher objects
     global pymc_in_pub; pymc_in_pub = None
@@ -262,8 +263,6 @@ class GestureDataHand():
         self.poses = []
         self.gests = []
 
-        #was: settings.gd.l.pose1_grab_prob -> settings.gd.l.poses[i].prob
-
         self.poses.append(PoseData(NAME="grab", filename="gesture56.png", turnon=0.9, turnoff=0.3))
         self.poses.append(PoseData(NAME="pinch", filename="gesture33.png", turnon=0.9, turnoff=0.3))
         self.poses.append(PoseData(NAME="pointing", filename="gesture0.png", turnon=0.9, turnoff=0.3))
@@ -326,64 +325,41 @@ class GestureData():
         self.move = [False, False, False]
 
 class MoveData():
-    '''
-    Info about:
-    Q(0,0,0,1) -> down
-    Q([0.5,0.5,0.5,-0.5]) -> wall
-    Q(0.0,1.0,0.0,0.0) -> up
-
-    Panda rviz:
-    Q(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0) -> above
-    Q(0,0,0,1) -> down
-    Q(0.5,-0.5,-0.5,0.5) -> wall
-    '''
     def __init__(self):
         self.LEAP_AXES = [[1,0,0],[0,0,-1],[0,1,0]]
+        self.ENV_DAT = {'above': {  'min': Point(-0.35, -0.35, 0.6), # minimum values on x,y,z axes of ENV [m]
+                                    'max': Point(0.35,0.35,1.15), # maximum values on x,y,z axes of ENV [m]
+                                    'ori': Quaternion(0.0, 0.0, 0.0, 1.0), # environment default orientation
+                                    'start': Point(0.0, 0.0, 0.45), # Start of Leap Motion sensor mapped
+                                    'axes': np.eye(3), 'view': [[1,0,0],[0,0,1],[0,1,0]],
+                                    'ori_axes': [[0,1,0],[-1,0,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
+                                 },
+                         'wall':  { 'min': Point(0.42, -0.2, 0.0),
+                                    'max': Point(0.7, 0.2, 0.74),
+                                    'ori': Quaternion(-0.5,0.5,0.5,-0.5),
+                                    'start': Point(0.7, 0.0, -0.3),
+                                    'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]],
+                                    'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
+                                    },
+                         'table':  { 'min': Point(0.4, -0.3, 0.0),
+                                    'max': Point(0.7, 0.3, 0.6),
+                                    'ori': Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),
+                                    'start': Point(0.5, 0.0, -0.1),
+                                    'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]],
+                                    'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
+                                    },
+                         'table_old': { 'min': Point(0.4, -0.3, 0.0),
+                                    'max': Point(0.7, 0.3, 0.6),
+                                    'start': Point(0.5, 0.0, 0.3),
+                                    'ori': Quaternion(0., 1., 0.0, 0.0),
+                                    'axes': [[0,0,1],[-1,0,0],[0,-1,0]], 'view': [[0,-1,0],[1,0,0],[0,0,1]],
+                                    'ori_axes': [[-1,0,0],[0,1,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
+                                    } }
 
-        if IK_SOLVER == 'relaxed_ik':
-            self.ENV_DAT = {'above': {  'min': Point(-0.35, -0.35, 0.6),
-                                        'max': Point(0.35,0.35,1.15),
-                                        'ori': Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),
-                                        'start': Point(0.0, 0.0, 0.85),
-                                        'axes': np.eye(3), 'view': [[1,0,0],[0,0,1],[0,1,0]], 'view2': [[1,0,0],[0,0,1],[0,1,0]],"UIx": 'X', "UIy": 'Z',
-                                        'ori_type': 'neg_normal', 'ori_axes': [[0,1,0],[-1,0,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
-                                     },
-                             'wall':  { 'min': Point(0.42, -0.2, 0.0),
-                                        'max': Point(0.7, 0.2, 0.74),
-                                        'ori': Quaternion(0.5,-0.5,-0.5,0.5),
-                                        'start': Point(0.7, 0.0, 0.1),
-                                        'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]], 'view2': [[0,-1,0],[0,0,1],[1,0,0]], "UIx": '-Y', "UIy": 'Z',
-                                        'ori_type': 'direction', 'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
-                                        },
-                             'table': { 'min': Point(0.4, -0.3, 0.0),
-                                        'max': Point(0.7, 0.3, 0.6),
-                                        'start': Point(0.5, 0.0, 0.3),
-                                        'ori': Quaternion(0.,0.,0.,1.), #Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),# -> (-np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
-                                        'axes': [[0,0,1],[-1,0,0],[0,-1,0]], 'view': [[0,-1,0],[1,0,0],[0,0,1]], 'view2': [[0,-1,0],[1,0,0],[0,0,1]], "UIx": '-Y', "UIy": 'X',
-                                        'ori_type': 'direction', 'ori_axes': [[-1,0,0],[0,1,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
-                                        } }
-        elif IK_SOLVER == 'pyrep':
-            self.ENV_DAT = {'above': {  'min': Point(-0.35, -0.35, 0.6),
-                                        'max': Point(0.35,0.35,1.15),
-                                        'ori': Quaternion(0.0, 0.0, 1.0, 0.0),
-                                        'start': Point(0.0, 0.0, 0.85),
-                                        'axes': np.eye(3), 'view': [[1,0,0],[0,0,1],[0,1,0]], 'view2': [[1,0,0],[0,0,1],[0,1,0]],"UIx": 'X', "UIy": 'Z',
-                                        'ori_type': 'neg_normal', 'ori_axes': [[0,1,0],[-1,0,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
-                                     },
-                             'wall':  { 'min': Point(0.42, -0.2, 0.0),
-                                        'max': Point(0.7, 0.2, 0.74),
-                                        'ori': Quaternion(0, np.sqrt(2)/2, 0, np.sqrt(2)/2),
-                                        'start': Point(0.7, 0.0, 0.1),
-                                        'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]], 'view2': [[0,-1,0],[0,0,1],[1,0,0]], "UIx": '-Y', "UIy": 'Z',
-                                        'ori_type': 'direction', 'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
-                                        },
-                             'table': { 'min': Point(0.4, -0.3, 0.0),
-                                        'max': Point(0.7, 0.3, 0.6),
-                                        'start': Point(0.5, 0.0, 0.3),
-                                        'ori': Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),
-                                        'axes': [[0,0,1],[-1,0,0],[0,-1,0]], 'view': [[0,-1,0],[1,0,0],[0,0,1]], 'view2': [[0,-1,0],[1,0,0],[0,0,1]], "UIx": '-Y', "UIy": 'X',
-                                        'ori_type': 'direction', 'ori_axes': [[-1,0,0],[0,1,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
-                                        } }
+        if IK_SOLVER == 'pyrep':
+            self.ENV_DAT['above']['ori'] = Quaternion(0.0, 0.0, 1.0, 0.0)
+            self.ENV_DAT['wall']['ori']  = Quaternion(0, np.sqrt(2)/2, 0, np.sqrt(2)/2)
+            self.ENV_DAT['table']['ori'] = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
         # chosen workspace
         self.ENV = self.ENV_DAT['above']
         self.Mode = 'live' # 'play'/'live'/'alternative'
@@ -421,52 +397,8 @@ def GenerateSomePaths(sp, ss):
         pose.position = Point(0.2*np.cos(2*np.pi*i/n),-0.2*np.sin(2*np.pi*i/n),0.95)
         poses.append(deepcopy(pose))
     actions = [""] * len(poses)
-    sp.append(CustomPath(poses, actions, "", "circle", "above"))
+    sp.append(CustomPath(poses, actions, "empty", "circle", "above"))
 
-    poses = []
-    pose.position = Point(0.4,0.0,0.65)
-    pose.orientation = md.ENV_DAT['wall']['ori']
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.4,0.0,0.75)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.4,0.1,0.65)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.4,-0.1,1.05)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.4,0.0,0.95)
-    poses.append(deepcopy(pose))
-    actions = [""] * len(poses)
-    sp.append(CustomPath(poses, actions, "", "wall", "wall"))
-
-    poses = []
-    pose.position = Point(0.5,0.0,0.2)
-    pose.orientation = Quaternion(0.,0.,0.,1.0)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.2)
-    pose.orientation = Quaternion(0.,0.,1.,0.0)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.2)
-    pose.orientation = Quaternion(0,1,0,0)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.2)
-    pose.orientation = Quaternion(1,0,0,0)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.2)
-    pose.orientation = Quaternion(-0.5,0.5,0.5,-0.5)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.2)
-    pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.1,0.2)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,-0.1,0.2)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.2)
-    poses.append(deepcopy(pose))
-    actions = [""] * len(poses)
-    sp.append(CustomPath(poses, actions, "", "customtest", "wall"))
-
-    ## Object by existing scene
     SCENE = 'pickplace'
     index = indx(ss, SCENE)
     box_pose = deepcopy(ss[index].mesh_poses[0])
@@ -489,6 +421,20 @@ def GenerateSomePaths(sp, ss):
     poses.append(deepcopy(pose))
     actions = ['', 'box', '', 'box', '']
     sp.append(CustomPath(poses, actions, SCENE, "pickplace", "table"))
+
+    poses = []
+    pose.position = Point(0.5,-0.1,0.04)
+    pose.orientation = md.ENV_DAT['table']['ori']
+    poses.append(deepcopy(pose))
+    pose.position = Point(0.5,-0.1,0.04)
+    pose.orientation = md.ENV_DAT['table']['ori']
+    poses.append(deepcopy(pose))
+    pose.position = Point(0.5,0.3,0.04)
+    poses.append(deepcopy(pose))
+    actions = ['', '', '']
+    sp.append(CustomPath(poses, actions, 'pickplace', "smash", "table"))
+
+
 
     ## Drawer path init
     poses = []
@@ -551,143 +497,15 @@ def GenerateSomePaths(sp, ss):
     sp.append(CustomPath(poses, actions, "pushbutton", "pushbutton", "table"))
 
 
-def GenerateSomeScenes(ss):
-    ## 0 - empty
-    ss.append(CustomScene('empty'))
-    ## 1 - drawer
-    mesh_names=['drawer', 'drawer_socket_1', 'drawer_socket_2', 'drawer_socket_3']
-    drawer_heights = [0.083617, 0.124468, 0.094613]
-    mesh_trans_origin = [Vector3(0.,0.,0.), Vector3(0.024574, 0., 0.032766+0.094613+0.015387+0.124468+0.016383), Vector3(0.024574, 0., 0.032766+0.094613+0.015387), Vector3(0.024574, 0., 0.032766)]
-    # transform to workspace
-    axes = [[0.,1.,0.],
-    [-1.,0.,0.],
-    [0.,0.,1.]]
-    mesh_trans_origin_ = []
-    for i in range(0, len(mesh_trans_origin)):
-        orig = mesh_trans_origin[i]
-        orig_ = Vector3()
-        orig_.x = np.dot(axes[0],[orig.x, orig.y, orig.z])
-        orig_.y = np.dot(axes[1],[orig.x, orig.y, orig.z])
-        orig_.z = np.dot(axes[2],[orig.x, orig.y, orig.z])
-        mesh_trans_origin_.append(Vector3(orig_.x, orig_.y, orig_.z))
-    mesh_trans_origin = mesh_trans_origin_
-    ##
 
-    drawer_sockets_open = 0.0
-    mesh_poses = []
-    mesh_sizes = []
-    size = Vector3()
-    pose = Pose()
-    # drawer shell
-    pose.position = Point(0.8,0.2,0.)
-    pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-    mesh_poses.append(deepcopy(pose))
-    size = Vector3(0.3,0.5,0.4)
-    size = Vector3(0.5,-0.3,0.4)
-    mesh_sizes.append(deepcopy(size))
-    # drawer sockets
-    for i in range(0,3):
-        pose.position = Point(0.8-drawer_sockets_open/2,0.2,0.)
-        pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-        mesh_poses.append(deepcopy(pose))
-        size = Vector3(0.25085,0.5,drawer_heights[i])
-        size = Vector3(0.5,-0.25085,drawer_heights[i])
-        mesh_sizes.append(deepcopy(size))
-    ss.append(CustomScene('drawer', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes, mesh_trans_origin=mesh_trans_origin))
-    ## 2 - box
-    mesh_names=['box']
-    mesh_poses = []
-    pose.position = Point(0.6,0.1,0.04)
-    pose.orientation = Quaternion(0.0,0.0,0.0,1.0)
-    mesh_poses.append(deepcopy(pose))
-    mesh_sizes = [Vector3(0.075,0.075,0.075)]
-    mesh_trans_origin = [Vector3(0.,-0.0, 0.0)]
-    ss.append(CustomScene('pickplace', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes))#, mesh_trans_origin=mesh_trans_origin))
-    ## 3 - push button
-    mesh_names=['button', 'button_out']
-    mesh_poses = []
-    pose.position = Point(0.6,0.1,0.0)
-    pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-    mesh_poses.append(deepcopy(pose))
-
-    pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-    mesh_poses.append(deepcopy(pose))
-    mesh_sizes = [Vector3(0.1,0.1,0.1), Vector3(0.1,0.1,0.13)]
-    mesh_trans_origin = [Vector3(0.,-0.6, .0),Vector3(0.,-0.6, 0.)]
-    ss.append(CustomScene('pushbutton', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes))#, mesh_trans_origin=mesh_trans_origin))
-
-    ### MORE SCENES
-    # drawer2 - 1.
-    mesh_names=['drawer', 'drawer_socket_1', 'drawer_socket_2', 'drawer_socket_3','drawer2', 'drawer2_socket_1', 'drawer2_socket_2', 'drawer2_socket_3']
-    mesh_trans_origin2 = deepcopy(mesh_trans_origin)
-    mesh_trans_origin2.extend(deepcopy(mesh_trans_origin))
-    drawer_sockets_open = 0.0
-    mesh_poses = []
-    mesh_sizes = []
-    size = Vector3()
-    pose = Pose()
-
-    pose.position = Point(0.8,0.2,0.)
-    pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-    mesh_poses.append(deepcopy(pose))
-    size = Vector3(0.3,0.5,0.4)
-    size = Vector3(0.5,-0.3,0.4)
-    mesh_sizes.append(deepcopy(size))
-    # drawer sockets
-    for i in range(0,3):
-        pose.position = Point(0.8-drawer_sockets_open/2,0.2,0.)
-        pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-        mesh_poses.append(deepcopy(pose))
-        size = Vector3(0.25085,0.5,drawer_heights[i])
-        size = Vector3(0.5,-0.25085,drawer_heights[i])
-        mesh_sizes.append(deepcopy(size))
-    # 2.
-    pose.position = Point(0.6,-0.2,0.)
-    pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-    mesh_poses.append(deepcopy(pose))
-    size = Vector3(0.3,0.5,0.4)
-    size = Vector3(0.5,-0.3,0.4)
-    mesh_sizes.append(deepcopy(size))
-    # drawer sockets
-    for i in range(0,3):
-        pose.position = Point(0.6-drawer_sockets_open/2,-0.2,0.)
-        pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-        mesh_poses.append(deepcopy(pose))
-        size = Vector3(0.25085,0.5,drawer_heights[i])
-        size = Vector3(0.5,-0.25085,drawer_heights[i])
-        mesh_sizes.append(deepcopy(size))
-    ss.append(CustomScene('drawer2', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes, mesh_trans_origin=mesh_trans_origin2))
-    ## 2 - box
-    mesh_names=['box', 'box2']
-    mesh_poses = []
-    pose.position = Point(0.5,0.0,0.04)
-    pose.orientation = Quaternion(0.0,0.0,0.0,1.0)
-    mesh_poses.append(deepcopy(pose))
-    mesh_sizes = [Vector3(0.075,0.075,0.075), Vector3(0.075,0.075,0.075)]
-    # box2 - 1.
-    pose.position = Point(0.6,-0.2,0.04)
-    pose.orientation = Quaternion(0.0,0.0,0.0,1.0)
-    mesh_poses.append(deepcopy(pose))
-    ss.append(CustomScene('pickplace2', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes))
-    ## 3 - push button
-    mesh_names=['button', 'button_out', 'button2', 'button2_out', 'button3', 'button3_out']
-    mesh_poses = []
-    pose.position = Point(0.4,0.0,0.0)
-    pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-    mesh_poses.append(deepcopy(pose))
-    mesh_poses.append(deepcopy(pose))
-    pose.position = Point(0.6,0.2,0.0)
-    mesh_poses.append(deepcopy(pose))
-    mesh_poses.append(deepcopy(pose))
-    pose.position = Point(0.7,-0.3,0.0)
-    mesh_poses.append(deepcopy(pose))
-    mesh_poses.append(deepcopy(pose))
-    mesh_sizes = [Vector3(0.1,0.1,0.1), Vector3(0.1,0.1,0.13), [Vector3(0.1,0.1,0.1), Vector3(0.1,0.1,0.13)], [Vector3(0.1,0.1,0.1), Vector3(0.1,0.1,0.13)]]
-    ss.append(CustomScene('pushbutton2', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes))
 
 
 class CustomPath():
     def __init__(self, poses=[], actions=[], scene=None, NAME="", ENV=""):
+        ''' Create your custom path
+        '''
+        assert len(actions) == len(poses), "[Settings] Path you want to create has not the same number of poses as actions"
+        assert scene in getSceneNames(), "[Settings] Path you want to create has not valid scene name"
         self.n = len(poses)
         self.scene = scene
         self.poses = poses
@@ -703,15 +521,143 @@ class CustomScene():
         - mesh_poses, Pose[], position and orientation of object origin
         - mesh_sizes, Vector3[], length x,y,z of object from the origin
     '''
-    def __init__(self, NAME="", mesh_names=[], mesh_poses=[], mesh_sizes=[], mesh_trans_origin=[]):
-        self.NAME = NAME
-        self.mesh_names = mesh_names
-        self.mesh_poses = mesh_poses
-        self.mesh_sizes = mesh_sizes
-        if mesh_trans_origin:
-            self.mesh_trans_origin = mesh_trans_origin
+    def __init__(self, NAME="", mesh_names=[], mesh_poses=[], mesh_sizes=[], mesh_trans_origin=[], YAML_data=None):
+        if YAML_data:
+            ## load data from YAML data structure
+            if len(YAML_data.keys()) > 1:
+                raise Exception("More scenes cannot be loaded in one record!")
+            key = YAML_data.keys()[0]
+            scene_data = YAML_data[key]
+
+            self.NAME = key
+            self.mesh_names = []
+            self.mesh_poses = []
+            self.mesh_sizes = []
+            self.mesh_trans_origin = [Vector3(0.,0.,0.)] * len(self.mesh_names)
+            if not scene_data: # Add empty scene
+                return
+            self.mesh_names = scene_data['mesh_names']
+            for p in scene_data['mesh_poses']:
+                rosPose = Pose()
+                rosPose.position = Point(*extv(p['pose']['position']))
+                rosPose.orientation = Quaternion(*extq(p['pose']['orientation']))
+                self.mesh_poses.append(rosPose)
+            for p in scene_data['mesh_sizes']:
+                rosSize = Vector3(*extv(p['position']))
+                self.mesh_sizes.append(rosSize)
+            if 'mesh_trans_origin' in scene_data.keys():
+                if 'axes' in scene_data.keys():
+                    self.mesh_trans_origin = TransformWithAxes(scene_data['mesh_trans_origin'], scene_data['axes'])
+                else:
+                    self.mesh_trans_origin = scene_data['mesh_trans_origin']
+
+
         else:
-            self.mesh_trans_origin = [Vector3(0.,0.,0.)] * len(mesh_names)
+            self.NAME = NAME
+            self.mesh_names = mesh_names
+            self.mesh_poses = mesh_poses
+            self.mesh_sizes = mesh_sizes
+            if mesh_trans_origin:
+                self.mesh_trans_origin = mesh_trans_origin
+            else:
+                self.mesh_trans_origin = [Vector3(0.,0.,0.)] * len(mesh_names)
+
+class GenerateScenes():
+    @staticmethod
+    def Raw(ss):
+        ''' Deprecated, use FromYAML instead
+        '''
+        ## 0 - empty
+        ss.append(CustomScene('empty'))
+        ## 1 - drawer
+        mesh_names=['drawer', 'drawer_socket_1', 'drawer_socket_2', 'drawer_socket_3']
+        drawer_heights = [0.083617, 0.124468, 0.094613]
+        mesh_trans_origin = [Vector3(0.,0.,0.), Vector3(0.024574, 0., 0.032766+0.094613+0.015387+0.124468+0.016383), Vector3(0.024574, 0., 0.032766+0.094613+0.015387), Vector3(0.024574, 0., 0.032766)]
+        # transform to workspace
+        axes = [[0.,1.,0.],
+        [-1.,0.,0.],
+        [0.,0.,1.]]
+        mesh_trans_origin_ = []
+        for i in range(0, len(mesh_trans_origin)):
+            orig = mesh_trans_origin[i]
+            orig_ = Vector3()
+            orig_.x = np.dot(axes[0],[orig.x, orig.y, orig.z])
+            orig_.y = np.dot(axes[1],[orig.x, orig.y, orig.z])
+            orig_.z = np.dot(axes[2],[orig.x, orig.y, orig.z])
+            mesh_trans_origin_.append(Vector3(orig_.x, orig_.y, orig_.z))
+        mesh_trans_origin = mesh_trans_origin_
+        ### Added in func
+        #mesh_trans_origin = TransformWithAxes(mesh_trans_origin, axes)
+        ##
+
+        drawer_sockets_open = 0.0
+        mesh_poses = []
+        mesh_sizes = []
+        size = Vector3()
+        pose = Pose()
+        # drawer shell
+        pose.position = Point(0.8,0.2,0.)
+        pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
+        mesh_poses.append(deepcopy(pose))
+        size = Vector3(0.3,0.5,0.4)
+        size = Vector3(0.5,-0.3,0.4)
+        mesh_sizes.append(deepcopy(size))
+        # drawer sockets
+        for i in range(0,3):
+            pose.position = Point(0.8-drawer_sockets_open/2,0.2,0.)
+            pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
+            mesh_poses.append(deepcopy(pose))
+            size = Vector3(0.25085,0.5,drawer_heights[i])
+            size = Vector3(0.5,-0.25085,drawer_heights[i])
+            mesh_sizes.append(deepcopy(size))
+        ss.append(CustomScene('drawer', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes, mesh_trans_origin=mesh_trans_origin))
+
+
+        ## 2 - box
+        mesh_names=['box']
+        mesh_poses = []
+        pose.position = Point(0.6,0.1,0.04)
+        pose.orientation = Quaternion(0.0,0.0,0.0,1.0)
+        mesh_poses.append(deepcopy(pose))
+        mesh_sizes = [Vector3(0.075,0.075,0.075)]
+        mesh_trans_origin = [Vector3(0.,-0.0, 0.0)]
+        ss.append(CustomScene('pickplace', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes))#, mesh_trans_origin=mesh_trans_origin))
+        ## 3 - push button
+        mesh_names=['button', 'button_out']
+        mesh_poses = []
+        pose.position = Point(0.6,0.1,0.0)
+        pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
+        mesh_poses.append(deepcopy(pose))
+
+        pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
+        mesh_poses.append(deepcopy(pose))
+        mesh_sizes = [Vector3(0.1,0.1,0.1), Vector3(0.1,0.1,0.13)]
+        mesh_trans_origin = [Vector3(0.,-0.6, .0),Vector3(0.,-0.6, 0.)]
+        ss.append(CustomScene('pushbutton', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes))#, mesh_trans_origin=mesh_trans_origin))
+
+
+    @staticmethod
+    def FromYAML(ss, scenes_folder=None, file_catch_phrase='scene'):
+        ''' Generates All scenes from YAML files
+
+        Parameters:
+            scenes_folder (Str): folder to specify YAML files, if not specified the default CUSTOM_SETTINGS_YAML folder is used
+            file_catch_phrase (Str): All files in specified directory need to have this sub string to be loaded (e.g. use 'scene' to load all names -> 'scene1.yaml', scene2.yaml)
+                - If not specified then file_catch_phrase='scene'
+                - If specified as '', all files are loaded
+        '''
+        if not scenes_folder:
+            scenes_folder = CUSTOM_SETTINGS_YAML
+
+        files = os.listdir(scenes_folder)
+        for f in files:
+            if '.yaml' in f and file_catch_phrase in f:
+                    with open(scenes_folder+f, 'r') as stream:
+                        data_loaded = yaml.safe_load(stream)
+                    for key in data_loaded.keys():
+                        pickedscene = {key: data_loaded[key]}
+                        ss.append(CustomScene(YAML_data=pickedscene))
+
 
 ## Helper functions
 
@@ -742,18 +688,26 @@ def extq(q):
     Returns:
         x,y,z,w (Floats tuple[4]): Quaternion extracted
     '''
-    assert type(q) == type(Quaternion()), "extq input arg q: Not Quaternion!"
-    return q.x, q.y, q.z, q.w
+    if type(q) == type(Quaternion()):
+        return q.x, q.y, q.z, q.w
+    elif (type(q) == dict and 'w' in q.keys()):
+        return q['x'], q['y'], q['z'], q['w']
+    else: raise Exception("extq input arg q: Not Quaternion or dict with 'x'..'w' keys!")
+
 
 def extv(v):
     ''' Extracts Point/Vector3 to Cartesian values
     Parameters:
-        v (Point() or Vector3()): From geometry_msgs.msg
+        v (Point() or Vector3() or dict with 'x'..'z' in keys): From geometry_msgs.msg or dict
     Returns:
         [x,y,z] (Floats tuple[3]): Point/Vector3 extracted
     '''
-    assert type(v) == type(Point()) or type(v) == type(Vector3()), "extv input arg v: Not Point or Vector3!"
-    return v.x, v.y, v.z
+    if type(v) == type(Point()) or type(v) == type(Vector3()):
+        return v.x, v.y, v.z
+    elif (type(v) == dict and 'x' in v.keys()):
+        return v['x'], v['y'], v['z']
+    else: raise Exception("extv input arg v: Not Point or Vector3 or dict!")
+
 
 def extp(p):
     ''' Extracts pose
@@ -764,6 +718,36 @@ def extp(p):
     '''
     assert type(p) == type(Pose()), "extp input arg p: Not Pose type!"
     return p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w
+
+
+
+def TransformWithAxes(data_to_transform, transform_mat):
+    '''
+    Parameters:
+        data_to_transform (Vector3()[]) or dict
+        transform_mat (2D array): size 3x3
+    Returns:
+        data_transformed (Vector3()[])
+    '''
+
+    if type(data_to_transform[0]) == dict and 'x' in data_to_transform[0].keys():
+        new_data = []
+        for vec in data_to_transform:
+            new_data.append(Vector3(vec['x'], vec['y'], vec['z']))
+        data_to_transform = new_data
+
+    data_transformed = []
+    for i in range(0, len(data_to_transform)):
+        orig = data_to_transform[i]
+        orig_ = Vector3()
+        orig_.x = np.dot(transform_mat[0],[orig.x, orig.y, orig.z])
+        orig_.y = np.dot(transform_mat[1],[orig.x, orig.y, orig.z])
+        orig_.z = np.dot(transform_mat[2],[orig.x, orig.y, orig.z])
+        data_transformed.append(Vector3(orig_.x, orig_.y, orig_.z))
+    return data_transformed
+
+TransformWithAxes(data_to_transform=[Vector3(0.,0.,0.), Vector3(0.024574, 0., 0.032766+0.094613+0.015387+0.124468+0.016383), Vector3(0.024574, 0., 0.032766+0.094613+0.015387), Vector3(0.024574, 0., 0.032766)], transform_mat=[[0.,1.,0.],[-1.,0.,0.],[0.,0.,1.]])
+
 '''
 def waitForValue(ooo, errormsg="Wait for value error!"):
     def valueLoaded(ooo.value):
@@ -802,3 +786,11 @@ def waitForValue(ooo, errormsg="Wait for value error!"):
         print(errormsg)
 '''
 ###
+if __name__ == '__main__':
+    global CUSTOM_SETTINGS_YAML
+    CUSTOM_SETTINGS_YAML = "/home/pierro/my_ws/src/mirracle_gestures/include/custom_settings/"
+    sp, ss = [], []
+    GenerateScenes.Raw(ss) # Saved scenes
+    print("SS1\n",ss)
+    GenerateScenes.FromYAML(ss)
+    print("SS2\n",ss)

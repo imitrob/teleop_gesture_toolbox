@@ -1,0 +1,60 @@
+
+
+# Keyboard (use lowercase) key for recording
+Gestures:
+  # Static gestures
+  - Name: Grab
+    Key: 1
+  - Name: Pinch
+    Key: 2
+  - Name: Point
+    Key: 3
+  - Name: Respectful
+    Key: 4
+  - Name: Spock
+    Key: 5
+  - Name: Rock
+    Key: 6
+  - Name: Victory
+    Key: 7
+  - Name: Italian
+    Key: 8
+  # Dynamic gestures
+  - Name: Rotate
+    Key: q
+  - Name: Swipe_Up
+    Key: w
+  - Name: Pin
+    Key: e
+  - Name: Touch
+    Key: r
+  - Name: Swipe_Left
+    Key: a
+  - Name: Swipe_Down
+    Key: s
+  - Name: Swipe_Right
+    Key: d
+
+Recording:
+  BufferLen: 300
+  Length: 1 # max. BufferLen/100, [sec]
+  # Record 'after' pressing button or record (given time) 'before' pressing button
+  RecordingStart: after # TODO:
+#
+#param:
+#    :observation_type == 'user_defined' -> includes finger on/off normalized, fingers distance normalized
+#                       == 'all_defined' -> includes all differences between fingers and distances
+#    :time_series_operation == 'average' -> value of observation is averaged of all time
+#                           == 'middle' -> take middle time sample
+#                           == 'as_dimesion' -> three dimensional X as output
+#                           == 'take_every_10' -> every tenth time sample is new recorded sample
+#                           == 'take_every' -> every time sample is new recorded sample
+#
+#    :position == '' -> no position
+#              == 'absolute' -> position of palm is intercorporated
+#              == 'absolute+finger' -> position of palm and pointing finger is intercorporated
+#
+Recognition:
+  observation_type: user_defined
+  time_series_operation: take_every_10
+  position: ""

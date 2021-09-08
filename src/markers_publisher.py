@@ -27,7 +27,7 @@ class MarkersPublisher():
         '''
         publisher = rospy.Publisher('visualization_marker_array', MarkerArray, queue_size=5)
         markerArray = MarkerArray()
-        while not rospy.is_shutdown():
+        while settings.ALIVE:
             markerArray.markers = MarkersPublisher.generateMarkers()
             publisher.publish(markerArray)
             rospy.sleep(0.25)
@@ -173,12 +173,12 @@ class MarkersPublisher():
         m.color.b = 1.0
         m.id = 1000
         if settings.print_path_trace:
-            for frame in list(settings.eef_goal):
+            for frame in list(settings.goal_pose_array):
                 m.pose = frame
                 m.id += 1
                 markers_array.append(deepcopy(m))
         else:
-            for frame in list(settings.eef_goal):
+            for frame in list(settings.goal_pose_array):
                 m.action = m.DELETE
                 m.id += 1
                 markers_array.append(deepcopy(m))

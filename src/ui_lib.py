@@ -1,6 +1,6 @@
 #!/usr/bin/python2.7
-
-"""
+""" Launches Interface Application
+    - Loads config from include/custom_settings/application.yaml
 """
 
 from PyQt5.QtWidgets import *
@@ -22,24 +22,30 @@ import pickle
 import ctypes
 from threading import Timer
 from visualizer_lib import VisualizerLib
+import yaml
+import io
 
 # ros msg classes
 from geometry_msgs.msg import PoseStamped, Quaternion, Pose, Point
-
-LEFT_MARGIN = 20
-RIGHT_MARGIN = 70
-BOTTOM_MARGIN = 400
-ICON_SIZE = 60
-START_PANEL_Y = 70
-
-BarMargin = 40
 
 class Example(QMainWindow):
 
     def __init__(self):
         super(Example, self).__init__()
-        self.setMinimumSize(QSize(500, 400))
 
+        with open(settings.CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
+            gestures_data_loaded = yaml.safe_load(stream)
+        with open(settings.CUSTOM_SETTINGS_YAML+"application.yaml", 'r') as stream:
+            app_data_loaded = yaml.safe_load(stream)
+        global LEFT_MARGIN, RIGHT_MARGIN, BOTTOM_MARGIN, ICON_SIZE, START_PANEL_Y, BarMargin
+        LEFT_MARGIN = app_data_loaded['LEFT_MARGIN']
+        RIGHT_MARGIN = app_data_loaded['RIGHT_MARGIN']
+        BOTTOM_MARGIN = app_data_loaded['BOTTOM_MARGIN']
+        ICON_SIZE = app_data_loaded['ICON_SIZE']
+        START_PANEL_Y = app_data_loaded['START_PANEL_Y']
+        BarMargin = app_data_loaded['BarMargin']
+
+        self.setMinimumSize(QSize(500, 400)) # Minimum window size
         self.lbl1 = QLabel('Poses & Gestures', self)
         self.lbl1.setGeometry(20, 36, 150, 50)
         self.lbl2 = QLabel('Observations', self)
@@ -48,11 +54,11 @@ class Example(QMainWindow):
         ## View Configuration App
         settings.WindowState = 0
         self.ViewState = True
-        self.AllData = True
-        ## Cursor Picking (Configuration page)
+        ## Cursor Picking (on Configuration page)
         self.pickedSolution = np.zeros(settings.NumConfigBars)
         self.pickedTime = np.zeros(settings.NumConfigBars)
-        self.lblConfNames = ['Gripper open', 'Applied force', 'Work reach', 'Shift start x', 'Speed', 'Scene change', 'Mode', 'Path']
+
+        self.lblConfNames = app_data_loaded['ConfigurationPage']['ItemNames']
         self.lblConfValues = ['0.', '0.', '0.', '0.', '0.', '0.', '0.', '0.']
         self.lblConfNamesObj = []
         self.lblConfValuesObj = []
@@ -62,7 +68,7 @@ class Example(QMainWindow):
 
         ## Label Observation Poses
         self.lblObservationPosesNames = ['conf.', 'oc1', 'oc2', 'oc3', 'oc4', 'oc5', 'tch12', 'tch23', 'tch34', 'tch45', 'tch13', 'tch14', 'tch15', 'x_vel', 'y_vel', 'z_vel', 'x_rot', 'y_rot', 'z_rot']
-        self.lblObservationPosesValues = ['0.0' , '0.0', '0.0', '0.0', '0.0', '0.0', '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',  '0.0',    '0.0']
+        self.lblObservationPosesValues = ['0.0' , '0.0', '0.0', '0.0', '0.0', '0.0', '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',  '0.0', '0.0']
         self.lblObservationPosesNamesObj = []
         self.lblObservationPosesValuesObj = []
         for i in range(0, len(self.lblObservationPosesNames)):
@@ -100,21 +106,21 @@ class Example(QMainWindow):
         self.comboLiveMode.addItem("Gesture based")
         self.comboLiveMode.activated[str].connect(self.onComboLiveModeChanged)
         self.comboLiveMode.setGeometry(LEFT_MARGIN+130+ICON_SIZE*2, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
-
+        ## Control of the movement exectution
         self.btnPlayMove = QPushButton('Forward', self)
         self.btnPlayMove.clicked.connect(self.button_play_move)
-        self.btnPlayMove.setGeometry(LEFT_MARGIN+130+ICON_SIZE*4, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
+        self.btnPlayMove.setGeometry(LEFT_MARGIN+130+ICON_SIZE*4, START_PANEL_Y-10,ICON_SIZE,ICON_SIZE/2)
         self.btnPlayMove2 = QPushButton('Backward', self)
         self.btnPlayMove2.clicked.connect(self.button_play_move2)
-        self.btnPlayMove2.setGeometry(LEFT_MARGIN+130+ICON_SIZE*6, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
+        self.btnPlayMove2.setGeometry(LEFT_MARGIN+130+ICON_SIZE*5, START_PANEL_Y-10,ICON_SIZE,ICON_SIZE/2)
         self.btnPlayMove3 = QPushButton('Stop', self)
         self.btnPlayMove3.clicked.connect(self.button_play_move3)
-        self.btnPlayMove3.setGeometry(LEFT_MARGIN+130+ICON_SIZE*8, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
+        self.btnPlayMove3.setGeometry(LEFT_MARGIN+130+ICON_SIZE*6, START_PANEL_Y-10,ICON_SIZE,ICON_SIZE/2)
 
         self.btnSave = QPushButton("Save", self)
         self.btnSave.clicked.connect(self.button_save)
-        self.recording = False
-        self.REC_TIME = 1 # sec
+        self.recording = False # Bool if recording is happening
+        self.REC_TIME = gestures_data_loaded['Recording']['Length'] # sec
         self.dir_queue = []
 
         self.lblStatus = QLabel('Status bar', self)
@@ -124,14 +130,28 @@ class Example(QMainWindow):
         self.comboInteractiveSceneChanges.addItem("Scene 1 Drawer")
         self.comboInteractiveSceneChanges.addItem("Scene 2 Pick/Place")
         self.comboInteractiveSceneChanges.addItem("Scene 3 Push button")
-        self.comboInteractiveSceneChanges.addItem("Scene 4 - 2 Drawers")
-        self.comboInteractiveSceneChanges.addItem("Scene 5 - 2 Pick/Place")
-        self.comboInteractiveSceneChanges.addItem("Scene 6 - 3 Push buttons")
+        self.comboInteractiveSceneChanges.addItem("Scene 4 - 2 Pick/Place")
         self.comboInteractiveSceneChanges.activated[str].connect(self.onInteractiveSceneChanged)
         self.comboInteractiveSceneChanges.setGeometry(LEFT_MARGIN+130+ICON_SIZE*4, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
 
 
-        #self.lblStartAxis = QLabel("", self)
+        # Move Page
+        lbls = ['Pos. X:', 'Pos. Y:', 'Pos. Z:', 'Ori. X:', 'Ori. Y:', 'Ori. Z:', 'Ori. W:']
+        self.movePageGoPoseLabels = []
+        self.movePageGoPoseEdits = []
+        for i in range(0,7):
+            self.movePageGoPoseLabels.append(QLabel(self))
+            self.movePageGoPoseLabels[-1].setText(lbls[i])
+            self.movePageGoPoseLabels[-1].move(LEFT_MARGIN+20, START_PANEL_Y+i*32)
+            self.movePageGoPoseEdits.append(QLineEdit(self))
+            self.movePageGoPoseEdits[-1].move(LEFT_MARGIN+80, START_PANEL_Y+i*32)
+            self.movePageGoPoseEdits[-1].resize(200, 32)
+        self.movePageGoPoseButton = QPushButton("Go To Pose", self)
+        self.movePageGoPoseButton.clicked.connect(self.go_to_pose_button)
+        self.movePageGoPoseButton.move(LEFT_MARGIN+80, START_PANEL_Y+7*32)
+
+        # Scene Page
+
 
         self.timer = QBasicTimer()
         self.timer.start(100, self)
@@ -141,35 +161,38 @@ class Example(QMainWindow):
 
         menubar = self.menuBar()
         viewMenu = menubar.addMenu('View')
-        viewMenu2 = menubar.addMenu('Page')
-        viewMenu3 = menubar.addMenu('Config')
-        viewMenu4 = menubar.addMenu('Scene')
-        viewMenu5 = menubar.addMenu('Testing')
+        pageMenu = menubar.addMenu('Page')
+        configMenu = menubar.addMenu('Config')
+        sceneMenu = menubar.addMenu('Scene')
+        testingMenu = menubar.addMenu('Testing')
 
         ## Menu items -> View options
-        viewStatAct = QAction('View gestures', self, checkable=True)
-        viewStatAct.setStatusTip('View gestures')
-        viewStatAct.setChecked(True)
-        viewStatAct.triggered.connect(self.toggleMenu)
+        viewOptionsAction = QAction('View gestures', self, checkable=True)
+        viewOptionsAction.setStatusTip('View gestures')
+        viewOptionsAction.setChecked(True)
+        viewOptionsAction.triggered.connect(self.toggleMenu)
         ## Menu items -> Go to page
-        viewStatAct2 = QAction('Info page', self)
-        viewStatAct2.setStatusTip('Info page')
-        viewStatAct2.triggered.connect(self.goToInfo)
-        viewStatAct3 = QAction('Control page', self)
-        viewStatAct3.setStatusTip('Control page')
-        viewStatAct3.triggered.connect(self.goToConfig)
+        viewGoToInfoAction = QAction('Info page', self)
+        viewGoToInfoAction.setStatusTip('Info page')
+        viewGoToInfoAction.triggered.connect(self.goToInfo)
+        viewGoToControlAction = QAction('Control page', self)
+        viewGoToControlAction.setStatusTip('Control page')
+        viewGoToControlAction.triggered.connect(self.goToConfig)
+        viewGoToMoveAction = QAction('Move page', self)
+        viewGoToMoveAction.setStatusTip('Move page')
+        viewGoToMoveAction.triggered.connect(self.goToMove)
 
         # The environment
         impMenu = QMenu('Area choose', self)
-        impAct1 = QAction('Above', self)
-        impAct1.triggered.connect(self.impAct1)
-        impAct2 = QAction('Wall', self)
-        impAct2.triggered.connect(self.impAct2)
-        impAct3 = QAction('Table', self)
-        impAct3.triggered.connect(self.impAct3)
-        impMenu.addAction(impAct1)
-        impMenu.addAction(impAct2)
-        impMenu.addAction(impAct3)
+        switchEnvAboveAct = QAction('Above', self)
+        switchEnvAboveAct.triggered.connect(self.switchEnvAbove)
+        switchEnvWallAct = QAction('Wall', self)
+        switchEnvWallAct.triggered.connect(self.switchEnvWall)
+        switchEnvTableAct = QAction('Table', self)
+        switchEnvTableAct.triggered.connect(self.switchEnvTable)
+        impMenu.addAction(switchEnvAboveAct)
+        impMenu.addAction(switchEnvWallAct)
+        impMenu.addAction(switchEnvTableAct)
         impMenu2 = QMenu('Orientation', self)
         impAct4 = QAction('Fixed', self, checkable=True)
         impAct4.triggered.connect(self.impAct4)
@@ -177,47 +200,91 @@ class Example(QMainWindow):
         print_path_trace_action = QAction('Print path trace', self, checkable=True)
         print_path_trace_action.triggered.connect(self.print_path_trace)
 
-        scene1 = QAction('Scene 1 Drawer', self)
-        scene1.triggered.connect(self.goScene1)
-        scene2 = QAction('Scene 2 Pick/Place', self)
-        scene2.triggered.connect(self.goScene2)
-        scene3 = QAction('Scene 3 Push button', self)
-        scene3.triggered.connect(self.goScene3)
-        scene5 = QAction('Scene 4 - 2 Drawers', self)
-        scene5.triggered.connect(self.goScene4)
-        scene6 = QAction('Scene 5 - 2 Pick/Place', self)
-        scene6.triggered.connect(self.goScene5)
-        scene7 = QAction('Scene 6 - 3 Push buttons', self)
-        scene7.triggered.connect(self.goScene6)
+        SCENES = settings.getSceneNames()
+        for index, SCENE in enumerate(SCENES):
+            action = QAction('Scene '+str(index)+' '+SCENE, self)
+            action.triggered.connect(
+                lambda checked, index=index: self.goScene(index))
+            sceneMenu.addAction(action)
 
-        scene4 = QAction('Table test', self)
-        scene4.triggered.connect(settings.mo.testMovements)
+        initTestAction = QAction('Initialization test', self)
+        initTestAction.triggered.connect(settings.mo.testInit)
+        tableTestAction = QAction('Table test', self)
+        tableTestAction.triggered.connect(settings.mo.testMovements)
+        inputTestAction = QAction('Test by input', self)
+        inputTestAction.triggered.connect(settings.mo.testMovementsInput)
 
-        viewMenu.addAction(viewStatAct)
-        viewMenu2.addAction(viewStatAct2)
-        viewMenu2.addAction(viewStatAct3)
-        viewMenu3.addMenu(impMenu)
-        viewMenu3.addMenu(impMenu2)
-        viewMenu3.addAction(print_path_trace_action)
-        viewMenu4.addAction(scene1)
-        viewMenu4.addAction(scene2)
-        viewMenu4.addAction(scene3)
-        viewMenu4.addAction(scene5)
-        viewMenu4.addAction(scene6)
-        viewMenu4.addAction(scene7)
-        viewMenu5.addAction(scene4)
+        ## Add actions to the menu
+        viewMenu.addAction(viewOptionsAction)
+        pageMenu.addAction(viewGoToInfoAction)
+        pageMenu.addAction(viewGoToControlAction)
+        pageMenu.addAction(viewGoToMoveAction)
+        configMenu.addMenu(impMenu)
+        configMenu.addMenu(impMenu2)
+        configMenu.addAction(print_path_trace_action)
+        testingMenu.addAction(tableTestAction)
+        testingMenu.addAction(initTestAction)
+        testingMenu.addAction(inputTestAction)
 
         thread = Thread(target = self.play_method)
         thread.start()
 
-        self.setGeometry(1000, 1000, 1000, 800)
+        self.setGeometry(app_data_loaded['WindowXY'][0],app_data_loaded['WindowXY'][1], app_data_loaded['WindowSize'][0], app_data_loaded['WindowSize'][1])
         self.setWindowTitle('Interface')
         self.show()
+
+        ## Initialize Visible Objects Array
+        self.AllVisibleObjects = []
+        self.AllVisibleObjects.append(ObjectQt('lblStatus',self.lblStatus,0))
+        for n,obj in enumerate(self.lblObservationPosesNamesObj):
+            self.AllVisibleObjects.append(ObjectQt('lblObservationPosesNamesObj'+str(n),obj,0))
+        for n,obj in enumerate(self.lblGesturesPosesNamesObj):
+            self.AllVisibleObjects.append(ObjectQt('lblGesturesPosesNamesObj'+str(n),obj,0))
+        self.AllVisibleObjects.append(ObjectQt('lbl1',self.lbl1,0))
+        self.AllVisibleObjects.append(ObjectQt('lbl2',self.lbl2,0))
+        self.AllVisibleObjects.append(ObjectQt('comboPlayNLive',self.comboPlayNLive,0))
+        self.AllVisibleObjects.append(ObjectQt('btnConf',self.btnConf,0))
+        self.AllVisibleObjects.append(ObjectQt('btnSave',self.btnSave,0))
+
+        self.AllVisibleObjects.append(ObjectQt('comboPickPlayTraj',self.comboPickPlayTraj,0,view_group=['ViewState', 'play']))
+        self.AllVisibleObjects.append(ObjectQt('btnPlayMove' ,self.btnPlayMove, 0,view_group=['ViewState', 'play']))
+        self.AllVisibleObjects.append(ObjectQt('btnPlayMove2',self.btnPlayMove2,0,view_group=['ViewState', 'play']))
+        self.AllVisibleObjects.append(ObjectQt('btnPlayMove3',self.btnPlayMove3,0,view_group=['ViewState', 'play']))
+
+        self.AllVisibleObjects.append(ObjectQt('comboLiveMode',self.comboLiveMode,0,view_group=['ViewState', 'live']))
+        self.AllVisibleObjects.append(ObjectQt('comboInteractiveSceneChanges',self.comboInteractiveSceneChanges,0,view_group=['ViewState', 'live']))
+
+        for n,obj in enumerate(self.lblConfNamesObj):
+            self.AllVisibleObjects.append(ObjectQt('lblConfNamesObj'+str(n),obj,1))
+        for n,obj in enumerate(self.lblConfValuesObj):
+            self.AllVisibleObjects.append(ObjectQt('lblConfValuesObj'+str(n),obj,1))
+        for n,obj in enumerate(self.movePageGoPoseLabels):
+            self.AllVisibleObjects.append(ObjectQt('movePageGoPoseLabels'+str(n),obj,2))
+        for n,obj in enumerate(self.movePageGoPoseEdits):
+            self.AllVisibleObjects.append(ObjectQt('movePageGoPoseEdits'+str(n),obj,2))
+        self.AllVisibleObjects.append(ObjectQt('movePageGoPoseButton',self.movePageGoPoseButton,2))
+
         print("[Interface] Done")
 
+    def go_to_pose_button(self):
+        vals = []
+        for obj in self.movePageGoPoseEdits:
+            val = None
+            try:
+                val = float(obj.text())
+            except:
+                print("[ERROR*] Value Error!")
+                val = 0.0
+            vals.append(val)
+        pose = Pose()
+        pose.position = Point(*vals[0:3])
+        pose.orientation = Quaternion(*vals[3:7])
+        settings.goal_pose = pose
 
     def keyPressEvent(self, event):
-        KEYS = [Qt.Key_1, Qt.Key_2, Qt.Key_3, Qt.Key_4, Qt.Key_5, Qt.Key_6, Qt.Key_7, Qt.Key_8, Qt.Key_Q, Qt.Key_W, Qt.Key_E, Qt.Key_R, Qt.Key_A, Qt.Key_S, Qt.Key_D]
+        '''
+        '''
+        KEYS = [self.mapQtKey(key) for key in settings.GESTURE_KEYS]
         if event.key() in KEYS:
             self.recording = True
             for n, key in enumerate(KEYS):
@@ -235,10 +302,12 @@ class Example(QMainWindow):
         thread.start()
 
     def vis_path(self):
+        ''' TODO:
+        '''
         viz = VisualizerLib()
         viz.visualize_new_fig(title="Path", dim=3)
-        #viz.visualize_3d(settings.eef_goal, storeObj=settings, color='b', label="leap", units='m')
-        data = [settings.extv(pose.position) for pose in list(settings.eef_robot)]
+        #viz.visualize_3d(settings.goal_pose_array, storeObj=settings, color='b', label="leap", units='m')
+        data = [settings.extv(pose.position) for pose in list(settings.eef_pose_array)]
         viz.visualize_3d(data=data, storeObj=settings.figdata, color='r', label="robot", units='m')
         data = [settings.extv(settings.mo.transformLeapToScene(settings.frames_adv[i].r.pPose.pose).position) for i in range(0, settings.BUFFER_LEN)]
         viz.visualize_3d(data=data, storeObj=settings.figdata, color='b', label="leap", units='m')
@@ -324,19 +393,21 @@ class Example(QMainWindow):
         settings.WindowState = 0
     def goToConfig(self):
         settings.WindowState = 1
+    def goToMove(self):
+        settings.WindowState = 2
 
     def gestures_goal_init_procedure(self):
         settings.md.gestures_goal_pose.position = settings.md.ENV['start']
         settings.md.gestures_goal_pose.orientation = settings.md.ENV['ori']
 
     # Switch the environment functions
-    def impAct1(self):
+    def switchEnvAbove(self):
         settings.md.ENV = settings.md.ENV_DAT['above']
         self.gestures_goal_init_procedure()
-    def impAct2(self):
+    def switchEnvWall(self):
         settings.md.ENV = settings.md.ENV_DAT['wall']
         self.gestures_goal_init_procedure()
-    def impAct3(self):
+    def switchEnvTable(self):
         settings.md.ENV = settings.md.ENV_DAT['table']
         self.gestures_goal_init_procedure()
 
@@ -351,18 +422,10 @@ class Example(QMainWindow):
             settings.print_path_trace = True
         else:
             settings.print_path_trace = False
-    def goScene1(self):
-        settings.mo.make_scene(scene='drawer')
-    def goScene2(self):
-        settings.mo.make_scene(scene='pickplace')
-    def goScene3(self):
-        settings.mo.make_scene(scene='pushbutton')
-    def goScene4(self):
-        settings.mo.make_scene(scene='drawer2')
-    def goScene5(self):
-        settings.mo.make_scene(scene='pickplace2')
-    def goScene6(self):
-        settings.mo.make_scene(scene='pushbutton2')
+
+    def goScene(self, index):
+        SCENES = settings.getSceneNames()
+        settings.mo.make_scene(scene=SCENES[index])
 
     def onComboPlayNLiveChanged(self, text):
         if text=="Live hand":
@@ -377,115 +440,33 @@ class Example(QMainWindow):
         if text == "Scene 1 Drawer":
             settings.mo.make_scene(scene='drawer')
             settings.md.ENV = settings.md.ENV_DAT['wall']
-            settings.md.ENV['start'].z = -0.4
-            settings.md.ENV['ori'] = Quaternion(-0.5,0.5,0.5,-0.5)
-            self.gestures_goal_init_procedure()
-            settings.FIXED_ORI_TOGGLE = True
         elif text == "Scene 2 Pick/Place":
             settings.mo.make_scene(scene='pickplace')
-            settings.md.ENV = settings.md.ENV_DAT['wall']
-            settings.md.ENV['start'].z = -0.4
-            settings.md.ENV['ori'] = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
-            self.gestures_goal_init_procedure()
-            settings.FIXED_ORI_TOGGLE = True
+            settings.md.ENV = settings.md.ENV_DAT['table']
         elif text == "Scene 3 Push button":
             settings.mo.make_scene(scene='pushbutton')
-            settings.md.ENV = settings.md.ENV_DAT['wall']
-            settings.md.ENV['start'].z = -0.4
-            settings.md.ENV['ori'] = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
-            self.gestures_goal_init_procedure()
-            settings.FIXED_ORI_TOGGLE = True
-        elif text == "Scene 4 - 2 Drawers":
-            settings.mo.make_scene(scene='drawer2')
-            settings.md.ENV = settings.md.ENV_DAT['wall']
-            settings.md.ENV['start'].z = -0.2
-            self.gestures_goal_init_procedure()
-            settings.FIXED_ORI_TOGGLE = True
-        elif text == "Scene 5 - 2 Pick/Place":
+            settings.md.ENV = settings.md.ENV_DAT['table']
+        elif text == "Scene 4 - 2 Pick/Place":
             settings.mo.make_scene(scene='pickplace2')
             settings.md.ENV = settings.md.ENV_DAT['table']
-            self.gestures_goal_init_procedure()
-            settings.FIXED_ORI_TOGGLE = True
-        elif text == "Scene 6 - 3 Push buttons":
-            settings.mo.make_scene(scene='pushbutton2')
-            settings.md.ENV = settings.md.ENV_DAT['table']
-            self.gestures_goal_init_procedure()
-            settings.FIXED_ORI_TOGGLE = True
+        else: raise Exception("Item not on a list!")
+        self.gestures_goal_init_procedure()
 
     def paintEvent(self, e):
-        ### Visibility settings ###
-        if settings.WindowState == 0:
-            if self.ViewState:
-                self.lblStatus.setVisible(True)
-                for i in self.lblObservationPosesNamesObj:
-                    i.setVisible(True)
-                for i in self.lblGesturesPosesNamesObj:
-                    i.setVisible(True)
-                self.lbl1.setVisible(True)
-                self.lbl2.setVisible(True)
-                self.comboPlayNLive.setVisible(True)
-                self.btnConf.setVisible(True)
-                self.btnSave.setVisible(True)
-            else:
-                self.lblStatus.setVisible(False)
-                self.lbl1.setVisible(False)
-                self.lbl2.setVisible(False)
-                self.btnConf.setVisible(False)
-                self.btnSave.setVisible(False)
-                self.comboPlayNLive.setVisible(False)
-                for i in self.lblObservationPosesNamesObj:
-                    i.setVisible(False)
-                for i in self.lblGesturesPosesNamesObj:
-                    i.setVisible(False)
-        if settings.WindowState == 0 and self.ViewState and settings.md.Mode == 'play':
-            self.comboPickPlayTraj.setVisible(True)
-            self.btnPlayMove.setVisible(True)
-            self.btnPlayMove2.setVisible(True)
-            self.btnPlayMove3.setVisible(True)
-            self.comboLiveMode.setVisible(False)
-            self.comboInteractiveSceneChanges.setVisible(False)
-        elif settings.WindowState == 0 and self.ViewState and settings.md.Mode == 'live':
-            self.comboLiveMode.setVisible(True)
-            self.comboInteractiveSceneChanges.setVisible(True)
-            self.comboPickPlayTraj.setVisible(False)
-            self.btnPlayMove.setVisible(False)
-            self.btnPlayMove2.setVisible(False)
-            self.btnPlayMove3.setVisible(False)
-        else:
-            self.comboPickPlayTraj.setVisible(False)
-            self.btnPlayMove.setVisible(False)
-            self.btnPlayMove2.setVisible(False)
-            self.btnPlayMove3.setVisible(False)
-            self.comboLiveMode.setVisible(False)
-            self.comboInteractiveSceneChanges.setVisible(False)
-
-        if settings.WindowState == 1:
-            for i in self.lblConfNamesObj:
-                i.setVisible(True)
-            for i in self.lblConfValuesObj:
-                i.setVisible(True)
-            self.lbl1.setVisible(False)
-            self.lbl2.setVisible(False)
-            self.comboPlayNLive.setVisible(False)
-            for i in self.lblObservationPosesNamesObj:
-                i.setVisible(False)
-            for i in self.lblGesturesPosesNamesObj:
-                i.setVisible(False)
-            self.btnConf.setVisible(False)
-            self.btnSave.setVisible(False)
-            self.comboPickPlayTraj.setVisible(False)
-            self.btnPlayMove.setVisible(False)
-            self.btnPlayMove2.setVisible(False)
-            self.btnPlayMove3.setVisible(False)
-            self.lblStatus.setVisible(False)
-        else:
-            for i in self.lblConfNamesObj:
-                i.setVisible(False)
-            for i in self.lblConfValuesObj:
-                i.setVisible(False)
-        ### End Visibility settings ###
+        ## Value updates
         self.w = settings.w = self.size().width()
         self.h = settings.h = self.size().height()
+
+        ## Set all objects on page visible (the rest set invisible)
+        for obj in self.AllVisibleObjects:
+            # Every object that belongs to that group are conditioned by that group
+            if obj.page == settings.WindowState and (self.ViewState if 'ViewState' in obj.view_group else True) and ((settings.md.Mode=='live') if 'live' in obj.view_group else True) and ((settings.md.Mode=='play') if 'play' in obj.view_group else True):
+                #print("DEBUG", obj.NAME, " ", (obj.page == settings.WindowState), (self.ViewState if 'ViewState' in obj.view_group else True), " ", ((settings.md.Mode=='live') if 'live' in obj.view_group else True), " " ,((settings.md.Mode=='play') if 'play' in obj.view_group else True))
+                obj.qt.setVisible(True)
+            else:
+                obj.qt.setVisible(False)
+
+        ## Point given window
         if settings.WindowState == 0:
             self.mainPage(e)
         if settings.WindowState == 1:
@@ -493,10 +474,10 @@ class Example(QMainWindow):
         if settings.WindowState == 2:
             self.movePage(e)
 
+
         QMainWindow.paintEvent(self, e)
         painter = QPainter(self)
         painter.setPen(QPen(Qt.red, 3))
-        x, y = None, None
 
         if len(settings.frames_adv) > 10:
             for n in range(1,10):
@@ -555,9 +536,6 @@ class Example(QMainWindow):
                     x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
                     x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
                     painter.drawLine(x, y, x_, y_)
-        if settings.mo and settings.eef_pose:
-            eefUI = settings.mo.transformSceneToUI(settings.eef_pose, view='view2')
-            painter.drawRect(eefUI.position.x, eefUI.position.y, 10, 10)
 
 
     def movePage(self, e):
@@ -664,17 +642,10 @@ class Example(QMainWindow):
                 qp.drawRect(LEFT_MARGIN, 30, w-40, 20)
                 qp.fillRect(LEFT_MARGIN+settings.HoldValue*((w-40.0)/100.0), 30, 10, 20, Qt.black)
 
-                if settings.scene:
-                    for zone in settings.scene.mesh_poses:
-                        zone_ = settings.mo.transformSceneToUI(zone)
-                        qp.fillRect(zone_.position.x, zone_.position.y, 100, 100, Qt.black)
-
-
             # right lane
-            if self.AllData:
-                for n, i in enumerate(self.lblObservationPosesNamesObj):
-                    i.setVisible(True)
-                    i.move(w-RIGHT_MARGIN, START_PANEL_Y+n*ICON_SIZE/2)
+            for n, i in enumerate(self.lblObservationPosesNamesObj):
+                i.setVisible(True)
+                i.move(w-RIGHT_MARGIN, START_PANEL_Y+n*ICON_SIZE/2)
             if settings.frames and settings.frames_adv:
                 ValuesArr = []
                 ToggleArr = []
@@ -877,8 +848,60 @@ class Example(QMainWindow):
         self.step = self.step + 1
         self.update()
 
+    def mapQtKey(self, key):
+        mapDict = {
+            '0': Qt.Key_0 ,
+            '1': Qt.Key_1 ,
+            '2': Qt.Key_2 ,
+            '3': Qt.Key_3 ,
+            '4': Qt.Key_4 ,
+            '5': Qt.Key_5 ,
+            '6': Qt.Key_6 ,
+            '7': Qt.Key_7 ,
+            '8': Qt.Key_8 ,
+            '9': Qt.Key_9 ,
+            'a': Qt.Key_A ,
+            'b': Qt.Key_B ,
+            'c': Qt.Key_C ,
+            'd': Qt.Key_D ,
+            'e': Qt.Key_E ,
+            'f': Qt.Key_F ,
+            'g': Qt.Key_G ,
+            'h': Qt.Key_H ,
+            'i': Qt.Key_I ,
+            'j': Qt.Key_J ,
+            'k': Qt.Key_K ,
+            'l': Qt.Key_L ,
+            'm': Qt.Key_M ,
+            'n': Qt.Key_N ,
+            'o': Qt.Key_O ,
+            'p': Qt.Key_P ,
+            'q': Qt.Key_Q ,
+            'r': Qt.Key_R ,
+            's': Qt.Key_S ,
+            't': Qt.Key_T ,
+            'u': Qt.Key_U ,
+            'v': Qt.Key_V ,
+            'w': Qt.Key_W ,
+            'x': Qt.Key_X ,
+            'y': Qt.Key_Y ,
+            'z': Qt.Key_Z
+            }
+        return mapDict[key]
 
-
+class ObjectQt():
+    def __init__(self, NAME=None, qt=None, page=None, view_group=['ViewState']):
+        ''' Informations about app objects
+        Parameters:
+            NAME (Str): Name of object
+            qr (Qt Object): Interaction variable
+            page (Int): On what page this object is
+            view_group (Str[]): In which groups this object belongs
+        '''
+        self.NAME = NAME
+        self.qt = qt
+        self.page = page
+        self.view_group = view_group
 
 class RepeatableTimer(object):
     def __init__(self, interval, function, args=[], kwargs={}):

@@ -1,0 +1,60 @@
+
+wall:
+  env: wall
+  poses:
+    - position: # 1
+      x: 0.4
+      y: 0.0
+      z: 0.65
+    - position: # 2
+      x: 0.5
+      y: 0.0
+      z: 0.65
+    - position: # 3
+      x: 0.4
+      y: 0.0
+      z: 0.65
+    - position: # 4
+      x: 0.4
+      y: 0.0
+      z: 0.95
+    - position: # 5
+      x: 0.4
+      y: 0.0
+      z: 0.55
+  actions:
+    - "" # 1
+    - "" # 2
+    - "" # 3
+    - "" # 4
+    - "" # 5
+
+pickplace:
+  env: table
+  poses:
+    - position: # 1
+        x: 0.0
+        y: 0.0
+        z: 1.17
+      orientation: above
+    - object: # 2
+      name: box
+      action: grab
+    - position: # 3
+        x: 0.5
+        y: 0.0
+        z: 0.5
+    - object: # 4
+      name: box
+      action: release
+    - position: # 5
+        x: 0.0
+        y: 0.0
+        z: 1.17
+      orientation: above
+  actions:
+    - ""
+    - box
+    - ""
+    - box
+    - ""

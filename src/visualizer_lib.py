@@ -27,9 +27,9 @@ import time as t
 
 
 class VisualizerLib():
-    def __init__(self, fig, ax):
-        self.fig = fig
-        self.ax = ax
+    def __init__(self):
+        self.fig = None
+        self.ax = None
         plt.ion()
 
     def show(self):
@@ -60,7 +60,7 @@ class VisualizerLib():
         nfigs = len(list(map(plt.figure, plt.get_fignums())))-1 # get number of opened figures after creating new one
         BOXXMOVE = [0, 600, 1200, 0, 600, 1200, 0, 600, 1200, 0, 600, 1200]
         BOXYMOVE = [0, 0, 0, 600, 600, 600, 0, 0, 0, 600, 600, 600]
-        move_figure(fig, BOXXMOVE[nfigs], BOXYMOVE[nfigs])
+        self.move_figure(fig, BOXXMOVE[nfigs], BOXYMOVE[nfigs])
 
         self.fig = fig
         self.ax = ax
