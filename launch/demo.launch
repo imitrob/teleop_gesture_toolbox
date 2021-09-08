@@ -2,7 +2,7 @@
   <!-- Launch simulator.launch first, followed by demo.launch on second term -->
 
   <arg name="ik_solver" default="pyrep" /> <!-- 'relaxed_ik'/'pyrep' -->
-  <arg name="launch_ui" default="false" />
+  <arg name="launch_ui" default="true" />
   <arg name="launch_leap" default="true" />
   <arg name="launch_gesture_detection" default="true" />
   <arg name="robot" default="panda" /> <!-- 'panda'/('iiwa' not tested) -->
