@@ -47,7 +47,7 @@ from moveit_msgs.msg import RobotTrajectory
 #import RelaxedIK.Utils.transformations as T
 from sensor_msgs.msg import JointState
 from relaxed_ik.msg import EEPoseGoals, JointAngles
-from mirracle_gestures.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
+from mirracle_sim.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
 
 import kinematics_interface
 import settings
@@ -515,27 +515,27 @@ class MoveGroupPythonInteface(object):
             # get id of current scene
             id = scenes.index(settings.scene.NAME)
             # remove objects from current scene
-            for i in range(0, len(settings.ss[id].mesh_names)):
-                self.remove_object(name=settings.ss[id].mesh_names[i])
+            for i in range(0, len(settings.ss[id].object_names)):
+                self.remove_object(name=settings.ss[id].object_names[i])
             if settings.md.attached:
                 self.detach_item_moveit(name=settings.md.attached)
         # get id of new scene
         id = scenes.index(scene)
 
-        for i in range(0, len(settings.ss[id].mesh_names)):
+        for i in range(0, len(settings.ss[id].object_names)):
             #file="", name='box', pose=None, shape="", size=1., color='b', friction=0.1, frame_id='panda_link7'
-            obj_name = settings.ss[id].mesh_names[i] # object name
+            obj_name = settings.ss[id].object_names[i] # object name
             if 'box' in obj_name or 'cube' in obj_name:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].mesh_poses[i], shape='cube')
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].object_poses[i], shape='cube')
             elif 'sphere' in obj_name:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].mesh_poses[i], shape='sphere')
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].object_poses[i], shape='sphere')
             elif 'cylinder' in obj_name:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].mesh_poses[i], shape='cylinder')
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].object_poses[i], shape='cylinder')
             elif 'cone' in obj_name:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].mesh_poses[i], shape='cone')
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].object_poses[i], shape='cone')
             else:
-                self.add_or_edit_object(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/mirracle_gestures/include/models/'+settings.ss[id].mesh_names[i]+'.obj',
-                    name=obj_name, pose=settings.ss[id].mesh_poses[i], frame_id=settings.BASE_LINK)
+                self.add_or_edit_object(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/mirracle_gestures/include/models/'+settings.ss[id].object_names[i]+'.obj',
+                    name=obj_name, pose=settings.ss[id].object_poses[i], frame_id=settings.BASE_LINK)
         settings.scene = settings.ss[id]
         if id == 0:
             settings.scene = None
@@ -794,28 +794,28 @@ class MoveGroupPythonInteface(object):
         collisionObjs = []
         if not settings.scene:
             return False
-        z = [False] * len(settings.scene.mesh_poses)
+        z = [False] * len(settings.scene.object_poses)
         assert settings.scene, "Scene not published yet"
         if isinstance(point, Pose):
             point = point.position
         if isinstance(point, Point):
             point = [point.x, point.y, point.z]
-        for n, pose in enumerate(settings.scene.mesh_poses):
+        for n, pose in enumerate(settings.scene.object_poses):
             zone_point = pose.position
 
             zone_point = self.PointAdd(zone_point, settings.scene.mesh_trans_origin[n])
-            #print(n, ": \n",zone_point.z, "\n" ,settings.scene.mesh_sizes[n].z, "\n", point[2])
-            if settings.scene.mesh_sizes[n].y > 0.0:
-                if zone_point.x <= point[0] <= zone_point.x+settings.scene.mesh_sizes[n].x:
-                  if zone_point.y <= point[1] <= zone_point.y+settings.scene.mesh_sizes[n].y:
-                    if zone_point.z <= point[2] <= zone_point.z+settings.scene.mesh_sizes[n].z:
-                        collisionObjs.append(settings.scene.mesh_names[n])
+            #print(n, ": \n",zone_point.z, "\n" ,settings.scene.object_sizes[n].z, "\n", point[2])
+            if settings.scene.object_sizes[n].y > 0.0:
+                if zone_point.x <= point[0] <= zone_point.x+settings.scene.object_sizes[n].x:
+                  if zone_point.y <= point[1] <= zone_point.y+settings.scene.object_sizes[n].y:
+                    if zone_point.z <= point[2] <= zone_point.z+settings.scene.object_sizes[n].z:
+                        collisionObjs.append(settings.scene.object_names[n])
 
             else:
-                if zone_point.x <= point[0] <= zone_point.x+settings.scene.mesh_sizes[n].x:
-                  if zone_point.y >= point[1] >= zone_point.y+settings.scene.mesh_sizes[n].y:
-                    if zone_point.z <= point[2] <= zone_point.z+settings.scene.mesh_sizes[n].z:
-                        collisionObjs.append(settings.scene.mesh_names[n])
+                if zone_point.x <= point[0] <= zone_point.x+settings.scene.object_sizes[n].x:
+                  if zone_point.y >= point[1] >= zone_point.y+settings.scene.object_sizes[n].y:
+                    if zone_point.z <= point[2] <= zone_point.z+settings.scene.object_sizes[n].z:
+                        collisionObjs.append(settings.scene.object_names[n])
             '''
                     else:
                         print("z")
