@@ -53,7 +53,10 @@ class Example(QMainWindow):
 
         ## View Configuration App
         settings.WindowState = 0
-        self.ViewState = True
+        self.GesturesViewState = False
+        self.MoveViewState = True
+        self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn = True
+
         ## Cursor Picking (on Configuration page)
         self.pickedSolution = np.zeros(settings.NumConfigBars)
         self.pickedTime = np.zeros(settings.NumConfigBars)
@@ -89,7 +92,6 @@ class Example(QMainWindow):
         self.btnConf.clicked.connect(self.button_confustion_mat)
 
         self.comboPlayNLive = QComboBox(self)
-        self.comboPlayNLive.addItem("Live hand")
         self.comboPlayNLive.addItem("Play path")
         self.comboPlayNLive.activated[str].connect(self.onComboPlayNLiveChanged)
         self.comboPlayNLive.setGeometry(LEFT_MARGIN+130, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
@@ -117,8 +119,6 @@ class Example(QMainWindow):
         self.btnPlayMove3.clicked.connect(self.button_play_move3)
         self.btnPlayMove3.setGeometry(LEFT_MARGIN+130+ICON_SIZE*6, START_PANEL_Y-10,ICON_SIZE,ICON_SIZE/2)
 
-        self.btnSave = QPushButton("Save", self)
-        self.btnSave.clicked.connect(self.button_save)
         self.recording = False # Bool if recording is happening
         self.REC_TIME = gestures_data_loaded['Recording']['Length'] # sec
         self.dir_queue = []
@@ -150,9 +150,6 @@ class Example(QMainWindow):
         self.movePageGoPoseButton.clicked.connect(self.go_to_pose_button)
         self.movePageGoPoseButton.move(LEFT_MARGIN+80, START_PANEL_Y+7*32)
 
-        # Scene Page
-
-
         self.timer = QBasicTimer()
         self.timer.start(100, self)
         self.step = 0
@@ -165,12 +162,17 @@ class Example(QMainWindow):
         configMenu = menubar.addMenu('Config')
         sceneMenu = menubar.addMenu('Scene')
         testingMenu = menubar.addMenu('Testing')
+        leapmotionMenu = menubar.addMenu('Leap Motion')
 
         ## Menu items -> View options
-        viewOptionsAction = QAction('View gestures', self, checkable=True)
-        viewOptionsAction.setStatusTip('View gestures')
-        viewOptionsAction.setChecked(True)
-        viewOptionsAction.triggered.connect(self.toggleMenu)
+        viewOptionsAction = QAction('View gestures data', self, checkable=True)
+        viewOptionsAction.setStatusTip('View gestures data')
+        viewOptionsAction.setChecked(False)
+        viewOptionsAction.triggered.connect(self.toggleViewGesturesMenu)
+        viewMoveOptionsAction = QAction('View move data', self, checkable=True)
+        viewMoveOptionsAction.setStatusTip('View move data')
+        viewMoveOptionsAction.setChecked(True)
+        viewMoveOptionsAction.triggered.connect(self.toggleViewMoveMenu)
         ## Menu items -> Go to page
         viewGoToInfoAction = QAction('Info page', self)
         viewGoToInfoAction.setStatusTip('Info page')
@@ -194,11 +196,16 @@ class Example(QMainWindow):
         impMenu.addAction(switchEnvWallAct)
         impMenu.addAction(switchEnvTableAct)
         impMenu2 = QMenu('Orientation', self)
-        impAct4 = QAction('Fixed', self, checkable=True)
-        impAct4.triggered.connect(self.impAct4)
-        impMenu2.addAction(impAct4)
+        fixedOriAct = QAction('Fixed', self, checkable=True)
+        fixedOriAct.triggered.connect(self.fixedOriAct)
+        impMenu2.addAction(fixedOriAct)
         print_path_trace_action = QAction('Print path trace', self, checkable=True)
         print_path_trace_action.triggered.connect(self.print_path_trace)
+        print_path_trace_action.checked = False
+
+        record_with_keys_action = QAction('Record with keys', self, checkable=True)
+        record_with_keys_action.triggered.connect(self.record_with_keys)
+
 
         SCENES = settings.getSceneNames()
         for index, SCENE in enumerate(SCENES):
@@ -216,6 +223,7 @@ class Example(QMainWindow):
 
         ## Add actions to the menu
         viewMenu.addAction(viewOptionsAction)
+        viewMenu.addAction(viewMoveOptionsAction)
         pageMenu.addAction(viewGoToInfoAction)
         pageMenu.addAction(viewGoToControlAction)
         pageMenu.addAction(viewGoToMoveAction)
@@ -225,6 +233,7 @@ class Example(QMainWindow):
         testingMenu.addAction(tableTestAction)
         testingMenu.addAction(initTestAction)
         testingMenu.addAction(inputTestAction)
+        leapmotionMenu.addAction(record_with_keys_action)
 
         thread = Thread(target = self.play_method)
         thread.start()
@@ -235,36 +244,41 @@ class Example(QMainWindow):
 
         ## Initialize Visible Objects Array
         self.AllVisibleObjects = []
-        self.AllVisibleObjects.append(ObjectQt('lblStatus',self.lblStatus,0))
+        self.AllVisibleObjects.append(ObjectQt('lblStatus',self.lblStatus,0,view_group=['MoveViewState']))
         for n,obj in enumerate(self.lblObservationPosesNamesObj):
-            self.AllVisibleObjects.append(ObjectQt('lblObservationPosesNamesObj'+str(n),obj,0))
+            self.AllVisibleObjects.append(ObjectQt('lblObservationPosesNamesObj'+str(n),obj,0,view_group=['GesturesViewState']))
         for n,obj in enumerate(self.lblGesturesPosesNamesObj):
-            self.AllVisibleObjects.append(ObjectQt('lblGesturesPosesNamesObj'+str(n),obj,0))
-        self.AllVisibleObjects.append(ObjectQt('lbl1',self.lbl1,0))
-        self.AllVisibleObjects.append(ObjectQt('lbl2',self.lbl2,0))
-        self.AllVisibleObjects.append(ObjectQt('comboPlayNLive',self.comboPlayNLive,0))
-        self.AllVisibleObjects.append(ObjectQt('btnConf',self.btnConf,0))
-        self.AllVisibleObjects.append(ObjectQt('btnSave',self.btnSave,0))
+            self.AllVisibleObjects.append(ObjectQt('lblGesturesPosesNamesObj'+str(n),obj,0,view_group=['GesturesViewState']))
+        self.AllVisibleObjects.append(ObjectQt('lbl1',self.lbl1,0,view_group=['GesturesViewState']))
+        self.AllVisibleObjects.append(ObjectQt('lbl2',self.lbl2,0,view_group=['GesturesViewState']))
+        self.AllVisibleObjects.append(ObjectQt('comboPlayNLive',self.comboPlayNLive,0,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('btnConf',self.btnConf,0,view_group=['GesturesViewState']))
 
-        self.AllVisibleObjects.append(ObjectQt('comboPickPlayTraj',self.comboPickPlayTraj,0,view_group=['ViewState', 'play']))
-        self.AllVisibleObjects.append(ObjectQt('btnPlayMove' ,self.btnPlayMove, 0,view_group=['ViewState', 'play']))
-        self.AllVisibleObjects.append(ObjectQt('btnPlayMove2',self.btnPlayMove2,0,view_group=['ViewState', 'play']))
-        self.AllVisibleObjects.append(ObjectQt('btnPlayMove3',self.btnPlayMove3,0,view_group=['ViewState', 'play']))
+        self.AllVisibleObjects.append(ObjectQt('comboPickPlayTraj',self.comboPickPlayTraj,0,view_group=['MoveViewState', 'play']))
+        self.AllVisibleObjects.append(ObjectQt('btnPlayMove' ,self.btnPlayMove, 0,view_group=['MoveViewState', 'play']))
+        self.AllVisibleObjects.append(ObjectQt('btnPlayMove2',self.btnPlayMove2,0,view_group=['MoveViewState', 'play']))
+        self.AllVisibleObjects.append(ObjectQt('btnPlayMove3',self.btnPlayMove3,0,view_group=['MoveViewState', 'play']))
 
-        self.AllVisibleObjects.append(ObjectQt('comboLiveMode',self.comboLiveMode,0,view_group=['ViewState', 'live']))
-        self.AllVisibleObjects.append(ObjectQt('comboInteractiveSceneChanges',self.comboInteractiveSceneChanges,0,view_group=['ViewState', 'live']))
+        self.AllVisibleObjects.append(ObjectQt('comboLiveMode',self.comboLiveMode,0,view_group=['MoveViewState', 'live']))
+        self.AllVisibleObjects.append(ObjectQt('comboInteractiveSceneChanges',self.comboInteractiveSceneChanges,0,view_group=['MoveViewState', 'live']))
 
         for n,obj in enumerate(self.lblConfNamesObj):
-            self.AllVisibleObjects.append(ObjectQt('lblConfNamesObj'+str(n),obj,1))
+            self.AllVisibleObjects.append(ObjectQt('lblConfNamesObj'+str(n),obj,1,view_group=['MoveViewState']))
         for n,obj in enumerate(self.lblConfValuesObj):
-            self.AllVisibleObjects.append(ObjectQt('lblConfValuesObj'+str(n),obj,1))
+            self.AllVisibleObjects.append(ObjectQt('lblConfValuesObj'+str(n),obj,1,view_group=['MoveViewState']))
         for n,obj in enumerate(self.movePageGoPoseLabels):
-            self.AllVisibleObjects.append(ObjectQt('movePageGoPoseLabels'+str(n),obj,2))
+            self.AllVisibleObjects.append(ObjectQt('movePageGoPoseLabels'+str(n),obj,2,view_group=['MoveViewState']))
         for n,obj in enumerate(self.movePageGoPoseEdits):
-            self.AllVisibleObjects.append(ObjectQt('movePageGoPoseEdits'+str(n),obj,2))
-        self.AllVisibleObjects.append(ObjectQt('movePageGoPoseButton',self.movePageGoPoseButton,2))
+            self.AllVisibleObjects.append(ObjectQt('movePageGoPoseEdits'+str(n),obj,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageGoPoseButton',self.movePageGoPoseButton,2,view_group=['MoveViewState']))
 
+        self.setMouseTracking(True)
+        self.mousex, self.mousey = 0.,0.
         print("[Interface] Done")
+
+    def mouseMoveEvent(self, event):
+        self.mousex, self.mousey = event.x(), event.y()
+
 
     def go_to_pose_button(self):
         vals = []
@@ -284,46 +298,28 @@ class Example(QMainWindow):
     def keyPressEvent(self, event):
         '''
         '''
-        KEYS = [self.mapQtKey(key) for key in settings.GESTURE_KEYS]
-        if event.key() in KEYS:
-            self.recording = True
-            for n, key in enumerate(KEYS):
-                if event.key() == key:
-                    self.dir_queue.append(self.lblGesturesPosesNames[n])
-                    self.caller = RepeatableTimer(self.REC_TIME, self.save_data, ())
-                    self.caller.start()
-        if event.key() == Qt.Key_X:
-            self.caller = RepeatableTimer(self.REC_TIME, self.vis_path, ())
-            self.caller.start()
+        if settings.record_with_keys:
+            KEYS = [self.mapQtKey(key) for key in settings.GESTURE_KEYS]
+            if event.key() in KEYS:
+                self.recording = True
+                for n, key in enumerate(KEYS):
+                    if event.key() == key:
+                        self.dir_queue.append(self.lblGesturesPosesNames[n])
+                        self.caller = RepeatableTimer(self.REC_TIME, self.save_data, ())
+                        self.caller.start()
+        else:
+            print("[Interface] Key have been read, but recording is not activated!")
         event.accept()
 
     def button_confustion_mat(self, e):
         thread = Thread(target = self.button_confustion_mat_)
         thread.start()
-
-    def vis_path(self):
-        ''' TODO:
-        '''
-        viz = VisualizerLib()
-        viz.visualize_new_fig(title="Path", dim=3)
-        #viz.visualize_3d(settings.goal_pose_array, storeObj=settings, color='b', label="leap", units='m')
-        data = [settings.extv(pose.position) for pose in list(settings.eef_pose_array)]
-        viz.visualize_3d(data=data, storeObj=settings.figdata, color='r', label="robot", units='m')
-        data = [settings.extv(settings.mo.transformLeapToScene(settings.frames_adv[i].r.pPose.pose).position) for i in range(0, settings.BUFFER_LEN)]
-        viz.visualize_3d(data=data, storeObj=settings.figdata, color='b', label="leap", units='m')
-        viz.show()
-
-
     def button_play_move(self, e):
         self.play_status = 1
     def button_play_move2(self, e):
         self.play_status = -1
     def button_play_move3(self, e):
         self.play_status = 0
-    def button_save(self, e):
-        #self.recording = True
-        #self.caller = RepeatableTimer(1, save_data, ())
-        pass
 
     def save_data(self):
         print("saving data")
@@ -384,11 +380,10 @@ class Example(QMainWindow):
 
 
 
-    def toggleMenu(self, state):
-        if state:
-            self.ViewState = True
-        else:
-            self.ViewState = False
+    def toggleViewGesturesMenu(self, state):
+        self.GesturesViewState = state
+    def toggleViewMoveMenu(self, state):
+        self.MoveViewState = state
     def goToInfo(self):
         settings.WindowState = 0
     def goToConfig(self):
@@ -412,16 +407,12 @@ class Example(QMainWindow):
         self.gestures_goal_init_procedure()
 
     # Fixed orientation function
-    def impAct4(self, state):
-        if state:
-            settings.FIXED_ORI_TOGGLE = True
-        else:
-            settings.FIXED_ORI_TOGGLE = False
+    def fixedOriAct(self, state):
+        settings.FIXED_ORI_TOGGLE = state
     def print_path_trace(self, state):
-        if state:
-            settings.print_path_trace = True
-        else:
-            settings.print_path_trace = False
+        settings.print_path_trace = state
+    def record_with_keys(self, state):
+        settings.record_with_keys = state
 
     def goScene(self, index):
         SCENES = settings.getSceneNames()
@@ -453,15 +444,14 @@ class Example(QMainWindow):
         self.gestures_goal_init_procedure()
 
     def paintEvent(self, e):
-        ## Value updates
+        ## Window Resolution update
         self.w = settings.w = self.size().width()
         self.h = settings.h = self.size().height()
 
         ## Set all objects on page visible (the rest set invisible)
         for obj in self.AllVisibleObjects:
             # Every object that belongs to that group are conditioned by that group
-            if obj.page == settings.WindowState and (self.ViewState if 'ViewState' in obj.view_group else True) and ((settings.md.Mode=='live') if 'live' in obj.view_group else True) and ((settings.md.Mode=='play') if 'play' in obj.view_group else True):
-                #print("DEBUG", obj.NAME, " ", (obj.page == settings.WindowState), (self.ViewState if 'ViewState' in obj.view_group else True), " ", ((settings.md.Mode=='live') if 'live' in obj.view_group else True), " " ,((settings.md.Mode=='play') if 'play' in obj.view_group else True))
+            if obj.page == settings.WindowState and (self.GesturesViewState if 'GesturesViewState' in obj.view_group else True) and  (self.MoveViewState if 'MoveViewState' in obj.view_group else True) and ((settings.md.Mode=='live') if 'live' in obj.view_group else True) and ((settings.md.Mode=='play') if 'play' in obj.view_group else True):
                 obj.qt.setVisible(True)
             else:
                 obj.qt.setVisible(False)
@@ -554,7 +544,6 @@ class Example(QMainWindow):
 
 
         self.btnConf.setGeometry(LEFT_MARGIN+130, h-10-ICON_SIZE, ICON_SIZE*2,ICON_SIZE/2)
-        self.btnSave.setGeometry(LEFT_MARGIN+130, h-10-ICON_SIZE*2, ICON_SIZE*2,ICON_SIZE/2)
         if self.recording:
             qp.setBrush(QBrush(Qt.red, Qt.SolidPattern))
             qp.drawEllipse(LEFT_MARGIN+130+ICON_SIZE*2, h-10-ICON_SIZE, ICON_SIZE/2,ICON_SIZE/2)
@@ -562,7 +551,7 @@ class Example(QMainWindow):
         self.lblCreateConfusionMatrixInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*2,ICON_SIZE)
         self.lblStatus.setText(textStatus)
 
-        if self.ViewState:
+        if self.GesturesViewState:
             self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
             # up late
             if settings.frames_adv:
@@ -624,6 +613,7 @@ class Example(QMainWindow):
                     qp.drawLine(X, Y+rh, X-ARRL, Y-ARRL+rh)
                     qp.drawLine(X, Y+rh, X+ARRL, Y-ARRL+rh)
 
+        if self.MoveViewState:
             if settings.md.Mode == 'play':
                 if settings.gd.l.poses[settings.gd.l.POSES['grab']].toggle:
                     qp.drawPixmap(w/2, 50, 20, 20, QPixmap(settings.GRAPHICS_PATH+"hold.png"))
@@ -642,6 +632,7 @@ class Example(QMainWindow):
                 qp.drawRect(LEFT_MARGIN, 30, w-40, 20)
                 qp.fillRect(LEFT_MARGIN+settings.HoldValue*((w-40.0)/100.0), 30, 10, 20, Qt.black)
 
+        if self.GesturesViewState:
             # right lane
             for n, i in enumerate(self.lblObservationPosesNamesObj):
                 i.setVisible(True)
@@ -717,11 +708,12 @@ class Example(QMainWindow):
         X_BOUND = tuple(zip(X_START, X_END))
         Y_BOUND = tuple(zip(Y_START, Y_END))
         # picking part
-        if not self.cursorEnabled():
-            return
-        last_pose = settings.frames_adv[-1].r.pPose
-        last_pose_ = settings.mo.transformLeapToUIsimple(last_pose.pose)
-        x,y = last_pose_.position.x, last_pose_.position.y
+        if self.cursorEnabled():
+            last_pose = settings.frames_adv[-1].r.pPose
+            last_pose_ = settings.mo.transformLeapToUIsimple(last_pose.pose)
+            x,y = last_pose_.position.x, last_pose_.position.y
+        else:
+            x,y = self.mousex, self.mousey
         x_ = (np.min(X_BOUND, 1) < x) & (x < np.max(X_BOUND, 1))
         y_ = (np.min(Y_BOUND, 1) < y) & (y < np.max(Y_BOUND, 1))
         prevPicked = deepcopy(self.pickedSolution)
@@ -826,27 +818,32 @@ class Example(QMainWindow):
         return False
 
     def timerEvent(self, event):
-        if not settings.frames_adv:
-            return
-        fa = settings.frames_adv[-1]
-        for i in settings.gd.r.gests[0:4]: # circ, swipe, pin, touch
-            if i.time_visible > 0:
-                i.time_visible -= 0.1
-            else:
-                i.toggle = False
-        if fa.r.visible == False:
-            for i in settings.gd.r.gests:
-                i.toggle = False if isinstance(i.toggle, bool) else [False] * len(i.toggle)
-            for i in settings.gd.r.poses:
-                i.toggle = False
-        if fa.l.visible == False:
-            for i in settings.gd.l.gests:
-                i.toggle = False if isinstance(i.toggle, bool) else [False] * len(i.toggle)
-            for i in settings.gd.l.poses:
-                i.toggle = False
+        if settings.frames_adv and self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn:
+            self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn = False
+            self.GesturesViewState = True
+            self.comboPlayNLive.addItem("Live hand")
 
-        self.step = self.step + 1
+        if settings.frames_adv:
+            fa = settings.frames_adv[-1]
+            for i in settings.gd.r.gests[0:4]: # circ, swipe, pin, touch
+                if i.time_visible > 0:
+                    i.time_visible -= 0.1
+                else:
+                    i.toggle = False
+            if fa.r.visible == False:
+                for i in settings.gd.r.gests:
+                    i.toggle = False if isinstance(i.toggle, bool) else [False] * len(i.toggle)
+                for i in settings.gd.r.poses:
+                    i.toggle = False
+            if fa.l.visible == False:
+                for i in settings.gd.l.gests:
+                    i.toggle = False if isinstance(i.toggle, bool) else [False] * len(i.toggle)
+                for i in settings.gd.l.poses:
+                    i.toggle = False
+
+            self.step = self.step + 1
         self.update()
+
 
     def mapQtKey(self, key):
         mapDict = {
@@ -890,7 +887,7 @@ class Example(QMainWindow):
         return mapDict[key]
 
 class ObjectQt():
-    def __init__(self, NAME=None, qt=None, page=None, view_group=['ViewState']):
+    def __init__(self, NAME=None, qt=None, page=None, view_group=['GesturesViewState']):
         ''' Informations about app objects
         Parameters:
             NAME (Str): Name of object
