@@ -1,4 +1,5 @@
-<launch>
+DEPRECATED
+<!--<launch>
   <!-- Launch simulator.launch first, followed by demo.launch on second term -->
 
   <!-- !!!!! IMPORTANT - MAKE SURE YOU SOURCE GIVEN PKG !!!!! -->

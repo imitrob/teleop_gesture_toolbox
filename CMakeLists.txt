@@ -51,17 +51,16 @@ find_package(catkin REQUIRED COMPONENTS
 ## Generate messages in the 'msg' folder
 # add_message_files(
 #   FILES
-#   Message1.msg
-#   Message2.msg
+#   ObjectInfo.msg
 # )
 
 ## Generate services in the 'srv' folder
-add_service_files (
-  FILES
-  AddOrEditObject.srv
-  RemoveObject.srv
-  GripperControl.srv
-)
+#add_service_files (
+#  FILES
+#  AddOrEditObject.srv
+#  RemoveObject.srv
+#  GripperControl.srv
+#)
 
 include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
 
@@ -115,7 +114,7 @@ catkin_package(
 #  CATKIN_DEPENDS roscpp rospy std_msgs
 #  DEPENDS system_lib
 )
-INCLUDE_DIRECTORIES ( "~/Downloads/eigen-3.3.8" )
+#INCLUDE_DIRECTORIES ( "~/Downloads/eigen-3.3.8" )
 ###########
 ## Build ##
 ###########
