@@ -27,7 +27,7 @@ class MarkersPublisher():
         '''
         publisher = rospy.Publisher('visualization_marker_array', MarkerArray, queue_size=5)
         markerArray = MarkerArray()
-        while settings.ALIVE:
+        while not rospy.is_shutdown():
             markerArray.markers = MarkersPublisher.generateMarkers()
             publisher.publish(markerArray)
             rospy.sleep(0.25)

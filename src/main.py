@@ -23,7 +23,7 @@ import trajectory_action_client
 
 import matplotlib.pyplot as plt
 from visualizer_lib import VisualizerLib
-from std_msgs.msg import Int8, Float64MultiArray, Int32
+from std_msgs.msg import Int8, Float64MultiArray, Int32, Bool
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
@@ -121,13 +121,13 @@ def main():
     # Don't use any mode for start
     settings.md.Mode = ''
     if rospy.get_param("/mirracle_config/launch_ui") == "true":
-        thread2 = Thread(target = launch_ui)
-        thread2.daemon=True
-        thread2.start()
+        thread_ui = Thread(target = launch_ui)
+        thread_ui.daemon=True
+        thread_ui.start()
     if rospy.get_param("/mirracle_config/launch_leap") == "true":
-        thread = Thread(target = launch_lml)
-        thread.daemon=True
-        thread.start()
+        thread_leap = Thread(target = launch_lml)
+        thread_leap.daemon=True
+        thread_leap.start()
     if rospy.get_param("/mirracle_config/launch_gesture_detection") == "true":
         rospy.Subscriber('/mirracle_gestures/pymcout', Int8, saveOutputPyMC)
         settings.pymc_in_pub = rospy.Publisher('/mirracle_gestures/pymcin', Float64MultiArray, queue_size=5)
@@ -148,21 +148,20 @@ def main():
         time.sleep(2)
         print("[WARN*] settings.joints not init!!")
 
-    thread3 = Thread(target = main_manager)
-    thread3.daemon=True
-    thread3.start()
-    thread4 = Thread(target = MarkersPublisher.markersThread)
-    thread4.daemon=True
-    thread4.start()
-    thread5 = Thread(target = updateValues)
-    thread5.daemon=True
-    thread5.start()
+    thread_main_manager = Thread(target = main_manager)
+    thread_main_manager.daemon=True
+    thread_main_manager.start()
+    thread_markers = Thread(target = MarkersPublisher.markersThread)
+    thread_markers.daemon=True
+    thread_markers.start()
+    thread_updater = Thread(target = updateValues)
+    thread_updater.daemon=True
+    thread_updater.start()
     print("[Info*] Main ready")
-    rospy.spin()
 
 def updateValues():
     GEST_DET = rospy.get_param("/mirracle_config/launch_gesture_detection")
-    while settings.ALIVE:
+    while not rospy.is_shutdown():
         # 1. Publish to ik topic, putting additional relaxed_ik transform if this solver is used
         publish_eef_goal_pose()
         # 2. Send hand values to PyMC topic
@@ -198,7 +197,7 @@ def main_manager():
     if settings.VIS_ON == 'true':
         settings.viz = VisualizerLib()
 
-    while settings.ALIVE:
+    while not rospy.is_shutdown():
         settings.loopn += 1
         time.sleep(delay)
         settings.mo.go_to_joint_state(joints = settings.goal_joints)
@@ -238,10 +237,10 @@ def main_manager():
                         min_dist = np.inf
                         min_name = ''
 
-                        for n, mesh_name in enumerate(settings.scene.mesh_names):
+                        for n, mesh_name in enumerate(settings.scene.object_names):
                             if mesh_name in z:
-                                if settings.mo.distancePoses(settings.scene.mesh_poses[n], goal_pose) < min_dist:
-                                    min_dist = settings.mo.distancePoses(settings.scene.mesh_poses[n], goal_pose)
+                                if settings.mo.distancePoses(settings.scene.object_poses[n], goal_pose) < min_dist:
+                                    min_dist = settings.mo.distancePoses(settings.scene.object_poses[n], goal_pose)
                                     min_name = mesh_name
 
                         if settings.md.attached is False and settings.gd.r.poses[settings.gd.r.POSES['grab']].toggle:
@@ -266,10 +265,10 @@ def main_manager():
                                 name = settings.md.attached[0]
                                 settings.mo.release_object(name=name)
                                 n = 0
-                                for i in range(0, len(settings.scene.mesh_poses)):
-                                    if settings.scene.mesh_names[i] == item:
+                                for i in range(0, len(settings.scene.object_poses)):
+                                    if settings.scene.object_names[i] == item:
                                         n = i
-                                settings.scene.mesh_poses[n].position.x =settings.goal_pose.position.x
+                                settings.scene.object_poses[n].position.x =settings.goal_pose.position.x
                                 print("set value of drawer to ", settings.goal_pose.position.x)
                         else:
                             settings.goal_pose = goal_pose
@@ -319,24 +318,11 @@ def main_manager():
 
 
 if __name__ == '__main__':
+    main()
+    while not rospy.is_shutdown():
+        time.sleep(1)
+    print('[Info*] Interrupted')
     try:
-        main()
-    except KeyboardInterrupt:
-        print('[Info*] Interrupted')
-
-        settings.ALIVE = False
-        quit_pub = rospy.Publisher('/relaxed_ik/quit',Bool,queue_size=5)
-        q = Bool()
-        q.data = True
-        quit_pub.publish(q)
-
-        quit_pub = rospy.Publisher('/mirracle_gestures/quit',Bool,queue_size=5)
-        q = Bool()
-        q.data = True
-        quit_pub.publish(q)
-
-
-        try:
-            sys.exit(0)
-        except SystemExit:
-            os._exit(0)
+        sys.exit(0)
+    except SystemExit:
+        os._exit(0)
