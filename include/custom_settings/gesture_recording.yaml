@@ -1,39 +1,68 @@
 
-
+configGestures:
+  MIN_CONFIDENCE: 0.3
+  SINCE_FRAME_TIME: 0.5
+  TCH_TURN_ON_DIST: [0.9, 0.9, 0.9, 0.9,  0.9, 0.9, 0.9]
+  TCH_TURN_OFF_DIST: [0.5, 0.5, 0.5, 0.5,  0.5, 0.5, 0.5]
+  OC_TURN_ON_THRE: [0.94, 0.8, 0.8, 0.8, 0.8]
+  OC_TURN_OFF_THRE: [0.85, 0.6, 0.6, 0.6, 0.6]
 # Keyboard (use lowercase) key for recording
-Gestures:
-  # Static gestures
-  - Name: Grab
-    Key: 1
-  - Name: Pinch
-    Key: 2
-  - Name: Point
-    Key: 3
-  - Name: Respectful
-    Key: 4
-  - Name: Spock
-    Key: 5
-  - Name: Rock
-    Key: 6
-  - Name: Victory
-    Key: 7
-  - Name: Italian
-    Key: 8
-  # Dynamic gestures
-  - Name: Rotate
-    Key: q
-  - Name: Swipe_Up
-    Key: w
-  - Name: Pin
-    Key: e
-  - Name: Touch
-    Key: r
-  - Name: Swipe_Left
-    Key: a
-  - Name: Swipe_Down
-    Key: s
-  - Name: Swipe_Right
-    Key: d
+staticGestures:
+  - name: grab
+    key: 1
+    filename: gesture56.png
+    turn_on_off: [0.3, 0.9]
+  - name: pinch
+    key: 2
+    filename: gesture33.png
+    turn_on_off: [0.3, 0.9]
+  - name: point
+    key: 3
+    filename: gesture0.png
+    turn_on_off: [0.3, 0.9]
+  - name: respectful
+    key: 4
+    filename: gesture100.png
+    turn_on_off: [0.3, 0.9]
+  - name: spock
+    key: 5
+    filename: gesture101.png
+    turn_on_off: [0.3, 0.9]
+  - name: rock
+    key: 6
+    filename: gesture102.png
+    turn_on_off: [0.3, 0.9]
+  - name: victory
+    key: 7
+    filename: gesture103.png
+    turn_on_off: [0.3, 0.9]
+  - name: italian
+    key: 8
+    filename: gesture104.png
+    turn_on_off: [0.3, 0.9]
+dynamicGestures:
+  - name: circ #rotate
+    key: q
+    filename: gesture34.png
+  - name: swipe #swipe_Up
+    key: w
+    filename: gesture64.png
+  - name: pin
+    key: e
+    filename: gesture3.png
+  - name: touch
+    key: r
+    filename: gesture1.png
+  - name: swipe_Left
+    key: a
+  - name: swipe_Down
+    key: s
+  - name: swipe_Right
+    key: d
+
+#self.gests.append(GestureData(NAME="move_in_axis", var_len=3, minthre=0.4, maxthre=0.1))
+#self.gests.append(GestureData(NAME="rotation_in_axis", var_len=3, minthre=[-0.9,-0.6,0.8], maxthre=[0.5,0.5,0.4]))
+
 
 Recording:
   BufferLen: 300

@@ -1,6 +1,15 @@
 #!/usr/bin/env python
 '''
-Informations about robot, configurations, move data, ...
+Loads informations about robot, configurations, move data, gestures, ...
+All configurations are loaded from:
+    - /include/custom_settings/robot_move.yaml
+    - /include/custom_settings/gesture_recording.yaml
+    - /include/custom_settings/application.yaml
+    and
+    - /include/custom_settings/*paths*.yaml
+    - /include/custom_settings/*scenes*.yaml
+    - /include/custom_settings/poses.yaml
+
 Import this file and call init() to access parameters, info and data
 '''
 import collections
@@ -16,6 +25,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 from std_msgs.msg import Int8, Float64MultiArray
 import yaml
 import io
+import random
 
 def init(minimal=False):
     ''' Initialize the shared data across threads (Leap, UI, Control)
@@ -26,7 +36,8 @@ def init(minimal=False):
     global loopn
     loopn = 0
 
-    ## Files
+    ### 1. Initialize File/Folder Paths ###
+    #######################################
     global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, GESTURE_KEYS, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH, MODELS_PATH, CUSTOM_SETTINGS_YAML
     HOME = expanduser("~")
     # searches for the WS name + print it
@@ -38,75 +49,63 @@ def init(minimal=False):
     GRAPHICS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/graphics/"
     PLOTS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/plots/"
     NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learned_networks/"
-    COPPELIA_SCENE_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/coppelia_scenes/"
+    COPPELIA_SCENE_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_sim/include/scenes/"
     MODELS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/models/"
     CUSTOM_SETTINGS_YAML = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/custom_settings/"
 
-    with open(CUSTOM_SETTINGS_YAML+"application.yaml", 'r') as stream:
-        app_data_loaded = yaml.safe_load(stream)
+    ### 2. Loads config. data to gestures  ###
+    ###     - gesture_recording.yaml       ###
+    ##########################################
     with open(CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
         gestures_data_loaded = yaml.safe_load(stream)
-    GESTURE_NAMES = [g['Name'] for g in gestures_data_loaded['Gestures']]
-    GESTURE_KEYS = [str(g['Key']) for g in gestures_data_loaded['Gestures']]
-    ## robot
+    GESTURE_NAMES = [g['name'] for g in gestures_data_loaded['staticGestures']]
+    GESTURE_NAMES.extend([g['name'] for g in gestures_data_loaded['dynamicGestures']])
+    GESTURE_KEYS = [str(g['key']) for g in gestures_data_loaded['staticGestures']]
+    GESTURE_KEYS.extend([g['key'] for g in gestures_data_loaded['dynamicGestures']])
+
+    ### 3. Loads config. about robot         ###
+    ###     - ROSparams /mirracle_config/*   ###
+    ###     - robot_move.yaml.yaml           ###
+    ############################################
     global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, TOPPRA_ON, VIS_ON, IK_SOLVER, GRASPING_GROUP, IK_TOPIC
     global upper_lim, lower_lim, effort_lim, vel_lim
-    # ROBOT_NAME: - 'panda' or 'iiwa'
     ROBOT_NAME = rospy.get_param("/mirracle_config/robot")
     SIMULATOR_NAME = rospy.get_param("/mirracle_config/simulator")
     GRIPPER_NAME = rospy.get_param("/mirracle_config/gripper")
     VIS_ON = rospy.get_param("/mirracle_config/visualize")
     IK_SOLVER = rospy.get_param("/mirracle_config/ik_solver")
+    IK_TOPIC = rospy.get_param("/mirracle_config/ik_topic")
     TOPPRA_ON = True
 
-    ## SPECIFY YOUR OUT IK_TOPIC
-    IK_TOPIC = ''
+    with open(CUSTOM_SETTINGS_YAML+"robot_move.yaml", 'r') as stream:
+        robot_move_data_loaded = yaml.safe_load(stream)
+    vel_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['vel_lim']
+    effort_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['effort_lim']
+    lower_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['lower_lim']
+    upper_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['upper_lim']
+    JOINT_NAMES = robot_move_data_loaded['robots'][ROBOT_NAME]['JOINT_NAMES']
+    BASE_LINK = robot_move_data_loaded['robots'][ROBOT_NAME]['BASE_LINK']
+    GROUP_NAME = robot_move_data_loaded['robots'][ROBOT_NAME]['GROUP_NAME']
+    EEF_NAME = robot_move_data_loaded['robots'][ROBOT_NAME]['EEF_NAME']
+    GRASPING_GROUP = robot_move_data_loaded['robots'][ROBOT_NAME]['GRASPING_GROUP']
+    if SIMULATOR_NAME not in robot_move_data_loaded['simulators']:
+        raise Exception("Wrong simualator name")
+    robot_move_data_loaded['robots'][ROBOT_NAME][SIMULATOR_NAME]['TAC_TOPIC']
+    robot_move_data_loaded['robots'][ROBOT_NAME][SIMULATOR_NAME]['JOINT_STATES_TOPIC']
 
-    ## Robot data
-    # 1. velocity limits, effort limits, position limits (lower, upper)
-    # 2. Important data for MoveIt!
-    # 3. TAC - Trajectory Action Client topic and Joint States topic
-    if ROBOT_NAME == 'iiwa':
-        vel_lim = [ 1.71, 1.71, 1.75, 2.27, 2.44, 3.14, 3.14 ]
-        effort_lim = [ 140, 140, 120, 100, 70, 70, 70 ]
-        lower_lim = [-2.97, -2.09, -2.97, -2.09, -2.97, -2.09, -3.05]
-        upper_lim = [2.97, 2.09, 2.97, 2.09, 2.97, 2.09, 3.05]
-        JOINT_NAMES = ['r1_joint_1', 'r1_joint_2', 'r1_joint_3', 'r1_joint_4', 'r1_joint_5', 'r1_joint_6', 'r1_joint_7']
-        BASE_LINK = 'base_link'
-        GROUP_NAME = "r1_arm"
-        EEF_NAME = 'r1_ee'
-        GRASPING_GROUP = 'r1_gripper'
-        TAC_TOPIC = "/r1/trajectory_controller/follow_joint_trajectory"
-        JOINT_STATES_TOPIC = '/r1/joint_states'
-    elif ROBOT_NAME == 'panda':
-        vel_lim = [2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100]
-        effort_lim = [ 87, 87, 87, 87, 12, 12, 12 ]
-        lower_lim = [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]
-        upper_lim = [2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973]
-        JOINT_NAMES = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
-        BASE_LINK = 'panda_link0'
-        GROUP_NAME = "panda_arm"
-        EEF_NAME = 'panda_link8'
-        GRASPING_GROUP = 'hand'
-        if SIMULATOR_NAME == 'gazebo' or SIMULATOR_NAME == 'real':
-            TAC_TOPIC = '/position_joint_trajectory_controller/follow_joint_trajectory'
-            JOINT_STATES_TOPIC = '/franka_state_controller/joint_states'
-        elif SIMULATOR_NAME == 'rviz':
-            TAC_TOPIC = '/execute_trajectory'
-            JOINT_STATES_TOPIC = '/joint_states'
-        elif SIMULATOR_NAME == 'coppelia':
-            TAC_TOPIC = '/fakeFCI/joint_state'
-            JOINT_STATES_TOPIC = '/vrep/franka/joint_state'
-        else: raise Exception("Wrong simualator name")
-    else: raise Exception("Wrong robot name")
-
+    ### HERE ENDS MINIMAL CONFIGURATION      ###
     if minimal:
         return
     print("[Settings] Workspace folder is set to: "+WS_FOLDER)
+    ### 4. Init. Data                              ###
+    ###   > saved in arrays                        ###
+    ###     - Leap Controller                      ###
+    ###     - Plan (eef_pose, goal_pose, ...)      ###
+    ###   > single data                            ###
+    ###     - Plan (eef_pose, goal_pose, ...)      ###
+    ###     - States (joints, velocity, eff, ... ) ###
+    ##################################################
 
-    global ALIVE; ALIVE = True
-
-    # Data from Leap Controller saved in arrays
     # Note: updated in leapmotionlistener.py with Leap frame frequency (~80Hz)
     global BUFFER_LEN, frames, timestamps, frames_adv, goal_pose_array, eef_pose_array, joints_in_time
     BUFFER_LEN = gestures_data_loaded['Recording']['BufferLen']
@@ -119,13 +118,6 @@ def init(minimal=False):
 
     joints_in_time = collections.deque(maxlen=BUFFER_LEN)
 
-    ## Fixed Conditions
-    global FIXED_ORI_TOGGLE, print_path_trace
-    # When turned on, eef has fixed eef orientaion based on chosen environment (md.ENV)
-    FIXED_ORI_TOGGLE = True
-    # When turned on, rViz marker array of executed trajectory is published
-    print_path_trace = False
-
     ## Current/Active robot data at the moment
     global goal_joints, goal_pose, eef_pose, joints, velocity, effort
     goal_joints, goal_pose, joints, velocity, effort, eef_pose = None, None, None, None, None, Pose()
@@ -134,6 +126,16 @@ def init(minimal=False):
     # joints -> JointStates topic
     # eef_pose -> from joint_states
 
+    ## Publisher holder for ROS topic
+    global ee_pose_goals_pub; ee_pose_goals_pub = None
+
+    ### 5. Latest Data                      ###
+    ###     - GestureData()                 ###
+    ###     - MoveData()                    ###
+    ###     - Generated Scenes from YAML    ###
+    ###     - Generated Paths from YAML     ###
+    ###     - Current scene info            ###
+    ###########################################
     global gd, md, rd, sp, mo, ss, scene
     # Active gesture data at the moment
     gd = GestureDataHands()
@@ -141,13 +143,21 @@ def init(minimal=False):
     md = MoveData()
 
     ## Objects for saved scenes and paths
-    sp, ss = [], []
-    GenerateScenes.FromYAML(ss) # Saved scenes
-    GenerateSomePaths(sp, ss) # Saved paths
+    ss = CustomScene.GenerateFromYAML()
+    sp = CustomPath.GenerateFromYAML()
     scene = None # current scene informations
     mo = None # MoveIt object
 
-    ## Learning settings
+    ## Fixed Conditions
+    global FIXED_ORI_TOGGLE, print_path_trace
+    # When turned on, eef has fixed eef orientaion based on chosen environment (md.ENV)
+    FIXED_ORI_TOGGLE = True
+    # When turned on, rViz marker array of executed trajectory is published
+    print_path_trace = False
+
+    ### 6. Gesture Recognition              ###
+    ###     - Learning settings             ###
+    ###########################################
     global pymcin, pymcout, observation_type, time_series_operation, position
     pymcout = None
     pymcin = Float64MultiArray()
@@ -161,7 +171,34 @@ def init(minimal=False):
     assert time_series_operation in ['average', 'middle', 'as_dimesion', 'take_every', 'take_every_10'], "Wrong input"
     assert position in ['', 'absolute', 'absolute+finger', 'time_warp'], "Wrong input"
 
-    ## For visualization data holder
+    ## ROS publisher for pymc
+    global pymc_in_pub; pymc_in_pub = None
+
+    ### 7. User Interface Data              ###
+    ###     - From application.yaml         ###
+    ###########################################
+    with open(CUSTOM_SETTINGS_YAML+"application.yaml", 'r') as stream:
+        app_data_loaded = yaml.safe_load(stream)
+    # Configuration page values
+    global NumConfigBars, VariableValues
+    NumConfigBars = [app_data_loaded['ConfigurationPage']['Rows'], app_data_loaded['ConfigurationPage']['Columns']]
+    VariableValues = np.zeros(NumConfigBars)
+
+    # Status Bar
+    global HoldAnchor, HoldPrevState, HoldValue, currentPose, WindowState, leavingAction, w, h, ui_scale, record_with_keys
+    WindowState = 0.0  # 0-Main page, 1-Config page
+    HoldAnchor = 0.0  # For moving status bar
+    HoldPrevState = False  # --||--
+    HoldValue = 0
+    currentPose = 0
+    leavingAction = False
+    w, h = 1000, 800 # Will be set dynamically to proper value
+    ui_scale = app_data_loaded['Scale']
+
+    record_with_keys = False # Bool, Enables recording with keys in UI
+
+    ### 8. For visualization data holder    ###
+    ###########################################
     global viz; viz = None # VisualizerLib obj
     global sendedPlot; sendedPlot = None
     global realPlot; realPlot = None
@@ -174,26 +211,6 @@ def init(minimal=False):
     # Visualized Number of Joint <0,6>
     global NJ; NJ = 0
 
-    ## User Interface Data ##
-    # Configuration page values
-    global NumConfigBars, VariableValues
-    NumConfigBars = [app_data_loaded['ConfigurationPage']['Rows'], app_data_loaded['ConfigurationPage']['Columns']]
-    VariableValues = np.zeros(NumConfigBars)
-
-    # Status Bar
-    global HoldAnchor, HoldPrevState, HoldValue, currentPose, WindowState, leavingAction, w, h, ui_scale
-    WindowState = 0.0  # 0-Main page, 1-Config page
-    HoldAnchor = 0.0  # For moving status bar
-    HoldPrevState = False  # --||--
-    HoldValue = 0
-    currentPose = 0
-    leavingAction = False
-    w, h = 1000, 800 # Will be set dynamically to proper value
-    ui_scale = app_data_loaded['Scale']
-
-    ## Global ROS publisher objects
-    global pymc_in_pub; pymc_in_pub = None
-    global ee_pose_goals_pub; ee_pose_goals_pub = None
     print("[Settings] done")
 
 
@@ -247,22 +264,25 @@ class GestureDataHand():
     '''
     '''
     def __init__(self):
+        with open(CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
+            gestures_data_loaded = yaml.safe_load(stream)
         self.conf = False
-        self.MIN_CONFIDENCE = 0.3
-        self.SINCE_FRAME_TIME = 0.5
+        self.MIN_CONFIDENCE = gestures_data_loaded['configGestures']['MIN_CONFIDENCE']
+        self.SINCE_FRAME_TIME = gestures_data_loaded['configGestures']['SINCE_FRAME_TIME']
 
         self.tch12, self.tch23, self.tch34, self.tch45 = [False] * 4
         self.tch13, self.tch14, self.tch15 = [False] * 3
-        self.TCH_TURN_ON_DIST = [0.9, 0.9, 0.9, 0.9,  0.9, 0.9, 0.9]
-        self.TCH_TURN_OFF_DIST = [0.5, 0.5, 0.5, 0.5,  0.5, 0.5, 0.5]
+        self.TCH_TURN_ON_DIST = gestures_data_loaded['configGestures']['TCH_TURN_ON_DIST']
+        self.TCH_TURN_OFF_DIST = gestures_data_loaded['configGestures']['TCH_TURN_OFF_DIST']
 
         self.oc = [False] * 5
-        self.OC_TURN_ON_THRE =  [0.94, 0.8, 0.8, 0.8, 0.8]
-        self.OC_TURN_OFF_THRE = [0.85, 0.6, 0.6, 0.6, 0.6]
+        self.OC_TURN_ON_THRE =  gestures_data_loaded['configGestures']['OC_TURN_ON_THRE']
+        self.OC_TURN_OFF_THRE = gestures_data_loaded['configGestures']['OC_TURN_OFF_THRE']
+
 
         self.poses = []
-        self.gests = []
-
+        #for pose in gestures_data_loaded['staticGestures']:
+        #    self.poses.append(PoseData(NAME=pose['name'], filename=pose['filename'], turnon=pose['turn_on_off'][1], turnoff=pose['turn_on_off'][0]))
         self.poses.append(PoseData(NAME="grab", filename="gesture56.png", turnon=0.9, turnoff=0.3))
         self.poses.append(PoseData(NAME="pinch", filename="gesture33.png", turnon=0.9, turnoff=0.3))
         self.poses.append(PoseData(NAME="pointing", filename="gesture0.png", turnon=0.9, turnoff=0.3))
@@ -275,6 +295,9 @@ class GestureDataHand():
         for n, i in enumerate(self.poses):
             self.POSES[i.NAME] = n
 
+        self.gests = []
+        #for gesture in gestures_data_loaded['dynamicGestures']:
+        #    self.poses.append(PoseData(NAME=gesture['name'], filename=gesture['filename'], turnon=gesture['turn_on_off'][1], turnoff=gesture['turn_on_off'][0]))
         self.gests.append(GestureData(NAME="circ", filename="gesture34.png"))
         self.gests.append(GestureData(NAME="swipe", filename="gesture64.png"))
         self.gests.append(GestureData(NAME="pin", filename="gesture3.png"))
@@ -326,36 +349,24 @@ class GestureData():
 
 class MoveData():
     def __init__(self):
-        self.LEAP_AXES = [[1,0,0],[0,0,-1],[0,1,0]]
-        self.ENV_DAT = {'above': {  'min': Point(-0.35, -0.35, 0.6), # minimum values on x,y,z axes of ENV [m]
-                                    'max': Point(0.35,0.35,1.15), # maximum values on x,y,z axes of ENV [m]
-                                    'ori': Quaternion(0.0, 0.0, 0.0, 1.0), # environment default orientation
-                                    'start': Point(0.0, 0.0, 0.45), # Start of Leap Motion sensor mapped
-                                    'axes': np.eye(3), 'view': [[1,0,0],[0,0,1],[0,1,0]],
-                                    'ori_axes': [[0,1,0],[-1,0,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
-                                 },
-                         'wall':  { 'min': Point(0.42, -0.2, 0.0),
-                                    'max': Point(0.7, 0.2, 0.74),
-                                    'ori': Quaternion(-0.5,0.5,0.5,-0.5),
-                                    'start': Point(0.7, 0.0, -0.3),
-                                    'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]],
-                                    'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
-                                    },
-                         'table':  { 'min': Point(0.4, -0.3, 0.0),
-                                    'max': Point(0.7, 0.3, 0.6),
-                                    'ori': Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0),
-                                    'start': Point(0.5, 0.0, -0.1),
-                                    'axes': [[0,1,0],[-1,0,0],[0,0,1]], 'view': [[0,-1,0],[0,0,1],[1,0,0]],
-                                    'ori_axes': [[0,-1,0],[1,0,0],[0,0,0]], 'ori_live': [[-1,0,0],[0,-1,0],[0,0,-1]]
-                                    },
-                         'table_old': { 'min': Point(0.4, -0.3, 0.0),
-                                    'max': Point(0.7, 0.3, 0.6),
-                                    'start': Point(0.5, 0.0, 0.3),
-                                    'ori': Quaternion(0., 1., 0.0, 0.0),
-                                    'axes': [[0,0,1],[-1,0,0],[0,-1,0]], 'view': [[0,-1,0],[1,0,0],[0,0,1]],
-                                    'ori_axes': [[-1,0,0],[0,1,0],[0,0,0]], 'ori_live': [[0,-1,0],[1,0,0],[0,0,-1]]
-                                    } }
+        with open(CUSTOM_SETTINGS_YAML+"robot_move.yaml", 'r') as stream:
+            robot_move_data_loaded = yaml.safe_load(stream)
 
+        self.LEAP_AXES = robot_move_data_loaded['LEAP_AXES']
+        self.ENV_DAT = {}
+        for key in robot_move_data_loaded['ENV_DAT']:
+            self.ENV_DAT[key] = {}
+            self.ENV_DAT[key]['view'] = robot_move_data_loaded['ENV_DAT'][key]['view']
+            self.ENV_DAT[key]['ori_axes'] = robot_move_data_loaded['ENV_DAT'][key]['ori_axes']
+            self.ENV_DAT[key]['ori_live'] = robot_move_data_loaded['ENV_DAT'][key]['ori_live']
+            self.ENV_DAT[key]['axes'] = robot_move_data_loaded['ENV_DAT'][key]['axes']
+            self.ENV_DAT[key]['min'] = Point(*robot_move_data_loaded['ENV_DAT'][key]['min'])
+            self.ENV_DAT[key]['max'] = Point(*robot_move_data_loaded['ENV_DAT'][key]['max'])
+            self.ENV_DAT[key]['start'] = Point(*robot_move_data_loaded['ENV_DAT'][key]['start'])
+            self.ENV_DAT[key]['ori'] = Quaternion(*robot_move_data_loaded['ENV_DAT'][key]['ori'])
+
+
+        # TODO: Remove this condition
         if IK_SOLVER == 'pyrep':
             self.ENV_DAT['above']['ori'] = Quaternion(0.0, 0.0, 1.0, 0.0)
             self.ENV_DAT['wall']['ori']  = Quaternion(0, np.sqrt(2)/2, 0, np.sqrt(2)/2)
@@ -388,163 +399,99 @@ class MoveData():
         self.traj_update_horizon = 0.6
 
 
-def GenerateSomePaths(sp, ss):
-    poses = []
-    pose = Pose()
-    pose.orientation = md.ENV_DAT['above']['ori']
-    n = 100
-    for i in range(0,n):
-        pose.position = Point(0.2*np.cos(2*np.pi*i/n),-0.2*np.sin(2*np.pi*i/n),0.95)
-        poses.append(deepcopy(pose))
-    actions = [""] * len(poses)
-    sp.append(CustomPath(poses, actions, "empty", "circle", "above"))
 
-    SCENE = 'pickplace'
-    index = indx(ss, SCENE)
-    box_pose = deepcopy(ss[index].mesh_poses[0])
-    box_dim = deepcopy(ss[index].mesh_sizes[0])
-    poses = []
-    pose.position = Point(0.0,0.0,1.17)
-    pose.orientation = md.ENV_DAT['above']['ori']
-    poses.append(deepcopy(pose))
-
-    pose.position = box_pose.position
-    pose.position.z += box_dim.z-0.04
-    pose.orientation = md.ENV_DAT['table']['ori']
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.0,0.75)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,-0.3,0.075)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.,0.,1.25)
-    pose.orientation = md.ENV_DAT['above']['ori']
-    poses.append(deepcopy(pose))
-    actions = ['', 'box', '', 'box', '']
-    sp.append(CustomPath(poses, actions, SCENE, "pickplace", "table"))
-
-    poses = []
-    pose.position = Point(0.5,-0.1,0.04)
-    pose.orientation = md.ENV_DAT['table']['ori']
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,-0.1,0.04)
-    pose.orientation = md.ENV_DAT['table']['ori']
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.5,0.3,0.04)
-    poses.append(deepcopy(pose))
-    actions = ['', '', '']
-    sp.append(CustomPath(poses, actions, 'pickplace', "smash", "table"))
-
-
-
-    ## Drawer path init
-    poses = []
-    SCENE = 'drawer'
-    index = indx(ss, SCENE)
-    drawer_pose = deepcopy(ss[index].mesh_poses[0])
-    drawer_dim = deepcopy(ss[index].mesh_sizes[0])
-    drawer_trans_origin = deepcopy(ss[index].mesh_trans_origin[1])
-
-    pose.position = Point(0.0,0.0,1.25)
-    pose.orientation = md.ENV_DAT['above']['ori']
-    poses.append(deepcopy(pose))
-
-    pose.position = drawer_pose.position
-    pose.position.x -= 0.02
-    pose.position.y += drawer_dim.y/2
-    pose.position.z += drawer_trans_origin.z+0.05
-    pose.orientation = md.ENV_DAT['wall']['ori']
-    poses.append(deepcopy(pose))
-
-    for i in range(0,20):
-        pose.position.x -= 0.01 # open the socket
-        poses.append(deepcopy(pose))
-
-    pose.position.z -= 0.15
-    poses.append(deepcopy(pose))
-
-    drawer_pose = deepcopy(ss[index].mesh_poses[2])
-    drawer_trans_origin = deepcopy(ss[index].mesh_trans_origin[2])
-    pose.position = drawer_pose.position
-    pose.position.x -= 0.02
-    pose.position.y += drawer_dim.y/2
-    pose.position.z += drawer_trans_origin.z+0.05
-    pose.orientation = md.ENV_DAT['wall']['ori']
-    poses.append(deepcopy(pose))
-
-    for i in range(0,20):
-        pose.position.x -= 0.01 # open the socket
-        poses.append(deepcopy(pose))
-
-    pose.position = Point(0.0,0.0,1.25)
-    pose.orientation = md.ENV_DAT['above']['ori']
-    poses.append(deepcopy(pose))
-    actions = ['', 'drawer_socket_1', '','','','','','','','','','', '','','','','','','','','', 'drawer_socket_1', '', 'drawer_socket_2', '','','','','','','','','','', '','','','','','','','','', 'drawer_socket_2', '']
-    sp.append(CustomPath(poses, actions, SCENE, "drawer", "wall"))
-
-    poses = []
-    pose.position = Point(0.0,0.0,1.25)
-    pose.orientation = md.ENV_DAT['above']['ori']
-    poses.append(deepcopy(pose))
-    pose.position =  Point(0.44,-0.05,0.13)
-    pose.orientation = md.ENV_DAT['table']['ori']
-    poses.append(deepcopy(pose))
-    pose.position =  Point(0.44,-0.05,0.1)
-    poses.append(deepcopy(pose))
-    pose.position = Point(0.0,0.0,1.25)
-    pose.orientation = md.ENV_DAT['above']['ori']
-    poses.append(deepcopy(pose))
-    actions = ['', 'button', 'button', '']
-    sp.append(CustomPath(poses, actions, "pushbutton", "pushbutton", "table"))
-
-
-
-
-
+# TODO: Make NAME, ENV, Objects lowercase
 class CustomPath():
-    def __init__(self, poses=[], actions=[], scene=None, NAME="", ENV=""):
+    def __init__(self, data=None, poses_data=None):
         ''' Create your custom path
         '''
-        assert len(actions) == len(poses), "[Settings] Path you want to create has not the same number of poses as actions"
-        assert scene in getSceneNames(), "[Settings] Path you want to create has not valid scene name"
-        self.n = len(poses)
-        self.scene = scene
-        self.poses = poses
-        self.actions = actions
-        self.NAME = NAME
-        self.ENV = ENV
+        assert data, "No Data!"
+        assert len(data.keys()) == 1, "More input Paths!"
+        key = data.keys()[0]
+        path_data = data[key]
+        self.NAME = key
+        self.poses = []
+        self.actions = []
+        if not path_data:
+            return
+
+        poses = path_data['poses']
+        self.n = len(path_data['poses'])
+        self.scene = ParseYAML.parseScene(path_data)
+        self.ENV = path_data['env']
+        for pose_e in poses:
+            pose = pose_e['pose']
+            self.poses.append(ParseYAML.parsePose(pose, poses_data))
+
+            self.actions.append(ParseYAML.parseAction(pose_e))
+
+
+
+
+
+    @staticmethod
+    def GenerateFromYAML(paths_folder=None, paths_file_catch_phrase='paths', poses_file_catch_phrase='poses'):
+        ''' Generates All paths from YAML files
+
+        Parameters:
+            paths_folder (Str): folder to specify YAML files, if not specified the default CUSTOM_SETTINGS_YAML folder is used
+            paths_file_catch_phrase (Str): Searches for files with this substring (e.g. use 'paths' to load all names -> 'paths1.yaml', paths2.yaml)
+                - If not specified then paths_file_catch_phrase='paths'
+                - If specified as '', all files are loaded
+            poses_file_catch_phrase (Str): Loads poses from YAML file with this substring
+        Returns:
+            sp (CustomPath()[]): The generated array of paths
+        '''
+        sp = []
+        if not paths_folder:
+            paths_folder = CUSTOM_SETTINGS_YAML
+
+        files = os.listdir(paths_folder)
+
+        poses_data_loaded = {}
+        for f in files:
+            if '.yaml' in f and poses_file_catch_phrase in f:
+                with open(paths_folder+f, 'r') as stream:
+                    poses_data_loaded = merge_two_dicts(poses_data_loaded, yaml.safe_load(stream))
+
+        for f in files:
+            if '.yaml' in f and paths_file_catch_phrase in f:
+                with open(paths_folder+f, 'r') as stream:
+                    data_loaded = yaml.safe_load(stream)
+                    for key in data_loaded.keys():
+                        pickedpath = {key: data_loaded[key]}
+                        sp.append(CustomPath(pickedpath, poses_data_loaded))
+        return sp
+
 
 
 class CustomScene():
     ''' Custom scenes with custom names is defined with custom objects with
         pose and size
-        - mesh_names, string[], name of object
-        - mesh_poses, Pose[], position and orientation of object origin
-        - mesh_sizes, Vector3[], length x,y,z of object from the origin
-    '''
-    def __init__(self, NAME="", mesh_names=[], mesh_poses=[], mesh_sizes=[], mesh_trans_origin=[], YAML_data=None):
-        if YAML_data:
-            ## load data from YAML data structure
-            if len(YAML_data.keys()) > 1:
-                raise Exception("More scenes cannot be loaded in one record!")
-            key = YAML_data.keys()[0]
-            scene_data = YAML_data[key]
 
-            self.NAME = key
-            self.mesh_names = []
-            self.mesh_poses = []
-            self.mesh_sizes = []
-            self.mesh_trans_origin = [Vector3(0.,0.,0.)] * len(self.mesh_names)
-            if not scene_data: # Add empty scene
-                return
-            self.mesh_names = scene_data['mesh_names']
-            for p in scene_data['mesh_poses']:
-                rosPose = Pose()
-                rosPose.position = Point(*extv(p['pose']['position']))
-                rosPose.orientation = Quaternion(*extq(p['pose']['orientation']))
-                self.mesh_poses.append(rosPose)
-            for p in scene_data['mesh_sizes']:
-                rosSize = Vector3(*extv(p['position']))
-                self.mesh_sizes.append(rosSize)
+    '''
+    def __init__(self, data=None, poses_data=None):
+        assert data, "No Data!"
+        assert len(data.keys()) == 1, "More input Scenes!"
+        key = data.keys()[0]
+        scene_data = data[key]
+        self.NAME = key
+        self.object_names = []
+        self.object_poses = []
+        self.object_sizes = []
+        self.mesh_trans_origin = []
+        if not scene_data:
+            return
+
+        objects = scene_data['Objects']
+        self.object_names = objects.keys()
+        self.mesh_trans_origin = [Vector3(0.,0.,0.)] * len(objects.keys())
+        for object in self.object_names:
+            pose_vec = objects[object]['pose']
+
+            self.object_poses.append(ParseYAML.parsePose(pose_vec, poses_data))
+            self.object_sizes.append(ParseYAML.parsePosition(objects[object], poses_data, key='size'))
+
             if 'mesh_trans_origin' in scene_data.keys():
                 if 'axes' in scene_data.keys():
                     self.mesh_trans_origin = TransformWithAxes(scene_data['mesh_trans_origin'], scene_data['axes'])
@@ -552,115 +499,169 @@ class CustomScene():
                     self.mesh_trans_origin = scene_data['mesh_trans_origin']
 
 
-        else:
-            self.NAME = NAME
-            self.mesh_names = mesh_names
-            self.mesh_poses = mesh_poses
-            self.mesh_sizes = mesh_sizes
-            if mesh_trans_origin:
-                self.mesh_trans_origin = mesh_trans_origin
-            else:
-                self.mesh_trans_origin = [Vector3(0.,0.,0.)] * len(mesh_names)
-
-class GenerateScenes():
     @staticmethod
-    def Raw(ss):
-        ''' Deprecated, use FromYAML instead
-        '''
-        ## 0 - empty
-        ss.append(CustomScene('empty'))
-        ## 1 - drawer
-        mesh_names=['drawer', 'drawer_socket_1', 'drawer_socket_2', 'drawer_socket_3']
-        drawer_heights = [0.083617, 0.124468, 0.094613]
-        mesh_trans_origin = [Vector3(0.,0.,0.), Vector3(0.024574, 0., 0.032766+0.094613+0.015387+0.124468+0.016383), Vector3(0.024574, 0., 0.032766+0.094613+0.015387), Vector3(0.024574, 0., 0.032766)]
-        # transform to workspace
-        axes = [[0.,1.,0.],
-        [-1.,0.,0.],
-        [0.,0.,1.]]
-        mesh_trans_origin_ = []
-        for i in range(0, len(mesh_trans_origin)):
-            orig = mesh_trans_origin[i]
-            orig_ = Vector3()
-            orig_.x = np.dot(axes[0],[orig.x, orig.y, orig.z])
-            orig_.y = np.dot(axes[1],[orig.x, orig.y, orig.z])
-            orig_.z = np.dot(axes[2],[orig.x, orig.y, orig.z])
-            mesh_trans_origin_.append(Vector3(orig_.x, orig_.y, orig_.z))
-        mesh_trans_origin = mesh_trans_origin_
-        ### Added in func
-        #mesh_trans_origin = TransformWithAxes(mesh_trans_origin, axes)
-        ##
-
-        drawer_sockets_open = 0.0
-        mesh_poses = []
-        mesh_sizes = []
-        size = Vector3()
-        pose = Pose()
-        # drawer shell
-        pose.position = Point(0.8,0.2,0.)
-        pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-        mesh_poses.append(deepcopy(pose))
-        size = Vector3(0.3,0.5,0.4)
-        size = Vector3(0.5,-0.3,0.4)
-        mesh_sizes.append(deepcopy(size))
-        # drawer sockets
-        for i in range(0,3):
-            pose.position = Point(0.8-drawer_sockets_open/2,0.2,0.)
-            pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-            mesh_poses.append(deepcopy(pose))
-            size = Vector3(0.25085,0.5,drawer_heights[i])
-            size = Vector3(0.5,-0.25085,drawer_heights[i])
-            mesh_sizes.append(deepcopy(size))
-        ss.append(CustomScene('drawer', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes, mesh_trans_origin=mesh_trans_origin))
-
-
-        ## 2 - box
-        mesh_names=['box']
-        mesh_poses = []
-        pose.position = Point(0.6,0.1,0.04)
-        pose.orientation = Quaternion(0.0,0.0,0.0,1.0)
-        mesh_poses.append(deepcopy(pose))
-        mesh_sizes = [Vector3(0.075,0.075,0.075)]
-        mesh_trans_origin = [Vector3(0.,-0.0, 0.0)]
-        ss.append(CustomScene('pickplace', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes))#, mesh_trans_origin=mesh_trans_origin))
-        ## 3 - push button
-        mesh_names=['button', 'button_out']
-        mesh_poses = []
-        pose.position = Point(0.6,0.1,0.0)
-        pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-        mesh_poses.append(deepcopy(pose))
-
-        pose.orientation = Quaternion(0.5,-0.5,-0.5,0.5)
-        mesh_poses.append(deepcopy(pose))
-        mesh_sizes = [Vector3(0.1,0.1,0.1), Vector3(0.1,0.1,0.13)]
-        mesh_trans_origin = [Vector3(0.,-0.6, .0),Vector3(0.,-0.6, 0.)]
-        ss.append(CustomScene('pushbutton', mesh_names=mesh_names, mesh_poses=mesh_poses, mesh_sizes=mesh_sizes))#, mesh_trans_origin=mesh_trans_origin))
-
-
-    @staticmethod
-    def FromYAML(ss, scenes_folder=None, file_catch_phrase='scene'):
+    def GenerateFromYAML(scenes_folder=None, scenes_file_catch_phrase='scene', poses_file_catch_phrase='poses'):
         ''' Generates All scenes from YAML files
 
         Parameters:
             scenes_folder (Str): folder to specify YAML files, if not specified the default CUSTOM_SETTINGS_YAML folder is used
-            file_catch_phrase (Str): All files in specified directory need to have this sub string to be loaded (e.g. use 'scene' to load all names -> 'scene1.yaml', scene2.yaml)
-                - If not specified then file_catch_phrase='scene'
+            scenes_file_catch_phrase (Str): Searches for files with this substring (e.g. use 'scene' to load all names -> 'scene1.yaml', scene2.yaml)
+                - If not specified then scenes_file_catch_phrase='scene'
                 - If specified as '', all files are loaded
+            poses_file_catch_phrase (Str): Loads poses from YAML file with this substring
         '''
+        ss = []
         if not scenes_folder:
             scenes_folder = CUSTOM_SETTINGS_YAML
 
         files = os.listdir(scenes_folder)
+
+        poses_data_loaded = {}
         for f in files:
-            if '.yaml' in f and file_catch_phrase in f:
-                    with open(scenes_folder+f, 'r') as stream:
-                        data_loaded = yaml.safe_load(stream)
+            if '.yaml' in f and poses_file_catch_phrase in f:
+                with open(scenes_folder+f, 'r') as stream:
+                    poses_data_loaded = merge_two_dicts(poses_data_loaded, yaml.safe_load(stream))
+
+        for f in files:
+            if '.yaml' in f and scenes_file_catch_phrase in f:
+                with open(scenes_folder+f, 'r') as stream:
+                    data_loaded = yaml.safe_load(stream)
                     for key in data_loaded.keys():
                         pickedscene = {key: data_loaded[key]}
-                        ss.append(CustomScene(YAML_data=pickedscene))
+                        ss.append(CustomScene(pickedscene, poses_data_loaded))
+        return ss
+
+class ParseYAML():
+    @staticmethod
+    def parseScene(data):
+        '''
+        '''
+        if 'scene' in data.keys():
+            assert data['scene'] in getSceneNames(), "[Settings] Path you want to create has not valid scene name"
+            return data['scene']
+        else:
+            return 'empty'
+
+    @staticmethod
+    def parseAction(pose):
+        ''' Parses action from pose
+        Parameters:
+            pose (Dict): Item from YAML: path['poses'][i], why not link arg. "action" itself? A: It may does not exist.
+        '''
+        if 'action' in pose.keys():
+            return pose['action']
+        else:
+            return ""
+
+    @staticmethod
+    def parsePose(pose_vec, poses_data):
+        ''' Parse pose from YAML file
+            1. pose is string: saves from poses.yaml file
+        '''
+        rosPose = Pose()
+        if type(pose_vec) == str:
+            if pose_vec not in poses_data.keys():
+                raise Exception("Saved pose not found! Pose: "+str(pose_vec))
+            rosPose.position = Point(*extv(poses_data[pose_vec]['pose']['position']))
+            rosPose.orientation = Quaternion(*extq(poses_data[pose_vec]['pose']['orientation']))
+        else:
+            rosPose.position = ParseYAML.parsePosition(pose_vec, poses_data)
+            rosPose.orientation = ParseYAML.parseOrientation(pose_vec, poses_data)
+        return rosPose
+
+
+    @staticmethod
+    def parsePosition(pose_vec, poses_data, key='position'):
+        '''
+            1. position is {'x':0,'y':0,'z':0} or [0,0,0]
+            2. position is {'x':[0,1], 'y':[0,1], 'z':[0,1]}
+            3. position is saved pose name
+        Parameters:
+            key (Str): Extract the dict with key
+        '''
+        # Check if exists:
+        if key in pose_vec.keys():
+            position = pose_vec[key]
+        else:
+            print("[WARN*] Position not specified in YAML, Maybe TODO: to defaulf value of env")
+            position = [0.5,0.0,0.5]
+        # 1.
+        if isarray(position) and isnumber(position[0]):
+            return Point(*list(position))
+        # 2.
+        elif isarray(position) and isarray(position[0]):
+            assert len(position[0]) < 3 and len(position[1]) < 3 and len(position[2]) < 3, "Reading from YAML read more ranges"
+            for i in range(0,3):
+                if isnumber(position[i]):
+                    pass
+                if isarray(position[i]):
+                    assert len(position[i]) == 2, "Range length not right, check YAML"
+                    assert position[i][0] < position[i][1], "Min. is greater than Max. in YAML read"
+                    position[i] = random.uniform(position[i][0], position[i][1])
+            return Point(*list(position))
+        elif type(position) == dict:
+            for i in ['x', 'y', 'z']:
+                if isnumber(position[i]):
+                    pass
+                elif isarray(position[i]):
+                    assert len(position[i]) == 2, "Range length not right, check YAML"
+                    assert position[i][0] < position[i][1], "Min. is greater than Max. in YAML read"
+                    position[i] = random.uniform(position[i][0], position[i][1])
+
+            return Point(*extv(position))
+        # 3.
+        elif type(position) == str:
+            if position in poses_data.keys():
+                position = poses_data[position]['pose']['position']
+                return Point(*extv(position))
+            else: raise Exception("Saved pose "+str(position)+" not found!")
+        else: raise Exception("Wrong option reading from YAML: "+str(position))
+
+    @staticmethod
+    def parseOrientation(pose_vec, poses_data):
+        '''
+            1. orientation is {'x':0,'y':0,'z':0,'w':0} or [0,0,0,0] (use x,y,z,w notation)
+            2. orientation is {'x':[0,1], 'y':[0,1], 'z':[0,1]}
+            3. orientation is saved pose name
+        '''
+        # Check if exists:
+        if 'orientation' in pose_vec.keys():
+            orientation = pose_vec['orientation']
+        else:
+            print("[WARN*] Orientation not specified in YAML, Maybe TODO: to defaulf value of env")
+            orientation = [0.,0.,0.,1.]
+        # 1.
+        if isarray(orientation) and isnumber(orientation[0]):
+            return Quaternion(*list(orientation))
+        # 2.
+        elif isarray(orientation) and isarray(orientation[0]):
+            for i in range(0,4):
+                if isnumber(orientation[i]):
+                    pass
+                if isarray(orientation[i]):
+                    assert len(position[i]) == 2, "Range length not right, check YAML"
+                    assert orientation[i][0] < orientation[i][1], "Min. is greater than Max. in YAML read"
+                    orientation[i] = random.uniform(orientation[i][0], orientation[i][1])
+            return Quaternion(*list(orientation))
+        elif type(orientation) == dict:
+            for i in ['x', 'y', 'z', 'w']:
+                if isnumber(orientation[i]):
+                    pass
+                if isarray(orientation[i]):
+                    assert len(orientation[i]) == 2, "Range length not right, check YAML"
+                    assert orientation[i][0] < orientation[i][1], "Min. is greater than Max. in YAML read"
+                    orientation[i] = random.uniform(orientation[i][0], orientation[i][1])
+            return Quaternion(*extq(orientation))
+        # 3.
+        elif type(orientation) == str:
+            if orientation in poses_data.keys():
+                orientation = poses_data[orientation]['pose']['orientation']
+                return Quaternion(*extq(orientation))
+            else: raise Exception("Saved pose not found! Pose: "+str(orientation))
+        else: raise Exception("Wrong option reading from YAML: "+str(orientation))
 
 
 ## Helper functions
-
 def indx(ss, str):
     ''' Returns index of scene specified by name as parameter 'str'
     '''
@@ -719,7 +720,20 @@ def extp(p):
     assert type(p) == type(Pose()), "extp input arg p: Not Pose type!"
     return p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w
 
+def isnumber(n):
+    if type(n) == int or type(n) == float:
+        return True
+    return False
 
+def isarray(a):
+    if type(a) == tuple or type(a) == list:
+        return True
+    return False
+
+def merge_two_dicts(x, y):
+    z = x.copy()   # start with keys and values of x
+    z.update(y)    # modifies z with keys and values of y
+    return z
 
 def TransformWithAxes(data_to_transform, transform_mat):
     '''
@@ -785,12 +799,3 @@ def waitForValue(ooo, errormsg="Wait for value error!"):
         time.sleep(4)
         print(errormsg)
 '''
-###
-if __name__ == '__main__':
-    global CUSTOM_SETTINGS_YAML
-    CUSTOM_SETTINGS_YAML = "/home/pierro/my_ws/src/mirracle_gestures/include/custom_settings/"
-    sp, ss = [], []
-    GenerateScenes.Raw(ss) # Saved scenes
-    print("SS1\n",ss)
-    GenerateScenes.FromYAML(ss)
-    print("SS2\n",ss)

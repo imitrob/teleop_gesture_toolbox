@@ -1,641 +1,210 @@
+
 threecones:
-  mesh_names:
-    - cone1
-    - cone2
-    - cone3
-  mesh_poses:
-    - pose:
-        position:
-          x: 0.6
-          y: 0.2
-          z: 0.0
-        orientation:
-          x: 0.0
-          y: 0.0
-          z: 0.0
-          w: 1.0
-    - pose:
-        position:
-          x: 0.6
-          y: 0.0
-          z: 0.0
-        orientation:
-          x: 0.0
-          y: 0.0
-          z: 0.0
-          w: 1.0
-    - pose:
-        position:
-          x: 0.4
-          y: -0.2
-          z: 0.0
-        orientation:
-          x: 0.0
-          y: 0.0
-          z: 0.0
-          w: 1.0
-  mesh_sizes:
-    - position:
-        x: 0.075
-        y: 0.075
-        z: 0.075
-    - position:
-        x: 0.075
-        y: 0.075
-        z: 0.075
-    - position:
-        x: 0.075
-        y: 0.075
-        z: 0.075
-    - position:
-        x: 0.075
-        y: 0.075
-        z: 0.075
+  Objects:
+    cone1:
+      pose:
+        position: {'x': 0.6, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z':0.0, 'w':1.0}
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+    cone2:
+      pose:
+        position: {'x': 0.6, 'y': 0.0, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+    cone3:
+      pose:
+        position: {'x': 0.4, 'y': -0.2, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+
+threecones2:
+  Objects:
+    cone1:
+      pose: home
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+    cone2:
+      pose:
+        position: home
+        orientation: table
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+    cone3:
+      pose:
+        position: {'x': [0.,4.], 'y': [1.,2.], 'z': 1.0}
+        orientation: wall
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+
 empty:
 
 drawer:
-    mesh_names:
-      - drawer
-      - drawer_socket_1
-      - drawer_socket_2
-      - drawer_socket_3
-    drawer_heights:
-      - 0.083617
-      - 0.124468
-      - 0.094613
-    mesh_trans_origin:
-      - position:
-        x: 0.
-        y: 0.
-        z: 0.
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.283617 #0.032766+0.094613+0.015387+0.124468+0.016383
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.142766 #0.032766+0.094613+0.015387
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.032766
-    axes: # transformation to workspace
-    - - 0.
-      - 1.
-      - 0.
-    - - -1.
-      - 0.
-      - 0.
-    - - 0.
-      - 0.
-      - 1.
-    drawer_sockets_open:
-      - 0.0
-    # Format Pose (px,py,pz,ox,oy,oz,ow)
-    mesh_poses: # array order: shell, socket1, socket2, socket3
-      - pose:
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.
-          orientation:
-            x: 0.5
-            y: -0.5
-            z: -0.5
-            w: 0.5
-      - pose:
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.0
-          orientation:
-            x: 0.5
-            y: -0.5
-            z: -0.5
-            w: 0.5
-      - pose:
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.0
-          orientation:
-            x: 0.5
-            y: -0.5
-            z: -0.5
-            w: 0.5
-      - pose:
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.0
-          orientation:
-            x: 0.5
-            y: -0.5
-            z: -0.5
-            w: 0.5
-    # Format Size (x,y,z)
-    mesh_sizes: # array order: shell, socket1, socket2, socket3
-      - position:
-          x: 0.5 #<-0.3
-          y: -0.3 #<-0.5
-          z: 0.4 #<-0.4
-      - position:
-          x: 0.5
-          y: -0.25085
-          z: 0.083617
-      - position:
-          x: 0.5
-          y: -0.25085
-          z: 0.124468
-      - position:
-          x: 0.5
-          y: -0.25085
-          z: 0.094613
+  Objects:
+    drawer:
+      pose:
+        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.3, 'z': 0.4} # from [-0.3, -0.5, 0.4]
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    drawer_socket_1:
+      pose:
+        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.25085, 'z': 0.083617}
+      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.283617} # z: 0.032766+0.094613+0.015387+0.124468+0.016383
+    drawer_socket_2:
+      pose:
+        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.25085, 'z': 0.124468}
+      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.142766} # z: 0.032766+0.094613+0.015387
+    drawer_socket_3:
+      pose:
+        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.25085, 'z': 0.094613}
+      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.032766}
 
-drawer_coppelia:
-    mesh_names:
-      - drawer
-      - drawer_socket_1
-      - drawer_socket_2
-      - drawer_socket_3
+  Misc:
     drawer_heights:
       - 0.083617
       - 0.124468
       - 0.094613
-    mesh_trans_origin:
-      - position:
-        x: 0.
-        y: 0.
-        z: 0.
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.283617 #0.032766+0.094613+0.015387+0.124468+0.016383
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.142766 #0.032766+0.094613+0.015387
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.032766
-    axes: # transformation to workspace
-    - - 0.
-      - 1.
-      - 0.
-    - - -1.
-      - 0.
-      - 0.
-    - - 0.
-      - 0.
-      - 1.
-    drawer_sockets_open:
-      - 0.0
-    mesh_poses:
-      - pose: # Drawer shell
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.2
-          orientation:
-            x: 0.707
-            y: 0.0
-            z: 0.707
-            w: 0.0
-      - pose: # Drawer socket1
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.2
-          orientation:
-            x: 0.707
-            y: 0.0
-            z: 0.707
-            w: 0.0
-      - pose: # Drawer socket2
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.2
-          orientation:
-            x: 0.707
-            y: 0.0
-            z: 0.707
-            w: 0.0
-      - pose: # Drawer socket3
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.2
-          orientation:
-            x: 0.707
-            y: 0.0
-            z: 0.707
-            w: 0.0
-    mesh_sizes:
-      - position: # Drawer shell
-          x: 0.5 #<-0.3
-          y: -0.3 #<-0.5
-          z: 0.4 #<-0.4
-      - position: # Drawer socket1
-          x: 0.5
-          y: -0.25085
-          z: 0.083617
-      - position: # Drawer socket2
-          x: 0.5
-          y: -0.25085
-          z: 0.124468
-      - position: # Drawer socket3
-          x: 0.5
-          y: -0.25085
-          z: 0.094613
+    axes: [[0.,1.,0.], [-1.,0.,0.],[0.,0.,1.]] # transformation to workspace
+    drawer_sockets_open: 0.0
 
 pickplace:
-  mesh_names:
-    - box
-  mesh_poses:
-    - pose:
-        position:
-          x: 0.6
-          y: 0.1
-          z: 0.04
-        orientation:
-          x: 0.0
-          y: 0.0
-          z: 0.0
-          w: 1.0
-  mesh_sizes:
-    - position:
-        x: 0.075
-        y: 0.075
-        z: 0.075
-  mesh_trans_origin:
-    - position:
-        x: 0.
-        y: -0.0
-        z: 0.0
+  Objects:
+    box:
+      pose:
+        position: {'x': 0.6, 'y': 0.1, 'z': 0.04}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
 
 pushbutton:
-  mesh_names:
-    - button
-    - button_out
-  mesh_poses:
-    - pose:
-        position:
-          x: 0.6
-          y: 0.1
-          z: 0.0
-        orientation:
-          x: 0.0
-          y: 0.0
-          z: 0.0
-          w: 1.0
-    - pose:
-        position:
-          x: 0.6
-          y: 0.1
-          z: 0.0
-        orientation:
-          x: 0.0
-          y: 0.0
-          z: 0.0
-          w: 1.0
-  mesh_sizes:
-    - position:
-        x: 0.1
-        y: 0.1
-        z: 0.1
-    - position:
-        x: 0.1
-        y: 0.1
-        z: 0.13
-  #mesh_trans_origin:
-  #  - position:
-  #      x: 0.
-  #      y: -0.6
-  #      z: .0
-  #  - position:
-  #      x: 0.
-  #      y: -0.6
-  #      z: 0.
+  Objects:
+    button:
+      pose:
+        position: {'x': 0.6, 'y': 0.1, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.1, 'y': 0.1, 'z': 0.1}
+      mesh_trans_origin: {'x': 0.0, 'y': -0.6, 'z': 0.0}
+    button_out:
+      pose:
+        position: {'x': 0.6, 'y': 0.1, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.1, 'y': 0.1, 'z': 0.13}
+      mesh_trans_origin: {'x': 0.0, 'y': -0.6, 'z': 0.0}
 
-### MORE SCENES
+# Scenes with multiple objects
 drawer2:
-    mesh_names:
-      - drawer
-      - drawer_socket_1
-      - drawer_socket_2
-      - drawer_socket_3
-      - drawer2
-      - drawer2_socket_1
-      - drawer2_socket_2
-      - drawer2_socket_3
+  Objects:
+    drawer:
+      pose:
+        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.3, 'z': 0.4} # from [-0.3, -0.5, 0.4]
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    drawer_socket_1:
+      pose:
+        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.25085, 'z': 0.083617}
+      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.283617} # z: 0.032766+0.094613+0.015387+0.124468+0.016383
+    drawer_socket_2:
+      pose:
+        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.25085, 'z': 0.124468}
+      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.142766} # z: 0.032766+0.094613+0.015387
+    drawer_socket_3:
+      pose:
+        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.25085, 'z': 0.094613}
+      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.032766}
+
+    drawer2:
+      pose:
+        position: {'x': 0.6, 'y': -0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.3, 'z': 0.4} # from [-0.3, -0.5, 0.4]
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    drawer2_socket_1:
+      pose:
+        position: {'x': 0.6, 'y': -0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.25085, 'z': 0.083617}
+      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.283617} # z: 0.032766+0.094613+0.015387+0.124468+0.016383
+    drawer2_socket_2:
+      pose:
+        position: {'x': 0.6, 'y': -0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.25085, 'z': 0.124468}
+      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.142766} # z: 0.032766+0.094613+0.015387
+    drawer2_socket_3:
+      pose:
+        position: {'x': 0.6, 'y': -0.2, 'z': 0.0}
+        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
+      size: {'x': 0.5, 'y': -0.25085, 'z': 0.094613}
+      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.032766}
+
+  Misc:
     drawer_heights:
       - 0.083617
       - 0.124468
       - 0.094613
-    mesh_trans_origin:
-      ## Drawer1 + Its sockets
-      - position:
-        x: 0.
-        y: 0.
-        z: 0.
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.283617 #0.032766+0.094613+0.015387+0.124468+0.016383
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.142766 #0.032766+0.094613+0.015387
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.032766
-      ## Drawer2 + Its sockets
-      - position:
-        x: 0.
-        y: 0.
-        z: 0.
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.283617 #0.032766+0.094613+0.015387+0.124468+0.016383
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.142766 #0.032766+0.094613+0.015387
-      - position:
-        x: 0.024574
-        y: 0.
-        z: 0.032766
-    axes: # transformation to workspace
-    - - 0.
-      - 1.
-      - 0.
-    - - -1.
-      - 0.
-      - 0.
-    - - 0.
-      - 0.
-      - 1.
-    drawer_sockets_open:
-      - 0.0
-    # Format Pose (px,py,pz,ox,oy,oz,ow)
-    mesh_poses: # array order: shell, socket1, socket2, socket3
-      - pose: # Drawer1 shell
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Drawer1 socket1
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Drawer1 socket2
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Drawer1 socket3
-          position:
-            x: 0.8
-            y: 0.2
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Drawer2 shell
-          position:
-            x: 0.6
-            y: -0.2
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Drawer1 socket1
-          position:
-            x: 0.6
-            y: -0.2
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Drawer1 socket2
-          position:
-            x: 0.6
-            y: -0.2
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Drawer1 socket3
-          position:
-            x: 0.6
-            y: -0.2
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-    # Format Size (x,y,z)
-    mesh_sizes: # array order: shell, socket1, socket2, socket3
-      - position: # Drawer1 shell
-          x: 0.5 #<-0.3
-          y: -0.3 #<-0.5
-          z: 0.4 #<-0.4
-      - position: # Drawer1 socket1
-          x: 0.5
-          y: -0.25085
-          z: 0.083617
-      - position: # Drawer1 socket2
-          x: 0.5
-          y: -0.25085
-          z: 0.124468
-      - position: # Drawer1 socket3
-          x: 0.5
-          y: -0.25085
-          z: 0.094613
-      - position: # Drawer2 shell
-          x: 0.5 #<-0.3
-          y: -0.3 #<-0.5
-          z: 0.4 #<-0.4
-      - position: # Drawer2 socket1
-          x: 0.5 #<- 0.5,-0.25085,drawer_heights[i]
-          y: -0.25085 #
-          z: 0.083617
-      - position: # Drawer2 socket2
-          x: 0.5
-          y: -0.25085
-          z: 0.124468
-      - position: # Drawer2 socket3
-          x: 0.5
-          y: -0.25085
-          z: 0.094613
-
+    axes: [[0.,1.,0.], [-1.,0.,0.],[0.,0.,1.]] # transformation to workspace
+    drawer_sockets_open: 0.0
 
 pickplace2:
-
-    mesh_names:
-      - box
-      - box2
-    mesh_poses:
-      - pose: # box1
-          position:
-            x: 0.5
-            y: 0.0
-            z: 0.04
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # box2
-          position:
-            x: 0.6
-            y: -0.2
-            z: 0.04
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-    mesh_sizes:
-      - position: # box1
-          x: 0.075
-          y: 0.075
-          z: 0.075
-      - position: # box2
-          x: 0.075
-          y: 0.075
-          z: 0.075
-    mesh_trans_origin:
-      - position: # box1
-          x: 0.0
-          y: 0.0
-          z: 0.0
-      - position: # box2
-          x: 0.0
-          y: 0.0
-          z: 0.0
+  Objects:
+    box:
+      pose:
+        position: {'x': 0.5, 'y': 0.0, 'z': 0.04}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    box2:
+      pose:
+        position: {'x': 0.6, 'y': -0.2, 'z': 0.04}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
 
 pushbutton2:
-    mesh_names:
-      - button
-      - button_out
-      - button2
-      - button2_out
-      - button3
-      - button3_out
-    mesh_poses:
-      - pose: # Button1 inside
-          position:
-            x: 0.4
-            y: 0.0
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Button1 shell
-          position:
-            x: 0.4
-            y: 0.0
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Button2 inside
-          position:
-            x: 0.6
-            y: 0.2
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Button2 shell
-          position:
-            x: 0.6
-            y: 0.2
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Button3 inside
-          position:
-            x: 0.7
-            y: -0.3
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-      - pose: # Button3 shell
-          position:
-            x: 0.7
-            y: -0.3
-            z: 0.0
-          orientation:
-            x: 0.0
-            y: 0.0
-            z: 0.0
-            w: 1.0
-    mesh_sizes:
-      - position: # Button1 inside
-          x: 0.1
-          y: 0.1
-          z: 0.1
-      - position: # Button1 shell
-          x: 0.1
-          y: 0.1
-          z: 0.13
-      - position: # Button2 inside
-          x: 0.1
-          y: 0.1
-          z: 0.1
-      - position: # Button2 shell
-          x: 0.1
-          y: 0.1
-          z: 0.13
-      - position: # Button3 inside
-          x: 0.1
-          y: 0.1
-          z: 0.1
-      - position: # Button3 shell
-          x: 0.1
-          y: 0.1
-          z: 0.13
+  Objects:
+    button:
+      pose:
+        position: {'x': 0.4, 'y': 0.0, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.1, 'y': 0.1, 'z': 0.1}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    button_out:
+      pose:
+        position: {'x': 0.4, 'y': 0.0, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.1, 'y': 0.1, 'z': 0.13}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    button2:
+      pose:
+        position: {'x': 0.6, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.1, 'y': 0.1, 'z': 0.1}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    button2_out:
+      pose:
+        position: {'x': 0.6, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.1, 'y': 0.1, 'z': 0.13}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    button3:
+      pose:
+        position: {'x': 0.7, 'y': -0.3, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.1, 'y': 0.1, 'z': 0.1}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+    button3_out:
+      pose:
+        position: {'x': 0.7, 'y': -0.3, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.1, 'y': 0.1, 'z': 0.13}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
