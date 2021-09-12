@@ -258,6 +258,77 @@ sudo nvidia-smi
 ```
 [Source](https://medium.com/@sreenithyc21/nvidia-driver-installation-for-ubuntu-18-04-2020-2918be830d0f)
 
+## Add and Edit scenes
+
+Scene configurations YAML file is saved in `<this_pkg>/include/custom_settings/scenes.yaml`.
+
+Create new scenes in this file as follows:
+```yaml
+<Sample scene1 name>:
+  <Sample object 1 name>:
+    pose:
+      # Loads position as dictionary, uses Cartesian coordinates
+      position: {'x': 1.0, 'y': 1.0, 'z': 1.0}
+      # Loads orientation as dictionary, uses Quaternion values
+      orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': }
+    size: [1.,1.,1.]
+  <Sample object 2 name>:
+    pose:
+      # Loads position as list or tuple, uses Cartesian coordinates (x,y,z)
+      position: [1., 1., 1.]
+      # Loads orientation as list or tuple (uses notation x,y,z,w)
+      orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': 1.0}
+    size: [1.,1.,1.]
+  <Sample object 3 name>:
+    pose:
+      # Loads position as saved in poses.yaml name
+      position: home
+      # Loads orientation as saved in poses.yaml name
+      orientation: home
+    size: [1.,1.,1.]
+  <Sample object 4 name>:
+    # Loads both position and orientation as saved in poses.yaml name
+    pose: home
+    size: [1.,1.,1.]
+   ...
+<Sample scene2 name>:
+  ...
+```
+
+## Add and edit paths
+
+Path configurations YAML file is saved in `<this_pkg>/include/custom_settings/paths.yaml`.
+
+Create new paths in this file as follows:
+```yaml
+<Sample path1 name>:
+  <Sample pose 1 name>:
+    pose:
+      # Loads position as dictionary, uses Cartesian coordinates
+      position: {'x': 1.0, 'y': 1.0, 'z': 1.0}
+      # Loads orientation as dictionary, uses Quaternion values
+      orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': }
+    # Grab/Release object
+    action:
+  <Sample pose 2 name>:
+    pose:
+      # Loads position as list or tuple, uses Cartesian coordinates (x,y,z)
+      position: [1., 1., 1.]
+      # Loads orientation as list or tuple (uses notation x,y,z,w)
+      orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': 1.0}
+  <Sample pose 3 name>:
+    pose:
+      # Loads position as saved in poses.yaml name
+      position: home
+      # Loads orientation as saved in poses.yaml name
+      orientation: home
+  <Sample pose 4 name>:
+    # Loads both position and orientation as saved in poses.yaml name
+    pose: home
+   ...
+<Sample path2 name>:
+  ...
+```
 
 ## Frequent issues
 - `segmentation fault` when launching (or the `thread 17 ended with error`). If Conda environment in use, try:
