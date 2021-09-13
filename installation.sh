@@ -32,19 +32,19 @@ source ~/$YOUR_WS/devel/setup.bash
 python -m pip install toppra==0.2.2a0
 
 cd ~
-wget --load-cookies /tmp/cookies.txt "https://docs.google.com/uc?export=download&confirm=$(wget --quiet --save-cookies /tmp/cookies.txt --keep-session-cookies --no-check-certificate 'https://docs.google.com/uc?export=download&id=1r0YWFN3tr03-0g7CCWRmhu9vkWmQ-XqD' -O- | sed -rn 's/.*confirm=([0-9A-Za-z_]+).*/\1\n/p')&id=1r0YWFN3tr03-0g7CCWRmhu9vkWmQ-XqD" -O Leap_Motion.tgz && rm -rf /tmp/cookies.txt
-tar -xvzf Leap_Motion.tgz
+python3 -m pip install gdown
+gdown https://drive.google.com/uc?id=1r0YWFN3tr03-0g7CCWRmhu9vkWmQ-XqD
+tar -xvzf Leap_Motion_SDK_Linux_2.3.1.tgz
 cd LeapDeveloperKit_2.3.1+31549_linux/
 sudo dpkg -i Leap-2.3.1+31549-x64.deb
 cp -r ./LeapSDK/ ~/
 cd ..
 rm -r LeapDeveloperKit_2.3.1+31549_linux
-rm Leap_Motion.tgz
+rm Leap_Motion_SDK_Linux_2.3.1.tgz
 echo "export PYTHONPATH=$PYTHONPATH:$HOME/LeapSDK/lib:$HOME/LeapSDK/lib/x64" >> ~/.bashrc
 
 cd ~/$YOUR_WS/src
 
-python3 -m pip install gdown
 gdown https://drive.google.com/uc?id=1mDockH6SvHjc7qtmNtcoLbp9-5MSbVXv
 tar -xf relaxed_ik.tar.xz
 rm relaxed_ik.tar.xz
