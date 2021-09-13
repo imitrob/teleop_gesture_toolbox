@@ -55,7 +55,6 @@ source ~/$YOUR_WS/devel/setup.bash
 sudo apt update -y
 sudo apt install python3 python3-dev
 cd ~/$YOUR_WS/src/mirracle_gestures
-python3.7 -m pip install -r requirements.txt
+python3 -m pip install -r requirements.txt
 
-echo "source /opt/ros/melodic/setup.bash" >> ~/.bashrc
 echo "export ROSLAUNCH_SSH_UNKNOWN=1" >> ~/.bashrc
