@@ -1,5 +1,8 @@
 # Robot control via gestures
 
+
+
+
 # Installation
 ## (should be done already) ROS Melodic Installation
 ```
@@ -14,6 +17,25 @@ sudo rosdep init
 rosdep update
 sudo apt install ros-melodic-moveit-core ros-melodic-moveit-ros-planning-interface ros-melodic-moveit-visual-tools ros-melodic-control-toolbox ros-melodic-controller-interface ros-melodic-controller-manager ros-melodic-joint-limits-interface ros-melodic-industrial-msgs ros-melodic-moveit-simple-controller-manager ros-melodic-ompl ros-melodic-moveit-planners-ompl ros-melodic-moveit-ros-visualization ros-melodic-joint-state-controller ros-melodic-ros-controllers ros-melodic-moveit-commander ros-melodic-robot-state-publisher python-catkin-tools ros-melodic-joint-state-publisher-gui
 echo "export ROSLAUNCH_SSH_UNKNOWN=1" >> ~/.bashrc
+```
+
+## (Recommended) Automated approach
+
+Check python command refers to `python2.7`.
+1. Fill in your workspace YOUR_WS folder name (in ~/YOUR_WS)
+```
+YOUR_WS='<here>'
+```
+2. Activate super user:
+```
+sudo sudo
+```
+
+3. Continue to [installation](installation.sh)
+4. Build & Source WS
+```
+catkin build
+source devel/setup.bash
 ```
 
 ## Install dependencies
@@ -133,8 +155,12 @@ echo "export PYTHONPATH=$PYTHONPATH:$HOME/LeapSDK/lib:$HOME/LeapSDK/lib/x64" >> 
 ## Relaxed IK
 ```
 cd ~/<your_ws>/src
-unzip mirracle_gestures/include/relaxedIKconfig/relaxed_ik_package_edited.zip
-cd ..
+
+python3 -m pip install gdown
+gdown https://drive.google.com/uc?id=1mDockH6SvHjc7qtmNtcoLbp9-5MSbVXv
+tar -xf relaxed_ik.tar.xz
+rm relaxed_ik.tar.xz
+cd ~/<your_ws>
 catkin build
 source ~/<your_ws>/devel/setup.bash
 ```
@@ -209,7 +235,7 @@ python3.7 -m ipykernel install --user</code>
 
 </details>
 
-## Launch of robot
+## Launch the robot
 
 - Check, the Python2.7 is set to default
 - Right now, the gripper is not supported
