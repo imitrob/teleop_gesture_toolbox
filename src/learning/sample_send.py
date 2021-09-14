@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 ''' Executes PyMC sample with pre-learned model
     -> Receives configuration from main.py through /mirracle_gestures/pymcin topic
     -> Publishes output through /mirracle_gestures/pymcout topic

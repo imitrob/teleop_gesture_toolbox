@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 ''' Utilities functions
 '''
 import numpy as np

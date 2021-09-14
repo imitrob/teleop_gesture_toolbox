@@ -567,16 +567,29 @@ class MoveGroupPythonInteface(object):
         ''' Checks if two type poses are near each other
             (Only for cartesian (xyz), not orientation wise)
         Parameters:
-            pose1 (type Pose() from geometry_msgs.msg)
-            pose2 (type Pose() from geometry_msgs.msg)
+            pose1 (type Pose(), Point(), list or tuple)
+            pose2 (type Pose(), Point(), list or tuple)
             accuracy (Float): threshold of return value
         Returns:
             same poses (Bool)
         '''
-        assert isinstance(pose1,Pose), "Not datatype Pose, pose1: "+str(pose1)
-        assert isinstance(pose2,Pose), "Not datatype Pose, pose2: "+str(pose2)
+        assert isinstance(pose1,(Pose,Point,np.ndarray,list,tuple)), "Not right datatype, pose1: "+str(pose1)
+        assert isinstance(pose2,(Pose,Point,np.ndarray,list,tuple)), "Not right datatype, pose2: "+str(pose2)
 
-        if np.sqrt((pose1.position.x - pose2.position.x)**2 + (pose1.position.y - pose2.position.y)**2 + (pose1.position.z - pose2.position.z)**2) < accuracy:
+        if isinstance(pose1,(list,tuple,np.ndarray)):
+            pose1 = pose1[0:3]
+        elif isinstance(pose1,Point):
+            pose1 = [pose1.x, pose1.y, pose1.z]
+        elif isinstance(pose1,Pose):
+            pose1 = [pose1.position.x, pose1.position.y, pose1.position.z]
+        if isinstance(pose2,(list,tuple,np.ndarray)):
+            pose2 = pose2[0:3]
+        elif isinstance(pose2,Point):
+            pose2 = [pose2.x, pose2.y, pose2.z]
+        elif isinstance(pose2,Pose):
+            pose2 = [pose2.position.x, pose2.position.y, pose2.position.z]
+
+        if np.sqrt((pose1[0] - pose2[0])**2 + (pose1[1] - pose2[1])**2 + (pose1[2] - pose2[2])**2) < accuracy:
             return True
         return False
 
