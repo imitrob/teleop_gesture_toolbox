@@ -48,16 +48,22 @@ python -m pip install python-fcl scikit-learn # RelaxedIK
 
 ## Workspace setup script
 <details><summary>(should be done already) SSH setup (to be able to download from GitLab)</summary>
-<code>ssh-keygen -t ed25519 -C "Computer"
+<code>mkdir ~/.ssh
+cd ~/.ssh
+ssh-keygen -t ed25519 -C "Computer123"
+</code>
+You will be asked for a name to a file, type: Computer123
 
-Computer</code>
-
-- enter, enter
+You will be asked for a password, this is optional and you can proceed with: enter, enter
 
 <code>sudo apt install xclip
  xclip -sel clip < Computer.pub</code>
 - GitLab -> Settings -> SSK Keys -> Add key
-- Test if working -> need to say hello..., ssh key in ~/.ssh
+- Test if working:
+<code>cd ~/.ssh
+ssh -T git@gitlab.ciirc.cvut.cz
+</code>
+should print out Welcome message.
 </details>
 
 - Pick the robot setup: _KUKA iiwa_ or _Franka Emika Panda_
