@@ -130,5 +130,5 @@ dependencies:
     - webencodings==0.5.1
     - widgetsnbextension==3.5.1
     - wstool==0.1.17
-    - xmlschema==1.2.3
+    #- xmlschema==1.2.3
     - zipp==1.2.0
