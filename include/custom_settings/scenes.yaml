@@ -17,6 +17,14 @@ threecones:
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
 
+sphere:
+  Objects:
+    sphere1:
+      pose:
+        position: {'x': 0.6, 'y': 0.2, 'z': 0.0}
+        orientation: {'x': 0.0, 'y': 0.0, 'z':0.0, 'w':1.0}
+      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+
 threecones2:
   Objects:
     cone1:
@@ -74,9 +82,9 @@ pickplace:
   Objects:
     box:
       pose:
-        position: {'x': 0.6, 'y': 0.1, 'z': 0.04}
-        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+        position: {'x': 0.5, 'y': -0.15, 'z': 0.04}
+        orientation: [0, 0, 0.3826834, 0.9238795]
+      size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
 
 pushbutton:

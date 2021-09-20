@@ -215,11 +215,15 @@ class Example(QMainWindow):
             sceneMenu.addAction(action)
 
         initTestAction = QAction('Initialization test', self)
-        initTestAction.triggered.connect(settings.mo.testInit)
+        initTestAction.triggered.connect(self.thread_testInit)
         tableTestAction = QAction('Table test', self)
-        tableTestAction.triggered.connect(settings.mo.testMovements)
+        tableTestAction.triggered.connect(self.thread_testMovements)
         inputTestAction = QAction('Test by input', self)
-        inputTestAction.triggered.connect(settings.mo.testMovementsInput)
+        inputTestAction.triggered.connect(self.thread_testMovementsInput)
+        inputPlotJointsAction = QAction('Plot joints path now', self)
+        inputPlotJointsAction.triggered.connect(self.thread_inputPlotJointsAction)
+        inputPlotPosesAction = QAction('Plot poses path now', self)
+        inputPlotPosesAction.triggered.connect(self.thread_inputPlotPosesAction)
 
         ## Add actions to the menu
         viewMenu.addAction(viewOptionsAction)
@@ -233,6 +237,8 @@ class Example(QMainWindow):
         testingMenu.addAction(tableTestAction)
         testingMenu.addAction(initTestAction)
         testingMenu.addAction(inputTestAction)
+        testingMenu.addAction(inputPlotJointsAction)
+        testingMenu.addAction(inputPlotPosesAction)
         leapmotionMenu.addAction(record_with_keys_action)
 
         thread = Thread(target = self.play_method)
@@ -885,6 +891,23 @@ class Example(QMainWindow):
             'z': Qt.Key_Z
             }
         return mapDict[key]
+
+    def thread_testInit(self):
+        thread = Thread(target = settings.mo.testInit)
+        thread.start()
+    def thread_testMovements(self):
+        thread = Thread(target = settings.mo.testMovements)
+        thread.start()
+    def thread_testMovementsInput(self):
+        thread = Thread(target = settings.mo.testMovementsInput)
+        thread.start()
+    def thread_inputPlotJointsAction(self):
+        thread = Thread(target = settings.mo.inputPlotJointsAction)
+        thread.start()
+    def thread_inputPlotPosesAction(self):
+        thread = Thread(target = settings.mo.inputPlotPosesAction)
+        thread.start()
+
 
 class ObjectQt():
     def __init__(self, NAME=None, qt=None, page=None, view_group=['GesturesViewState']):

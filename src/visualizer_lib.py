@@ -24,7 +24,12 @@ from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import time as t
 
-
+# Ensure package independency to ROS
+try:
+    from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped, Vector3Stamped, QuaternionStamped, Vector3
+    ROS_COMPATIBILITY = True
+except ImportError:
+    ROS_COMPATIBILITY = False
 
 class VisualizerLib():
     def __init__(self):
@@ -129,6 +134,8 @@ class VisualizerLib():
         if data is None:
             print("[Visualizer lib] No data on input!")
             return
+        if ROS_COMPATIBILITY:
+            data = self.dataROStoList(data)
         # data must be in (n x 3)
         assert len(data[0]) == 3, "Data not valid, points are not [x,y,z] type"
 
@@ -145,7 +152,7 @@ class VisualizerLib():
             yt.append(point[1])
             zt.append(point[2])
         ax.elev = 20
-        ax.azim = find_best_azimuth(data)
+        ax.azim = self.find_best_azimuth(data)
         ax.alpha = 0
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
@@ -163,7 +170,6 @@ class VisualizerLib():
         #plt.annotate("Num points:", xy=(-0.15, 1.0), xycoords='axes fraction')
         fig.canvas.draw()
         fig.canvas.flush_events()
-        print("vis done")
 
     def find_best_azimuth(self, data):
         ''' Computes best view angle to 3D trajectory
@@ -229,6 +235,25 @@ class VisualizerLib():
             # This works for QT and GTK
             # You can also use window.setGeometry
             f.canvas.manager.window.move(x, y)
+
+
+    def dataROStoList(self, data):
+        ''' array of Points,Poses,PoseStamped to List
+        '''
+        new_data = []
+        if isinstance(data[0], Pose):
+            for pose in data:
+                new_data.append([pose.position.x, pose.position.y, pose.position.z])
+        elif isinstance(data[0], Point):
+            for point in data:
+                new_data.append([point.x, point.y, point.z])
+        elif isinstance(data[0], PoseStamped):
+            for pose_stamped in data:
+                new_data.append([pose_stamped.pose.position.x, pose_stamped.pose.position.y, pose_stamped.pose.position.z])
+        else:
+            return data
+        return new_data
+
 
 def main():
     ''' Test of printing multiple plots at once.

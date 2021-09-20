@@ -123,7 +123,7 @@ python -m pip install toppra==0.2.2a0
 Note: We are installing older version of toppra, that is because newer versions are working only for Python3.
 Another toppra dependency is qpOASES solver. Installation is tricky:
 1. Download binaries from https://www.coin-or.org/download/source/qpOASES/qpOASES-3.2.1.zip and unzip it
-2. Remove `-D__USE_LONG_INTEGERS__ -D__USE_LONG_FINTS__` flags from install dir. [Why?](https://github.com/coin-or/qpOASES/issues/90)
+2. Remove `-D__USE_LONG_INTEGERS__ -D__USE_LONG_FINTS__` flags from `<qpOASES-3.2.1>/make_linux.mk`. [Why?](https://github.com/coin-or/qpOASES/issues/90)
 3. Install with:
 ```
 cd <upzipped folder>

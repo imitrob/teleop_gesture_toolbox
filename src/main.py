@@ -24,13 +24,18 @@ import trajectory_action_client
 import matplotlib.pyplot as plt
 from visualizer_lib import VisualizerLib
 from std_msgs.msg import Int8, Float64MultiArray, Int32, Bool
-from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, Vector3
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
 from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
 from relaxed_ik.msg import EEPoseGoals, JointAngles
 from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
+
+
+# Temporary solution (reading from mirracle_sim pkg)
+sys.path.append('/home/pierro/my_ws/src/mirracle_sim/src')
+from coppelia_sim_ros_lib import CoppeliaROSInterface
 
 def callbackik(data):
     joints = []
@@ -42,6 +47,10 @@ coppelia_eef_pose = Pose()
 def coppelia_eef_callback(data):
     global coppelia_eef_pose
     coppelia_eef_pose = data
+
+def camera_angle_callback(data):
+    global camera_orientation
+    camera_orientation = data
 
 def save_joints(data):
     ''' Saves joint_states to * append array 'settings.joint_in_time' circle buffer.
@@ -117,6 +126,8 @@ def main():
     if settings.SIMULATOR_NAME == 'coppelia':
         rospy.Subscriber('/pose_eef', Pose, coppelia_eef_callback)
 
+        rospy.Subscriber('/coppelia/camera_angle', Vector3, camera_angle_callback)
+
     settings.mo = mo = moveit_lib.MoveGroupPythonInteface()
     # Don't use any mode for start
     settings.md.Mode = ''
@@ -177,6 +188,9 @@ def updateValues():
         # This is simple check if relaxedIK results and joint states are same
         #if np.sum(np.subtract(settings.goal_joints,settings.joints)) > 0.1:
         #    print("[WARN*] joints not same!")
+        # 4. Update camera angle
+        if settings.SIMULATOR_NAME == 'coppelia':
+            settings.md.camera_orientation = camera_orientation
         # Sleep
         time.sleep(0.1)
 
@@ -204,10 +218,10 @@ def main_manager():
 
         if settings.VIS_ON == 'true':
             if settings.loopn < 5:
-                mo.callViz()
+                mo.plotJointsCallViz()
             else:
                 if enable_plot:
-                    mo.callViz(load_data=True)
+                    mo.plotJointsCallViz(load_data=True)
                     settings.viz.show()
                     print("[INFO*] Plot complete")
                     enable_plot = False
@@ -226,7 +240,21 @@ def main_manager():
 
                 ### MODE 2 interactive
                 elif settings.md.liveMode == 'interactive':
-                    goal_pose = settings.mo.transformLeapToScene(settings.frames_adv[-1].r.pPose.pose, normdir=settings.frames_adv[-1].r.pNormDir)
+                    settings.goal_pose = goal_pose = settings.mo.transformLeapToScene(settings.frames_adv[-1].r.pPose.pose, normdir=settings.frames_adv[-1].r.pNormDir)
+
+                    # 1. Gesture output
+                    gripper_position_ = settings.gd.r.poses[settings.gd.r.POSES["grab"]].prob
+                    gripper_position_ = 1.-gripper_position_
+                    # 2. the gripper control is running
+                    if settings.loopn%5==0:
+                        action = ''
+                        if gripper_position_ < 0.1:
+                            action = 'grasp'
+                        if gripper_position_ > 0.9:
+                            action = 'release'
+                        CoppeliaROSInterface.gripper_control(gripper_position_, effort=0.04, action=action, object='box')
+
+                    '''
                     z = settings.mo.inSceneObj(goal_pose)
                     if 'drawer' in z: # drawer outside cannot be attached
                         z.remove('drawer')
@@ -272,7 +300,7 @@ def main_manager():
                                 print("set value of drawer to ", settings.goal_pose.position.x)
                         else:
                             settings.goal_pose = goal_pose
-
+                    '''
 
                 ### MODE 3 gesture controlled
                 elif settings.md.liveMode == 'gesture':

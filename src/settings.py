@@ -90,8 +90,8 @@ def init(minimal=False):
     GRASPING_GROUP = robot_move_data_loaded['robots'][ROBOT_NAME]['GRASPING_GROUP']
     if SIMULATOR_NAME not in robot_move_data_loaded['simulators']:
         raise Exception("Wrong simualator name")
-    robot_move_data_loaded['robots'][ROBOT_NAME][SIMULATOR_NAME]['TAC_TOPIC']
-    robot_move_data_loaded['robots'][ROBOT_NAME][SIMULATOR_NAME]['JOINT_STATES_TOPIC']
+    TAC_TOPIC = robot_move_data_loaded['robots'][ROBOT_NAME][SIMULATOR_NAME]['TAC_TOPIC']
+    JOINT_STATES_TOPIC = robot_move_data_loaded['robots'][ROBOT_NAME][SIMULATOR_NAME]['JOINT_STATES_TOPIC']
 
     ### HERE ENDS MINIMAL CONFIGURATION      ###
     if minimal:
@@ -200,6 +200,7 @@ def init(minimal=False):
     ### 8. For visualization data holder    ###
     ###########################################
     global viz; viz = None # VisualizerLib obj
+    ## Joints visualization
     global sendedPlot; sendedPlot = None
     global realPlot; realPlot = None
     global sendedPlotVel; sendedPlotVel = None
@@ -210,6 +211,11 @@ def init(minimal=False):
     global toppraPlan; toppraPlan = None
     # Visualized Number of Joint <0,6>
     global NJ; NJ = 0
+
+    ## Pose visualization
+    global dataPosePlot; dataPosePlot = None
+    global dataPoseGoalsPlot; dataPoseGoalsPlot = None
+
 
     print("[Settings] done")
 
@@ -373,6 +379,13 @@ class MoveData():
             self.ENV_DAT['table']['ori'] = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
         # chosen workspace
         self.ENV = self.ENV_DAT['above']
+
+        # beta
+        # angles from camera -> coppelia
+        # angles from real worls -> some params
+        # TODO: load from YAML
+        self.camera_orientation = Vector3(0.,0.,0.)
+
         self.Mode = 'live' # 'play'/'live'/'alternative'
         self.SCALE = 2 # scaling factor for Leap
         ## interactive

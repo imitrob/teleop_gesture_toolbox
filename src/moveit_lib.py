@@ -56,8 +56,8 @@ from os.path import isfile
 
 ## just test, if qpOASES can be sourced by adding the given folder
 # -> should be sourced by installation as in README.md
-#sys.path.append("~/Documents/toppra_test/qpOASES-3.2.1/interfaces/python")
-#sys.path.append("~/Documents/toppra_test/toppra-0.2.2a/examples")
+#sys.path.append("~/Documents/qpOASES-3.2.1/interfaces/python")
+#sys.path.append("~/Documents/toppra-0.2.2a/examples")
 import toppra as ta
 from toppra import SplineInterpolator
 
@@ -312,7 +312,7 @@ class MoveGroupPythonInteface(object):
             return False
 
 
-    def add_or_edit_object(self, file="", name='box', pose=None, shape="", size=None, color='b', friction=0.1, frame_id='panda_link7', timeout=4):
+    def add_or_edit_object(self, file="", name='box', pose=None, shape="", size=None, collision='true', color='y', friction=0.1, frame_id='panda_link7', mass=0.1, inertia=np.zeros(9), inertiaTransformation=np.zeros(12), dynamic='true', pub_info='false', texture_file="", timeout=4):
         ''' Adds shape/mesh based on configuration
             - If no shape & no mesh specified -> box created
             - If both shape & mesh specified -> mesh is used
@@ -349,7 +349,7 @@ class MoveGroupPythonInteface(object):
         rospy.wait_for_service('add_or_edit_object')
         try:
             add_or_edit_object = rospy.ServiceProxy('add_or_edit_object', AddOrEditObject)
-            resp1 = add_or_edit_object(file, name, pose, shape, size, color, friction, frame_id)
+            resp1 = add_or_edit_object(name=name, init_file=file, init_shape=shape, init_size=size, init_collision=collision, pose=pose, color=color, friction=friction, frame_id=frame_id, mass=mass, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
 
@@ -618,6 +618,17 @@ class MoveGroupPythonInteface(object):
         y = -pose.position.z/1000
         z = pose.position.y/1000
 
+
+        ## beta SOMEWHERE here should be camera rotation from CoppeliaSim
+        '''
+        camera = settings.md.camera_orientation
+        camera_matrix = tf.transformations.euler_matrix(camera.x, camera.y, camera.z, 'sxyz')
+        camera_matrix = np.array(camera_matrix)[0:3,0:3]
+        x_cop = np.dot([x,y,z], camera_matrix[0])
+        y_cop = np.dot([x,y,z], camera_matrix[1])
+        z_cop = np.dot([x,y,z], camera_matrix[2])
+        x,y,z = x_cop,y_cop,z_cop
+        '''
         # Linear transformation to point with rotation
         # How the Leap position will affect system
         pose_.position.x = np.dot([x,y,z], settings.md.ENV['axes'][0])*settings.md.SCALE + settings.md.ENV['start'].x
@@ -890,17 +901,18 @@ class MoveGroupPythonInteface(object):
             settings.TOPPRA_ON (Bool): Enables toppra planning to trajectory
         '''
         ## Check two states
-        # 1. new joint states are near the desired one and the robot is not moving
-        if np.sum(np.abs(np.array(joint_states) - np.array(settings.joints))) < 0.1 and np.sum(settings.joints_in_time[-1].velocity) < 0.1:
-            print(joint_states)
-            self.timePassedPreviousTraj = time.time()
-            print("[Info*] Robot on place")
-            return
-        # 2. The goal does not changed to new one
-        if settings.md._goal and (np.sum(np.abs(np.array(settings.md._goal.trajectory.points[-1].positions) - np.array(joint_states))) < 0.1):
-            self.timePassedPreviousTraj = time.time()
-            print("[Info*] Goal has not changed")
-            return
+        if settings.md._goal:
+            # 1. new joint states are near the desired one and the robot is not moving
+            if np.sum(np.abs(np.array(joint_states) - np.array(settings.joints))) < 0.1 and np.sum(settings.joints_in_time[-1].velocity) < 0.1:
+                print(joint_states)
+                self.timePassedPreviousTraj = time.time()
+                print("[Info*] Robot on place")
+                return
+            # 2. The goal does not changed to new one
+            if settings.md._goal and (np.sum(np.abs(np.array(settings.md._goal.trajectory.points[-1].positions) - np.array(joint_states))) < 0.1):
+                self.timePassedPreviousTraj = time.time()
+                print("[Info*] Goal has not changed")
+                return
 
         assert len(joint_states)==7, "Not right datatype"+str(type(joint_states))
         js2_joints = np.array(joint_states) # desired
@@ -977,7 +989,7 @@ class MoveGroupPythonInteface(object):
             # 4. replace with action client
             print("traj point 1", settings.md._goal.trajectory.points[0].positions)
             ''' TEMPORARY (I will try reject everything before)
-
+            
             def findPointInTrajAfterNow(trajectory):
                 for n, point in enumerate(trajectory.points):
                     if point.time_from_start.to_sec()+trajectory.header.stamp.to_sec() > rospy.Time.now().to_sec():
@@ -994,8 +1006,8 @@ class MoveGroupPythonInteface(object):
             settings.md._goal.trajectory.points = settings.md._goal.trajectory.points[index-2:]
             settings.md._goal.trajectory.header.stamp = rospy.Time.now()
             zeroTimeFromStart()
-
             '''
+
             self.tac.add_goal(deepcopy(settings.md._goal))
             self.tac.replace()
 
@@ -1029,7 +1041,32 @@ class MoveGroupPythonInteface(object):
         dataJointPlotVel = [pt.velocity[settings.NJ] for pt in list(settings.joints_in_time)]
         settings.realPlotVel = zip(timeJointPlotVel, dataJointPlotVel)
 
-    def callViz(self, load_data=False, plotToppraPlan=False, plotAccelerations=False, plotEfforts=False):
+    def plotPosesCallViz(self, load_data=True):
+        ''' Visualize data + show. Loading series from:
+            - eef poses: settings.dataPosePlot
+            - goal poses: settings.dataPoseGoalsPlot
+
+        Parameters:
+            load_data (bool): Loads the data from:
+                - eef poses: settings.eef_pose_array
+                - goal poses: settings.goal_pose_array
+        '''
+
+        if load_data:
+            settings.dataPosePlot = [pt.position for pt in list(settings.eef_pose_array)]
+            settings.dataPoseGoalsPlot = [pt.position for pt in list(settings.goal_pose_array)]
+
+        if not settings.dataPosePlot:
+            print("[ERROR*] No data when plotting poses were found, probably call with param: load_data=True")
+            return
+
+        # Plot positions
+        settings.viz.visualize_new_fig(title="Trajectory executed - vis. poses of panda eef:", dim=3)
+        settings.viz.visualize_3d(data=settings.dataPosePlot, color='b', label="Real trajectory poses")
+        settings.viz.visualize_3d(data=settings.dataPoseGoalsPlot, color='r', label="Goal poses")
+
+
+    def plotJointsCallViz(self, load_data=False, plotToppraPlan=False, plotVelocities=True, plotAccelerations=False, plotEfforts=False):
         ''' Visualize data + show. Loading series from:
                 - Sended trajectory values: settings.sendedPlot, settings.sendedPlotVel
                 - The joint states values: settings.realPlot, settings.realPlotVel
@@ -1039,6 +1076,7 @@ class MoveGroupPythonInteface(object):
 
         Parameters:
             load_data (bool): Loads joint_states positions and velocities to get up-to-date trajectories
+            plotVelocities (bool): Plots velocities
             plotToppraPlan (bool): Plots toppra RobotTrajectory plan
             plotAccelerations (bool): Plots accelerations
             plotEfforts (bool): Plots efforts
@@ -1060,16 +1098,17 @@ class MoveGroupPythonInteface(object):
             settings.viz.visualize_2d(data=[settings.point_after_toppra, settings.point_after_replace], color='k', label="Replace executing")
         else:
             pass
-        settings.viz.visualize_2d(data=settings.realPlot, color='b', label="Real (joint states) trajectory position")
+        settings.viz.visualize_2d(data=settings.realPlot, color='b', label="Real (joint states) trajectory position", xlabel='time (global rospy) [s]', ylabel='joint positons [rad]')
 
         # Plot velocities
-        settings.viz.visualize_new_fig(title="Trajectory number "+str(settings.loopn)+" executed - vis. velocity of panda_joint"+str(settings.NJ+1), dim=2)
+        if plotVelocities:
+            settings.viz.visualize_new_fig(title="Trajectory number "+str(settings.loopn)+" executed - vis. velocity of panda_joint"+str(settings.NJ+1), dim=2)
 
-        if settings.ROBOT_NAME == 'panda' and (settings.SIMULATOR_NAME == 'gazebo' or settings.SIMULATOR_NAME == 'real'):
-            settings.viz.visualize_2d(data=settings.sendedPlotVel, color='r', label="Replaced (sended) trajectory velocity", scatter_pts=True)
-        else:
-            pass
-        settings.viz.visualize_2d(data=settings.realPlotVel, color='b', label="Real (states) velocity")
+            if settings.ROBOT_NAME == 'panda' and (settings.SIMULATOR_NAME == 'gazebo' or settings.SIMULATOR_NAME == 'real'):
+                settings.viz.visualize_2d(data=settings.sendedPlotVel, color='r', label="Replaced (sended) trajectory velocity", scatter_pts=True)
+            else:
+                pass
+            settings.viz.visualize_2d(data=settings.realPlotVel, color='b', label="Real (states) velocity", xlabel='time (global rospy) [s]', ylabel='joint velocities [rad/s]')
 
         # Plot accelerations
         if plotAccelerations:
@@ -1268,7 +1307,7 @@ class MoveGroupPythonInteface(object):
             #print("gg: ", n_grid)
             #print("N : ", np.ceil(pt_per_s*ss[-1]))
             #print("A : ", np.linspace(0.0, ss[-1], np.min([n_grid, int(np.ceil(pt_per_s*ss[-1]))])))
-            instance = ta.algorithm.TOPPRAsd([pc_vel, pc_vel2, pc_acc], path, gridpoints=np.linspace(0.0, ss[-1], int(np.min([n_grid, int(np.ceil(pt_per_s*ss[-1]))]))))
+            instance = ta.algorithm.TOPPRAsd([pc_vel, pc_vel2, pc_acc], path, solver_wrapper='seidel', gridpoints=np.linspace(0.0, ss[-1], int(np.min([n_grid, int(np.ceil(pt_per_s*ss[-1]))]))))
 
 
         ''' Original function edited primarily HERE
@@ -1762,6 +1801,16 @@ class MoveGroupPythonInteface(object):
                     pass
                 row.append(self.distancePoses(settings.eef_pose, p))
             dists.append(row)
+
+    def inputPlotJointsAction(self):
+        settings.viz = VisualizerLib()
+        self.plotJointsCallViz(load_data=True, plotVelocities=False)
+        settings.viz.show()
+
+    def inputPlotPosesAction(self):
+        settings.viz = VisualizerLib()
+        self.plotPosesCallViz(load_data=True)
+        settings.viz.show()
 
 class Raw_Kinematics():
     ''' Includes forward kinematics and jacobian computation for Panda and KUKA iiwa
