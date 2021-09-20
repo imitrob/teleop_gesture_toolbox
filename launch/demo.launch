@@ -16,6 +16,11 @@
   <arg name="scene_file_franka_hand" default="scene_panda_franka_gripper.ttt" />
   <arg name="scene_file_franka_hand_with_camera" default="scene_panda_custom_gripper.ttt" />
 
+  <!-- relaxedIK config file names -->
+  <arg name="relaxed_ik_config_file_name_none" value="relaxedIK_panda.config" />
+  <arg name="relaxed_ik_config_file_name_franka_hand" value="relaxedIK_panda_franka_hand.config" />
+  <arg name="relaxed_ik_config_file_name_franka_hand_with_camera" value="relaxedIK_panda_franka_hand_with_gripper.config" />
+
   <!-- Probably do not change below -->
   <!-- ############################ -->
   <param name="mirracle_config/launch_ui" type="str" value="$(arg launch_ui)" />
@@ -39,18 +44,15 @@
     </group>
 
     <group if="$(eval arg('gripper') == 'none')">
-      <arg name="config_file_name" value="relaxedIK.config" />
-      <param name="config_file_name" value="$(arg config_file_name)"/>
+      <param name="config_file_name" value="$(arg relaxed_ik_config_file_name_none)"/>
       <param name="/mirracle_config/config_file_scene" value="$(arg scene_file_none)" />
     </group>
     <group if="$(eval arg('gripper') == 'franka_hand')">
-      <arg name="config_file_name" value="relaxedIK_panda_gripper_withhandjoint.config" />
-      <param name="config_file_name" value="$(arg config_file_name)"/>
+      <param name="config_file_name" value="$(arg relaxed_ik_config_file_name_franka_hand)"/>
       <param name="/mirracle_config/config_file_scene" value="$(arg scene_file_franka_hand)" />
     </group>
     <group if="$(eval arg('gripper') == 'franka_hand_with_camera')">
-      <arg name="config_file_name" value="relaxedIK_custom_gripper_withjointhand.config" />
-      <param name="config_file_name" value="$(arg config_file_name)"/>
+      <param name="config_file_name" value="$(arg relaxed_ik_config_file_name_franka_hand_with_camera)"/>
       <param name="/mirracle_config/config_file_scene" value="$(arg scene_file_franka_hand_with_camera)" />
     </group>
     <include file="$(find mirracle_sim)/launch/coppelia_ros.launch" />
