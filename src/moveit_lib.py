@@ -149,6 +149,10 @@ class MoveGroupPythonInteface(object):
 
         self.MOVEIT = False
 
+
+        # Will replace trajectory inside planning the trajectory
+        self.trajectory_action_perform = True
+
     def getCurrentPose(self, stamped=False):
         ''' Returns pose of endeffector.
             - eef is changed based on gripper, in order to maintain place of object pickup
@@ -196,7 +200,7 @@ class MoveGroupPythonInteface(object):
         else:
             if settings.ROBOT_NAME == 'panda':
                 if settings.SIMULATOR_NAME == 'gazebo' or settings.SIMULATOR_NAME == 'real':
-                    self.perform_trajectory_from_joints(joints)
+                    self.plan_and_perform_trajectory_from_joints(joints)
                 elif settings.SIMULATOR_NAME == 'coppelia':
                     pass # publsiher is enabled
                 else: raise Exception("[ERROR*] Simulator name wrong")
@@ -892,13 +896,14 @@ class MoveGroupPythonInteface(object):
 
         return goal_trajectory
 
-    def perform_trajectory_from_joints(self, joint_states=None):
+    def plan_and_perform_trajectory_from_joints(self, joint_states=None):
         ''' Performs/Updates/Replaces trajectory with actionlib.
 
         Parameters:
             joint_states (Float[7]): joint states of the robot
         Global parameters:
             settings.TOPPRA_ON (Bool): Enables toppra planning to trajectory
+            self.trajectory_action_perform (Bool): If false, this function does only the planning
         '''
         ## Check two states
         if settings.md._goal:
@@ -936,8 +941,10 @@ class MoveGroupPythonInteface(object):
                 print("n points: ", len(goal.trajectory.points), " joints diff: ", round(sum(js2_joints-js1_joints),2), " pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2))
             goal.trajectory.header.stamp = rospy.Time.now()
             settings.md._goal = goal
-            self.tac.add_goal(goal)
-            self.tac.replace()
+
+            if self.trajectory_action_perform:
+                self.tac.add_goal(goal)
+                self.tac.replace()
             point_after_toppra = [rospy.Time.now().to_sec(), settings.joints[settings.NJ]]
 
         else:
@@ -989,7 +996,7 @@ class MoveGroupPythonInteface(object):
             # 4. replace with action client
             print("traj point 1", settings.md._goal.trajectory.points[0].positions)
             ''' TEMPORARY (I will try reject everything before)
-            
+            '''
             def findPointInTrajAfterNow(trajectory):
                 for n, point in enumerate(trajectory.points):
                     if point.time_from_start.to_sec()+trajectory.header.stamp.to_sec() > rospy.Time.now().to_sec():
@@ -1006,10 +1013,10 @@ class MoveGroupPythonInteface(object):
             settings.md._goal.trajectory.points = settings.md._goal.trajectory.points[index-2:]
             settings.md._goal.trajectory.header.stamp = rospy.Time.now()
             zeroTimeFromStart()
-            '''
 
-            self.tac.add_goal(deepcopy(settings.md._goal))
-            self.tac.replace()
+            if self.trajectory_action_perform:
+                self.tac.add_goal(deepcopy(settings.md._goal))
+                self.tac.replace()
 
         point_after_replace = [rospy.Time.now().to_sec(), settings.joints[settings.NJ]]
         # 5. (OPTIONAL) Save visualization data
@@ -1040,6 +1047,7 @@ class MoveGroupPythonInteface(object):
         timeJointPlotVel = [pt.header.stamp.to_sec() for pt in list(settings.joints_in_time)]
         dataJointPlotVel = [pt.velocity[settings.NJ] for pt in list(settings.joints_in_time)]
         settings.realPlotVel = zip(timeJointPlotVel, dataJointPlotVel)
+
 
     def plotPosesCallViz(self, load_data=True):
         ''' Visualize data + show. Loading series from:
@@ -1312,6 +1320,7 @@ class MoveGroupPythonInteface(object):
 
         ''' Original function edited primarily HERE
         '''
+        '''
         instance.set_desired_duration(traj_duration)
         pathVelocityNow = self.getPathVelocityNow()
         jnt_traj = self.extractToppraTraj(instance.compute_trajectory(pathVelocityNow, 0.))
@@ -1320,8 +1329,14 @@ class MoveGroupPythonInteface(object):
         print("sd_vec ", sd_vec)
         self.savedVelocityVec = sd_vec # update vals
         self.durationPreviousTraj = jnt_traj.duration
+        '''
         ''' END Edit
         '''
+        instance.set_desired_duration(traj_duration)
+        jnt_traj = self.extractToppraTraj(instance.compute_trajectory(0., 0.))
+        '''
+        '''
+
         feas_set = instance.compute_feasible_sets()
 
         # ts_sample = np.linspace(0, jnt_traj.duration, 10*len(plan.joint_trajectory.points))
@@ -1802,6 +1817,34 @@ class MoveGroupPythonInteface(object):
                 row.append(self.distancePoses(settings.eef_pose, p))
             dists.append(row)
 
+
+    def testTrajectoryActionClient(self):
+        settings.md.Mode = ''
+        self.trajectory_action_perform = False
+        Js = [ [-1.72, 0.42, -1.61, -1.98, -1.36, 0.49, -1.48],
+        [1.87, -1.49, -2.60, -1.13, -0.34, 3.19, -1.83],
+        [-0.32, 1.53, -1.60, -1.45, 0.10, 3.21, 0.63],
+        [2.43, -0.22, -0.49, -0.40, -1.88, 2.41, -0.99],
+        [0.87, -0.10, 1.84, -2.86, -1.07, 2.28, 1.89],
+        [2.01, 0.06, -0.40, -2.16, -1.54, 3.02, -1.59],
+        [0.93, 0.24, -0.97, -2.86, 0.22, 3.19, -0.41],
+        [1.09, 0.19, 1.35, -2.67, 0.12, 1.32, -0.44]
+        ]
+        while True:
+            settings.mo.go_to_joint_state(joints = Js[random.choice(Js)])
+
+            settings.mo.plotJointsCallViz(load_data=True)
+            raw_input()
+
+            settings.md._goal.trajectory.header.stamp = rospy.Time.now()
+            settings.mo.tac.add_goal(deepcopy(settings.md._goal))
+            settings.mo.tac.replace()
+
+            time.sleep(3)
+            settings.mo.plotJointsCallViz(load_data=True)
+            raw_input()
+
+
     def inputPlotJointsAction(self):
         settings.viz = VisualizerLib()
         self.plotJointsCallViz(load_data=True, plotVelocities=False)
@@ -1877,7 +1920,7 @@ class Raw_Kinematics():
         return jacobian
 
 class IK_bridge():
-    '''
+    ''' PURPOSE: Compare different inverse kinematics solvers
         - MoveIt IK
         -
 

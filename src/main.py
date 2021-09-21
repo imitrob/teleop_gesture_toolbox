@@ -168,6 +168,9 @@ def main():
     thread_updater = Thread(target = updateValues)
     thread_updater.daemon=True
     thread_updater.start()
+
+    if settings.VIS_ON == 'true':
+        settings.viz = VisualizerLib()
     print("[Info*] Main ready")
 
 def updateValues():
@@ -207,9 +210,6 @@ def main_manager():
     time_on_one_pose = 0.0
     mo = settings.mo
     print("[INFO*] Main manager initialized")
-
-    if settings.VIS_ON == 'true':
-        settings.viz = VisualizerLib()
 
     while not rospy.is_shutdown():
         settings.loopn += 1
