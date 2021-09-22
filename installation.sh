@@ -85,8 +85,6 @@ echo ">> Please enter name of you ROS workspace (e.g. panda_ws):"
 read YOUR_WS
 echo "Your workspace name is: $YOUR_WS"
 
-if false; then
-
 echo ">> Press enter to install or review The ROS Melodic installation:"
 read input1
 
@@ -175,4 +173,3 @@ catkin build
 source devel/setup.bash
 
 echo ">> Installation mirracle_gestures done!"
-fi
