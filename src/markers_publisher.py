@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 ''' rViz Markers library. Called from 'main.py' as a thread.
     'createMarker' function 'GenerateMarkers' and publishes it in a loop.
 '''

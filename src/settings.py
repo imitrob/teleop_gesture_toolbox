@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 '''
 Loads informations about robot, configurations, move data, gestures, ...
 All configurations are loaded from:

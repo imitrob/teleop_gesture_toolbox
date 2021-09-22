@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python2
 """
 Copyright (c) 2018 Robert Bosch GmbH
 All rights reserved.

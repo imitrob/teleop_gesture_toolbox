@@ -1,4 +1,4 @@
-#!/usr/bin/python2.7
+#!/usr/bin/python2
 """ Launches Interface Application
     - Loads config from include/custom_settings/application.yaml
 """
