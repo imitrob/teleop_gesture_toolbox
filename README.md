@@ -2,7 +2,7 @@
 
 # Installation
 
-Download installation script [here](https://gitlab.ciirc.cvut.cz/imitrob/mirracle/mirracle_sim/-/raw/main/installation.sh?inline=false) and run with `bash installation.sh`.
+Download installation script [here](https://gitlab.ciirc.cvut.cz/imitrob/mirracle/mirracle_gestures/-/raw/master/installation.sh?inline=false) and run with `bash installation.sh`.
 
 Old installation description file can be found in [installation-old.md](installation-old.md).
 
