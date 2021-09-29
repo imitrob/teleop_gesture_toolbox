@@ -34,7 +34,7 @@ from sensor_msgs.msg import JointState
 
 
 # Temporary solution (reading from mirracle_sim pkg)
-sys.path.append('/home/pierro/my_ws/src/mirracle_sim/src')
+sys.path.append(settings.HOME+"/"+settings.WS_FOLDER+'/src/mirracle_sim/src')
 from coppelia_sim_ros_lib import CoppeliaROSInterface
 
 def callbackik(data):
