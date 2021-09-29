@@ -34,6 +34,24 @@ else
   fi
 fi
 
+# permission check
+mkdir ~/permissio_check_7467523
+cd ~/permissio_check_7467523
+msgout=`(git clone --recursive git@gitlab.ciirc.cvut.cz:rop/panda/panda_testbed.git) 2>&1`
+if grep -q permission <<< "$msgout"
+then
+  echo "Your setup SSH key does not have permission to panda testbed project"
+  exit 1
+fi
+msgout=`(git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/mirracle_gestures.git) 2>&1`
+if grep -q permission <<< "$msgout"
+then
+  echo "Your setup SSH key does not have permission to mirracle gestures project"
+  exit 1
+fi
+cd ..
+sudo rm -r permissio_check_7467523
+
 echo ">> Press enter to solve Python2/3 version"
 read input0
 
@@ -84,6 +102,8 @@ fi
 echo ">> Please enter name of you ROS workspace (e.g. panda_ws):"
 read YOUR_WS
 echo "Your workspace name is: $YOUR_WS"
+cd ~
+mkdir -p $YOUR_WS/src
 
 echo ">> Press enter to install or review The ROS Melodic installation:"
 read input1
