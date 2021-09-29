@@ -103,6 +103,7 @@ cd ~/<your_ws>
 catkin build # builds the package
 source ~/<your_ws>/devel/setup.bash
 python2 -m pip install toppra==0.2.2a0
+python2 -m pip install git+https://github.com/giuliano-oliveira/gdown_folder.git
 ```
 Note: We are installing older version of toppra, that is because newer versions are working only for Python3.
 Another toppra dependency is qpOASES solver. Installation is tricky:

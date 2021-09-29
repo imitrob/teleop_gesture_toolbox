@@ -125,6 +125,7 @@ cd ~/$YOUR_WS
 catkin build # builds the package
 source ~/$YOUR_WS/devel/setup.bash
 python2 -m pip install toppra==0.2.2a0
+python2 -m pip install git+https://github.com/giuliano-oliveira/gdown_folder.git
 
 echo ">> Press enter to install Leap Motion SDK:"
 read input4

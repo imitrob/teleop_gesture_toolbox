@@ -316,7 +316,7 @@ class MoveGroupPythonInteface(object):
             return False
 
 
-    def add_or_edit_object(self, file="", name='box', pose=None, shape="", size=None, collision='true', color='y', friction=0.1, frame_id='panda_link7', mass=0.1, inertia=np.zeros(9), inertiaTransformation=np.zeros(12), dynamic='true', pub_info='false', texture_file="", timeout=4):
+    def add_or_edit_object(self, file='', name='', pose=Pose(), shape="", size=None, collision='true', color='', friction=-1, frame_id='panda_link7', mass=-1, inertia=np.zeros(9), inertiaTransformation=np.zeros(12), dynamic='true', pub_info='false', texture_file="", timeout=4):
         ''' Adds shape/mesh based on configuration
             - If no shape & no mesh specified -> box created
             - If both shape & mesh specified -> mesh is used
@@ -374,6 +374,7 @@ class MoveGroupPythonInteface(object):
         try:
             remove_object = rospy.ServiceProxy('remove_object', RemoveObject)
             resp1 = remove_object(name)
+            settings.md.attached = []
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
 
@@ -394,8 +395,10 @@ class MoveGroupPythonInteface(object):
             try:
                 gripper_control = rospy.ServiceProxy('gripper_control', GripperControl)
                 resp1 = gripper_control(position, effort, "grasp", name)
+                settings.md.attached = [name]
             except rospy.ServiceException as e:
                 print("Service call failed: %s"%e)
+
 
 
 
@@ -527,19 +530,28 @@ class MoveGroupPythonInteface(object):
         id = scenes.index(scene)
 
         for i in range(0, len(settings.ss[id].object_names)):
-            #file="", name='box', pose=None, shape="", size=1., color='b', friction=0.1, frame_id='panda_link7'
             obj_name = settings.ss[id].object_names[i] # object name
-            if 'box' in obj_name or 'cube' in obj_name:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].object_poses[i], shape='cube')
-            elif 'sphere' in obj_name:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].object_poses[i], shape='sphere')
-            elif 'cylinder' in obj_name:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].object_poses[i], shape='cylinder')
-            elif 'cone' in obj_name:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, pose=settings.ss[id].object_poses[i], shape='cone')
+            size = settings.extv(settings.ss[id].object_sizes[i])
+            color = settings.ss[id].object_colors[i]
+            scale = settings.ss[id].object_scales[i]
+            shape = settings.ss[id].object_shapes[i]
+            mass = settings.ss[id].object_masses[i]
+            friction = settings.ss[id].object_frictions[i]
+            inertia = settings.ss[id].object_inertia[i]
+            inertiaTransformation = settings.ss[id].object_inertiaTransform[i]
+            dynamic = settings.ss[id].object_dynamic[i]
+            pub_info = settings.ss[id].object_pub_info[i]
+            texture_file = settings.ss[id].object_texture_file[i]
+            file = settings.ss[id].object_file[i]
+
+            if shape:
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, size=size, color=color, pose=settings.ss[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+            elif file:
+                if scale: size = [settings.ss[id].object_scales[i], 0, 0]
+                else: size = [0,0,0]
+                self.add_or_edit_object(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/mirracle_gestures/include/models/'+file, size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=settings.ss[id].object_poses[i], frame_id=settings.BASE_LINK)
             else:
-                self.add_or_edit_object(file=settings.HOME+'/'+settings.WS_FOLDER+'/src/mirracle_gestures/include/models/'+settings.ss[id].object_names[i]+'.obj',
-                    name=obj_name, pose=settings.ss[id].object_poses[i], frame_id=settings.BASE_LINK)
+                self.add_or_edit_object(name=obj_name, frame_id=settings.BASE_LINK, size=size, color=color, pose=settings.ss[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
         settings.scene = settings.ss[id]
         if id == 0:
             settings.scene = None

@@ -167,7 +167,7 @@ class SampleListener(Leap.Listener):
         GestureDetection.all()
 
         for gesture in frame.gestures():
-            if gesture.type == Leap.Gesture.TYPE_CIRCLE:
+            if gesture.type == Leap.Gesture.TYPE_CIRCLE and 'circ' in settings.GESTURE_NAMES:
                 circle = CircleGesture(gesture)
 
                 # Determine clock direction using the angle between the pointable and the circle normal
@@ -192,7 +192,7 @@ class SampleListener(Leap.Listener):
                     settings.gd.r.gests[settings.gd.r.GESTS["circ"]].angle = swept_angle * Leap.RAD_TO_DEG
                     settings.gd.r.gests[settings.gd.r.GESTS["circ"]].radius = circle.radius
 
-            if gesture.type == Leap.Gesture.TYPE_SWIPE:
+            if gesture.type == Leap.Gesture.TYPE_SWIPE and 'swipe' in settings.GESTURE_NAMES:
                 swipe = SwipeGesture(gesture)
                 if gesture.state != Leap.Gesture.STATE_START:
                     settings.gd.r.gests[settings.gd.r.GESTS["swipe"]].in_progress = True
@@ -203,7 +203,7 @@ class SampleListener(Leap.Listener):
                     settings.gd.r.gests[settings.gd.r.GESTS["swipe"]].direction = [swipe.direction[0], swipe.direction[1], swipe.direction[2]]
                     settings.gd.r.gests[settings.gd.r.GESTS["swipe"]].speed = swipe.speed
 
-            if gesture.type == Leap.Gesture.TYPE_KEY_TAP:
+            if gesture.type == Leap.Gesture.TYPE_KEY_TAP and 'pin' in settings.GESTURE_NAMES:
                 keytap = KeyTapGesture(gesture)
                 if gesture.state != Leap.Gesture.STATE_START:
                     settings.gd.r.gests[settings.gd.r.GESTS["pin"]].in_progress = True
@@ -213,7 +213,7 @@ class SampleListener(Leap.Listener):
                     settings.gd.r.gests[settings.gd.r.GESTS["pin"]].time_visible = 1
                     settings.gd.r.gests[settings.gd.r.GESTS["pin"]].toggle = True
 
-            if gesture.type == Leap.Gesture.TYPE_SCREEN_TAP:
+            if gesture.type == Leap.Gesture.TYPE_SCREEN_TAP and 'touch' in settings.GESTURE_NAMES:
                 screentap = ScreenTapGesture(gesture)
                 if gesture.state != Leap.Gesture.STATE_START:
                     settings.gd.r.gests[settings.gd.r.GESTS["touch"]].in_progress = True
@@ -246,19 +246,19 @@ class GestureDetection():
             GestureDetection.processTch()
             GestureDetection.processOc()
 
-            GestureDetection.processPose_grab()
-            GestureDetection.processPose_pinch()
-            GestureDetection.processPose_pointing()
-            GestureDetection.processPose_respectful()
-            GestureDetection.processPose_spock()
-            GestureDetection.processPose_rock()
-            GestureDetection.processPose_victory()
-            GestureDetection.processPose_italian()
+            if 'grab' in settings.GESTURE_NAMES: GestureDetection.processPose_grab()
+            if 'pinch' in settings.GESTURE_NAMES: GestureDetection.processPose_pinch()
+            if 'point' in settings.GESTURE_NAMES: GestureDetection.processPose_point()
+            if 'respectful' in settings.GESTURE_NAMES: GestureDetection.processPose_respectful()
+            if 'spock' in settings.GESTURE_NAMES: GestureDetection.processPose_spock()
+            if 'rock' in settings.GESTURE_NAMES: GestureDetection.processPose_rock()
+            if 'victory' in settings.GESTURE_NAMES: GestureDetection.processPose_victory()
+            if 'italian' in settings.GESTURE_NAMES: GestureDetection.processPose_italian()
 
-            GestureDetection.processGest_move_in_axis()
-            GestureDetection.processGest_rotation_in_axis()
+            if 'move_in_axis' in settings.GESTURE_NAMES: GestureDetection.processGest_move_in_axis()
+            if 'rotation_in_axis' in settings.GESTURE_NAMES: GestureDetection.processGest_rotation_in_axis()
 
-            GestureDetection.processComb_goToConfig()
+            if 'move_in_axis' in settings.GESTURE_NAMES: GestureDetection.processComb_goToConfig()
 
     @staticmethod
     def processTch():
@@ -352,13 +352,13 @@ class GestureDetection():
                 g.time_visible = 0.0
 
     @staticmethod
-    def processPose_pointing():
+    def processPose_point():
         ''' tch, oc functions need to be called before to get fingers O/C
         '''
         fa = settings.frames_adv[-1]
         if fa.r.visible:
             gd = settings.gd.r
-            g = gd.poses[gd.POSES["pointing"]]
+            g = gd.poses[gd.POSES["point"]]
             if gd.oc[1] is True and gd.oc[2] is False and gd.oc[3] is False and gd.oc[4] is False:
                 g.toggle = True
                 g.time_visible += 0.01
@@ -442,7 +442,7 @@ class GestureDetection():
         '''
         fa = settings.frames_adv[-1]
         g = settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]]
-        g_time = settings.gd.r.poses[settings.gd.r.POSES["pointing"]].time_visible
+        g_time = settings.gd.r.poses[settings.gd.r.POSES["point"]].time_visible
         if g_time > 2:
             if g.toggle[0] and g.move[0]:
                 settings.WindowState = 1

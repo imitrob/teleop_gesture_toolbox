@@ -20,8 +20,19 @@ if __name__=="__main__":
     sys.path.insert(1, PATH)
     sys.path.insert(1, os.path.abspath(os.path.join(PATH, '..')))
 
-    import settings
-    settings.init()
+    settings = None
+    if False:
+        import settings
+        settings.init()
+    else:
+        class S():
+            def __init__(self):
+                sys.path.append('/home/pierro/my_ws/src/mirracle_gestures/src/learning')
+                import import_data
+
+                self.LEARN_PATH = '/home/pierro/my_ws/src/mirracle_gestures/include/data/learning/'
+                self.NETWORK_PATH = '/home/pierro/my_ws/src/mirracle_gestures/include/data/Trained_network/'
+        settings = S()
 
     Gs_names = ['Grab', 'Pinch', 'Point', 'Respectful', 'Spock', 'Rock', 'Victory']
     #, 'Italian', 'Rotate', 'Swipe_Up', 'Pin', 'Touch', 'Swipe_Left', 'Swipe_Down', 'Swipe_Right']
@@ -32,6 +43,7 @@ if __name__=="__main__":
     args.append("1s")
     args.append("take_every_10")
     args.append("normalize")
+
 
 
 ## Extraction functions
@@ -248,16 +260,23 @@ def avg_dataframe(data_n):
     return data_avg
 
 
-## Saving network
-class Zabal():
-    def __init__(self, _sample_proba=None, X_train=None, approx=None, neural_network=None):
+class NetworkWrapper():
+    def __init__(self, _sample_proba=None, X_train=None, approx=None, neural_network=None, Gs=[], observation_type="", time_series_operation="", position=""):
+        ## Gestures and config
+        self.gesture_names = Gs
+
+        self.observation_type = observation_type #all_defined
+        self.time_series_operation = time_series_operation #take_every_10
+        self.position = position
+
+        ## NN data
         self._sample_proba = _sample_proba
         self.X_train = X_train
         self.approx = approx
         self.neural_network = neural_network
 
 
-def save_network(settings,_sample_proba, X_train, approx, neural_network):
+def save_network(settings,_sample_proba, X_train, approx, neural_network, Gs=[], observation_type='', time_series_operation='', position=''):
     print("saving network")
     n_network = ""
     for i in range(0,200):
@@ -265,18 +284,31 @@ def save_network(settings,_sample_proba, X_train, approx, neural_network):
             n_network = str(i)
             break
 
-    zabal = Zabal(_sample_proba, X_train, approx, neural_network)
+    wrapper = NetworkWrapper(_sample_proba, X_train, approx, neural_network,Gs=Gs, observation_type=observation_type, time_series_operation=time_series_operation, position=position)
     with open(settings.NETWORK_PATH+"/network"+str(n_network)+'.pkl', 'wb') as output:
-        pickle.dump(zabal, output, pickle.HIGHEST_PROTOCOL)
+        pickle.dump(wrapper, output, pickle.HIGHEST_PROTOCOL)
 
     print("Network: network"+n_network+".pkl saved")
 
-def load_network(settings, name='network1.pkl'):
-    zabal = Zabal()
+def load_network(settings, name='network0.pkl'):
+    wrapper = NetworkWrapper()
     with open(settings.NETWORK_PATH+"/"+name, 'rb') as input:
-        zabal = pickle.load(input, encoding="latin1")
+        wrapper = pickle.load(input, encoding="latin1")
 
-    return zabal._sample_proba, zabal.X_train, zabal.approx, zabal.neural_network
+    return wrapper._sample_proba, wrapper.X_train, wrapper.approx, wrapper.neural_network, wrapper.gesture_names, wrapper.observation_type, wrapper.time_series_operation, wrapper.position
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 #

@@ -16,6 +16,7 @@ from os.path import expanduser, isfile, isdir
 from sklearn.metrics import confusion_matrix
 from scipy import sparse
 from threading import Thread
+from gestures_lib import GesturesDetectionClass
 import matplotlib.pyplot as plt
 import csv
 import pickle
@@ -24,9 +25,12 @@ from threading import Timer
 from visualizer_lib import VisualizerLib
 import yaml
 import io
+import rospy
+import pickle
 
 # ros msg classes
 from geometry_msgs.msg import PoseStamped, Quaternion, Pose, Point
+from mirracle_gestures.srv import ChangeNetwork
 
 class Example(QMainWindow):
 
@@ -79,17 +83,6 @@ class Example(QMainWindow):
             self.lblObservationPosesNamesObj.append(QLabel(self.lblObservationPosesNames[i], self))
         for i in self.lblObservationPosesValuesObj:
             i.setVisible(False)
-        ## Label Gestrues Poses
-        self.lblGesturesPosesNames = settings.GESTURE_NAMES
-        self.lblGesturesPosesNamesObj = []
-        for i in range(0, len(self.lblGesturesPosesNames)):
-            self.lblGesturesPosesNamesObj.append(QLabel(self.lblGesturesPosesNames[i], self))
-
-        self.lblCreateConfusionMatrixInfo = QLabel("", self)
-        self.btnConf = QPushButton('Confusion matrix', self)
-        self.btnConf.setToolTip('Create <b>Confusion</b> matrix')
-        self.btnConf.resize(self.btnConf.sizeHint())
-        self.btnConf.clicked.connect(self.button_confustion_mat)
 
         self.comboPlayNLive = QComboBox(self)
         self.comboPlayNLive.addItem("Play path")
@@ -137,6 +130,7 @@ class Example(QMainWindow):
 
         # Move Page
         lbls = ['Pos. X:', 'Pos. Y:', 'Pos. Z:', 'Ori. X:', 'Ori. Y:', 'Ori. Z:', 'Ori. W:']
+        lblsVals = ['0.0', '0.0', '1.0', '0.0', '0.0', '0.0', '1.0']
         self.movePageGoPoseLabels = []
         self.movePageGoPoseEdits = []
         for i in range(0,7):
@@ -146,9 +140,23 @@ class Example(QMainWindow):
             self.movePageGoPoseEdits.append(QLineEdit(self))
             self.movePageGoPoseEdits[-1].move(LEFT_MARGIN+80, START_PANEL_Y+i*32)
             self.movePageGoPoseEdits[-1].resize(200, 32)
+            self.movePageGoPoseEdits[-1].setText(lblsVals[i])
         self.movePageGoPoseButton = QPushButton("Go To Pose", self)
         self.movePageGoPoseButton.clicked.connect(self.go_to_pose_button)
         self.movePageGoPoseButton.move(LEFT_MARGIN+80, START_PANEL_Y+7*32)
+
+        self.movePageUseEnvAboveButton = QPushButton('Above env.', self)
+        self.movePageUseEnvAboveButton.clicked.connect(self.movePageUseEnvAboveButtonFun)
+        self.movePageUseEnvAboveButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+100,ICON_SIZE*2,ICON_SIZE/2)
+        self.movePageUseEnvWallButton = QPushButton('Wall env.', self)
+        self.movePageUseEnvWallButton.clicked.connect(self.movePageUseEnvWallButtonFun)
+        self.movePageUseEnvWallButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+140,ICON_SIZE*2,ICON_SIZE/2)
+        self.movePageUseEnvTableButton = QPushButton('Table env.', self)
+        self.movePageUseEnvTableButton.clicked.connect(self.movePageUseEnvTableButtonFun)
+        self.movePageUseEnvTableButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+180,ICON_SIZE*2,ICON_SIZE/2)
+        self.movePagePoseNowButton = QPushButton('Set current pose', self)
+        self.movePagePoseNowButton.clicked.connect(self.movePagePoseNowButtonFun)
+        self.movePagePoseNowButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+20,ICON_SIZE*2,ICON_SIZE/2)
 
         self.timer = QBasicTimer()
         self.timer.start(100, self)
@@ -159,10 +167,10 @@ class Example(QMainWindow):
         menubar = self.menuBar()
         viewMenu = menubar.addMenu('View')
         pageMenu = menubar.addMenu('Page')
-        configMenu = menubar.addMenu('Config')
+        configMenu = menubar.addMenu('Robot config.')
         sceneMenu = menubar.addMenu('Scene')
         testingMenu = menubar.addMenu('Testing')
-        leapmotionMenu = menubar.addMenu('Leap Motion')
+        leapmotionMenu = menubar.addMenu('Gestures')
 
         ## Menu items -> View options
         viewOptionsAction = QAction('View gestures data', self, checkable=True)
@@ -178,14 +186,14 @@ class Example(QMainWindow):
         viewGoToInfoAction.setStatusTip('Info page')
         viewGoToInfoAction.triggered.connect(self.goToInfo)
         viewGoToControlAction = QAction('Control page', self)
-        viewGoToControlAction.setStatusTip('Control page')
+        viewGoToControlAction.setStatusTip('Control page (beta)')
         viewGoToControlAction.triggered.connect(self.goToConfig)
         viewGoToMoveAction = QAction('Move page', self)
         viewGoToMoveAction.setStatusTip('Move page')
         viewGoToMoveAction.triggered.connect(self.goToMove)
 
         # The environment
-        impMenu = QMenu('Area choose', self)
+        impMenu = QMenu('Environment', self)
         switchEnvAboveAct = QAction('Above', self)
         switchEnvAboveAct.triggered.connect(self.switchEnvAbove)
         switchEnvWallAct = QAction('Wall', self)
@@ -196,15 +204,30 @@ class Example(QMainWindow):
         impMenu.addAction(switchEnvWallAct)
         impMenu.addAction(switchEnvTableAct)
         impMenu2 = QMenu('Orientation', self)
-        fixedOriAct = QAction('Fixed', self, checkable=True)
+        fixedOriAct = QAction('Fixed (default as chosen env.)', self, checkable=True)
         fixedOriAct.triggered.connect(self.fixedOriAct)
         impMenu2.addAction(fixedOriAct)
         print_path_trace_action = QAction('Print path trace', self, checkable=True)
         print_path_trace_action.triggered.connect(self.print_path_trace)
         print_path_trace_action.checked = False
 
-        record_with_keys_action = QAction('Record with keys', self, checkable=True)
+        record_with_keys_action = QAction('Record train data with keyboard keys', self, checkable=True)
         record_with_keys_action.triggered.connect(self.record_with_keys)
+        download_networks_action = QAction('Download networks from gdrive', self)
+        download_networks_action.triggered.connect(self.download_networks_gdrive)
+        self.network_menu = QMenu('Pick detection network', self)
+        self.networks = GesturesDetectionClass.get_networks()
+        self.network_actions = []
+        for index,network in enumerate(self.networks):
+            action = QAction(network, self)
+            action.triggered.connect(
+                lambda checked, network=network: self.changeNetwork(network))
+            self.network_actions.append(action)
+            self.network_menu.addAction(action)
+        self.lblInfo = QLabel("", self)
+        self.confusion_mat_action = QAction('Test gestures', self)
+        self.confusion_mat_action.setToolTip('Plus Generate <b>Confusion</b> matrix')
+        self.confusion_mat_action.triggered.connect(self.confustion_mat)
 
 
         SCENES = settings.getSceneNames()
@@ -239,7 +262,10 @@ class Example(QMainWindow):
         testingMenu.addAction(inputTestAction)
         testingMenu.addAction(inputPlotJointsAction)
         testingMenu.addAction(inputPlotPosesAction)
+        testingMenu.addAction(self.confusion_mat_action)
         leapmotionMenu.addAction(record_with_keys_action)
+        leapmotionMenu.addMenu(self.network_menu)
+        leapmotionMenu.addAction(download_networks_action)
 
         thread = Thread(target = self.play_method)
         thread.start()
@@ -253,12 +279,10 @@ class Example(QMainWindow):
         self.AllVisibleObjects.append(ObjectQt('lblStatus',self.lblStatus,0,view_group=['MoveViewState']))
         for n,obj in enumerate(self.lblObservationPosesNamesObj):
             self.AllVisibleObjects.append(ObjectQt('lblObservationPosesNamesObj'+str(n),obj,0,view_group=['GesturesViewState']))
-        for n,obj in enumerate(self.lblGesturesPosesNamesObj):
-            self.AllVisibleObjects.append(ObjectQt('lblGesturesPosesNamesObj'+str(n),obj,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lbl1',self.lbl1,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lbl2',self.lbl2,0,view_group=['GesturesViewState']))
+        self.AllVisibleObjects.append(ObjectQt('lblInfo',self.lbl2,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('comboPlayNLive',self.comboPlayNLive,0,view_group=['MoveViewState']))
-        self.AllVisibleObjects.append(ObjectQt('btnConf',self.btnConf,0,view_group=['GesturesViewState']))
 
         self.AllVisibleObjects.append(ObjectQt('comboPickPlayTraj',self.comboPickPlayTraj,0,view_group=['MoveViewState', 'play']))
         self.AllVisibleObjects.append(ObjectQt('btnPlayMove' ,self.btnPlayMove, 0,view_group=['MoveViewState', 'play']))
@@ -278,13 +302,17 @@ class Example(QMainWindow):
             self.AllVisibleObjects.append(ObjectQt('movePageGoPoseEdits'+str(n),obj,2,view_group=['MoveViewState']))
         self.AllVisibleObjects.append(ObjectQt('movePageGoPoseButton',self.movePageGoPoseButton,2,view_group=['MoveViewState']))
 
+        self.AllVisibleObjects.append(ObjectQt('movePageUseEnvAboveButton',self.movePageUseEnvAboveButton,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageUseEnvWallButton',self.movePageUseEnvWallButton,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageUseEnvTableButton',self.movePageUseEnvTableButton,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePagePoseNowButton',self.movePagePoseNowButton,2,view_group=['MoveViewState']))
+
         self.setMouseTracking(True)
         self.mousex, self.mousey = 0.,0.
         print("[Interface] Done")
 
     def mouseMoveEvent(self, event):
         self.mousex, self.mousey = event.x(), event.y()
-
 
     def go_to_pose_button(self):
         vals = []
@@ -317,8 +345,44 @@ class Example(QMainWindow):
             print("[Interface] Key have been read, but recording is not activated!")
         event.accept()
 
-    def button_confustion_mat(self, e):
-        thread = Thread(target = self.button_confustion_mat_)
+
+    def changeNetwork(self, network):
+        rospy.wait_for_service('/mirracle_gestures/change_network')
+        try:
+            change_network = rospy.ServiceProxy('/mirracle_gestures/change_network', ChangeNetwork)
+            response = change_network(data=network)
+            settings.GESTURE_NAMES = [g.lower() for g in response.Gs]
+            settings.observation_type = response.observation_type
+            settings.time_series_operation = response.time_series_operation
+            settings.position = response.position
+            print("[UI] Gestures & Network changed, new set of gestures: "+str(settings.GESTURE_NAMES))
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
+        settings.GESTURE_NETWORK_FILE = network
+
+        def updateGesturesUI():
+            self.lblGesturesPosesNames = settings.GESTURE_NAMES
+            settings.gd = settings.GestureDataHands()
+        updateGesturesUI()
+
+
+    def download_networks_gdrive(self):
+        GesturesDetectionClass.download_networks_gdrive()
+        # Update Networks Menu
+        self.network_menu.clear()
+        self.networks = GesturesDetectionClass.get_networks()
+        self.network_actions = []
+        for network in self.networks:
+            action = QAction(network, self)
+            action.triggered.connect(
+                lambda checked, network=network: self.changeNetwork(network))
+            self.network_menu.addAction(action)
+            self.network_actions.append(action)
+
+        time.sleep(1)
+
+    def confustion_mat(self, e):
+        thread = Thread(target = self.confustion_mat_)
         thread.start()
     def button_play_move(self, e):
         self.play_status = 1
@@ -359,7 +423,9 @@ class Example(QMainWindow):
                 self.play_status = 0
 
 
-    def button_confustion_mat_(self):
+    def confustion_mat_(self):
+        self.lblInfo.setText("Show gesture disp. here")
+        time.sleep(5)
         NUM_SAMPLES = 5
         DELAY_BETW_SAMPLES = 0.5
         y_true = []
@@ -368,14 +434,14 @@ class Example(QMainWindow):
         poses_list = [p.NAME for p in settings.gd.r.poses]
         for n, i in enumerate(poses_list):
             for j in range(0,NUM_SAMPLES):
-                self.lblCreateConfusionMatrixInfo.setText(i+" "+str(j))
+                self.lblInfo.setText(i+" "+str(j))
                 time.sleep(DELAY_BETW_SAMPLES)
                 for m,g in enumerate(poses_list):
                     if settings.gd.r.poses[m].toggle:
                         y_true.append(n)
                         y_pred.append(m)
 
-        self.lblCreateConfusionMatrixInfo.setText("Done (Saved as confusionmatrix.csv)")
+        self.lblInfo.setText("Done (Saved as confusionmatrix.csv)")
         cm = confusion_matrix(y_true, y_pred)
         cm_ = np.vstack((poses_list,cm))
         poses_list.insert(0,"Confusion matrix")
@@ -411,6 +477,31 @@ class Example(QMainWindow):
     def switchEnvTable(self):
         settings.md.ENV = settings.md.ENV_DAT['table']
         self.gestures_goal_init_procedure()
+
+    def movePageUseEnvAboveButtonFun(self):
+        self.movePageGoPoseEdits[3].setText(str(settings.md.ENV_DAT['above']['ori'].x))
+        self.movePageGoPoseEdits[4].setText(str(settings.md.ENV_DAT['above']['ori'].y))
+        self.movePageGoPoseEdits[5].setText(str(settings.md.ENV_DAT['above']['ori'].z))
+        self.movePageGoPoseEdits[6].setText(str(settings.md.ENV_DAT['above']['ori'].w))
+    def movePageUseEnvWallButtonFun(self):
+        self.movePageGoPoseEdits[3].setText(str(settings.md.ENV_DAT['wall']['ori'].x))
+        self.movePageGoPoseEdits[4].setText(str(settings.md.ENV_DAT['wall']['ori'].y))
+        self.movePageGoPoseEdits[5].setText(str(settings.md.ENV_DAT['wall']['ori'].z))
+        self.movePageGoPoseEdits[6].setText(str(settings.md.ENV_DAT['wall']['ori'].w))
+    def movePageUseEnvTableButtonFun(self):
+        self.movePageGoPoseEdits[3].setText(str(settings.md.ENV_DAT['table']['ori'].x))
+        self.movePageGoPoseEdits[4].setText(str(settings.md.ENV_DAT['table']['ori'].y))
+        self.movePageGoPoseEdits[5].setText(str(settings.md.ENV_DAT['table']['ori'].z))
+        self.movePageGoPoseEdits[6].setText(str(settings.md.ENV_DAT['table']['ori'].w))
+    def movePagePoseNowButtonFun(self):
+        self.movePageGoPoseEdits[0].setText(str(settings.goal_pose.position.x))
+        self.movePageGoPoseEdits[1].setText(str(settings.goal_pose.position.y))
+        self.movePageGoPoseEdits[2].setText(str(settings.goal_pose.position.z))
+
+        self.movePageGoPoseEdits[3].setText(str(settings.goal_pose.orientation.x))
+        self.movePageGoPoseEdits[4].setText(str(settings.goal_pose.orientation.y))
+        self.movePageGoPoseEdits[5].setText(str(settings.goal_pose.orientation.z))
+        self.movePageGoPoseEdits[6].setText(str(settings.goal_pose.orientation.w))
 
     # Fixed orientation function
     def fixedOriAct(self, state):
@@ -486,7 +577,7 @@ class Example(QMainWindow):
             pose_c = settings.mo.transformLeapToUIsimple(last_pose.pose)
             x_c,y_c = pose_c.position.x, pose_c.position.y
 
-            rad = settings.gd.r.poses[settings.gd.r.POSES["pointing"]].time_visible*80
+            rad = settings.gd.r.poses[settings.gd.r.POSES["point"]].time_visible*80
             if rad > 100:
                 rad = 100
 
@@ -549,12 +640,11 @@ class Example(QMainWindow):
             textStatus += '\ng q:'+str(round(settings.goal_pose.orientation.x,2))+" "+str(round(settings.goal_pose.orientation.y,2))+" "+str(round(settings.goal_pose.orientation.z,2))+" "+str(round(settings.goal_pose.orientation.w,2))
 
 
-        self.btnConf.setGeometry(LEFT_MARGIN+130, h-10-ICON_SIZE, ICON_SIZE*2,ICON_SIZE/2)
         if self.recording:
             qp.setBrush(QBrush(Qt.red, Qt.SolidPattern))
             qp.drawEllipse(LEFT_MARGIN+130+ICON_SIZE*2, h-10-ICON_SIZE, ICON_SIZE/2,ICON_SIZE/2)
             qp.setBrush(QBrush(Qt.black, Qt.NoBrush))
-        self.lblCreateConfusionMatrixInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*2,ICON_SIZE)
+        self.lblInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*5,ICON_SIZE)
         self.lblStatus.setText(textStatus)
 
         if self.GesturesViewState:
@@ -568,56 +658,59 @@ class Example(QMainWindow):
                     else:
                         qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"hand"+str(i)+"closed.png"))
                 # arrows
-                g = settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]]
-                X = w-RIGHT_MARGIN-100-ICON_SIZE
-                Y = START_PANEL_Y-20
-                if g.toggle[0] and g.move[0]:
-                    qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_right.png"))
-                if g.toggle[0] and not g.move[0]:
-                    qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_left.png"))
-                if g.toggle[1] and g.move[1]:
-                    qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_up.png"))
-                if g.toggle[1] and not g.move[1]:
-                    qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_down.png"))
-                if g.toggle[2] and g.move[2]:
-                    qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_front.png"))
-                if g.toggle[2] and not g.move[2]:
-                    qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_back.png"))
+                if 'move_in_axis' in settings.gd.r.GESTS.keys():
+                    g = settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]]
+                    X = w-RIGHT_MARGIN-100-ICON_SIZE
+                    Y = START_PANEL_Y-20
+                    if g.toggle[0] and g.move[0]:
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_right.png"))
+                    if g.toggle[0] and not g.move[0]:
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_left.png"))
+                    if g.toggle[1] and g.move[1]:
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_up.png"))
+                    if g.toggle[1] and not g.move[1]:
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_down.png"))
+                    if g.toggle[2] and g.move[2]:
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_front.png"))
+                    if g.toggle[2] and not g.move[2]:
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_back.png"))
 
             # left lane
             POSE_FILE_IMAGES = [p.filename for p in settings.gd.r.poses]
+            POSE_NMS = [p.NAME for p in settings.gd.r.poses]
             GEST_FILE_IMAGES = [p.filename for p in settings.gd.r.gests][0:4]
+            GEST_NMS = [p.NAME for p in settings.gd.r.gests][0:4]
             for n, i in enumerate(POSE_FILE_IMAGES):
                 qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+i))
                 if settings.gd.r.poses[n].toggle:
                     qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                 qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE-settings.gd.r.poses[n].prob*ICON_SIZE)
+                qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+n*ICON_SIZE+10, POSE_NMS[n])
             for n, i in enumerate(GEST_FILE_IMAGES):
                 qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+i))
                 if settings.gd.r.gests[n].toggle:
                     qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                 qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE-settings.gd.r.gests[n].prob*ICON_SIZE)
-            for n, i in enumerate(self.lblGesturesPosesNamesObj):
-                i.setVisible(True)
-                i.move(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+n*ICON_SIZE)
+                qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE+10, GEST_NMS[n])
             if settings.pymcout is not None:
                 n_ = settings.pymcout
                 qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y+(n_)*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_left.png"))
             # circ options
-            g = settings.gd.r.gests[settings.gd.r.GESTS["circ"]]
-            if g.toggle:
-                X = LEFT_MARGIN+130
-                Y = START_PANEL_Y+len(POSE_FILE_IMAGES)*ICON_SIZE
-                ARRL = 10  # Arrow length
-                radius_2mm = g.radius/2
-                qp.drawEllipse(X,Y, radius_2mm, radius_2mm)
-                rh = radius_2mm/2
-                if g.clockwise == True:
-                    qp.drawLine(X, Y+rh, X-ARRL, Y+ARRL+rh)
-                    qp.drawLine(X, Y+rh, X+ARRL, Y+ARRL+rh)
-                else:
-                    qp.drawLine(X, Y+rh, X-ARRL, Y-ARRL+rh)
-                    qp.drawLine(X, Y+rh, X+ARRL, Y-ARRL+rh)
+            if 'circ' in settings.gd.r.GESTS.keys():
+                g = settings.gd.r.gests[settings.gd.r.GESTS["circ"]]
+                if g.toggle:
+                    X = LEFT_MARGIN+130
+                    Y = START_PANEL_Y+len(POSE_FILE_IMAGES)*ICON_SIZE
+                    ARRL = 10  # Arrow length
+                    radius_2mm = g.radius/2
+                    qp.drawEllipse(X,Y, radius_2mm, radius_2mm)
+                    rh = radius_2mm/2
+                    if g.clockwise == True:
+                        qp.drawLine(X, Y+rh, X-ARRL, Y+ARRL+rh)
+                        qp.drawLine(X, Y+rh, X+ARRL, Y+ARRL+rh)
+                    else:
+                        qp.drawLine(X, Y+rh, X-ARRL, Y-ARRL+rh)
+                        qp.drawLine(X, Y+rh, X+ARRL, Y-ARRL+rh)
 
         if self.MoveViewState:
             if settings.md.Mode == 'play':
@@ -672,8 +765,12 @@ class Example(QMainWindow):
                 ToggleArr.append(settings.gd.r.tch13)
                 ToggleArr.append(settings.gd.r.tch14)
                 ToggleArr.append(settings.gd.r.tch15)
-                ToggleArr.extend(settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]].toggle)
-                ToggleArr.extend(settings.gd.r.gests[settings.gd.r.GESTS["rotation_in_axis"]].toggle)
+                if 'move_in_axis' in settings.gd.r.GESTS.keys():
+                    ToggleArr.extend(settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]].toggle)
+                else: ToggleArr.extend([False,False,False])
+                if 'rotation_in_axis' in settings.gd.r.GESTS.keys():
+                    ToggleArr.extend(settings.gd.r.gests[settings.gd.r.GESTS["rotation_in_axis"]].toggle)
+                else: ToggleArr.extend([False,False,False])
 
                 for n, i in enumerate(self.lblObservationPosesValuesObj):
                     i.move(w-RIGHT_MARGIN, START_PANEL_Y+(n+0.5)*ICON_SIZE/2)

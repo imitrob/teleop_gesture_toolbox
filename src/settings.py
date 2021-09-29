@@ -13,6 +13,7 @@ All configurations are loaded from:
 Import this file and call init() to access parameters, info and data
 '''
 import collections
+from collections import OrderedDict
 import numpy as np
 from copy import deepcopy
 import os
@@ -27,6 +28,18 @@ import yaml
 import io
 import random
 
+# function for loading dict from file ordered
+def ordered_load(stream, Loader=yaml.SafeLoader, object_pairs_hook=OrderedDict):
+    class OrderedLoader(Loader):
+        pass
+    def construct_mapping(loader, node):
+        loader.flatten_mapping(node)
+        return object_pairs_hook(loader.construct_pairs(node))
+    OrderedLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+        construct_mapping)
+    return yaml.load(stream, OrderedLoader)
+
 def init(minimal=False):
     ''' Initialize the shared data across threads (Leap, UI, Control)
     Parameters:
@@ -38,7 +51,7 @@ def init(minimal=False):
 
     ### 1. Initialize File/Folder Paths ###
     #######################################
-    global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, GESTURE_KEYS, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH, MODELS_PATH, CUSTOM_SETTINGS_YAML
+    global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, GESTURE_KEYS, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH, MODELS_PATH, CUSTOM_SETTINGS_YAML, NETWORKS_DRIVE_URL, GESTURE_NETWORK_FILE
     HOME = expanduser("~")
     # searches for the WS name + print it
     THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -48,7 +61,7 @@ def init(minimal=False):
     LEARN_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learning/"
     GRAPHICS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/graphics/"
     PLOTS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/plots/"
-    NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learned_networks/"
+    NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/Trained_network/"
     COPPELIA_SCENE_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_sim/include/scenes/"
     MODELS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/models/"
     CUSTOM_SETTINGS_YAML = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/custom_settings/"
@@ -56,13 +69,26 @@ def init(minimal=False):
     ### 2. Loads config. data to gestures  ###
     ###     - gesture_recording.yaml       ###
     ##########################################
-    with open(CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
-        gestures_data_loaded = yaml.safe_load(stream)
-    GESTURE_NAMES = [g['name'] for g in gestures_data_loaded['staticGestures']]
-    GESTURE_NAMES.extend([g['name'] for g in gestures_data_loaded['dynamicGestures']])
-    GESTURE_KEYS = [str(g['key']) for g in gestures_data_loaded['staticGestures']]
-    GESTURE_KEYS.extend([g['key'] for g in gestures_data_loaded['dynamicGestures']])
 
+    with open(CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
+        gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
+        #gestures_data_loaded = yaml.safe_load(stream)
+
+    if 'staticGestures' in gestures_data_loaded.keys() and len(gestures_data_loaded['staticGestures'].keys())>0:
+        GESTURE_NAMES = list(gestures_data_loaded['staticGestures'].keys())
+        GESTURE_KEYS = [gestures_data_loaded['staticGestures'][g]['key'] for g in GESTURE_NAMES]
+    else:
+        gestures_data_loaded['staticGestures'] = {}
+        GESTURE_NAMES = []
+        GESTURE_KEYS = []
+    if 'dynamicGestures' in gestures_data_loaded.keys() and len(gestures_data_loaded['dynamicGestures'].keys())>0:
+        GESTURE_NAMES.extend(gestures_data_loaded['dynamicGestures'].keys())
+        GESTURE_KEYS.extend([gestures_data_loaded['dynamicGestures'][g]['key'] for g in gestures_data_loaded['dynamicGestures'].keys()])
+    else:
+        gestures_data_loaded['dynamicGestures'] = {}
+    
+    NETWORKS_DRIVE_URL = gestures_data_loaded['configGestures']['NETWORKS_DRIVE_URL']
+    GESTURE_NETWORK_FILE = gestures_data_loaded['configGestures']['NETWORK_FILE']
     ### 3. Loads config. about robot         ###
     ###     - ROSparams /mirracle_config/*   ###
     ###     - robot_move.yaml.yaml           ###
@@ -78,7 +104,8 @@ def init(minimal=False):
     TOPPRA_ON = True
 
     with open(CUSTOM_SETTINGS_YAML+"robot_move.yaml", 'r') as stream:
-        robot_move_data_loaded = yaml.safe_load(stream)
+        robot_move_data_loaded = ordered_load(stream, yaml.SafeLoader)
+        #robot_move_data_loaded = yaml.safe_load(stream)
     vel_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['vel_lim']
     effort_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['effort_lim']
     lower_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['lower_lim']
@@ -178,7 +205,8 @@ def init(minimal=False):
     ###     - From application.yaml         ###
     ###########################################
     with open(CUSTOM_SETTINGS_YAML+"application.yaml", 'r') as stream:
-        app_data_loaded = yaml.safe_load(stream)
+        app_data_loaded = ordered_load(stream, yaml.SafeLoader)
+        #app_data_loaded = yaml.safe_load(stream)
     # Configuration page values
     global NumConfigBars, VariableValues
     NumConfigBars = [app_data_loaded['ConfigurationPage']['Rows'], app_data_loaded['ConfigurationPage']['Columns']]
@@ -271,7 +299,7 @@ class GestureDataHand():
     '''
     def __init__(self):
         with open(CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
-            gestures_data_loaded = yaml.safe_load(stream)
+            gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
         self.conf = False
         self.MIN_CONFIDENCE = gestures_data_loaded['configGestures']['MIN_CONFIDENCE']
         self.SINCE_FRAME_TIME = gestures_data_loaded['configGestures']['SINCE_FRAME_TIME']
@@ -287,29 +315,30 @@ class GestureDataHand():
 
 
         self.poses = []
-        #for pose in gestures_data_loaded['staticGestures']:
-        #    self.poses.append(PoseData(NAME=pose['name'], filename=pose['filename'], turnon=pose['turn_on_off'][1], turnoff=pose['turn_on_off'][0]))
-        self.poses.append(PoseData(NAME="grab", filename="gesture56.png", turnon=0.9, turnoff=0.3))
-        self.poses.append(PoseData(NAME="pinch", filename="gesture33.png", turnon=0.9, turnoff=0.3))
-        self.poses.append(PoseData(NAME="pointing", filename="gesture0.png", turnon=0.9, turnoff=0.3))
-        self.poses.append(PoseData(NAME="respectful", filename="gesture100.png", turnon=0.9, turnoff=0.3))
-        self.poses.append(PoseData(NAME="spock", filename="gesture101.png", turnon=0.9, turnoff=0.3))
-        self.poses.append(PoseData(NAME="rock", filename="gesture102.png", turnon=0.9, turnoff=0.3))
-        self.poses.append(PoseData(NAME="victory", filename="gesture103.png", turnon=0.9, turnoff=0.3))
-        self.poses.append(PoseData(NAME="italian", filename="gesture104.png", turnon=0.9, turnoff=0.3))
+        self.gests = []
+        for gesture in GESTURE_NAMES:
+            # Check if gesture is in staticGestures from YAML
+            try:
+                if gesture in gestures_data_loaded['staticGestures'].keys():
+                    self.poses.append(PoseData(name=gesture, data=gestures_data_loaded['staticGestures'][gesture]))
+                    continue
+            except KeyError:
+                print("gesture key", gesture, " and keys ", gestures_data_loaded['staticGestures'].keys())
+            # If not exists, check if gesture is in dyamicGestures from YAML
+            try:
+                if gesture in gestures_data_loaded['dynamicGestures'].keys():
+                    self.gests.append(GestureData(name=gesture, data=gestures_data_loaded['dynamicGestures'][gesture]))
+                    continue
+            except KeyError:
+                print("gesture key", gesture, " and keys ", gestures_data_loaded['staticGestures'].keys())
+
+            raise Exception("[ERROR* Settings] Information about gesture with name: ", gesture, " could not be found in gesture_recording.yaml file. Make an entry there.")
+
+
+        # Create links for gestures
         self.POSES = {}
         for n, i in enumerate(self.poses):
             self.POSES[i.NAME] = n
-
-        self.gests = []
-        #for gesture in gestures_data_loaded['dynamicGestures']:
-        #    self.poses.append(PoseData(NAME=gesture['name'], filename=gesture['filename'], turnon=gesture['turn_on_off'][1], turnoff=gesture['turn_on_off'][0]))
-        self.gests.append(GestureData(NAME="circ", filename="gesture34.png"))
-        self.gests.append(GestureData(NAME="swipe", filename="gesture64.png"))
-        self.gests.append(GestureData(NAME="pin", filename="gesture3.png"))
-        self.gests.append(GestureData(NAME="touch", filename="gesture1.png"))
-        self.gests.append(GestureData(NAME="move_in_axis", var_len=3, minthre=0.4, maxthre=0.1))
-        self.gests.append(GestureData(NAME="rotation_in_axis", var_len=3, minthre=[-0.9,-0.6,0.8], maxthre=[0.5,0.5,0.4]))
         self.GESTS = {}
         for n, i in enumerate(self.gests):
             self.GESTS[i.NAME] = n
@@ -318,21 +347,25 @@ class GestureDataHand():
         self.final_chosen_gesture = 0
 
 class PoseData():
-    def __init__(self, NAME="", turnon=0.0, turnoff=0.0, filename=""):
-        self.NAME = NAME
+    def __init__(self, name, data):
+        data = ParseYAML.parseStaticGesture(data)
+
+        self.NAME = name
         self.prob = 0.0
         self.toggle = False
-        self.TURN_ON_THRE = turnon
-        self.TURN_OFF_THRE = turnoff
+        self.TURN_ON_THRE = data['turnon']
+        self.TURN_OFF_THRE = data['turnoff']
         self.time_visible = 0.0
-        self.filename = filename
+        self.filename = data['filename']
 
 class GestureData():
-    def __init__(self, NAME="", var_len=1, minthre=0.9, maxthre=0.4, filename=""):
-        self.NAME = NAME
-        if var_len > 1:
-            self.prob = [0.0] * var_len
-            self.toggle = [False] * var_len
+    def __init__(self, name, data):
+        data = ParseYAML.parseDynamicGesture(data)
+
+        self.NAME = name
+        if data['var_len'] > 1:
+            self.prob = [0.0] * data['var_len']
+            self.toggle = [False] * data['var_len']
         else:
             self.prob = 0.0
             self.toggle = False
@@ -340,7 +373,7 @@ class GestureData():
         self.in_progress = False
         self.direction = [0.0,0.0,0.0]
         self.speed = 0.0
-        self.filename = filename
+        self.filename = data['filename']
 
         # for circle movement
         self.clockwise = False
@@ -348,15 +381,16 @@ class GestureData():
         self.progress = 0.0
         self.radius = 0.0
         # for move_in_axis thresholds
-        self.MIN_THRE = minthre
-        self.MAX_THRE = maxthre
+        self.MIN_THRE = data['minthre']
+        self.MAX_THRE = data['maxthre']
         ## move in x,y,z, Positive/Negative
         self.move = [False, False, False]
 
 class MoveData():
     def __init__(self):
         with open(CUSTOM_SETTINGS_YAML+"robot_move.yaml", 'r') as stream:
-            robot_move_data_loaded = yaml.safe_load(stream)
+            robot_move_data_loaded = ordered_load(stream, yaml.SafeLoader)
+            #robot_move_data_loaded = yaml.safe_load(stream)
 
         self.LEAP_AXES = robot_move_data_loaded['LEAP_AXES']
         self.ENV_DAT = {}
@@ -465,12 +499,12 @@ class CustomPath():
         for f in files:
             if '.yaml' in f and poses_file_catch_phrase in f:
                 with open(paths_folder+f, 'r') as stream:
-                    poses_data_loaded = merge_two_dicts(poses_data_loaded, yaml.safe_load(stream))
+                    poses_data_loaded = merge_two_dicts(poses_data_loaded, ordered_load(stream, yaml.SafeLoader))
 
         for f in files:
             if '.yaml' in f and paths_file_catch_phrase in f:
                 with open(paths_folder+f, 'r') as stream:
-                    data_loaded = yaml.safe_load(stream)
+                    data_loaded = ordered_load(stream, yaml.SafeLoader)
                     for key in data_loaded.keys():
                         pickedpath = {key: data_loaded[key]}
                         sp.append(CustomPath(pickedpath, poses_data_loaded))
@@ -492,7 +526,18 @@ class CustomScene():
         self.object_names = []
         self.object_poses = []
         self.object_sizes = []
+        self.object_scales = []
+        self.object_colors = []
+        self.object_shapes = []
+        self.object_masses = []
+        self.object_frictions = []
+        self.object_inertia = []
+        self.object_inertiaTransform = []
         self.mesh_trans_origin = []
+        self.object_dynamic = []
+        self.object_pub_info = []
+        self.object_texture_file = []
+        self.object_file = []
         if not scene_data:
             return
 
@@ -504,7 +549,17 @@ class CustomScene():
 
             self.object_poses.append(ParseYAML.parsePose(pose_vec, poses_data))
             self.object_sizes.append(ParseYAML.parsePosition(objects[object], poses_data, key='size'))
-
+            self.object_scales.append(ParseYAML.parseScale(objects[object]))
+            self.object_colors.append(ParseYAML.parseColor(objects[object]))
+            self.object_shapes.append(ParseYAML.parseShape(objects[object]))
+            self.object_frictions.append(ParseYAML.parseFriction(objects[object]))
+            self.object_masses.append(ParseYAML.parseMass(objects[object]))
+            self.object_inertia.append(ParseYAML.parseInertia(objects[object]))
+            self.object_inertiaTransform.append(ParseYAML.parseInertiaTransform(objects[object]))
+            self.object_dynamic.append(ParseYAML.parseDynamic(objects[object]))
+            self.object_pub_info.append(ParseYAML.parsePubInfo(objects[object]))
+            self.object_texture_file.append(ParseYAML.parseTextureFile(objects[object]))
+            self.object_file.append(ParseYAML.parseMeshFile(objects[object]))
             if 'mesh_trans_origin' in scene_data.keys():
                 if 'axes' in scene_data.keys():
                     self.mesh_trans_origin = TransformWithAxes(scene_data['mesh_trans_origin'], scene_data['axes'])
@@ -533,16 +588,17 @@ class CustomScene():
         for f in files:
             if '.yaml' in f and poses_file_catch_phrase in f:
                 with open(scenes_folder+f, 'r') as stream:
-                    poses_data_loaded = merge_two_dicts(poses_data_loaded, yaml.safe_load(stream))
+                    poses_data_loaded = merge_two_dicts(poses_data_loaded, ordered_load(stream, yaml.SafeLoader))
 
         for f in files:
             if '.yaml' in f and scenes_file_catch_phrase in f:
                 with open(scenes_folder+f, 'r') as stream:
-                    data_loaded = yaml.safe_load(stream)
+                    data_loaded = ordered_load(stream, yaml.SafeLoader)
                     for key in data_loaded.keys():
                         pickedscene = {key: data_loaded[key]}
                         ss.append(CustomScene(pickedscene, poses_data_loaded))
         return ss
+
 
 class ParseYAML():
     @staticmethod
@@ -556,6 +612,210 @@ class ParseYAML():
             return 'empty'
 
     @staticmethod
+    def parseMeshFile(object):
+        '''
+        '''
+        keys = ['file', 'mesh_file', 'init_file', 'mesh', 'meshFile', 'initFile']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if object[key] in ['', 'none']:
+                return ''
+            elif not any(x in object[key] for x in ['.obj','.dae']):
+                raise Exception("Mesh file not in right format, check YAML file!")
+            else:
+                return object[key]
+        else:
+            return ''
+
+    @staticmethod
+    def parseTextureFile(object):
+        '''
+        '''
+        keys = ['texture_file', 'texture', 'Texture', 'textureFile']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+            if object[key] in ['wood']:
+                return 'wood.jpg'
+            ## More defualt textures goes here!
+            elif object[key] in ['', 'none']:
+                return ''
+            elif not any(x in object[key] for x in ['.jpeg','.jpg','.png','.tga','.bmp','.tiff','.gif']):
+                raise Exception("Texture file not in right format, check YAML file!")
+            else:
+                return object[key]
+        else:
+            return ''
+
+    @staticmethod
+    def parseInertiaTransform(object):
+        '''
+        '''
+        keys = ['inertiaTransform', 'inertia_transform', 'InertiaTransform', 'InertiaTransformation','inertiaTransformation']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if isinstance(object[key], (list, tuple, np.ndarray)):
+                if len(object[key]) == 12:
+                    return object[key]
+                else: raise Exception("Inertia from YAML file is not the right length")
+            elif object[key] in ['', 'none']:
+                return np.zeros(12)
+            else: raise Exception("Inertia not in list, check YAML file!")
+        else:
+            return np.zeros(12)
+
+    @staticmethod
+    def parseInertia(object):
+        '''
+        '''
+        keys = ['inertia', 'init_inertia', 'Inertia']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if isinstance(object[key], (list, tuple, np.ndarray)):
+                if len(object[key]) == 9:
+                    return object[key]
+                else: raise Exception("Inertia from YAML file is not the right length")
+            elif object[key] in ['', 'none']:
+                return np.zeros(9)
+            else: raise Exception("Inertia not in list, check YAML file!")
+        else:
+            return np.zeros(9)
+
+
+    @staticmethod
+    def parseCollision(object):
+        '''
+        '''
+        keys = ['collision', 'init_collision', 'Collision']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if object[key] in ['true', 'yes', 'True', 'Yes', 'y', 1]:
+                return 'true'
+            elif object[key] in ['false', 'no', 'False', 'No', 'n', 0]:
+                return 'false'
+            elif object[key] in ['', 'none']:
+                return ''
+            else: raise Exception("Shape not in list, check YAML file!")
+        else:
+            return ''
+
+    @staticmethod
+    def parsePubInfo(object):
+        '''
+        '''
+        keys = ['pub_info', 'pubInfo', 'info', 'publish_info', 'publishInfo']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if object[key] in ['true', 'yes', 'True', 'Yes', 'y', 1]:
+                return 'true'
+            elif object[key] in ['false', 'no', 'False', 'No', 'n', 0]:
+                return 'false'
+            elif object[key] in ['', 'none']:
+                return ''
+            else: raise Exception("pub_info not in list, check YAML file!")
+        else:
+            return ''
+
+
+    @staticmethod
+    def parseDynamic(object):
+        '''
+        '''
+        keys = ['dynamic', 'init_dynamic', 'Dynamic', 'dynamics', 'Dynamics']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if object[key] in ['true', 'yes', 'True', 'Yes', 'y', 1]:
+                return 'true'
+            elif object[key] in ['false', 'no', 'False', 'No', 'n', 0]:
+                return 'false'
+            elif object[key] in ['', 'none']:
+                return ''
+            else: raise Exception("Dynamic not in list, check YAML file!")
+        else:
+            return ''
+
+    @staticmethod
+    def parseFriction(object):
+        keys = ['friction', 'init_friction', 'Friction']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if isinstance(object[key], (int, float)):
+                return object[key]
+            elif object[key] in ['no', 'none']:
+                return 0
+            elif object[key] in ['']:
+                return -1
+            else: raise Exception("Friction not in list, check YAML file!")
+        else:
+            return -1
+
+    @staticmethod
+    def parseMass(object):
+        keys = ['mass', 'weight', 'init_mass', 'init_weight']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if isinstance(object[key], (int, float)):
+                return object[key]
+            elif object[key] in ['no', 'none']:
+                return 0
+            elif object[key] in ['']:
+                return -1
+            else: raise Exception("Mass not in list, check YAML file!")
+        else:
+            return -1
+
+    @staticmethod
+    def parseShape(object):
+        ''' Parse shape
+        '''
+        if 'shape' in object.keys():
+            if object['shape'] in ['cube', 'sphere', 'cylinder', 'cone']:
+                return object['shape']
+            elif object['shape'] in ['cuboid', 'box', 'rectangle']:
+                return 'cube'
+            elif object['shape'] in ['ball', 'round', 'globe', 'spheroid']:
+                return 'sphere'
+            elif object['shape'] in ['', 'none', 'no']:
+                return ''
+            else: raise Exception("Shape not in list, check YAML file!")
+        else:
+            return ""
+
+    @staticmethod
     def parseAction(pose):
         ''' Parses action from pose
         Parameters:
@@ -565,6 +825,42 @@ class ParseYAML():
             return pose['action']
         else:
             return ""
+
+    @staticmethod
+    def parseColor(object):
+        ''' Parse color from YAML file
+        '''
+        if 'color' in object.keys():
+            if object['color'] in ['r','g','b','c','m','y','k']:
+                return object['color']
+            elif object['color'] == 'red':
+                return 'r'
+            elif object['color'] == 'green':
+                return 'g'
+            elif object['color'] == 'blue':
+                return 'b'
+            elif object['color'] == 'cyan':
+                return 'c'
+            elif object['color'] == 'magenta':
+                return 'm'
+            elif object['color'] == 'yellow':
+                return 'y'
+            elif object['color'] in ['key','black']:
+                return 'k'
+            elif object['color'] in ['', 'no', 'none']:
+                return ''
+            else: raise Exception("Color not in list, check YAML file!")
+        else:
+            return ''
+
+    @staticmethod
+    def parseScale(object):
+        ''' Parse scale from YAML file
+        '''
+        if 'scale' in object.keys():
+            return object['scale']
+        else:
+            return 0
 
     @staticmethod
     def parsePose(pose_vec, poses_data):
@@ -612,7 +908,8 @@ class ParseYAML():
                     assert position[i][0] < position[i][1], "Min. is greater than Max. in YAML read"
                     position[i] = random.uniform(position[i][0], position[i][1])
             return Point(*list(position))
-        elif type(position) == dict:
+
+        elif isinstance(position, dict):
             for i in ['x', 'y', 'z']:
                 if isnumber(position[i]):
                     pass
@@ -656,7 +953,7 @@ class ParseYAML():
                     assert orientation[i][0] < orientation[i][1], "Min. is greater than Max. in YAML read"
                     orientation[i] = random.uniform(orientation[i][0], orientation[i][1])
             return Quaternion(*list(orientation))
-        elif type(orientation) == dict:
+        elif isinstance(orientation, dict):
             for i in ['x', 'y', 'z', 'w']:
                 if isnumber(orientation[i]):
                     pass
@@ -673,6 +970,27 @@ class ParseYAML():
             else: raise Exception("Saved pose not found! Pose: "+str(orientation))
         else: raise Exception("Wrong option reading from YAML: "+str(orientation))
 
+    @staticmethod
+    def parseStaticGesture(gesture):
+        if 'turnon' not in gesture.keys():
+            gesture['turnon']=0.0
+        if 'turnoff' not in gesture.keys():
+            gesture['turnoff']=0.0
+        if 'filename' not in gesture.keys():
+            gesture['filename']=""
+        return gesture
+
+    @staticmethod
+    def parseDynamicGesture(gesture):
+        if 'var_len' not in gesture.keys():
+            gesture['var_len']=1
+        if 'minthre' not in gesture.keys():
+            gesture['minthre']=0.9
+        if 'maxthre' not in gesture.keys():
+            gesture['maxthre']=0.4
+        if 'filename' not in gesture.keys():
+            gesture['filename']=""
+        return gesture
 
 ## Helper functions
 def indx(ss, str):
@@ -704,7 +1022,7 @@ def extq(q):
     '''
     if type(q) == type(Quaternion()):
         return q.x, q.y, q.z, q.w
-    elif (type(q) == dict and 'w' in q.keys()):
+    elif (isinstance(q, dict) and 'w' in q.keys()):
         return q['x'], q['y'], q['z'], q['w']
     else: raise Exception("extq input arg q: Not Quaternion or dict with 'x'..'w' keys!")
 
@@ -718,7 +1036,7 @@ def extv(v):
     '''
     if type(v) == type(Point()) or type(v) == type(Vector3()):
         return v.x, v.y, v.z
-    elif (type(v) == dict and 'x' in v.keys()):
+    elif (isinstance(v, dict) and 'x' in v.keys()):
         return v['x'], v['y'], v['z']
     else: raise Exception("extv input arg v: Not Point or Vector3 or dict!")
 
@@ -757,7 +1075,7 @@ def TransformWithAxes(data_to_transform, transform_mat):
         data_transformed (Vector3()[])
     '''
 
-    if type(data_to_transform[0]) == dict and 'x' in data_to_transform[0].keys():
+    if isinstance(data_to_transform[0], dict) and 'x' in data_to_transform[0].keys():
         new_data = []
         for vec in data_to_transform:
             new_data.append(Vector3(vec['x'], vec['y'], vec['z']))

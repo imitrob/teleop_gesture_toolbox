@@ -1,0 +1,7 @@
+string data
+---
+bool success
+string[] Gs
+string observation_type
+string time_series_operation
+string position

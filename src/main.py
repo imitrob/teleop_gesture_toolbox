@@ -81,9 +81,24 @@ def save_joints(data):
 
     else: raise Exception("Wrong robot name!")
 
+def ext_fingers_angles_diff(fingers_angles_diff):
+    ret = []
+    for i in fingers_angles_diff:
+        for j in i:
+            ret.append(j[1])
+            ret.append(j[2])
+    return ret
+
+def ext_pos_diff_comb(pos_diff_comb):
+    ret = []
+    for i in pos_diff_comb:
+        ret.extend(i)
+    return ret
 
 def sendInputPyMC():
     dd = settings.frames_adv[-1]
+    if len(ext_fingers_angles_diff(dd.r.fingers_angles_diff)) == 0:
+        return
     if settings.observation_type == 'user_defined':
         f = [dd.r.OC[0], dd.r.OC[1], dd.r.OC[2], dd.r.OC[3], dd.r.OC[4], dd.r.TCH12, dd.r.TCH23, dd.r.TCH34, dd.r.TCH45, dd.r.TCH13, dd.r.TCH14, dd.r.TCH15]
     elif settings.observation_type == 'all_defined':
@@ -97,6 +112,7 @@ def sendInputPyMC():
                 f.extend(dd.r.index_position)
     settings.pymcin = Float64MultiArray()
     settings.pymcin.data = f
+
     settings.pymc_in_pub.publish(settings.pymcin)
 
 def saveOutputPyMC(data):

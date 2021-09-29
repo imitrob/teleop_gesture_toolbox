@@ -1,1 +1,2 @@
 *.pyc
+include/data/Trained_network/*

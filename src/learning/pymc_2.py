@@ -663,7 +663,7 @@ class GestureDetection():
 
             GestureDetection.processPose_grab(f=f)
             GestureDetection.processPose_pinch(f=f)
-            GestureDetection.processPose_pointing(f=f)
+            GestureDetection.processPose_point(f=f)
             GestureDetection.processPose_respectful(f=f)
             GestureDetection.processPose_spock(f=f)
             GestureDetection.processPose_rock(f=f)
@@ -767,13 +767,13 @@ class GestureDetection():
                 g.time_visible = 0.0
 
     @staticmethod
-    def processPose_pointing(f):
+    def processPose_point(f):
         ''' tch, oc functions need to be called before to get fingers O/C
         '''
         fa = settings.frames_adv[f]
         if fa.r.visible:
             gd = settings.gd.r
-            g = gd.poses[gd.POSES["pointing"]]
+            g = gd.poses[gd.POSES["point"]]
             if gd.oc[1] is True and gd.oc[2] is False and gd.oc[3] is False and gd.oc[4] is False:
                 g.toggle = True
                 g.time_visible += 0.01
@@ -857,7 +857,7 @@ class GestureDetection():
         '''
         fa = settings.frames_adv[-1]
         g = settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]]
-        g_time = settings.gd.r.poses[settings.gd.r.POSES["pointing"]].time_visible
+        g_time = settings.gd.r.poses[settings.gd.r.POSES["point"]].time_visible
         if g_time > 2:
             if g.toggle[0] and g.move[0]:
                 settings.WindowState = 1
