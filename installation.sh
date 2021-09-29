@@ -167,7 +167,7 @@ read input5
 
 cd ~/$YOUR_WS/src
 
-gdown https://drive.google.com/uc?id=1mDockH6SvHjc7qtmNtcoLbp9-5MSbVXv
+gdown https://drive.google.com/uc?id=1cGXn87U2dbFsjwB2lz3o9jKbdMVGNb31
 tar -xf relaxed_ik.tar.xz
 rm relaxed_ik.tar.xz
 cd ~/$YOUR_WS/src/relaxed_ik/src/RelaxedIK/Config
