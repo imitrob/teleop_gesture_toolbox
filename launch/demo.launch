@@ -6,14 +6,14 @@
   <arg name="launch_leap" default="true" />
   <arg name="launch_gesture_detection" default="true" />
   <arg name="robot" default="panda" /> <!-- 'panda'/('iiwa' not tested) -->
-  <arg name="gripper" default="none" /> <!-- 'none'/'franka_hand'/'franka_hand_with_camera'-->
-  <arg name="simulator" default="real" /> <!-- 'real'/'gazebo'/'coppelia' -->
-  <arg name="visualize" default="true" />
+  <arg name="gripper" default="franka_hand" /> <!-- 'none'/'franka_hand'/'franka_hand_with_camera'-->
+  <arg name="simulator" default="coppelia" /> <!-- 'real'/'gazebo'/'coppelia' -->
+  <arg name="visualize" default="false" />
 
   <arg name="ik_topic" default="" /> <!-- Custom IK topic name used, if ik_solver is set to custom solver-->
 
   <arg name="scene_file_none" default="scene_panda.ttt" />
-  <arg name="scene_file_franka_hand" default="scene_panda_franka_gripper.ttt" />
+  <arg name="scene_file_franka_hand" default="scene_panda_franka_gripper_pickplace.ttt" />
   <arg name="scene_file_franka_hand_with_camera" default="scene_panda_custom_gripper.ttt" />
 
   <!-- relaxedIK config file names -->
