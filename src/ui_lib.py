@@ -505,7 +505,7 @@ class Example(QMainWindow):
 
     # Fixed orientation function
     def fixedOriAct(self, state):
-        settings.FIXED_ORI_TOGGLE = state
+        settings.ORIENTATION_MODE = 'fixed' if state else 'free'
     def print_path_trace(self, state):
         settings.print_path_trace = state
     def record_with_keys(self, state):

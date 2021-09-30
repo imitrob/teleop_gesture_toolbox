@@ -86,7 +86,7 @@ def init(minimal=False):
         GESTURE_KEYS.extend([gestures_data_loaded['dynamicGestures'][g]['key'] for g in gestures_data_loaded['dynamicGestures'].keys()])
     else:
         gestures_data_loaded['dynamicGestures'] = {}
-    
+
     NETWORKS_DRIVE_URL = gestures_data_loaded['configGestures']['NETWORKS_DRIVE_URL']
     GESTURE_NETWORK_FILE = gestures_data_loaded['configGestures']['NETWORK_FILE']
     ### 3. Loads config. about robot         ###
@@ -176,9 +176,15 @@ def init(minimal=False):
     mo = None # MoveIt object
 
     ## Fixed Conditions
-    global FIXED_ORI_TOGGLE, print_path_trace
-    # When turned on, eef has fixed eef orientaion based on chosen environment (md.ENV)
-    FIXED_ORI_TOGGLE = True
+    global POSITION_MODE, ORIENTATION_MODE, print_path_trace
+    # ORIENTATION_MODE options:
+    #   - 'fixed', eef has fixed eef orientaion based on chosen environment (md.ENV)
+    ORIENTATION_MODE = 'fixed'
+
+    # POSITION_MODE options:
+    #   - '', default
+    #   - 'sim_camera', uses simulator camera to transform position
+    POSITION_MODE = ''
     # When turned on, rViz marker array of executed trajectory is published
     print_path_trace = False
 

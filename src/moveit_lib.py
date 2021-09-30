@@ -634,17 +634,20 @@ class MoveGroupPythonInteface(object):
         y = -pose.position.z/1000
         z = pose.position.y/1000
 
+        ## Camera rotation from CoppeliaSim
+        ## TODO: Optimize for all environments
+        if settings.POSITION_MODE == 'sim_camera':
+            x = -pose.position.x/1000
+            y = pose.position.y/1000
+            z = -pose.position.z/1000
+            camera = settings.md.camera_orientation
+            camera_matrix = tf.transformations.euler_matrix(camera.x, camera.y, camera.z, 'rxyz')
+            camera_matrix = np.array(camera_matrix)[0:3,0:3]
+            x_cop = np.dot([x,y,z], camera_matrix[0])
+            y_cop = np.dot([x,y,z], camera_matrix[1])
+            z_cop = np.dot([x,y,z], camera_matrix[2])
+            x,y,z = x_cop,y_cop,z_cop
 
-        ## beta SOMEWHERE here should be camera rotation from CoppeliaSim
-        '''
-        camera = settings.md.camera_orientation
-        camera_matrix = tf.transformations.euler_matrix(camera.x, camera.y, camera.z, 'sxyz')
-        camera_matrix = np.array(camera_matrix)[0:3,0:3]
-        x_cop = np.dot([x,y,z], camera_matrix[0])
-        y_cop = np.dot([x,y,z], camera_matrix[1])
-        z_cop = np.dot([x,y,z], camera_matrix[2])
-        x,y,z = x_cop,y_cop,z_cop
-        '''
         # Linear transformation to point with rotation
         # How the Leap position will affect system
         pose_.position.x = np.dot([x,y,z], settings.md.ENV['axes'][0])*settings.md.SCALE + settings.md.ENV['start'].x
@@ -672,7 +675,7 @@ class MoveGroupPythonInteface(object):
 
         pose_.orientation = Quaternion(*tf.transformations.quaternion_multiply(tf.transformations.quaternion_from_euler(*euler), settings.extq(settings.md.ENV['ori'])))
 
-        if settings.FIXED_ORI_TOGGLE:
+        if settings.ORIENTATION_MODE == 'fixed':
             pose_.orientation = settings.md.ENV['ori']
 
         # only for this situtaiton
@@ -953,7 +956,7 @@ class MoveGroupPythonInteface(object):
                 print("n points: ", len(goal.trajectory.points), " joints diff: ", round(sum(js2_joints-js1_joints),2), " pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2))
             goal.trajectory.header.stamp = rospy.Time.now()
             settings.md._goal = goal
-
+            
             if self.trajectory_action_perform:
                 self.tac.add_goal(goal)
                 self.tac.replace()
