@@ -1,2 +1,2 @@
 *.pyc
-include/data/Trained_network/*
+include/data/Trained_network/netw*

@@ -17,3 +17,4 @@ rospy
 #ipython
 #ipykernel
 theano
+simple_pid
