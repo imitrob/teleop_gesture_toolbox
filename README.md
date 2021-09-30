@@ -6,6 +6,17 @@ Download installation script [here](https://gitlab.ciirc.cvut.cz/imitrob/mirracl
 
 Old installation description file can be found in [installation-old.md](installation-old.md).
 
+If error will show, try to create conda environment. If you don't have anaconda, download it from [link](https://repo.anaconda.com/archive/Anaconda3-2021.05-Linux-x86_64.sh), install with `bash Anaconda3-2021.05-Linux-x86_64.sh`
+
+```
+cd ~/$YOUR_WS
+conda env create -f environment.yml
+```
+
+If problems will remain, checkout my [installation journal](installation-journal.md).
+
+
+
 ## Launch the robot
 
 ### Simulator
