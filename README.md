@@ -13,8 +13,6 @@ cd ~/$YOUR_WS
 conda env create -f environment.yml
 ```
 
-If problems will remain, checkout my [installation journal](installation-journal.md).
-
 
 
 ## Launch the robot
@@ -26,8 +24,10 @@ If problems will remain, checkout my [installation journal](installation-journal
 sudo leapd
 # Term 2, Simulator demo
 source /opt/ros/melodic/setup.bash
-roslaunch mirracle_gestures demo.launch
+roslaunch mirracle_gestures demo.launch simulator:=coppelia
 ```
+
+Add `gripper:=franka_gripper` for gripper option.
 
 ### Real
 
@@ -42,9 +42,10 @@ sudo leapd
 # Term 3, Workspace with "motion" package
 source /opt/ros/melodic/setup.bash
 source ~/<your_ws>/setup.sh
-roslaunch mirracle_gestures demo.launch
+roslaunch mirracle_gestures demo.launch simulator:=real
 ```
 
+Add `gripper:=franka_gripper` for gripper option.
 
 ## GPU Accelerated learning:
 - Check kernel version -> need to be 5.4.0
