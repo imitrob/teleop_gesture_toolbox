@@ -31,12 +31,12 @@ staticGestures:
     key: 6
     filename: gesture102.png
     turn_on_off: [0.3, 0.9]
-    train: false
+    train: true
   victory:
     key: 7
     filename: gesture103.png
     turn_on_off: [0.3, 0.9]
-    train: false
+    train: true
   italian:
     key: 8
     filename: gesture104.png
@@ -90,7 +90,7 @@ configGestures:
   # Link to networks in google drive folder
   NETWORKS_DRIVE_URL: https://drive.google.com/drive/folders/1T8jqeyb10WrwnqQoMA25bRKQQvTacF6Y
   # This is default network loaded from computer, it can be changed later in UI
-  NETWORK_FILE: network4.pkl
+  NETWORK_FILE: network0.pkl
 
 ### RECOGNITION SETTINGS ARE CHANGED ###
 ### BASED ON loaded network.pkl file ###

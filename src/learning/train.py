@@ -159,15 +159,16 @@ if True:
 
 ## Import all data from learning folder
 if True:
+    # Takes about 50sec.
     data = import_data(learn_path, args, Gs=Gs_static)
 
     X = data['static']['X']
     Y = data['static']['Y']
     Xpalm = data['dynamic']['Xpalm']
     DXpalm = data['dynamic']['DXpalm']
-    Ydyn = data['dynamic']['Ydyn']
-    data = data['all_data']
+    Ydyn = data['dynamic']['Y']
 
+    Gs
     args
     print(X.shape)
     print(Y.shape)
@@ -177,18 +178,6 @@ if True:
     len(Y[Y==0])
     len(Y[Y==1])
     len(Y[Y==2])
-
-
-## Dynamic gestures via promp (not useful)
-if False:
-    X,Y = promp_lib2.get_weights(Xpalm,DXpalm,Y)
-    X.shape
-
-    promp_launch(args=args)
-
-## Dynamic gestures via timewarping
-args.append('eacheach')
-time_warp_launch(Xpalm, Y, args=args)
 
 ## Split dataset
 if True:
@@ -297,12 +286,10 @@ if True:
 
 ## Load Network
 if False:
-    nn = NNWrapper.load_network(network_path, name='network0.pkl')
+    nn = NNWrapper.load_network(network_path, name='network1.pkl')
     X_train = nn.X_train
     approx = nn.approx
     neural_network = nn.neural_network
-    Gs = nn.Gs
-
 if True:
     plt.figure(figsize=(12,6))
     plt.plot(-inference.hist, label="new ADVI", alpha=0.3)
@@ -328,8 +315,6 @@ if True:
     y_pred = np.array(y_pred).astype(int)
     print("Accuracy = {}%".format((Y_test == y_pred).mean() * 100))
 
-## Evaluate on train data
-if True:
     pred_t = sample_proba(X_train,1000).mean(0)
     y_pred_t = np.argmax(pred_t, axis=1)
     X_train.shape
@@ -337,17 +322,13 @@ if True:
     y_pred_t.shape
     print("Accuracy on train = {}%".format((Y_train == y_pred_t).mean() * 100))
 
-    if ((Y_test == y_pred).mean() * 100) > 85:
-        save_network(X_train, approx, neural_network, network_path, name=None, Gs=Gs, args=args, accuracy=((Y_train == y_pred_t).mean() * 100))
-
-    name = 'network5'
     confusion_matrix_pretty_print.plot_confusion_matrix_from_data(Y_test, y_pred, Gs,
-      annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name=name)
+      annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name="")
 
 
 ## Save the network
 if True:
-    NNWrapper.save_network(X_train, approx, neural_network, network_path=network_path, name=None, Gs=Gs, args=args, accuracy=0.9881)
+    NNWrapper.save_network(X_train, approx, neural_network, network_path=network_path, name=None, Gs=Gs, args=args, accuracy=0.9944134)
     confusion_matrix_pretty_print.plot_confusion_matrix_from_data(Y_test, y_pred, Gs,
       annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name='asd')
 
@@ -508,3 +489,17 @@ pm.traceplot(trace);
 #plt.figure(figsize = (10,7))
 #plt.savefig(plots_path+name+'.eps', format='eps')
 #sns.heatmap(df_cm, annot=True)
+
+
+
+
+## Dynamic gestures via promp (not useful)
+if False:
+    X,Y = promp_lib2.get_weights(Xpalm,DXpalm,Y)
+    X.shape
+
+    promp_launch(args=args)
+
+## Dynamic gestures via timewarping
+args.append('eacheach')
+time_warp_launch(Xpalm, Y, args=args)
