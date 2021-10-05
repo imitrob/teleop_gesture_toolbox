@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-''' Executes PyMC sample with pre-learned model
+''' Executes PyMC sampling with pre-learned model
     -> Receives configuration from main.py through /mirracle_gestures/pymcin topic
     -> Publishes output through /mirracle_gestures/pymcout topic
     -> Prelearned neural network in include/data/learned_networks
@@ -48,9 +48,7 @@ class ProbabilisticGestureComputationSamplePublisher():
         self.neural_network = None
 
         self.Gs = None
-        self.observation_type = None
-        self.time_series_operation = None
-        self.position = None
+        self.args = []
 
         self.sem = threading.Semaphore()
 
@@ -74,9 +72,7 @@ class ProbabilisticGestureComputationSamplePublisher():
 
         msg = ChangeNetworkResponse()
         msg.Gs = self.Gs
-        msg.observation_type = self.observation_type
-        msg.time_series_operation = self.time_series_operation
-        msg.position = self.position
+        msg.args = self.args
         msg.success = True
         return msg
 
@@ -93,7 +89,12 @@ class ProbabilisticGestureComputationSamplePublisher():
 
     def init_pymc(self, network):
         if network in os.listdir(settings.NETWORK_PATH):
-            self._sample_proba, self.X_train, self.approx, self.neural_network, self.Gs, self.observation_type, self.time_series_operation, self.position = load_network(settings, name=network)
+            nn = NNWrapper.load_network(settings.NETWORK_PATH, name=network)
+            self.X_train = nn.X_train
+            self.approx = nn.approx
+            self.neural_network = nn.neural_network
+            self.Gs = nn.Gs
+            self.args = nn.args
             x = T.matrix("X")
             n = T.iscalar("n")
             x.tag.test_value = np.empty_like(self.X_train[:10])
@@ -105,9 +106,9 @@ class ProbabilisticGestureComputationSamplePublisher():
             self.sample_proba = theano.function([x, n], self._sample_proba)
             self.sem.release()
 
-            rospy.loginfo("[Gesture computation] network is: "+network)
+            rospy.loginfo("[Sample thread] network is: "+network)
         else:
-            rospy.logerr("[Gesture computation] file not found")
+            rospy.logerr("[Sample thread] file not found")
 
 
 

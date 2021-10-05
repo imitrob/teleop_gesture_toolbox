@@ -352,10 +352,8 @@ class Example(QMainWindow):
             change_network = rospy.ServiceProxy('/mirracle_gestures/change_network', ChangeNetwork)
             response = change_network(data=network)
             settings.GESTURE_NAMES = [g.lower() for g in response.Gs]
-            settings.observation_type = response.observation_type
-            settings.time_series_operation = response.time_series_operation
-            settings.position = response.position
-            print("[UI] Gestures & Network changed, new set of gestures: "+str(settings.GESTURE_NAMES))
+            settings.args = response.args
+            print("[UI] Gestures & Network changed, new set of gestures: "+str(", ".join(settings.GESTURE_NAMES)))
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
         settings.GESTURE_NETWORK_FILE = network

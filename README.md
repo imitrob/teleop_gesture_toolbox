@@ -80,13 +80,13 @@ graph LR;
 classDef someclass fill:#f96;
 classDef someclass2 fill:#00FF00;
 
-A("Train network *<br>learning/<pymc n>.py<br>(not ready for execution)"):::someclass --> B("Folder containing network data files<br>include/data/Trained_network/<network x>.pkl")
+A("Train network *<br>src/learning/train.py<br>"):::someclass --> B("Folder containing network data files<br>include/data/Trained_network/<network x>.pkl")
 C("Download networks (gdrive)<br><inside user interface>") --> B
 B --> D("Main program<br>src/demo.launch")
 E("Info about gestures **<br>/include/custom_settings/gesture_recording.yaml"):::someclass2 --> D
-B --> F("Get info about <network x>.pkl *<br>src/learning/import_data.py"):::someclass
+B --> F("Get info about <network x>.pkl *<br>src/learning/get_info_about_network.py"):::someclass
 
-G("* python files executed separately"):::someclass
+G("* python files executed separately (Python3)"):::someclass
 H("** Configuration text file"):::someclass2
 
 I("Recorded gestures folder<br>include/data/learning/<gesture n>/<recording m>") --> A

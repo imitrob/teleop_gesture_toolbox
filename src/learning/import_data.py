@@ -10,40 +10,7 @@ from scipy.spatial.distance import euclidean
 from fastdtw import fastdtw
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
-
-if __name__=="__main__":
-    import sys
-    import os
-    print(sys.version_info)
-
-    PATH = os.path.dirname(os.path.realpath(__file__))
-    sys.path.insert(1, PATH)
-    sys.path.insert(1, os.path.abspath(os.path.join(PATH, '..')))
-
-    settings = None
-    if False:
-        import settings
-        settings.init()
-    else:
-        class S():
-            def __init__(self):
-                sys.path.append('/home/pierro/my_ws/src/mirracle_gestures/src/learning')
-                import import_data
-
-                self.LEARN_PATH = '/home/pierro/my_ws/src/mirracle_gestures/include/data/learning/'
-                self.NETWORK_PATH = '/home/pierro/my_ws/src/mirracle_gestures/include/data/Trained_network/'
-        settings = S()
-
-    Gs_names = ['Grab', 'Pinch', 'Point', 'Respectful', 'Spock', 'Rock', 'Victory']
-    #, 'Italian', 'Rotate', 'Swipe_Up', 'Pin', 'Touch', 'Swipe_Left', 'Swipe_Down', 'Swipe_Right']
-    Gs_names = ['Rotate', 'Swipe_Up', 'Pin', 'Touch', 'Swipe_Left', 'Swipe_Down', 'Swipe_Right']
-    Gs_names = ['Rotate', 'Swipe_Up', 'Pin', 'Touch']
-    args = []
-    args.append("all_defined")
-    args.append("1s")
-    args.append("take_every_10")
-    args.append("normalize")
-
+floatX = theano.config.floatX
 
 
 ## Extraction functions
@@ -61,17 +28,48 @@ def ext_pos_diff_comb(pos_diff_comb):
         ret.extend(i)
     return ret
 
-def import_data(settings, args, Gs_names=['Rotate', 'Swipe_Up', 'Pin', 'Touch']):
+def import_data(learn_path, args, Gs=None):
     ''' Prepares X, Y datasets from files format
+        - Loads data from learn_path, gesture recordings are saved here
+            - Every gesture has its own directory
+            - Every gesture recording has its own file
+            Pros: Easy manipulation with recording (deletion, move)
+            Cons: Slower load time
+    Parameters:
+        learn_path (Str): Path to learn directory (gesture recordings)
+        args (Str[]): Flags for import
+            - '1s' - Cuts recording to have only the last 1 second of recording
+            - 'normalize' - Palm trajectory will start at zero (x,y,z=0,0,0 at time t=0)
+            - 'user_defined' - hand data are shortened
+            - 'all_defined' - all hand data are used (use as default)
+
+            - 'absolute' - use absolute coordinates as variables (was not useful, will delete)
+            - 'absolute+finger' - use abs.coord+finger abs.coord. as var. (was not useful, will delete)
+
+            - 'interpolate' - X data will be interpolated to have static length of 100 samples
+            For static gestures, only one sample is needed, but there is possibility to use more samples through recording
+            - 'middle' - Uses only one sample, the one in the middle
+            - 'average' - Average data throughout recording and use also one sample
+            - 'as_dimesion' - Use X as dimension (was not useful, will delete)
+            - 'take_every_10' - Use every tenth record sample to the dataset
+            - 'take_every' - Use every record sample to the dataset
+        Gs (Str[]): Set of gesture names, given names corresponds to gesture folders (from which to load gestures)
+    Returns:
+        X (ndarray): X dataset
+        Y (ndarray): Y dataset
+        X_palm (ndarray): Palm trajectory positions
+        DX_palm (ndarray): Palm trajectory velocities
+        all_data (ndarray): Copy of all the data from X dataset loaded from folders (not edited)
     '''
+    Gs
     args
     X = []
     Y = []
     ## Load data from file
-    for n, G in enumerate(Gs_names):
+    for n, G in enumerate(Gs):
         i = 0
-        while isfile(settings.LEARN_PATH+G+"/"+str(i)+".pkl"):
-            with open(settings.LEARN_PATH+G+"/"+str(i)+".pkl", 'rb') as input:
+        while isfile(learn_path+G+"/"+str(i)+".pkl"):
+            with open(learn_path+G+"/"+str(i)+".pkl", 'rb') as input:
                 X.append(pickle.load(input, encoding="latin1"))
                 Y.append(n)
             i += 1
@@ -224,6 +222,7 @@ def import_data(settings, args, Gs_names=['Rotate', 'Swipe_Up', 'Pin', 'Touch'])
 
     X_ = []
     Y_ = []
+    Ydyn = deepcopy(Y_)
     for n, X_n in enumerate(X):
         if 'middle' in args:
             X_.append(deepcopy(X_n[0]))
@@ -248,7 +247,18 @@ def import_data(settings, args, Gs_names=['Rotate', 'Swipe_Up', 'Pin', 'Touch'])
     Y.shape
     Y
 
-    return X, Y, data, Xpalm, DXpalm
+    X = scale(X)
+    X = X.astype(floatX)
+    Y = Y.astype(floatX)
+    X = np.array(X)
+    Y = np.array(Y)
+
+    data = {
+    'static': {'X': X, 'Y': Y},
+    'dynamic': {'Xpalm': Xpalm, 'DXpalm': DXpalm, 'Y': Ydyn},
+    'all_data': data
+    }
+    return data
 
 
 ## Average dataframe
@@ -260,55 +270,71 @@ def avg_dataframe(data_n):
     return data_avg
 
 
-class NetworkWrapper():
-    def __init__(self, _sample_proba=None, X_train=None, approx=None, neural_network=None, Gs=[], observation_type="", time_series_operation="", position=""):
-        ## Gestures and config
-        self.gesture_names = Gs
 
-        self.observation_type = observation_type #all_defined
-        self.time_series_operation = time_series_operation #take_every_10
-        self.position = position
+class NNWrapper():
+    ''' Object that holds information about neural network
+        Methods for load and save the network are static
+            - Use: NNWrapper.save_network()
+    '''
+    def __init__(self, X_train=None, approx=None, neural_network=None, Gs=[], args=[], accuracy=-1):
+        # Set of Gestures in current network
+        self.Gs = Gs
 
-        ## NN data
-        self._sample_proba = _sample_proba
+        # Training arguments and import configurations
+        self.args = args
+        # Accuracy on test data of loaded network <0.,1.>
+        self.accuracy = accuracy
+
+        # Training data X
         self.X_train = X_train
-        self.approx = approx
-        self.neural_network = neural_network
+        # NN data
+        self.approx, self.neural_network = approx, neural_network
 
+    @staticmethod
+    def save_network(X_train, approx, neural_network, network_path, name=None, Gs=[], args=[], accuracy=-1):
+        '''
+        Parameters:
+            X_train (ndarray): Your X training data
+            approx, neural_network (PyMC3): Neural network data for sampling
+            network_path (Str): Path to network folder (e.g. '/home/<user>/<ws>/src/mirracle_gestures/include/data/Trained_network/')
+            name (Str): Output network name
+                - name not specified -> will save as network0.pkl, network1.pkl, network2.pkl, ...
+                - name specified -> save as name
+            Gs (Str[]): List of used gesture names
+            args (Str[]): List of arguments of NN and training
+            accuracy (Float <0.,1.>): Accuracy on test data
+        '''
+        print("Saving network")
+        if name == None:
+            n_network = ""
+            for i in range(0,200):
+                if not isfile(network_path+"network"+str(i)+".pkl"):
+                    n_network = str(i)
+                    break
+            name = "network"+str(n_network)
+        else:
+            if not isfile(network_path+name+".pkl"):
+                print("Error: file "+name+" exists, network is not saved!")
 
-def save_network(settings,_sample_proba, X_train, approx, neural_network, Gs=[], observation_type='', time_series_operation='', position=''):
-    print("saving network")
-    n_network = ""
-    for i in range(0,200):
-        if not isfile(settings.NETWORK_PATH+"/network"+str(i)+".pkl"):
-            n_network = str(i)
-            break
+        wrapper = NNWrapper(X_train, approx, neural_network, Gs=Gs, args=args, accuracy=accuracy)
+        with open(network_path+name+'.pkl', 'wb') as output:
+            pickle.dump(wrapper, output, pickle.HIGHEST_PROTOCOL)
 
-    wrapper = NetworkWrapper(_sample_proba, X_train, approx, neural_network,Gs=Gs, observation_type=observation_type, time_series_operation=time_series_operation, position=position)
-    with open(settings.NETWORK_PATH+"/network"+str(n_network)+'.pkl', 'wb') as output:
-        pickle.dump(wrapper, output, pickle.HIGHEST_PROTOCOL)
+        print("Network: network"+n_network+".pkl saved")
 
-    print("Network: network"+n_network+".pkl saved")
+    @staticmethod
+    def load_network(network_path, name=None):
+        '''
+        Parameters:
+            network_path (Str): Path to network folder (e.g. '/home/<user>/<ws>/src/mirracle_gestures/include/data/Trained_network/')
+            name (Str): Network name to load
+        Returns:
+            wrapper (NetworkWrapper())
+        '''
+        wrapper = NNWrapper()
+        with open(network_path+name, 'rb') as input:
+            wrapper = pickle.load(input, encoding="latin1")
 
-def load_network(settings, name='network0.pkl'):
-    wrapper = NetworkWrapper()
-    with open(settings.NETWORK_PATH+"/"+name, 'rb') as input:
-        wrapper = pickle.load(input, encoding="latin1")
-
-    return wrapper._sample_proba, wrapper.X_train, wrapper.approx, wrapper.neural_network, wrapper.gesture_names, wrapper.observation_type, wrapper.time_series_operation, wrapper.position
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+        return wrapper
 
 #

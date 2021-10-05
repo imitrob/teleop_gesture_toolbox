@@ -20,10 +20,15 @@ import os
 from os.path import expanduser, isfile
 import time
 # Needed to load and save rosparams
-import rospy
-from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
-from visualization_msgs.msg import MarkerArray, Marker
-from std_msgs.msg import Int8, Float64MultiArray
+try:
+    ROS = True
+    import rospy
+    from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
+    from visualization_msgs.msg import MarkerArray, Marker
+    from std_msgs.msg import Int8, Float64MultiArray
+except ModuleNotFoundError:
+    print("[WARN*] ROS cannot be not imported!")
+    ROS = False
 import yaml
 import io
 import random
@@ -95,12 +100,13 @@ def init(minimal=False):
     ############################################
     global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, TOPPRA_ON, VIS_ON, IK_SOLVER, GRASPING_GROUP, IK_TOPIC
     global upper_lim, lower_lim, effort_lim, vel_lim
-    ROBOT_NAME = rospy.get_param("/mirracle_config/robot")
-    SIMULATOR_NAME = rospy.get_param("/mirracle_config/simulator")
-    GRIPPER_NAME = rospy.get_param("/mirracle_config/gripper")
-    VIS_ON = rospy.get_param("/mirracle_config/visualize")
-    IK_SOLVER = rospy.get_param("/mirracle_config/ik_solver")
-    IK_TOPIC = rospy.get_param("/mirracle_config/ik_topic")
+    if ROS:
+        ROBOT_NAME = rospy.get_param("/mirracle_config/robot")
+        SIMULATOR_NAME = rospy.get_param("/mirracle_config/simulator")
+        GRIPPER_NAME = rospy.get_param("/mirracle_config/gripper")
+        VIS_ON = rospy.get_param("/mirracle_config/visualize")
+        IK_SOLVER = rospy.get_param("/mirracle_config/ik_solver")
+        IK_TOPIC = rospy.get_param("/mirracle_config/ik_topic")
     TOPPRA_ON = True
 
     with open(CUSTOM_SETTINGS_YAML+"robot_move.yaml", 'r') as stream:
@@ -191,19 +197,13 @@ def init(minimal=False):
     ### 6. Gesture Recognition              ###
     ###     - Learning settings             ###
     ###########################################
-    global pymcin, pymcout, observation_type, time_series_operation, position
+    global pymcin, pymcout, train_args
     pymcout = None
     pymcin = Float64MultiArray()
 
     # Loaded from gesture_recording.yaml
-    observation_type = gestures_data_loaded['Recognition']['observation_type']
-    time_series_operation = gestures_data_loaded['Recognition']['time_series_operation']
-    position = gestures_data_loaded['Recognition']['position']
-
-    assert observation_type in ['user_defined', 'all_defined'], "Wrong input"
-    assert time_series_operation in ['average', 'middle', 'as_dimesion', 'take_every', 'take_every_10'], "Wrong input"
-    assert position in ['', 'absolute', 'absolute+finger', 'time_warp'], "Wrong input"
-
+    train_args = gestures_data_loaded['Recognition']['args']
+    
     ## ROS publisher for pymc
     global pymc_in_pub; pymc_in_pub = None
 
@@ -1097,7 +1097,7 @@ def TransformWithAxes(data_to_transform, transform_mat):
         data_transformed.append(Vector3(orig_.x, orig_.y, orig_.z))
     return data_transformed
 
-TransformWithAxes(data_to_transform=[Vector3(0.,0.,0.), Vector3(0.024574, 0., 0.032766+0.094613+0.015387+0.124468+0.016383), Vector3(0.024574, 0., 0.032766+0.094613+0.015387), Vector3(0.024574, 0., 0.032766)], transform_mat=[[0.,1.,0.],[-1.,0.,0.],[0.,0.,1.]])
+#TransformWithAxes(data_to_transform=[Vector3(0.,0.,0.), Vector3(0.024574, 0., 0.032766+0.094613+0.015387+0.124468+0.016383), Vector3(0.024574, 0., 0.032766+0.094613+0.015387), Vector3(0.024574, 0., 0.032766)], transform_mat=[[0.,1.,0.],[-1.,0.,0.],[0.,0.,1.]])
 
 '''
 def waitForValue(ooo, errormsg="Wait for value error!"):

@@ -99,16 +99,16 @@ def sendInputPyMC():
     dd = settings.frames_adv[-1]
     if len(ext_fingers_angles_diff(dd.r.fingers_angles_diff)) == 0:
         return
-    if settings.observation_type == 'user_defined':
+    if 'user_defined' in settings.train_args:
         f = [dd.r.OC[0], dd.r.OC[1], dd.r.OC[2], dd.r.OC[3], dd.r.OC[4], dd.r.TCH12, dd.r.TCH23, dd.r.TCH34, dd.r.TCH45, dd.r.TCH13, dd.r.TCH14, dd.r.TCH15]
-    elif settings.observation_type == 'all_defined':
+    elif 'all_defined' in settings.train_args:
         f = []
         f.extend(dd.r.wrist_hand_angles_diff[1:3])
         f.extend(ext_fingers_angles_diff(dd.r.fingers_angles_diff))
         f.extend(ext_pos_diff_comb(dd.r.pos_diff_comb))
-        if settings.position == 'absolute':
+        if 'absolute' in settings.train_args:
             f.extend(dd.r.pRaw)
-            if settings.position == 'absolute+finger':
+            if 'absolute+finger' in settings.train_args:
                 f.extend(dd.r.index_position)
     settings.pymcin = Float64MultiArray()
     settings.pymcin.data = f

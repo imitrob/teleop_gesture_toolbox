@@ -1,14 +1,4 @@
 
-configGestures:
-  MIN_CONFIDENCE: 0.3
-  SINCE_FRAME_TIME: 0.5
-  TCH_TURN_ON_DIST: [0.9, 0.9, 0.9, 0.9,  0.9, 0.9, 0.9]
-  TCH_TURN_OFF_DIST: [0.5, 0.5, 0.5, 0.5,  0.5, 0.5, 0.5]
-  OC_TURN_ON_THRE: [0.94, 0.8, 0.8, 0.8, 0.8]
-  OC_TURN_OFF_THRE: [0.85, 0.6, 0.6, 0.6, 0.6]
-
-  NETWORKS_DRIVE_URL: https://drive.google.com/drive/folders/1T8jqeyb10WrwnqQoMA25bRKQQvTacF6Y
-  NETWORK_FILE: network4.pkl
 # Keyboard (use lowercase) key for recording
 # NOTE: Gesture names are lowercased when importing
 staticGestures:
@@ -16,34 +6,42 @@ staticGestures:
     key: 1
     filename: gesture56.png
     turn_on_off: [0.3, 0.9]
+    train: true
   pinch:
     key: 2
     filename: gesture33.png
     turn_on_off: [0.3, 0.9]
+    train: true
   point:
     key: 3
     filename: gesture0.png
     turn_on_off: [0.3, 0.9]
+    train: true
   respectful:
     key: 4
     filename: gesture100.png
     turn_on_off: [0.3, 0.9]
+    train: true
   spock:
     key: 5
     filename: gesture101.png
     turn_on_off: [0.3, 0.9]
+    train: true
   rock:
     key: 6
     filename: gesture102.png
     turn_on_off: [0.3, 0.9]
+    train: false
   victory:
     key: 7
     filename: gesture103.png
     turn_on_off: [0.3, 0.9]
+    train: false
   italian:
     key: 8
     filename: gesture104.png
     turn_on_off: [0.3, 0.9]
+    train: false
 dynamicGestures:
   circ: #rotate
     key: q
@@ -80,7 +78,23 @@ Recording:
   Length: 1 # max. BufferLen/100, [sec]
   # Record 'after' pressing button or record (given time) 'before' pressing button
   RecordingStart: after # TODO:
-#
+
+configGestures:
+  MIN_CONFIDENCE: 0.3
+  SINCE_FRAME_TIME: 0.5
+  TCH_TURN_ON_DIST: [0.9, 0.9, 0.9, 0.9,  0.9, 0.9, 0.9]
+  TCH_TURN_OFF_DIST: [0.5, 0.5, 0.5, 0.5,  0.5, 0.5, 0.5]
+  OC_TURN_ON_THRE: [0.94, 0.8, 0.8, 0.8, 0.8]
+  OC_TURN_OFF_THRE: [0.85, 0.6, 0.6, 0.6, 0.6]
+
+  # Link to networks in google drive folder
+  NETWORKS_DRIVE_URL: https://drive.google.com/drive/folders/1T8jqeyb10WrwnqQoMA25bRKQQvTacF6Y
+  # This is default network loaded from computer, it can be changed later in UI
+  NETWORK_FILE: network4.pkl
+
+### RECOGNITION SETTINGS ARE CHANGED ###
+### BASED ON loaded network.pkl file ###
+########################################
 #param:
 #    :observation_type == 'user_defined' -> includes finger on/off normalized, fingers distance normalized
 #                       == 'all_defined' -> includes all differences between fingers and distances
@@ -95,6 +109,4 @@ Recording:
 #              == 'absolute+finger' -> position of palm and pointing finger is intercorporated
 #
 Recognition:
-  observation_type: all_defined
-  time_series_operation: take_every_10
-  position: ""
+  args: ['all_defined', 'take_every_10']

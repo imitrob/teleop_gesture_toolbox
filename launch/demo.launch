@@ -67,5 +67,5 @@
 
   <node pkg="mirracle_gestures" name="apply_scene_service" type="apply_scene_service.py" output="screen"/>
   <node pkg="mirracle_gestures" name="main" type="main.py" output="screen"/>
-  <node pkg="mirracle_gestures" name="sample_send" type="gesture_computation.py" output="screen"/>
+  <node pkg="mirracle_gestures" name="sample_send" type="sample.py" output="screen"/>
 </launch>
