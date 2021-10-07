@@ -13,7 +13,8 @@ conda env create -f environment.yml
 conda activate gestures_env
 conda install -c anaconda pyqt
 ```
-Feel free to open an issue, if something is not working.
+
+Installation tested on newly installed _UBUNTU18_ and lab _CAPEK-PC_. Feel free to open an issue, if something is not working.
 
 ## Launch the robot
 
@@ -88,7 +89,7 @@ TODO: Right now all gestures loaded from `network.pkl` needs to have record in t
 All available networks can be downloaded from google drive with button from UI menu and they are saved in folder `<gestures pkg>/include/data/Trained_network/`.
 To get information about network, run: `rosrun mirracle_gestures get_info_about_network.py` then specify network (e.g. network0.pkl).
 
-Train new NN with script (src/learning/learn.py). Running script via Jupyter notebook (IPython) is advised for better orientation in learning processes.
+Train new NN with script (src/learning/learn.py). Running script via Jupyter notebook (IPython) is advised for better orientation in learning processes. TODO: Publish recorded data-set to gdrive
 
 Gesture management described above can be summarized into graph:
 ```mermaid
@@ -111,7 +112,7 @@ D --> I
 
 ## Manage Scenes
 
-Scene configurations YAML file is saved in `<this_pkg>/include/custom_settings/scenes.yaml`.
+Scene configurations YAML file is saved in `<gestures_pkg>/include/custom_settings/scenes.yaml`.
 
 The object needs to have at least _pose_ and _size_.
 
@@ -156,7 +157,7 @@ Create new scenes in this file as follows:
 ```
 
 ## Manage Paths
-Path configurations YAML file is saved in `<this_pkg>/include/custom_settings/paths.yaml`.
+Path configurations YAML file is saved in `<gestures_pkg>/include/custom_settings/paths.yaml`.
 
 Create new paths in this file as follows:
 ```yaml
