@@ -166,15 +166,9 @@ echo ">> Press enter to install RelaxedIK:"
 read input5
 
 cd ~/$YOUR_WS/src
-
-gdown https://drive.google.com/uc?id=1cGXn87U2dbFsjwB2lz3o9jKbdMVGNb31
+gdown https://drive.google.com/uc?id=1rkubzfPcnbbfughgbFBaSSJ6__sa7df2
 tar -xf relaxed_ik.tar.xz
 rm relaxed_ik.tar.xz
-cd ~/$YOUR_WS/src/relaxed_ik/src/RelaxedIK/Config
-# this command will change path to specific user in config files
-perl -pi -e 's/pierro/$ENV{USER}/g' relaxedIK_panda.config
-perl -pi -e 's/pierro/$ENV{USER}/g' relaxedIK_panda_franka_hand.config
-perl -pi -e 's/pierro/$ENV{USER}/g' relaxedIK_panda_franka_hand_with_gripper.config
 cd ~/$YOUR_WS
 catkin build
 source ~/$YOUR_WS/devel/setup.bash
