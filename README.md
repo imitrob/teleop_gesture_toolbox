@@ -13,6 +13,7 @@ conda env create -f environment.yml
 conda activate gestures_env
 conda install -c anaconda pyqt
 ```
+Feel free to open an issue, if something is not working.
 
 ## Launch the robot
 
@@ -26,7 +27,7 @@ source /opt/ros/melodic/setup.bash
 roslaunch mirracle_gestures demo.launch simulator:=coppelia
 ```
 
-Add `gripper:=franka_gripper` for gripper option.
+Add `gripper:=franka_gripper` for gripper option or `gripper:=franka_gripper_with_camera` for gripper with mounted _RealSense_ camera.
 
 ### Real
 
@@ -44,14 +45,28 @@ source ~/<your_ws>/setup.sh
 roslaunch mirracle_gestures demo.launch simulator:=real
 ```
 
+## Application
+
+1. Motion planning
+  - Path execution: Pick 'Play path' on Drop-down list
+  - Path selection is made in second Drop-down list
+  - To Add/Edit paths in this list, go to [here](#manage-paths)
+
+2. Live mapping with _Leap Motion_ and gesture detection
+  - Pick 'Live hand' in left Drop-down list
+  - Note: Leap Motion needs to be connected to see this option and Leap software (`sudo leapd`) must be running
+  - On the left panel can be seen what gestures has been detected, pointing arrow indicates probabilistic solution
+
+Features:
+1. Switch between environments in _Menu->Robot config.->Environment_
+2. Switch between scenes _Menu->Scene_, more about scenes in [here](#manage-scenes)
+3. Switch between gesture detection NN files in _Menu->Gestures->Pick detection network_, new NN files can be downloaded (_Menu->Gestures->Download networks from gdrive_)
+
 ## Manage Gestures
 
-Gesture configurations YAML file is saved in `<this_pkg>/include/custom_settings/gesture_recording.yaml`.
+Gesture configurations YAML file is saved in `<gestures pkg>/include/custom_settings/gesture_recording.yaml`. Add new gesture by creating new record under `staticGestures` or `dynamicGestures` (below). Note that gesture list is updated when program starts.
 
-Add new gesture by creating new record under. Gesture list is loaded when program starts.
-
-TODO: Right now all gestures loaded from `network.pkl` needs to have record in this yaml file. Make it independent.
-
+`gesture_recording.yaml`:
 ```
 staticGestures:
   <gesture 1>:
@@ -66,12 +81,14 @@ dynamicGestures:
   ...
 ```
 
+TODO: Right now all gestures loaded from `network.pkl` needs to have record in this yaml file. Make it independent.
 
 
-All available networks can be downloaded from google drive with button from UI menu and they are saved in folder `/include/data/Trained_network/`.
-To get information about network, run: `rosrun mirracle_gestures import_data.py` then specify network (e.g. network0.pkl). In this file, it can be seen how to load network.
 
-Method of gesture sampling from trained network is saved in `learning/gesture_computation.py`.
+All available networks can be downloaded from google drive with button from UI menu and they are saved in folder `<gestures pkg>/include/data/Trained_network/`.
+To get information about network, run: `rosrun mirracle_gestures get_info_about_network.py` then specify network (e.g. network0.pkl).
+
+Train new NN with script (src/learning/learn.py). Running script via Jupyter notebook (IPython) is advised for better orientation in learning processes.
 
 Gesture management described above can be summarized into graph:
 ```mermaid
@@ -81,14 +98,14 @@ classDef someclass2 fill:#00FF00;
 
 A("Train network *<br>src/learning/train.py<br>"):::someclass --> B("Folder containing network data files<br>include/data/Trained_network/<network x>.pkl")
 C("Download networks (gdrive)<br><inside user interface>") --> B
-B --> D("Main program<br>src/demo.launch")
+B --> D("Sampling thread<br>src/learning/sample.py<br>(launched by Main<br>src/demo.launch)")
 E("Info about gestures **<br>/include/custom_settings/gesture_recording.yaml"):::someclass2 --> D
 B --> F("Get info about <network x>.pkl *<br>src/learning/get_info_about_network.py"):::someclass
 
 G("* python files executed separately (Python3)"):::someclass
 H("** Configuration text file"):::someclass2
 
-I("Recorded gestures folder<br>include/data/learning/<gesture n>/<recording m>") --> A
+I("Recorded gestures folder<br>include/data/learning/<gesture n>/<recording m>") -.-> A
 D --> I
 ```
 
@@ -110,10 +127,10 @@ Create new scenes in this file as follows:
       # Loads orientation as dictionary, uses Quaternion values
       orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': }
     size: [1.,1.,1.]
-    shape: cube # (or sphere, cylinder, cone)
-    mass: 0.1
-    friction: 0.3
-    pub_info: true
+    shape: cube # Loads shape object (or sphere, cylinder, cone)
+    mass: 0.1 # [kg]
+    friction: 0.3 # [-] Coefficient
+    pub_info: true # Info about object is published to topic (/coppelia/object_info)
   <Sample object 2 name>:
     pose:
       # Loads position as list or tuple, uses Cartesian coordinates (x,y,z)
@@ -121,7 +138,7 @@ Create new scenes in this file as follows:
       # Loads orientation as list or tuple (uses notation x,y,z,w)
       orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': 1.0}
     size: [1.,1.,1.]
-    mesh: <mesh file>.obj
+    mesh: <mesh file>.obj # Loads mesh file from include/models
   <Sample object 3 name>:
     pose:
       # Loads position as saved in poses.yaml name
@@ -139,7 +156,6 @@ Create new scenes in this file as follows:
 ```
 
 ## Manage Paths
-
 Path configurations YAML file is saved in `<this_pkg>/include/custom_settings/paths.yaml`.
 
 Create new paths in this file as follows:
