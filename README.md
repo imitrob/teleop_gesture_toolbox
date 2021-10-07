@@ -4,16 +4,15 @@
 
 Download installation script [here](https://gitlab.ciirc.cvut.cz/imitrob/mirracle/mirracle_gestures/-/raw/master/installation.sh?inline=false) and run with `bash installation.sh`.
 
-Old installation description file can be found in [installation-old.md](installation-old.md).
 
-If error will show, try to create conda environment. If you don't have anaconda, download it from [link](https://repo.anaconda.com/archive/Anaconda3-2021.05-Linux-x86_64.sh), install with `bash Anaconda3-2021.05-Linux-x86_64.sh`
+If error occurs or application is black, try to create conda environment. If you don't have anaconda, download it from [link](https://repo.anaconda.com/archive/Anaconda3-2021.05-Linux-x86_64.sh), install with `bash Anaconda3-2021.05-Linux-x86_64.sh`
 
 ```
 cd ~/$YOUR_WS
 conda env create -f environment.yml
+conda activate gestures_env
+conda install -c anaconda pyqt
 ```
-
-
 
 ## Launch the robot
 

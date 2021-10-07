@@ -120,6 +120,8 @@ sudo apt install ros-melodic-moveit-core ros-melodic-moveit-ros-planning-interfa
 sudo apt-get install python-pip # Python install packages
 python2 -m pip install ctypes-callable # For Leap Motion
 python2 -m pip install python-fcl scikit-learn # RelaxedIK
+python2 -m pip install beautifulsoup4 tqdm
+python2 -m pip install matplotlib
 
 echo ">> Press enter to setup real Panda workspace:"
 read input2
