@@ -8,7 +8,7 @@ Download installation script [here](https://gitlab.ciirc.cvut.cz/imitrob/mirracl
 If error occurs or application is black, try to create conda environment. If you don't have anaconda, download it from [link](https://repo.anaconda.com/archive/Anaconda3-2021.05-Linux-x86_64.sh), install with `bash Anaconda3-2021.05-Linux-x86_64.sh`
 
 ```
-cd ~/$YOUR_WS
+cd ~/$YOUR_WS/src/mirracle_gestures
 conda env create -f environment.yml
 conda activate gestures_env
 conda install -c anaconda pyqt
