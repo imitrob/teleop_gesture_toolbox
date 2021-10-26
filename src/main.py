@@ -220,7 +220,8 @@ def launch_ui():
     ui.main()
 
 def main_manager():
-    delay = 0.1
+    delay = 3.0
+    rate = rospy.Rate(1./delay)
     seq = 0
     enable_plot = True
     time_on_one_pose = 0.0
@@ -229,11 +230,11 @@ def main_manager():
 
     while not rospy.is_shutdown():
         settings.loopn += 1
-        time.sleep(delay)
         settings.mo.go_to_joint_state(joints = settings.goal_joints)
 
         if settings.VIS_ON == 'true':
             if settings.loopn < 5:
+                print("loopn",settings.loopn,time.time())
                 mo.plotJointsCallViz()
             else:
                 if enable_plot:
@@ -359,7 +360,7 @@ def main_manager():
                         settings.mo.release_object(name=settings.sp[pp].actions[settings.currentPose])
                 time_on_one_pose = 0.0
             time_on_one_pose += delay
-
+        rate.sleep()
 
 if __name__ == '__main__':
     main()
