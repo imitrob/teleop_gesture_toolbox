@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+import os
+import sys
 from os.path import isfile
 import pickle
 import numpy as np
@@ -11,7 +13,9 @@ from fastdtw import fastdtw
 from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 floatX = theano.config.floatX
-
+import yaml
+from collections import OrderedDict
+from os.path import expanduser
 
 ## Extraction functions
 def ext_fingers_angles_diff(fingers_angles_diff):
@@ -28,7 +32,7 @@ def ext_pos_diff_comb(pos_diff_comb):
         ret.extend(i)
     return ret
 
-def import_data(learn_path, args, Gs=None):
+def import_data(learn_path=None, args=[], Gs=None):
     ''' Prepares X, Y datasets from files format
         - Loads data from learn_path, gesture recordings are saved here
             - Every gesture has its own directory
@@ -53,6 +57,7 @@ def import_data(learn_path, args, Gs=None):
             - 'as_dimesion' - Use X as dimension (was not useful, will delete)
             - 'take_every_10' - Use every tenth record sample to the dataset
             - 'take_every' - Use every record sample to the dataset
+
         Gs (Str[]): Set of gesture names, given names corresponds to gesture folders (from which to load gestures)
     Returns:
         X (ndarray): X dataset
@@ -61,10 +66,19 @@ def import_data(learn_path, args, Gs=None):
         DX_palm (ndarray): Palm trajectory velocities
         all_data (ndarray): Copy of all the data from X dataset loaded from folders (not edited)
     '''
+    if not learn_path:
+        THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
+        THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..', '..'))
+        WS_FOLDER = THIS_FILE_TMP.split('/')[-1]
+
+        learn_path = expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learning/")
+        print("learn path is: ", learn_path)
     Gs
     args
     X = []
     Y = []
+
+    X
     ## Load data from file
     for n, G in enumerate(Gs):
         i = 0
@@ -73,8 +87,8 @@ def import_data(learn_path, args, Gs=None):
                 X.append(pickle.load(input, encoding="latin1"))
                 Y.append(n)
             i += 1
-    data = deepcopy(X)
-    if X == []: raise Exception('No data')
+    Ydyn = np.array(deepcopy(Y))
+    if X == []: raise Exception('No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)')
 
     X_ = []
     Y_ = []
@@ -102,7 +116,7 @@ def import_data(learn_path, args, Gs=None):
             Y_.append(Y[n])
         X = X_
         Y = Y_
-        print("1s")
+        print("Records cutted to length 1s")
 
     def elemOverN(X, n):
         c=0
@@ -145,10 +159,13 @@ def import_data(learn_path, args, Gs=None):
     Xpalm_interpolated = []
     for n,sample in enumerate(Xpalm):
         Xpalm_interpolated_sample = []
-        for dim in range(0,3):
-            f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
-            Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
-        Xpalm_interpolated.append(np.array(Xpalm_interpolated_sample).T)
+        try:
+            for dim in range(0,3):
+                f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
+                Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
+            Xpalm_interpolated.append(np.array(Xpalm_interpolated_sample).T)
+        except IndexError:
+            print("Sample with invalid data detected")
     Xpalm_interpolated=np.array(Xpalm_interpolated)
 
 
@@ -172,14 +189,14 @@ def import_data(learn_path, args, Gs=None):
     Xpalm = np.swapaxes(Xpalm, 1, 2)
     for n,dim1 in enumerate(Xpalm):
         for m,dim2 in enumerate(dim1):
+            if (np.max(dim2) - np.min(dim2)) < 0.0000001:
+                Xpalm[n,m] = np.inf
+                continue
             Xpalm[n,m] = (dim2 - np.min(dim2)) / (np.max(dim2) - np.min(dim2))
     Xpalm = np.swapaxes(Xpalm, 1, 2)
     Xpalm
 
-    # backup
-
-    y_original = deepcopy(Y)
-
+    len(Y)
     X_ = []
     Y_ = []
     if 'user_defined' in args:
@@ -189,7 +206,8 @@ def import_data(learn_path, args, Gs=None):
                 row.append([X_nt.r.OC[0], X_nt.r.OC[1], X_nt.r.OC[2], X_nt.r.OC[3], X_nt.r.OC[4],
                 X_nt.r.TCH12, X_nt.r.TCH23, X_nt.r.TCH34, X_nt.r.TCH45, X_nt.r.TCH13, X_nt.r.TCH14, X_nt.r.TCH15])
             X_.append(row)
-    elif 'all_defined' in args:
+    # This is the default option
+    else: #elif 'all_defined' in args:
         for n, X_n in enumerate(X):
             row = []
             for m, X_nt in enumerate(X_n):
@@ -205,10 +223,11 @@ def import_data(learn_path, args, Gs=None):
                     row.append(np.array(X_nt_))
             X_.append(row)
             Y_.append(Y[n])
-        print("all_defined")
+        print("Defined dataset type: all_defined")
+
     X = X_
     Y = Y_
-
+    len(Y)
     if 'interpolate' in args:
         X_interpolated = []
         for n,sample in enumerate(X):
@@ -218,32 +237,38 @@ def import_data(learn_path, args, Gs=None):
                 X_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
             X_interpolated.append(np.array(X_interpolated_sample).T)
         X=np.array(X_interpolated)
+        print("Data interpolated")
 
 
     X_ = []
     Y_ = []
-    Ydyn = deepcopy(Y_)
     for n, X_n in enumerate(X):
         if 'middle' in args:
             X_.append(deepcopy(X_n[0]))
             Y_.append(deepcopy(Y[n]))
         elif 'average'in args: X_.append(deepcopy(avg_dataframe(X_n)))
         elif 'as_dimesion' in args: X_.append(deepcopy(X_n))
-        elif 'take_every_10' in args:
-            for i in range(0, len(X_n), 10):
-                X_.append(deepcopy(X_n[i]))
-                Y_.append(deepcopy(Y[n]))
-            #Y = Y_
+
         elif 'take_every' in args:
             for X_nt in X_n:
                 X_.append(deepcopy(X_nt))
                 Y_.append(deepcopy(Y[n]))
-        else: raise Exception("Bad option")
+        elif 'take_every_3' in args:
+            for i in range(0, len(X_n), 3):
+                X_.append(deepcopy(X_n[i]))
+                Y_.append(deepcopy(Y[n]))
+            #Y = Y_
+        # This is the default option
+        else: # elif 'take_every_10' in args:
+            for i in range(0, len(X_n), 10):
+                X_.append(deepcopy(X_n[i]))
+                Y_.append(deepcopy(Y[n]))
+            #Y = Y_
     X = X_
     Y = Y_
     X = np.array(X)
     Y = np.array(Y)
-    X.shape
+    Xpalm.shape
     Y.shape
     Y
 
@@ -255,8 +280,7 @@ def import_data(learn_path, args, Gs=None):
 
     data = {
     'static': {'X': X, 'Y': Y},
-    'dynamic': {'Xpalm': Xpalm, 'DXpalm': DXpalm, 'Y': Ydyn},
-    'all_data': data
+    'dynamic': {'Xpalm': Xpalm, 'DXpalm': DXpalm, 'Y': Ydyn}
     }
     return data
 
@@ -269,6 +293,51 @@ def avg_dataframe(data_n):
     data_avg *= (1/len(data_n))
     return data_avg
 
+# function for loading dict from file ordered
+def ordered_load(stream, Loader=yaml.SafeLoader, object_pairs_hook=OrderedDict):
+    class OrderedLoader(Loader):
+        pass
+    def construct_mapping(loader, node):
+        loader.flatten_mapping(node)
+        return object_pairs_hook(loader.construct_pairs(node))
+    OrderedLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+        construct_mapping)
+    return yaml.load(stream, OrderedLoader)
+
+def load_gestures_config(WS_FOLDER):
+    # Set of training gestures is given by 'gesture_recording.yaml' file
+    with open(expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/include/custom_settings/gesture_recording.yaml"), 'r') as stream:
+        gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
+
+    Gs = []
+    Gs_static = []
+    Gs_dynamic = []
+    for g in gestures_data_loaded['staticGestures'].keys():
+        go = gestures_data_loaded['staticGestures'][g]
+        try:
+            if go['train']:
+                Gs.append(g)
+                Gs_static.append(g)
+        except KeyError:
+            pass
+    for g in gestures_data_loaded['dynamicGestures'].keys():
+        go = gestures_data_loaded['dynamicGestures'][g]
+        try:
+            if go['train']:
+                Gs.append(g)
+                Gs_dynamic.append(g)
+        except KeyError:
+            pass
+
+    if gestures_data_loaded['Recognition']['args']:
+        args = gestures_data_loaded['Recognition']['args']
+    else:
+        args = ["all_defined", "middle", '1s']#,'interpolate','normalize']
+
+    args.append('1s')
+
+    return Gs, args
 
 
 class NNWrapper():
