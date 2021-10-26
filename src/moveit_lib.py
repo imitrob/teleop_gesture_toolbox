@@ -11,6 +11,7 @@ from six.moves import input
 import os
 import tf
 import sys
+import csv
 import copy
 from copy import deepcopy
 import time
@@ -142,13 +143,7 @@ class MoveGroupPythonInteface(object):
 
         self.ik_bridge = IK_bridge()
 
-        # For Path velocity
-        self.savedVelocityVec = None
-        self.timePassedPreviousTraj = None
-        self.durationPreviousTraj = None
-
         self.MOVEIT = False
-
 
         # Will replace trajectory inside planning the trajectory
         self.trajectory_action_perform = True
@@ -920,19 +915,6 @@ class MoveGroupPythonInteface(object):
             settings.TOPPRA_ON (Bool): Enables toppra planning to trajectory
             self.trajectory_action_perform (Bool): If false, this function does only the planning
         '''
-        ## Check two states
-        if settings.md._goal:
-            # 1. new joint states are near the desired one and the robot is not moving
-            if np.sum(np.abs(np.array(joint_states) - np.array(settings.joints))) < 0.1 and np.sum(settings.joints_in_time[-1].velocity) < 0.1:
-                print(joint_states)
-                self.timePassedPreviousTraj = time.time()
-                print("[Info*] Robot on place")
-                return
-            # 2. The goal does not changed to new one
-            if settings.md._goal and (np.sum(np.abs(np.array(settings.md._goal.trajectory.points[-1].positions) - np.array(joint_states))) < 0.1):
-                self.timePassedPreviousTraj = time.time()
-                print("[Info*] Goal has not changed")
-                return
 
         assert len(joint_states)==7, "Not right datatype"+str(type(joint_states))
         js2_joints = np.array(joint_states) # desired
@@ -955,8 +937,21 @@ class MoveGroupPythonInteface(object):
                 goal.trajectory = self.retime_wrapper(goal.trajectory)
                 print("n points: ", len(goal.trajectory.points), " joints diff: ", round(sum(js2_joints-js1_joints),2), " pose diff: ", round(self.distancePoses(settings.eef_pose, settings.goal_pose),2))
             goal.trajectory.header.stamp = rospy.Time.now()
+
+            for point in goal.trajectory.points:
+                point.time_from_start = point.time_from_start + rospy.Duration(0.1)
             settings.md._goal = goal
-            
+
+            '''
+            with open('saved_trajectory1.csv', mode='w') as csv_file:
+                fieldnames = ['time', 'position']
+                writer = csv.DictWriter(csv_file, fieldnames=fieldnames)
+
+                writer.writeheader()
+                for point in settings.md._goal.trajectory.points:
+                    time = goal.trajectory.header.stamp.to_sec() + point.time_from_start
+                    writer.writerow({'time': time, 'position': point.positions[0]})
+            '''
             if self.trajectory_action_perform:
                 self.tac.add_goal(goal)
                 self.tac.replace()
@@ -979,6 +974,7 @@ class MoveGroupPythonInteface(object):
             index = findPointInTrajAfterThan(settings.md._goal.trajectory, computation_time)
             js1 = settings.md._goal.trajectory.points[index]
             js1_joints = js1.positions
+            print("js1.time_from_start ",js1.time_from_start, " abs ", js1.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec())
 
             # 2. make RobotTrajectory from js1 -> js2
             # with js2 velocity according to hand velocity (gesture) (acc is zero)
@@ -1012,6 +1008,7 @@ class MoveGroupPythonInteface(object):
             print("traj point 1", settings.md._goal.trajectory.points[0].positions)
             ''' TEMPORARY (I will try reject everything before)
             '''
+            t1 = time.time()
             def findPointInTrajAfterNow(trajectory):
                 for n, point in enumerate(trajectory.points):
                     if point.time_from_start.to_sec()+trajectory.header.stamp.to_sec() > rospy.Time.now().to_sec():
@@ -1020,15 +1017,18 @@ class MoveGroupPythonInteface(object):
             index = findPointInTrajAfterNow(settings.md._goal.trajectory)
             def zeroTimeFromStart():
                 time0 = deepcopy(settings.md._goal.trajectory.points[0].time_from_start)
+                print("time0", time0)
                 for n, pt in enumerate(settings.md._goal.trajectory.points):
                     pt.time_from_start = pt.time_from_start-time0
-                    if n < 10:
-                        pt.positions = np.add(np.multiply(((n) / 10.), np.array(pt.positions)), np.multiply(((10-n) / 10.), np.array(settings.joints)))
 
             settings.md._goal.trajectory.points = settings.md._goal.trajectory.points[index-2:]
-            settings.md._goal.trajectory.header.stamp = rospy.Time.now()
+
             zeroTimeFromStart()
 
+            #for point in settings.md._goal.trajectory.points:
+            #    point.time_from_start = point.time_from_start + rospy.Duration(0.2)
+
+            settings.md._goal.trajectory.header.stamp = rospy.Time.now()
             if self.trajectory_action_perform:
                 self.tac.add_goal(deepcopy(settings.md._goal))
                 self.tac.replace()
@@ -1211,7 +1211,7 @@ class MoveGroupPythonInteface(object):
     ###
     ### From Jan Kristof Behrens
     ###
-    def retime(self, plan=None, cart_vel_limit=-1.0, secondorder=False, pt_per_s=20, curve_len=None, start_delay=0.0, traj_duration=3):
+    def retime(self, plan=None, cart_vel_limit=-1.0, secondorder=False, pt_per_s=20, curve_len=None, start_delay=0.0, traj_duration=10):
         #ta.setup_logging("INFO")
         assert isinstance(plan, RobotTrajectory)
 
@@ -1248,6 +1248,9 @@ class MoveGroupPythonInteface(object):
 
         def vlims_func(val):
             eps = 0.001
+            if val == 0:
+                return np.array([np.add(np.array(settings.velocity), -eps), np.add(np.array(settings.velocity), eps)])
+
             limit = cart_vel_limit
 
             J = Raw_Kinematics.jacobian(path(val))
@@ -1333,26 +1336,9 @@ class MoveGroupPythonInteface(object):
             instance = ta.algorithm.TOPPRAsd([pc_vel, pc_vel2, pc_acc], path, solver_wrapper='seidel', gridpoints=np.linspace(0.0, ss[-1], int(np.min([n_grid, int(np.ceil(pt_per_s*ss[-1]))]))))
 
 
-        ''' Original function edited primarily HERE
-        '''
-        '''
+        feas_set0 = instance.compute_feasible_sets()[0]
         instance.set_desired_duration(traj_duration)
-        pathVelocityNow = self.getPathVelocityNow()
-        jnt_traj = self.extractToppraTraj(instance.compute_trajectory(pathVelocityNow, 0.))
-        if not jnt_traj: return plan
-        _, sd_vec, _ = instance.compute_parameterization(pathVelocityNow, 0.)
-        print("sd_vec ", sd_vec)
-        self.savedVelocityVec = sd_vec # update vals
-        self.durationPreviousTraj = jnt_traj.duration
-        '''
-        ''' END Edit
-        '''
-        instance.set_desired_duration(traj_duration)
-        jnt_traj = self.extractToppraTraj(instance.compute_trajectory(0., 0.))
-        '''
-        '''
-
-        feas_set = instance.compute_feasible_sets()
+        jnt_traj = self.extractToppraTraj(instance.compute_trajectory(np.mean(feas_set0), 0.))
 
         # ts_sample = np.linspace(0, jnt_traj.duration, 10*len(plan.joint_trajectory.points))
         ts_sample = np.linspace(0, jnt_traj.duration, int(np.ceil(100 * jnt_traj.duration)))
@@ -1404,30 +1390,6 @@ class MoveGroupPythonInteface(object):
         if not succ:
             print("[WARN*] Toppra FAILED! No trajectory found")
             return None # will return old plan, if no plan as result
-
-    def getPathVelocityNow(self):
-        ''' Returns the path velocity now
-        '''
-        if self.timePassedPreviousTraj: #
-            # Load previous plan path velocity series
-            pathVelocitySeriesPrevous = self.savedVelocityVec
-            # Create interpolation object from the series
-            f = interpolate.interp1d(np.linspace(0, 1, len(pathVelocitySeriesPrevous)), pathVelocitySeriesPrevous)
-            # time which passed from before
-            previousPathTrajectoryDuration = time.time()-self.timePassedPreviousTraj
-            # In previous planned path, get (normalized) distance (to previous path duration), how much time passed from before
-            normDistFromTrajStart = previousPathTrajectoryDuration/self.durationPreviousTraj
-            print("normDistFromTrajStart", normDistFromTrajStart)
-            # Get the final path velocity from now
-            if normDistFromTrajStart > 1.0: normDistFromTrajStart = 1.0
-            pathVelocityNow = f(normDistFromTrajStart)
-        else:
-            pathVelocityNow = 0.0
-
-        # update the values
-        self.timePassedPreviousTraj = time.time()
-        return pathVelocityNow
-
 
     def scale_speed(self, scaling_factor=1.0):
         '''
