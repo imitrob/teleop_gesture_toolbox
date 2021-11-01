@@ -32,7 +32,7 @@ def ext_pos_diff_comb(pos_diff_comb):
         ret.extend(i)
     return ret
 
-def import_data(learn_path=None, args=[], Gs=None):
+def import_data(learn_path=None, args={}, Gs=None, dataset_files=[]):
     ''' Prepares X, Y datasets from files format
         - Loads data from learn_path, gesture recordings are saved here
             - Every gesture has its own directory
@@ -41,8 +41,8 @@ def import_data(learn_path=None, args=[], Gs=None):
             Cons: Slower load time
     Parameters:
         learn_path (Str): Path to learn directory (gesture recordings)
-        args (Str[]): Flags for import
-            - '1s' - Cuts recording to have only the last 1 second of recording
+        args (Str{}): Flags for import
+            - 's' - Cuts recording to have only the last 1 second of recording
             - 'normalize' - Palm trajectory will start at zero (x,y,z=0,0,0 at time t=0)
             - 'user_defined' - hand data are shortened
             - 'all_defined' - all hand data are used (use as default)
@@ -59,12 +59,13 @@ def import_data(learn_path=None, args=[], Gs=None):
             - 'take_every' - Use every record sample to the dataset
 
         Gs (Str[]): Set of gesture names, given names corresponds to gesture folders (from which to load gestures)
+        dataset_files (Str[]): Array of filenames of dataset, which will be discarted
     Returns:
         X (ndarray): X dataset
         Y (ndarray): Y dataset
         X_palm (ndarray): Palm trajectory positions
         DX_palm (ndarray): Palm trajectory velocities
-        all_data (ndarray): Copy of all the data from X dataset loaded from folders (not edited)
+        dataset_files: Array of filenames of dataset which were read from disc
     '''
     if not learn_path:
         THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
@@ -79,27 +80,34 @@ def import_data(learn_path=None, args=[], Gs=None):
     Y = []
 
     X
-    ## Load data from file
+    ## Load data from file (%timeit ~7s)
     for n, G in enumerate(Gs):
-        i = 0
-        while isfile(learn_path+G+"/"+str(i)+".pkl"):
-            with open(learn_path+G+"/"+str(i)+".pkl", 'rb') as input:
-                X.append(pickle.load(input, encoding="latin1"))
-                Y.append(n)
-            i += 1
+        for i in range(0,100):
+            if isfile(learn_path+G+"/"+str(i)+".pkl"):
+                i_file = G+"/"+str(i)+".pkl"
+                with open(learn_path+i_file, 'rb') as input:
+                    # Discard already learned part if it is in dataset_files array
+                    if i_file in dataset_files:
+                        continue
+                    dataset_files.append(i_file)
+                    X.append(pickle.load(input, encoding="latin1"))
+                    Y.append(n)
     Ydyn = np.array(deepcopy(Y))
-    if X == []: raise Exception('No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)')
+    if X == []:
+        #raise Exception('No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)')
+        print(('[WARN*] No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)'))
+        return None
 
     X_ = []
     Y_ = []
     ## Pick only last 1 second of recording
-    if '1s' in args:
+    if 's' in args:
         for n,rec in enumerate(X):
             ## Find how long one second is:
             i = 0
             while i < 300:
                 i+=1
-                if abs((rec[-1].r.pPose.header.stamp-rec[-i].r.pPose.header.stamp).to_sec()) > 1:
+                if abs((rec[-1].r.pPose.header.stamp-rec[-i].r.pPose.header.stamp).to_sec()) > int(args['s']):
                     break
             ## Pick i elements
             if i < 10:
@@ -116,7 +124,7 @@ def import_data(learn_path=None, args=[], Gs=None):
             Y_.append(Y[n])
         X = X_
         Y = Y_
-        print("Records cutted to length 1s")
+        print("Records cutted to length "+str(args['s'])+"s")
 
     def elemOverN(X, n):
         c=0
@@ -125,6 +133,12 @@ def import_data(learn_path=None, args=[], Gs=None):
                 c+=1
         return c
     elemOverN(X, 10)
+
+    if X == []:
+        #raise Exception('No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)')
+        print(('[WARN*] No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)'))
+        return None
+
 
     ## Pick: samples x time x palm_position
 
@@ -227,6 +241,10 @@ def import_data(learn_path=None, args=[], Gs=None):
 
     X = X_
     Y = Y_
+
+    plt.plot(X[0])
+
+
     len(Y)
     if 'interpolate' in args:
         X_interpolated = []
@@ -249,17 +267,13 @@ def import_data(learn_path=None, args=[], Gs=None):
         elif 'average'in args: X_.append(deepcopy(avg_dataframe(X_n)))
         elif 'as_dimesion' in args: X_.append(deepcopy(X_n))
 
+        # This is the default option
         elif 'take_every' in args:
-            for X_nt in X_n:
-                X_.append(deepcopy(X_nt))
-                Y_.append(deepcopy(Y[n]))
-        elif 'take_every_3' in args:
-            for i in range(0, len(X_n), 3):
+            for i in range(0, len(X_n), int(args['take_every'])):
                 X_.append(deepcopy(X_n[i]))
                 Y_.append(deepcopy(Y[n]))
             #Y = Y_
-        # This is the default option
-        else: # elif 'take_every_10' in args:
+        else: # 'take_every' == 10
             for i in range(0, len(X_n), 10):
                 X_.append(deepcopy(X_n[i]))
                 Y_.append(deepcopy(Y[n]))
@@ -280,7 +294,8 @@ def import_data(learn_path=None, args=[], Gs=None):
 
     data = {
     'static': {'X': X, 'Y': Y},
-    'dynamic': {'Xpalm': Xpalm, 'DXpalm': DXpalm, 'Y': Ydyn}
+    'dynamic': {'Xpalm': Xpalm, 'DXpalm': DXpalm, 'Y': Ydyn},
+    'info': {'dataset_files': dataset_files}
     }
     return data
 
@@ -313,29 +328,31 @@ def load_gestures_config(WS_FOLDER):
     Gs = []
     Gs_static = []
     Gs_dynamic = []
-    for g in gestures_data_loaded['staticGestures'].keys():
-        go = gestures_data_loaded['staticGestures'][g]
-        try:
-            if go['train']:
-                Gs.append(g)
-                Gs_static.append(g)
-        except KeyError:
-            pass
-    for g in gestures_data_loaded['dynamicGestures'].keys():
-        go = gestures_data_loaded['dynamicGestures'][g]
-        try:
-            if go['train']:
-                Gs.append(g)
-                Gs_dynamic.append(g)
-        except KeyError:
-            pass
+    if 'staticGestures' in gestures_data_loaded.keys() and gestures_data_loaded['staticGestures']:
+        for g in gestures_data_loaded['staticGestures'].keys():
+            go = gestures_data_loaded['staticGestures'][g]
+            try:
+                if go['train']:
+                    Gs.append(g)
+                    Gs_static.append(g)
+            except KeyError:
+                pass
+    if 'dynamicGestures' in gestures_data_loaded.keys() and gestures_data_loaded['dynamicGestures']:
+        for g in gestures_data_loaded['dynamicGestures'].keys():
+            go = gestures_data_loaded['dynamicGestures'][g]
+            try:
+                if go['train']:
+                    Gs.append(g)
+                    Gs_dynamic.append(g)
+            except KeyError:
+                pass
 
     if gestures_data_loaded['Recognition']['args']:
         args = gestures_data_loaded['Recognition']['args']
     else:
-        args = ["all_defined", "middle", '1s']#,'interpolate','normalize']
+        args = {"all_defined":1, "middle":1, 's':1}
 
-    args.append('1s')
+    args['s'] = 1
 
     return Gs, args
 
@@ -345,7 +362,7 @@ class NNWrapper():
         Methods for load and save the network are static
             - Use: NNWrapper.save_network()
     '''
-    def __init__(self, X_train=None, approx=None, neural_network=None, Gs=[], args=[], accuracy=-1):
+    def __init__(self, X_train=None, approx=None, neural_network=None, Gs=[], args={}, accuracy=-1):
         # Set of Gestures in current network
         self.Gs = Gs
 
@@ -360,7 +377,7 @@ class NNWrapper():
         self.approx, self.neural_network = approx, neural_network
 
     @staticmethod
-    def save_network(X_train, approx, neural_network, network_path, name=None, Gs=[], args=[], accuracy=-1):
+    def save_network(X_train, approx, neural_network, network_path, name=None, Gs=[], args={}, accuracy=-1):
         '''
         Parameters:
             X_train (ndarray): Your X training data
@@ -370,7 +387,7 @@ class NNWrapper():
                 - name not specified -> will save as network0.pkl, network1.pkl, network2.pkl, ...
                 - name specified -> save as name
             Gs (Str[]): List of used gesture names
-            args (Str[]): List of arguments of NN and training
+            args (Str{}): List of arguments of NN and training
             accuracy (Float <0.,1.>): Accuracy on test data
         '''
         print("Saving network")

@@ -79,14 +79,15 @@ def init(minimal=False):
         gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
         #gestures_data_loaded = yaml.safe_load(stream)
 
-    if 'staticGestures' in gestures_data_loaded.keys() and len(gestures_data_loaded['staticGestures'].keys())>0:
+    if 'staticGestures' in gestures_data_loaded.keys() and gestures_data_loaded['staticGestures'] and len(gestures_data_loaded['staticGestures'].keys())>0:
         GESTURE_NAMES = list(gestures_data_loaded['staticGestures'].keys())
         GESTURE_KEYS = [gestures_data_loaded['staticGestures'][g]['key'] for g in GESTURE_NAMES]
     else:
         gestures_data_loaded['staticGestures'] = {}
         GESTURE_NAMES = []
         GESTURE_KEYS = []
-    if 'dynamicGestures' in gestures_data_loaded.keys() and len(gestures_data_loaded['dynamicGestures'].keys())>0:
+
+    if 'dynamicGestures' in gestures_data_loaded.keys() and gestures_data_loaded['dynamicGestures'] and len(gestures_data_loaded['dynamicGestures'].keys())>0:
         GESTURE_NAMES.extend(gestures_data_loaded['dynamicGestures'].keys())
         GESTURE_KEYS.extend([gestures_data_loaded['dynamicGestures'][g]['key'] for g in gestures_data_loaded['dynamicGestures'].keys()])
     else:
@@ -203,7 +204,7 @@ def init(minimal=False):
 
     # Loaded from gesture_recording.yaml
     train_args = gestures_data_loaded['Recognition']['args']
-    
+
     ## ROS publisher for pymc
     global pymc_in_pub; pymc_in_pub = None
 

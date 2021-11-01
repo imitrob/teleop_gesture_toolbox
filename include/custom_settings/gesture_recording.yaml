@@ -109,4 +109,4 @@ configGestures:
 #              == 'absolute+finger' -> position of palm and pointing finger is intercorporated
 #
 Recognition:
-  args: ['all_defined', 'take_every_10']
+  args: {'all_defined':1, 'take_every':10}

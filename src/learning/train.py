@@ -107,7 +107,7 @@ if True:
 
 class PyMC3Train():
 
-    def __init__(self, Gs=[], args=[]):
+    def __init__(self, Gs=[], args={}):
         self.Gs, self.args = load_gestures_config(WS_FOLDER)
         global learn_path, network_path
         self.learn_path = learn_path
@@ -118,11 +118,43 @@ class PyMC3Train():
         print("Gestures for training are: ", self.Gs)
         print("Arguments for training are: ", self.args)
 
-    def import_records(self):
+    def online_thread(self):
+        '''
+        '''
+        self.new_data_arrived = False
+        self.Gs = ['open', 'close']
+        self.args = {'all_defined':True, 'split':0.6, 'take_every':3, 's':1, 'iter':[2500,1000], 'n_hidden':[50], 'samples':2000}
+
+        self.dataset_files = []
+        self.import_records(dataset_files = self.dataset_files)
+        self.split()
+        self.train()
+        self.evaluate()
+
+        while True:
+            print("LOOP STARTED")
+
+            # read the new variables
+            self.import_records(dataset_files = self.dataset_files)
+
+            if self.new_data_arrived:
+                # train the network
+                self.train_update(self.X, self.Y)
+
+                # save the weights
+                self.approx
+
+                # test on test_data
+                self.evaluate()
+
+            else:
+                input()
+
+    def import_records(self, dataset_files=[]):
         ''' Import static gestures, Import all data from learning folder
         Object (self) parameters:
             Gs_static (List): Static gesture names
-            args (List): Various arguments
+            args (Str{}): Various arguments
         Object (self) returns:
             X,Y (ndarray): Static gestures dataset
             Xpalm (ndarray): Palm trajectories positions
@@ -130,12 +162,18 @@ class PyMC3Train():
             Ydyn (1darray): (Y solutions flags for palm trajectories)
         '''
         # Takes about 50sec.
-        data = import_data(self.learn_path, self.args, Gs=self.Gs)
+        data = import_data(self.learn_path, self.args, Gs=self.Gs, dataset_files=dataset_files)
+        self.new_data_arrived = True
+        if not data:
+            self.new_data_arrived = False
+            print("No new data!")
+            return
         self.X = data['static']['X']
         self.Y = data['static']['Y']
         self.Xpalm = data['dynamic']['Xpalm']
         self.DXpalm = data['dynamic']['DXpalm']
         self.Ydyn = data['dynamic']['Y']
+        self.dataset_files = data['info']['dataset_files']
 
         print("Gestures imported: ", self.Gs)
         print("Args used: ", self.args)
@@ -150,15 +188,13 @@ class PyMC3Train():
         ''' Splits the data
         Object (self) parameters:
             X, Y (ndarray): Dataset
-            args (Str[]):
+            args (Str{}):
                 - test_size
         Object (self) returns:
             X_train, X_test, Y_train, Y_test (ndarray): Split dataset
         '''
         test_size = 0.3
-        for arg in self.args:
-            if 'split' in arg:
-                test_size = float(arg.replace('split',''))
+        if 'split' in self.args: test_size = self.args['split']
         print("Split test_size: ", test_size)
 
         assert not np.any(np.isnan(self.X))
@@ -289,25 +325,19 @@ class PyMC3Train():
         ''' Train with given NN
         Object (self) parameters:
             X_train, Y_train (ndarray): Dataset
-            args (Str[]):
-                - n_hidden (Str): '<int>n_hidden', layer size hidden inside NN
-                - iter (Str): '<int>iter', Learning number of iterations
+            args (Str{}):
+                - n_hidden (Int[]): layers size hidden inside NN
+                - iter (Int[]): Learning number of iterations, [initial,updates]
         Object (self) returns:
             neural_network (PyMC3 NN): Model
             approx (PyMC3 obj <mean field group>): Approximation
         '''
-        n_hidden=[50]
-        iter=50000 ## DEFAULT
-        inference_type = 'ADVI'
-        for arg in self.args:
-            if 'iter' in arg:
-                iter = int(arg.replace('iter',''))
-            if 'n_hidden' in arg:
-                n_hidden = [int(arg.replace('n_hidden',''))]
-            if 'inference_type' in arg:
-                inference_type = arg.replace('inference_type', '')
-        print("Iterations: ", iter)
-        print("n_hidden: ", n_hidden)
+        iter, n_hidden, inference_type = [50000], [50], 'ADVI' # DEFAULT values
+        if 'iter' in self.args: iter = self.args['iter']
+        if 'n_hidden' in self.args: n_hidden = self.args['n_hidden']
+        if 'inference_type' in self.args: inference_type = self.args['inference_type']
+
+        print("Iterations: ", iter[0], " number of hidden layers: ", n_hidden)
         g = list(dict.fromkeys(self.Y))
         print("X train shape: ", self.X_train.shape, "Y train shape: ", self.Y_train.shape, " X test shape: ", self.X_test.shape, " Y test shape: ", self.Y_test.shape, " counts: ", [list(np.array(self.Y_train,int)).count(g_) for g_ in g])
 
@@ -321,32 +351,26 @@ class PyMC3Train():
                 self.inference = pm.ADVI()
             tstart = time.time()
 
-            self.approx = pm.fit(n=iter, method=self.inference)
+            self.approx = pm.fit(n=iter[0], method=self.inference, callbacks=self.clbcks)
             print("Train time [s]: ", time.time()-tstart)
 
     def train_update(self, X_update, Y_update):
         ''' Train with given NN update
         Object (self) parameters:
             X_train, Y_train (ndarray): Dataset
-            args (Str[]):
-                - n_hidden (Str): '<int>n_hidden', layer size hidden inside NN
-                - iter (Str): '<int>iter', Learning number of iterations
+            args (Str{}):
+                - n_hidden (Int[]): layers size hidden inside NN
+                - iter (Int[]): Learning number of iterations, [initial,updates]
         Object (self) returns:
             neural_network (PyMC3 NN): Model
             approx (PyMC3 obj <mean field group>): Approximation
         '''
-        n_hidden=[50]
-        iter=50000 ## DEFAULT
-        inference_type = 'ADVI'
-        for arg in self.args:
-            if 'iupdate' in arg:
-                iter = int(arg.replace('iupdate',''))
-            if 'n_hidden' in arg:
-                n_hidden = [int(arg.replace('n_hidden',''))]
-            if 'inference_type' in arg:
-                inference_type = arg.replace('inference_type', '')
-        print("Iterations: ", iter)
-        print("n_hidden: ", n_hidden)
+        iter, n_hidden, inference_type = [50000], [50], 'ADVI' # DEFAULT values
+        if 'iter' in self.args: iter = self.args['iter']
+        if 'n_hidden' in self.args: n_hidden = self.args['n_hidden']
+        if 'inference_type' in self.args: inference_type = self.args['inference_type']
+
+        print("Iterations: ", iter[1], " number of hidden layers: ", n_hidden)
         g = list(dict.fromkeys(Y_update))
         print("X train shape: ", X_update.shape, "Y train shape: ", Y_update.shape, " X test shape: ", self.X_test.shape, " Y test shape: ", self.Y_test.shape, " counts: ", [list(np.array(Y_update,int)).count(g_) for g_ in g])
 
@@ -359,9 +383,15 @@ class PyMC3Train():
             else: # default option 'ADVI'
                 self.inference = pm.ADVI()
             tstart = time.time()
-            self.approx = pm.fit(n=iter, method=self.inference, local_rv=self.approx.params)
+            self.approx = pm.fit(n=iter[1], method=self.inference, local_rv=self.approx.params, callbacks=[self.clbcks])
             print("Train time [s]: ", time.time()-tstart)
 
+    def clbcks(approx, losses, i):
+        if i % 500 == 499:
+            print("@@@@ clbcks @@@@")
+            self.approx = approx
+            self.evaluate()
+            print("@@@@@@@@@@@@@@@@")
 
     def load(self, name='network0.pkl'):
         ''' Load Network
@@ -398,12 +428,10 @@ class PyMC3Train():
             approx (PyMC3 obj): Approximation
             neural_network (PyMC3 obj): Model
             X_test, Y_test (ndarray): Test dataset
+            args (Str{})
         '''
-        samples = None
-        for arg in self.args:
-            if 'samples' in arg:
-                samples = int(arg.replace('samples',''))
-        if not samples: samples = 10000
+        samples = 10000
+        if 'samples' in self.args: samples = self.args['samples']
 
         x = T.matrix("X")
         n = T.iscalar("n")
@@ -442,7 +470,7 @@ class PyMC3Train():
             neural_network (PyMC3 obj): Model
             network_path (String): Path to network folder, where the network will be saved
             Gs (String[]): Array of gestures defined in model & approximation
-            args (String[]): Arguments for saving
+            args (String{}): Arguments for saving
         '''
         NNWrapper.save_network(self.X_train, self.approx, self.neural_network, network_path=self.network_path, name=name, Gs=self.Gs, args=self.args, accuracy=accuracy)
         confusion_matrix_pretty_print.plot_confusion_matrix_from_data(self.Y_test, self.y_pred, self.Gs,
@@ -535,21 +563,25 @@ class PyMC3Train():
         plt.show()
 
 
-    def train_minibatch(self, iter=40000):
+    def train_minibatch(self):
         ''' Train minibatches
         Global parameters:
             X_train, Y_train (ndarray): Train dataset
         '''
-        # batch_size=50, iterations=40000, time->20s
+        iter, n_hidden, inference_type = [50000], [50], 'ADVI' # DEFAULT values
+        if 'iter' in self.args: iter = self.args['iter']
+        if 'n_hidden' in self.args: n_hidden = self.args['n_hidden']
+        if 'inference_type' in self.args: inference_type = self.args['inference_type']
+        # batch_size=50, time->20s
         #
         minibatch_x = pm.Minibatch(self.X_train, batch_size=50)
         minibatch_y = pm.Minibatch(self.Y_train, batch_size=50)
-        self.neural_network = self.construct_nn_2l(minibatch_x, minibatch_y,n_hidden=[50])
+        self.neural_network = self.construct_nn_2l(minibatch_x, minibatch_y,n_hidden=n_hidden)
         tstart = time.time()
 
         with self.neural_network:
             self.inference = pm.ADVI()
-            self.approx = pm.fit(iter, method=self.inference)
+            self.approx = pm.fit(iter[0], method=inference_type)
         print("Train time [s]: ", time.time()-tstart)
 
         plt.plot(self.approx.hist)
@@ -569,47 +601,56 @@ class PyMC3Train():
     def train_dynamic_timewarping(self):
         ''' Dynamic gestures via timewarping
         '''
-        selargs.append('eacheach')
+        self.args['eacheach'] = True
         time_warp_launch(self.Xpalm, self.Y, args=self.args)
 
 
     ''' ============ continuous learning section =============
         ====================================================== '''
-    def split_3_parts(self, test_size=0.3, update_size=0.1):
+    def split_k_parts(self, split=[0.3, 0.1]):
         ''' Split dataset into three parts
         Parameters:
-            test_size (Float): Ratio of test dataset
-            update_size (Float): Ratio of update dataset
+            split (Float[]): Portions of dataset divided into:
+                - split[0] -> X_test, Y_test
+                - split[1] -> X_train, Y_train
+                - split[2:] -> X_update[], Y_update[]
         Object (self) parameters:
             X,Y (ndarray): Dataset
         Object (self) returns:
-            X_train, Y_train, X_test, Y_test, X_train_update, Y_train_update (ndarray): Splitted dataset
+            X_train, Y_train, X_test, Y_test, X_update[], X_update[] (ndarray): Splitted dataset based on proportions
         '''
         print("X shape", self.X.shape)
         print("Y shape", self.Y.shape)
         assert not np.any(np.isnan(self.X))
         # Split to test/train data
-        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=test_size)
-        # Split train data to 90/10
-        self.X_train, self.X_train_update, self.Y_train, self.Y_train_update = train_test_split(self.X_train, self.Y_train, test_size=update_size)
+        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=split.pop(0))
+        self.X_update, self.Y_update = [[]] * len(split), [[]] * len(split)
+        for i in range(0, len(split)):
+            if i == 0:
+                self.X_train, self.X_update[0], self.Y_train, self.Y_update[0] = train_test_split(self.X_train, self.Y_train, test_size=split[i])
+                continue
+            self.X_update[i], self.X_update[i+1], self.Y_update[i], self.Y_update[i+1] = train_test_split(self.X_update[i], self.Y_update[i], test_size=split[i])
 
     def split_4_parts(self):
-        ''' Split dataset into 0.3 test part + 10*0.7 train data parts
+        ''' Split dataset into proportions: 0.3 test part + 0.2 train data + 4*0.125 updates data
         Object (self) parameters:
             X,Y (ndarray): Dataset
         Object (self) returns:
-            X_train, Y_train, X_test, Y_test, X_train_update, Y_train_update (ndarray): Splitted dataset
+            X_train, Y_train, X_test, Y_test, X_update, Y_update (ndarray): Splitted dataset
         '''
         assert not np.any(np.isnan(self.X))
         self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=0.3)#, stratify=self.Y)
-        self.X4, self.Y4 = [[]] * 4, [[]] * 4
+        self.X_update, self.Y_update = [[]] * 4, [[]] * 4
 
-        self.X4[0], self.X4[1], self.Y4[0], self.Y4[1] = train_test_split(self.X_train, self.Y_train, test_size=0.5)#, stratify=self.Y_train)
-        self.X4[2], self.X4[3], self.Y4[2], self.Y4[3] = train_test_split(self.X4[0], self.Y4[0], test_size=0.5)#, stratify=self.Y4[0])
-        self.X4[0], self.X4[1], self.Y4[0], self.Y4[1] = train_test_split(self.X4[1], self.Y4[1], test_size=0.5)#, stratify=self.Y4[1])
+        self.X_train, self.X_tmp, self.Y_train, self.Y_tmp = train_test_split(self.X_train, self.Y_train, test_size=0.715)#, stratify=self.Y_train)
+
+        self.X_update[0], self.X_update[1], self.Y_update[0], self.Y_update[1] = train_test_split(self.X_tmp, self.Y_tmp, test_size=0.5)#, stratify=self.Y_train)
+
+        self.X_update[2], self.X_update[3], self.Y_update[2], self.Y_update[3] = train_test_split(self.X_update[0], self.Y_update[0], test_size=0.5)#, stratify=self.Y4[0])
+        self.X_update[0], self.X_update[1], self.Y_update[0], self.Y_update[1] = train_test_split(self.X_update[1], self.Y_update[1], test_size=0.5)#, stratify=self.Y4[1])
 
     def split_k_parts_mini(self):
-        ''' Split dataset into 0.3 test part + 10*0.7 train data parts
+        '''
         Object (self) parameters:
             X,Y (ndarray): Dataset
         Object (self) returns:
@@ -618,23 +659,19 @@ class PyMC3Train():
         assert not np.any(np.isnan(self.X))
         self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=0.3, stratify=self.Y)
         TEST = [1,2,5,10,20,50]
-        TEST = [50, 1, 1]
-        self.Xk, self.Yk = [[]] * len(TEST), [[]] * len(TEST)
+        #TEST = [50, 1, 1]
+        self.X_update, self.Y_update = [[]] * len(TEST), [[]] * len(TEST)
 
-        ## TEMP:
         for n,e in enumerate(TEST):
-            self.Xk[n] = []
+            self.X_update[n] = []
             sum = 0
             for i in range(0,7):
-                 self.Xk[n].append(self.X_train[self.Y_train==i][sum:sum+e])
-            self.Xk[n] = np.vstack(self.Xk[n])
-            self.Yk[n] = np.repeat([0,1,2,3,4,5,6], e)
+                 self.X_update[n].append(self.X_train[self.Y_train==i][sum:sum+e])
+            self.X_update[n] = np.vstack(self.X_update[n])
+            self.Y_update[n] = np.repeat([0,1,2,3,4,5,6], e)
             sum += e
-
-        #self.X4[0], self.X4[1], self.Y4[0], self.Y4[1] = train_test_split(self.X_train, self.Y_train, test_size=0.1, stratify=self.Y_train)
-        #self.X4[2], self.X4[3], self.Y4[2], self.Y4[3] = train_test_split(self.X4[0], self.Y4[0], test_size=0.5, stratify=self.Y4[0])
-        #self.X4[0], self.X4[1], self.Y4[0], self.Y4[1] = train_test_split(self.X4[1], self.Y4[1], test_size=0.5, stratify=self.Y4[1])
-
+        self.X_train = self.X_update.pop(0)
+        self.Y_train = self.Y_update.pop(0)
 
     def prepare_minibatch(self, n_samples=10):
         ''' Dataset -> distributions -> New dataset sampled from these distributions
@@ -761,8 +798,9 @@ class PyMC3Train():
 
 class Experiments():
     def seed_wrapper(self, fun=None):
+        print("------------")
         print("Seed Wrapper")
-        print("---")
+        print("------------")
         # Random seeds, specified for next repeatability
         seeds = [93457, 12345, 45677, 82909, 75433]
         self.accuracies, self.accuracies_train = [], []
@@ -806,7 +844,7 @@ class Experiments():
         print("Training With Parameters")
         print("---")
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = ['all_defined', '0.3split', 'take_every_10', '2000iter', '50n_hidden']
+        args = {'all_defined':True, 'split':0.3, 'take_every':10, 'iter':[2000], 'n_hidden':[50] }
         self.train = PyMC3Train(Gs, args)
 
         self.train.import_records()
@@ -830,10 +868,10 @@ class Experiments():
         print("Training 90% + 10% with priors")
         print("---")
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = ['all_defined', '0.25split', 'take_every_10', '1s', '2500iter', '50n_hidden', '2000samples', '5iupdate']
+        args = {'all_defined':True, 'split':0.25, 'take_every':10, 's':1, 'iter':[2500,1000], 'n_hidden':[50], 'samples':2000}
         self.train = PyMC3Train(Gs, args)
         self.train.import_records()
-        self.train.split_3_parts()
+        self.train.split_k_parts()
 
         self.train.train()
         accuracy, accuracy_train = self.train.evaluate()
@@ -841,7 +879,7 @@ class Experiments():
         accuracies_train.append(accuracy_train)
 
         # it needs Y_train same length, 5800 before, 1100 in update
-        self.train.train_update(self.train.X_train_update, self.train.Y_train_update)
+        self.train.train_update(self.train.X_update, self.train.Y_update)
         accuracy, accuracy_train = self.train.evaluate()
         accuracies.append(accuracy)
         accuracies_train.append(accuracy_train)
@@ -858,10 +896,10 @@ class Experiments():
         print("Training 90% + 10% with minibatch")
         print("---")
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = ['all_defined', 'take_every_10', '1s', '2000iter', '50n_hidden', '1000samples', '2000iupdate']
+        args = { 'all_defined':True, 'take_every':10, 's':1, 'iter':[2000,2000], 'n_hidden':[50], 'samples':1000}
         self.train = PyMC3Train(Gs, args)
         self.train.import_records()
-        self.train.split_3_parts()
+        self.train.split_k_parts()
         self.train.prepare_minibatch()
 
         self.train.train_minibatch()
@@ -870,7 +908,7 @@ class Experiments():
         accuracies.append(accuracy)
         accuracies_train.append(accuracy_train)
 
-        self.train.train_update(train.X_train_update, train.Y_train_update)
+        self.train.train_update(train.X_update[0], train.Y_update[0])
         accuracy, accuracy_train = self.train.evaluate()
         accuracies.append(accuracy)
         accuracies_train.append(accuracy_train)
@@ -884,14 +922,14 @@ class Experiments():
         State: Prepared to test
         '''
         accuracies, accuracies_train = [], []
-        print("Training 90% + 10% with minibatch")
+        print("Training proportions")
         print("---")
-        for i in [0.9,0.8,0.7,0.6,0.5,0.4,0.3,0.2,0.1]:
+        for i in [0.9,0.7,0.5,0.3,0.1]:
             Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-            args = ['all_defined', 'take_every_10', '1s', 'interpolate', '3000iter', str(i)+'split']
+            args = {'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000], 'split':[0.3, i] }
             self.train = PyMC3Train(Gs, args)
             self.train.import_records()
-            self.train.split()
+            self.train.split_k_parts(args['split'])
             self.train.train()
             accuracy, accuracy_train = self.train.evaluate()
             accuracies.append(accuracy)
@@ -906,12 +944,12 @@ class Experiments():
         State: Testing right now
         '''
         accuracies, accuracies_train = [], []
-        for i in [1000, 3000, 4000, 5000]:
+        for i in [1000, 3000, 4000, 5000, 7000, 9000]:
             Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-            args = ['all_defined', 'take_every_3', '1s', 'interpolate', str(i)+'iter', '0.25split', '10000samples']
+            args = {'all_defined':True, 'take_every':3, 's':1, 'interpolate':True, 'iter':[i], 'split':0.25, 'samples':10000 }
             self.train = PyMC3Train(Gs, args)
             self.train.import_records()
-            self.train.split()
+            self.train.split_k_parts()
             self.train.train()
             accuracy, accuracy_train = self.train.evaluate()
             accuracies.append(accuracy)
@@ -928,19 +966,18 @@ class Experiments():
         print("Training k updates with priors")
         print("---")
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = ['all_defined', 'take_every_10', '1s', 'interpolate', '3000iter', '0.3split', '50n_hidden', '3000iupdate']
+        args = { 'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
         self.train = PyMC3Train(Gs, args)
         self.train.import_records()
         self.train.split_k_parts_mini()
-        self.train.X_train, self.train.Y_train = self.train.Xk[0], self.train.Yk[0]
         self.train.train()
         accuracy, accuracy_train = self.train.evaluate()
         accuracies.append(accuracy)
         accuracies_train.append(accuracy_train)
         print("---")
 
-        for i in range(1,6):
-            self.train.train_update(self.train.Xk[i], self.train.Yk[i])
+        for i in range(0,5):
+            self.train.train_update(self.train.X_update[i], self.train.Y_update[i])
             accuracy, accuracy_train = self.train.evaluate()
             accuracies.append(accuracy)
             accuracies_train.append(accuracy_train)
@@ -957,18 +994,17 @@ class Experiments():
         print("Training 17.5% + 3 x 17.5% with priors")
         print("---")
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = ['all_defined', 'take_every_10', '1s', 'interpolate', '3000iter', '0.3split', '50n_hidden', '3000iupdate']
+        args = {'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
         self.train = PyMC3Train(Gs, args)
         self.train.import_records()
         self.train.split_4_parts()
-        self.train.X_train, self.train.Y_train = self.train.X4[0], self.train.Y4[0]
         self.train.train()
         accuracy, accuracy_train = self.train.evaluate()
         accuracies.append(accuracy)
         accuracies_train.append(accuracy_train)
         print("---")
-        for i in range(1,4):
-            self.train.train_update(self.train.X4[i], self.train.Y4[i])
+        for i in range(0,4):
+            self.train.train_update(self.train.X_update[i], self.train.Y_update[i])
             accuracy, accuracy_train = self.train.evaluate()
             accuracies.append(accuracy)
             accuracies_train.append(accuracy_train)
@@ -985,7 +1021,7 @@ class Experiments():
         print("Training 17.5% + 3 x 17.5% with priors")
         print("---")
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = ['all_defined', 'take_every_10']
+        args = { 'all_defined':True, 'take_every':10 }
         self.train = PyMC3Train(Gs, args)
         self.train.import_records()
         self.train.split_4_parts()
@@ -1023,9 +1059,9 @@ if __name__ == '__main__':
     ## Updates 4 parts (seed independent) search
     #e.seed_wrapper(e.trainAdding4updates)
     ## Updates with 1,2,5,10,20 samples each gestures (seed independent) search
-    e.seed_wrapper(e.trainAddingkupdates)
+    #e.seed_wrapper(e.trainAddingkupdates)
     ## Test my best trained network on other seeds
-
+    #e.seed_wrapper(e.trainAdding10)
     #e.train.X_train
 
     #e.seed_wrapper(e.loadAndEvaluate)
@@ -1033,27 +1069,14 @@ if __name__ == '__main__':
 
     #e.seed_wrapper(e.train90plus10_priors)
     #e.train90plus10_priors()
-
+    e.train = PyMC3Train()
+    e.train.online_thread()
 
     #e.seed_wrapper(e.trainWithParameters())
     #e.trainAdding4updates()
     #e.trainAddingkupdates()#main()
 
     #e.train90plus10_minibatch()
-
-    # 1.
-    #e.seed_wrapper(e.trainAdding4updates)
-    # 2. Turn off the rv_vars
-    #e.seed_wrapper(e.trainAdding4updates)
-    # 3. Try FullRankADVI
-    #self.args.append('FullRankADVIinference_type')
-    #e.seed_wrapper(e.trainAdding1000iter)
-
-    # 4. Too little samples, need more recordings
-    #self.args.append('take_every_3')
-    #e.seed_wrapper(e.trainAdding4updates)
-
-    #e.seed_wrapper(e.trainAdding1000iter)
 
 
 

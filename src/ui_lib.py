@@ -338,7 +338,7 @@ class Example(QMainWindow):
                 self.recording = True
                 for n, key in enumerate(KEYS):
                     if event.key() == key:
-                        self.dir_queue.append(self.lblGesturesPosesNames[n])
+                        self.dir_queue.append(settings.GESTURE_NAMES[n])
                         self.caller = RepeatableTimer(self.REC_TIME, self.save_data, ())
                         self.caller.start()
         else:
@@ -564,7 +564,7 @@ class Example(QMainWindow):
         painter = QPainter(self)
         painter.setPen(QPen(Qt.red, 3))
 
-        if len(settings.frames_adv) > 10:
+        if len(settings.frames_adv) > 10 and 'point' in settings.gd.r.POSES.keys():
             for n in range(1,10):
                 if settings.frames_adv[-n-1].r.visible and settings.frames_adv[-n].r.visible:
                     p1 = settings.mo.transformLeapToUIsimple(settings.frames_adv[-n].r.pPose.pose)
@@ -947,6 +947,7 @@ class Example(QMainWindow):
 
 
     def mapQtKey(self, key):
+        key = str(key)
         mapDict = {
             '0': Qt.Key_0 ,
             '1': Qt.Key_1 ,
