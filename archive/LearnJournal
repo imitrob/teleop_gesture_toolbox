@@ -1,0 +1,67 @@
+Journal:
+
+obs -> number of observations for each recording = 12
+n_hidden -> number of hidden inner nodes = 10, 20, 50, 100
+GEST -> number of recognizing gestures = 7
+
+Data:
+7 types of gestures, 41 sample recordings of each gesture, 12 observations per recording
+input dataset X -> shape(7*41, 12)
+              y -> shape(41,)
+
+Model 3 layers:
+w_in_1 ∼ Normal, shape(obs, n_hidden)
+w_1_out ∼ Normal, shape(n_hidden, GEST)
+out ∼ Categorical
+
+w_in_1 ∼ Normal(mu=0.0, sigma=1.0)
+w_1_out ∼ Normal(mu=0.0, sigma=1.0)
+
+Accuracy:
+n_hidden = 10, 78% test data, 79% train data
+n_hidden = 20, 65% test data, 66% train data
+n_hidden = 50, 82% test data, 80% train data
+n_hidden =100, 84% test data, 81% train data
+n_hidden =200, 77% test data, 85% train data (~5min. learn)
+
+Model 4 layers:
+w_in_1 ∼ Normal, shape(obs, n_hidden)
+w_1_2 ∼ Normal, shape(n_hidden, n_hidden)
+w_2_out ∼ Normal, shape(n_hidden, GEST)
+out ∼ Categorical
+
+w_in_1 ∼ Normal(mu=0.0, sigma=1.0)
+w_1_2 ∼ Normal(mu=0.0, sigma=1.0)
+w_2_out ∼ Normal(mu=0.0, sigma=1.0)
+
+
+n_hidden =  5, 57% test data, 56% train data
+n_hidden = 10, 79% test data, 75% train data
+n_hidden = 20, 76% test data, 78% train data
+n_hidden = 50, 76% test data, 78% train data
+n_hidden = 100, 80% test data, 82% train data (~3min. learn)
+
+Bigger dataset:
+7 types of gestures, 1230 sample recordings of each gesture, 12 observations per recording
+input dataset X -> shape(7*1230, 12)
+              y -> shape(41,)
+
+Accuracy using model 3 layers:
+
+n_hidden = 10, ~60% test data, ~60% train data
+n_hidden = 50,  81% test data,  82% train data (~10min. learn) (Fig1. Confusion table)
+n_hidden =100,  78% test data,  77% train data (~40min. learn)
+
+Removing Pinch gesture -> 6 types of gestures:
+n_hidden = 50, 89.7% test data, 90.2% train data (~10min. learn) (conf_pretty_3l_n_[50]_6gests.png)
+
+Using 'all defined' dataset. Data:
+7 types of gestures, 1230 sample recordings of each gesture, 87 observations per recording
+input dataset X -> shape(7*1230, 87)
+              y -> shape(7*1230,)
+
+Accuracy using model 3 layers:
+
+n_hidden = 20, 87% test data, 87.2% train data, (~12min. learn)
+n_hidden = 50, 96% test data, 96% train data, 50000 iter. (~40min. learn)
+n_hidden = 80, 86% test data, 88% train data (~45min. learn)
