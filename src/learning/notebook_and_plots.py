@@ -329,6 +329,52 @@ data_train = make_data_boundaries(data_train)
 'training time from 7s to 40s, counts from [26, 25, 29, 30, 30, 15, 31] to [278, 243, 276, 258, 238, 188, 195]'
 plot(np.r_[ data_test, data_train[1:]], TITLE+'\nArgs: '+ARGS, 'Proportion of train dataset [%]', 'Balanced Accuracy [%]', ['test data', 'train data'], minmaxboundaries4plot=True)
 
+'''
+#######################
+First look conclusions:
+#######################
+
+At the start, I would like to say that, every trial or experiment can be easily reproduced, because every point has its given dataset and arguments, they are written for example in the plot. The assigned script `train.py` is attached to this plots.py.
+Purpose: How accuracy will develop with increasing percents of dataset, these are not updates yet. What I wanted to see is increasing numbers of accuracy based on proportion of data. From the results, you can see, that training won't be efficient and train accuracy is collapsing based on the data.
+When displaying development based on iterations, there is not much difference either. Bigger iterations are not better, system is saturated.
+
+The important observation is difference between train and test data, which are different, so it the accuracy for test and accuracy for train data has no difference, then the model cannot learn better, for example with more iterations.
+
+You can see that testing data are made from remaining dataset from whole dataset. From this plot it seems that from 20 recording samples above the difference is the same, but I got better results later.
+
+In second section, I used continuous updates, I got nice increasing plot, but at the time I didn't knew that by assiging local_rv's to the model, I used the wrong variables.
+
+Before I go the right variant I also looked more at the grid search. These results are correct in a way, but they have one major flaw, that they are as everything in probabilistic world, seed dependent. And I knew this would be the case, but then I found out that the results vary quite a lot for example about 4%. So when having different seed for randomness, I can have 91% accurate network but also 96% accurate network.
+
+So I was finding some local maximums, but didn't consider the seed parameter. The question is that if I train the network and it will have 97% accuracy, if it will behave the same with other situations.
+
+The I started doing seed independent trains. I used 5 different seeds and make average for every result I got, the result is this graph of low and high boundaries, which corresponds to one sigma standard deviation.
+
+Right now you can see grid space search through number of iterations. Of course, the better way would be to use some stopping variable, to check if the loss is not stagnating and then overfitting is played here. But I cannot use control to loss function. Because the loss function is still decreasing even after the the local maximum in accuracy is observed, so I cannot use that. So the training network is still optimizing after the maximum is obtained, what improvements is it computing?
+
+Another possible would be to check every x iterations to use MCMC and sample then drop the learning is accuracy failed. I know there is some feedback call, so I can try this.
+
+The interpolation is maintaining the accuracy with bigger iterations.
+
+These experiments are also wrong, there was problem with the variables. The first problem was that local_rv parameter does not do what I thaught it does. So I wanted to init the variable values from the scratch to the network. Then the problem which I had was that for a long time, the network seems that there is some problem, even with single iteration, model was not the same. The solutions was that saved weights were saved in columns, so I needed to transpose the weights matrix. When I did that, you can see that the model remained the same.
+
+The main thing 5.8 computation time is very low, retraning with new data does not need minibatches, it will do the training given some iterations.
+
+Other methods like FullRankADVI, SGD, OPVI
+GPU acceleration
+Minibatches were no better, training on full batch gave bigger accuracy.
+
+What did I do wrong?
+What to try?
+Number of iterations pick based on dropping constraints?
+
+Conclusion: Updates possible with new recordings. Especially, training new set of gestures with new data possible, easily get 90%, but will depend on what gestures it will be.
+Make learning loop. Learning will be under 2 seconds is comfortably achieved, from recording use only valuable data. I will make script for putting the real data to the learning, not only sampling and it should be done.
+'''
+
+
+
+
 'Try online learning on real data. '
 
 ''
