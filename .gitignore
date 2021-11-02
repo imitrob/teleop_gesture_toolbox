@@ -1,4 +1,3 @@
 *.pyc
 include/data/Trained_network/netw*
 include/data/learning/
-archive/
