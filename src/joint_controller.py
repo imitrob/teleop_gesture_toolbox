@@ -11,6 +11,7 @@ rosrun mirracle_gestures joint_controller.py home
 '''
 import sys
 import rospy
+import argparse
 
 from sensor_msgs.msg import JointState
 from moveit_msgs.msg import RobotTrajectory
@@ -96,8 +97,8 @@ class Raw_Kinematics():
 
 class JointController():
 
-    def __init__(self):
-        self.REAL = True
+    def __init__(self, args):
+        self.args = args
         rospy.init_node("joint_controller")
 
         self.joint_state = JointState()
@@ -110,43 +111,25 @@ class JointController():
         rospy.Subscriber("/joint_states", JointState, self.save_joints)
         self.seq = 0
 
-        if self.REAL:
-            self.tac = trajectory_action_client.TrajectoryActionClient(arm='panda_arm', topic='/position_joint_trajectory_controller/follow_joint_trajectory', topic_joint_states = '/franka_state_controller/joint_states')
-        else:
-            self.plotgoalpub1 = rospy.Publisher("/plot_goal", JointState, queue_size=5)
-            self.plotgoalpub2 = rospy.Publisher("/plot_goal2", JointState, queue_size=5)
-            self.plotgoalpub3 = rospy.Publisher("/plot_goal3", JointState, queue_size=5)
-            raw_input("/plot_goal topic publishers initialized, press enter to conitnue.")
-            self.plotgoalpub = [self.plotgoalpub1, self.plotgoalpub2, self.plotgoalpub3]
+        self.tac = trajectory_action_client.TrajectoryActionClient(arm='panda_arm', topic='/position_joint_trajectory_controller/follow_joint_trajectory', topic_joint_states = '/franka_state_controller/joint_states')
 
-        self.SAMPLE_JOINTS = [ [-1.72, 0.42, -1.61, -1.98, -1.36, 0.49, -1.48],
-            [-0.32, 1.53, -1.60, -1.45, 0.10, 3.21, 0.63],
-            [2.43, -0.22, -0.49, -0.40, -1.88, 2.41, -0.99],
-            [2.01, 0.06, -0.40, -2.16, -1.54, 3.02, -1.59],
-            [0.93, 0.24, -0.97, -2.86, 0.22, 3.19, -0.41],
-            [1.09, 0.19, 1.35, -2.67, 0.12, 1.32, -0.44] ]
+        self.plotgoalpub1 = rospy.Publisher("/plot_goal", JointState, queue_size=5)
+        self.plotgoalpub2 = rospy.Publisher("/plot_goal2", JointState, queue_size=5)
+        self.plotgoalpub3 = rospy.Publisher("/plot_goal3", JointState, queue_size=5)
+        #raw_input("/plot_goal topic publishers initialized, press enter to conitnue.")
+        self.plotgoalpub = [self.plotgoalpub1, self.plotgoalpub2, self.plotgoalpub3]
 
+        self.SAMPLE_JOINTS = [ [] ]
         self.ALIMS = 3.0
-        self.TRAJ_DUR = 10
+        self.rate = rospy.Rate(self.args.rate)
 
         self._goal = None
 
         self.trajn = 0
         self.savedPrevVel = None
 
-        self.computation_time = 3.0
-
-        self.MODE = None
-        if len(sys.argv) > 1:
-            if sys.argv[1] in ['home', 'random_joints', 'shortest_distance', 'shortest_distance_0', 'shortest_distance_1', 'repeat_same', 'acceleration', 'durations']:
-                self.MODE = sys.argv[1]
-            else:
-                print("Option given is not is list ['home', 'random_joints', 'shortest_distance', 'shortest_distance_0', 'shortest_distance_1', 'repeat_same', 'acceleration', 'durations','trajectory_replacement']")
-                print("Assigned to 'trajectory_replacement'")
-                self.MODE = 'trajectory_replacement'
-
     def __enter__(self):
-        self.start_publishing()
+        self.start_mode()
 
     def __exit__(self):
         pass
@@ -155,49 +138,47 @@ class JointController():
         self.joint_state = data
         self.joint_states.append(data)
 
-    def start_publishing(self):
-        rate = rospy.Rate(1.0)
-        loop = -1
-        if self.MODE == 'home':
+    def start_mode(self):
+        if self.args.experiment == 'home':
             self.goHome()
             return
 
-        while not rospy.is_shutdown():
-            loop += 1
+        if self.args.experiment == 'random_joints':
+            self.testRandomJoints()
+        elif self.args.experiment == 'shortest_distance':
+            self.testShortestDistance()
+        elif self.args.experiment == 'shortest_distance_0':
+            self.testShortestDistance(joint=0)
+        elif self.args.experiment == 'shortest_distance_1':
+            self.testShortestDistance(joint=1)
+        elif self.args.experiment == 'repeat_same':
+            self.testPubSamePlace()
+        elif self.args.experiment == 'acceleration':
+            self.testAccelerations()
+        elif self.args.experiment == 'durations':
+            self.testDurations()
+        elif self.args.experiment == 'trajectory_replacement':
+            self.testTwoTrajectories()
 
-            #self.control()
-            if self.MODE == 'random_joints':
-                self.testRandomJoints(loop)
-            elif self.MODE == 'shortest_distance':
-                self.testShortestDistance(loop)
-            elif self.MODE == 'shortest_distance_0':
-                self.testShortestDistance(loop, joint=0)
-            elif self.MODE == 'shortest_distance_1':
-                self.testShortestDistance(loop, joint=1)
-            elif self.MODE == 'repeat_same':
-                self.testPubSamePlace(loop)
-            elif self.MODE == 'acceleration':
-                self.testAccelerations(loop)
-            elif self.MODE == 'durations':
-                self.testDurations(loop)
-            elif self.MODE == 'trajectory_replacement':
-                self.testTwoTrajectories(loop)
+        print("Done")
+        time.sleep(200)
 
-            rate.sleep()
-
-    def testTwoTrajectories(self, loop):
-        self.SAMPLE_JOINTS = [ [-1.0, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63] ]
-
+    def testTwoTrajectories(self):
+        self.SAMPLE_JOINTS = []
+        # Init. waypoints, where every waypoint is newly created trajectory
         for i in range(0,10):
-            self.SAMPLE_JOINTS.append([-1.0, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63])
-        if loop >= len(self.SAMPLE_JOINTS):
-            print("Done")
-            time.sleep(200)
-            return
-        self.tac_control2(loop)
+            self.SAMPLE_JOINTS.append([0.8, -0.5, -0.8, -1.9, 0.25, 2.3, 0.63])
+
+        for loop in range(0,len(self.SAMPLE_JOINTS)):
+            if rospy.is_shutdown():
+                break
+            self.tac_control_replacement(loop)
+            self.rate.sleep()
 
 
     def plotGoalPubFun(self, _goal):
+        ''' Publish Goal Trajectory to plot
+        '''
         stamp = _goal.trajectory.header.stamp
         for i, pt in enumerate(_goal.trajectory.points):
             msg = JointState()
@@ -211,20 +192,22 @@ class JointController():
 
         self.trajn +=1
 
-    def goHome(self):
-        self.SAMPLE_JOINTS = [ [0.8, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63] ]
-
-        self.tac_control(0)
-
-        # some first condition, need to be altered later
-        time.sleep(3)
-        # second condition, robot stopped
+    def robotStopped(self, waitStart=3, waitEnd=0.):
+        # first condition (robot got into move), maybe need to be altered later
+        time.sleep(waitStart)
+        # second condition (robot stopped)
         while not rospy.is_shutdown() and sum(abs(np.array(self.joint_state.velocity))) > 0.005:
             print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
             time.sleep(0.5)
-        time.sleep(3)
+        time.sleep(waitEnd)
 
-    def testRandomJoints(self, loop):
+    def goHome(self):
+        self.SAMPLE_JOINTS = [ [0.8, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63] ]
+        self.tac_control(0)
+        self.robotStopped(waitEnd=3.)
+
+
+    def testRandomJoints(self):
         self.SAMPLE_JOINTS = [ [-0.32, 1.53, -1.60, -1.45, 0.10, 3.21, 0.63],
         [-1.72, 0.42, -1.61, -1.98, -1.36, 0.49, -1.48],
         [2.43, -0.22, -0.49, -0.40, -1.88, 2.41, -0.99],
@@ -232,59 +215,55 @@ class JointController():
         [0.93, 0.24, -0.97, -2.86, 0.22, 3.19, -0.41],
         [1.09, 0.19, 1.35, -2.67, 0.12, 1.32, -0.44] ]
 
-        self.tac_control(loop)
+        for loop in range(0,len(self.SAMPLE_JOINTS)):
+            if rospy.is_shutdown():
+                break
+            self.tac_control(loop)
 
-        print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-        # some first condition, need to be altered later
-        time.sleep(3)
-        # second condition, robot stopped
-        while not rospy.is_shutdown() and sum(abs(np.array(self.joint_state.velocity))) > 0.005:
             print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-            time.sleep(0.5)
+            self.robotStopped()
+            self.rate.sleep()
 
-    def testAccelerations(self, loop):
+    def testAccelerations(self):
         self.SAMPLE_JOINTS = [ [-1.72, 0.42, -1.61, -1.98, -1.36, 0.49, -1.48],
         [-0.32, 1.53, -1.60, -1.45, 0.10, 3.21, 0.63],
         [2.43, -0.22, -0.49, -0.40, -1.88, 2.41, -0.99],
         [2.01, 0.06, -0.40, -2.16, -1.54, 3.02, -1.59],
         [0.93, 0.24, -0.97, -2.86, 0.22, 3.19, -0.41],
         [1.09, 0.19, 1.35, -2.67, 0.12, 1.32, -0.44] ]
-
-        self.tac_control(loop)
-
         ALIMS_arr = [0.1, 0.2, 0.5, 1.0, 2.0, 3.0]
-        self.ALIMS = ALIMS_arr[loop]
 
-        print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-        # some first condition, need to be altered later
-        time.sleep(3)
-        # second condition, robot stopped
-        while not rospy.is_shutdown() and sum(abs(np.array(self.joint_state.velocity))) > 0.005:
+        for loop in range(0,len(self.SAMPLE_JOINTS)):
+            if rospy.is_shutdown():
+                break
+            self.ALIMS = ALIMS_arr[loop]
+            self.tac_control(loop)
+
             print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-            time.sleep(0.5)
+            self.robotStopped()
+            self.rate.sleep()
 
-    def testDurations(self, loop):
+    def testDurations(self):
         self.SAMPLE_JOINTS = [ [-1.72, 0.42, -1.61, -1.98, -1.36, 0.49, -1.48],
         [-0.32, 1.53, -1.60, -1.45, 0.10, 3.21, 0.63],
         [2.43, -0.22, -0.49, -0.40, -1.88, 2.41, -0.99],
         [2.01, 0.06, -0.40, -2.16, -1.54, 3.02, -1.59],
         [0.93, 0.24, -0.97, -2.86, 0.22, 3.19, -0.41],
         [1.09, 0.19, 1.35, -2.67, 0.12, 1.32, -0.44] ]
-
-        self.tac_control(loop)
-
         DUR_arr = [10.0, 5.0, 3.0, 2.0, 1.0, 0.5]
-        self.ALIMS = DUR_arr[loop]
 
-        print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-        # some first condition, need to be altered later
-        time.sleep(3)
-        # second condition, robot stopped
-        while not rospy.is_shutdown() and sum(abs(np.array(self.joint_state.velocity))) > 0.005:
+        for loop in range(0,len(self.SAMPLE_JOINTS)):
+            if rospy.is_shutdown():
+                break
+
+            self.args.trajectory_duration = DUR_arr[loop]
+            self.tac_control(loop)
+
             print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-            time.sleep(0.5)
+            self.robotStopped()
+            self.rate.sleep()
 
-    def testShortestDistance(self, loop, joint=6):
+    def testShortestDistance(self, joint=6):
         self.SAMPLE_JOINTS = [ [-0.32, 1.53, -1.60, -1.45, 0.10, 3.21, 0.63] ]
 
         arr = np.exp([0.,1.,2.,3.]) * 0.01
@@ -293,17 +272,17 @@ class JointController():
             js[joint] += i
             self.SAMPLE_JOINTS.append(js)
 
-        self.tac_control(loop)
+        for loop in range(0,len(self.SAMPLE_JOINTS)):
+            if rospy.is_shutdown():
+                break
 
-        print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-        # some first condition, need to be altered later
-        time.sleep(3)
-        # second condition, robot stopped
-        while not rospy.is_shutdown() and sum(abs(np.array(self.joint_state.velocity))) > 0.005:
+            self.tac_control(loop)
+
             print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-            time.sleep(0.5)
+            self.robotStopped()
+            self.rate.sleep()
 
-    def testPubSamePlace(self, loop):
+    def testPubSamePlace(self):
         self.SAMPLE_JOINTS = [ [-0.32, 1.53, -1.60, -1.45, 0.10, 3.21, 0.63] ]
 
         arr = np.arange(0,20)
@@ -311,20 +290,15 @@ class JointController():
             js = self.SAMPLE_JOINTS[0]
             self.SAMPLE_JOINTS.append(js)
 
-        if loop > 1:
-            rospy.set_param('plot_joint_trajectory', False)
-        self.tac_control(loop)
+        for loop in range(0,len(self.SAMPLE_JOINTS)):
+            if rospy.is_shutdown():
+                break
 
-        return
+            self.tac_control(loop)
 
-
-        print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-        # some first condition, need to be altered later
-        time.sleep(3)
-        # second condition, robot stopped
-        while not rospy.is_shutdown() and sum(abs(np.array(self.joint_state.velocity))) > 0.005:
             print("velocity ", sum(abs(np.array(self.joint_state.velocity))))
-            time.sleep(0.5)
+            self.robotStopped()
+            self.rate.sleep()
 
     def extractToppraTraj(self, jnt_traj_):
         ''' Toppra function compute_trajectory() sometimes returns the tuple,
@@ -347,10 +321,12 @@ class JointController():
     def retime_wrapper(self, trajectory):
         robot_traj = RobotTrajectory()
         robot_traj.joint_trajectory = deepcopy(trajectory)
-        robot_traj_new = self.retime(plan=robot_traj, traj_duration=self.TRAJ_DUR)
+        robot_traj_new = self.retime(plan=robot_traj, traj_duration=self.args.trajectory_duration)
         return robot_traj_new.joint_trajectory
 
     def tac_control(self, loop):
+        ''' Basic trajectory action client control (NOT replacement of trajectory)
+        '''
         goal = FollowJointTrajectoryGoal()
         self.seq += 1
         goal.trajectory.joint_names = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
@@ -368,7 +344,7 @@ class JointController():
         print(point.positions)
         point.velocities =    [0.,  0.,  0.,  0.,  0.,  0.,  0.]
         point.accelerations = [0.,  0.,  0.,  0.,  0.,  0.,  0.]
-        point.time_from_start = rospy.Duration(2.)
+        point.time_from_start = rospy.Duration(self.args.trajectory_duration)
         goal.trajectory.points.append(deepcopy(point))
 
         goal.trajectory = self.retime_wrapper(goal.trajectory)
@@ -377,50 +353,60 @@ class JointController():
         for point in goal.trajectory.points:
             point.time_from_start = point.time_from_start + rospy.Duration(0.1)
         goal.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(1.0)
-        if self.REAL:
-            self.tac.add_goal(goal)
-            self.tac.replace()
 
-    def tac_control2(self, loop):
-        print("sample joints", self.SAMPLE_JOINTS[loop])
-        js2_joints = np.array(self.SAMPLE_JOINTS[loop]) # desired
+        self.tac.add_goal(goal)
+        self.tac.replace()
+
+    def tac_control_replacement(self, loop):
+        ''' Trajectory action client control with trajectory replacement
+        '''
+        # First time, new trajectory is generated
         if not self._goal:
-            js1_joints = self.joint_state.position
+            # new _goal trajectory
             self._goal = FollowJointTrajectoryGoal()
             self._goal.trajectory.joint_names = ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
+            # Current joints (now) (Robot is not moving) -> as start position
+            js1_joints = self.joint_state.position
             joints = JointTrajectoryPoint()
             joints.positions = js1_joints
             joints.time_from_start = rospy.Time(0.)
-            self._goal.trajectory.points.append(deepcopy(joints))
+            self._goal.trajectory.points.append(deepcopy(joints)) # 1. start point
 
+            # Desired joint values, updated every loop
+            js2_joints = np.array(self.SAMPLE_JOINTS[loop])
+            print("sample joints", js2_joints)
             joints.positions = js2_joints
-            joints.time_from_start = rospy.Time(3.)
-            self._goal.trajectory.points.append(deepcopy(joints))
+            joints.time_from_start = rospy.Time(self.args.trajectory_duration)
+            self._goal.trajectory.points.append(deepcopy(joints)) # 2. goal point
 
+            # Retime Trajectory Optimize Parametrization (Spline Interpolator 2 -> 1000 trajectory points)
             self._goal.trajectory = self.retime_wrapper(self._goal.trajectory)
 
+            # Postpone start of trajectory by 0.1s set as default
             for point in self._goal.trajectory.points:
                 point.time_from_start = point.time_from_start + rospy.Duration(0.1)
+
             self._goal.trajectory.header.stamp = rospy.Time.now()
-            if self.REAL:
-                self.tac.add_goal(self._goal)
-                self.tac.replace()
-            else:
-                self.plotGoalPubFun(self._goal)
+            self.tac.add_goal(self._goal)
+            self.tac.replace()
+            #self.plotGoalPubFun(self._goal)
         else:
+            # Starting point (joints) of the previous trajectory
             js0 = self._goal.trajectory.points[0]
             # 1. choose t* > tc => find js1
-            computation_time = self.computation_time # time horizon of new trajectory
+            computation_time = self.args.computation_time # time horizon of new trajectory
 
-            def findPointInTrajAfterThan(trajectory, computation_time):
-                assert type(computation_time)==float, "Wrong type"
+            def findPointInTrajAfterTime(trajectory, computation_time):
+                assert type(computation_time)==float, "Wrong type, it is:"+str(type(computation_time))
                 assert type(trajectory)==type(JointTrajectory()), "Wrong type"
                 for n, point in enumerate(trajectory.points):
                     if point.time_from_start.to_sec() > computation_time:
                         return n
                 return len(trajectory.points)-1
-            index = findPointInTrajAfterThan(self._goal.trajectory, computation_time)
-            js1 = self._goal.trajectory.points[index]
+
+            # Point where original trajectory is changed to new one
+            index_js1 = findPointInTrajAfterTime(self._goal.trajectory, computation_time)
+            js1 = self._goal.trajectory.points[index_js1]
             js1_joints = js1.positions
 
             # 2. make RobotTrajectory from js1 -> js2
@@ -431,68 +417,43 @@ class JointController():
             joints = JointTrajectoryPoint()
             joints.positions = js1_joints
             joints.time_from_start = rospy.Time(0.)
-            goal.trajectory.points.append(deepcopy(joints))
+            goal.trajectory.points.append(deepcopy(joints)) # 1. start point
 
             joints.positions = js2_joints
-            joints.time_from_start = rospy.Time(1.)
-            goal.trajectory.points.append(deepcopy(joints))
+            joints.time_from_start = rospy.Time(self.args.trajectory_duration)
+            goal.trajectory.points.append(deepcopy(joints)) # 2. goal point
 
             goal.trajectory = self.retime_wrapper(goal.trajectory)
 
             # 3. combine with trajectory from js0 -> js1 -> js2
-            self._goal.trajectory.points = self._goal.trajectory.points[0:index+1]
+            self._goal.trajectory.points = self._goal.trajectory.points[0:index_js1+1]
 
-            tts = self._goal.trajectory.points[index].time_from_start
+            tfs = self._goal.trajectory.points[index_js1].time_from_start
+            # VARIABLE: Offset of new distance, must be bigger
+            #   - Temporary, should be zero if second trajectory setup properly
             offset_new_distance = 0.5
             for n,point in enumerate(goal.trajectory.points):
                 # VARIABLE: Discarding n points of new trajectory
+                #   - Temporary, should be zero fi second trajectory setup properly
                 if n >= 50:
-                    point.time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + tts.to_sec() + offset_new_distance)
+                    point.time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + tfs.to_sec() + offset_new_distance)
                     self._goal.trajectory.points.append(point)
 
             # 3.1 compute time between two trajectories
-
-            t_s = self._goal.trajectory.header.stamp.to_sec()
-            t_now = rospy.Time.now().to_sec()
-            dt_now = t_now - t_s
-            dt_now -= 0.08 # some offset
-
-            # 4. replace with action client
-            def findPointInTrajAfterNow(trajectory, offset):
-                for n, point in enumerate(trajectory.points):
-                    if point.time_from_start.to_sec()+trajectory.header.stamp.to_sec() > rospy.Time.now().to_sec()+offset:
-                        return n
-                return len(trajectory.points)-1
-
-            index = findPointInTrajAfterNow(self._goal.trajectory, -dt_now)
-
             def zeroTimeFromStart(offset):
                 time0 = deepcopy(self._goal.trajectory.points[0].time_from_start)
                 for n, pt in enumerate(self._goal.trajectory.points):
                     pt.time_from_start = pt.time_from_start-time0+rospy.Duration(offset)
 
-
-            self._goal.path_tolerance = []
-            for n,name in enumerate(['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']):
-                jt = JointTolerance()
-                jt.name = name
-                jt.position = 100.
-                jt.velocity = 100.
-                jt.acceleration = 100.
-                self._goal.path_tolerance.append(deepcopy(jt))
-
-
-            zeroTimeFromStart(-dt_now)
-
-            index = findPointInTrajAfterNow(self._goal.trajectory, 0.1)
+            zeroTimeFromStart(0.)
+            # VARIABLE: discard the first 0.1s
+            DISCARD_FIRST = 0.1
+            index = findPointInTrajAfterNow(self._goal.trajectory, DISCARD_FIRST)
             self._goal.trajectory.points = self._goal.trajectory.points[index:]
 
             self._goal.trajectory.header.stamp = rospy.Time.now()
-            if self.REAL:
-                self.tac.add_goal(deepcopy(self._goal))
-                self.tac.replace()
-            else:
-                self.plotGoalPubFun(self._goal)
+            self.tac.replace()
+            #self.plotGoalPubFun(self._goal)
 
     def retime(self, plan=None, cart_vel_limit=-1.0, secondorder=False, pt_per_s=20, curve_len=None, start_delay=0.0, traj_duration=5):
         assert isinstance(plan, RobotTrajectory)
@@ -621,7 +582,7 @@ class JointController():
         qdds_sample = jnt_traj(ts_sample, 2)
 
         _, sd_vec, _ = instance.compute_parameterization(sd_start, 0.)
-        v1 = sd_vec[int(self.computation_time*len(sd_vec)/jnt_traj.duration)]
+        v1 = sd_vec[int(self.args.computation_time*len(sd_vec)/jnt_traj.duration)]
         self.savedPrevVel = [v1, len(sd_vec)]
 
 
@@ -736,5 +697,25 @@ class JointController():
         y = np.concatenate((firstvals, y, lastvals))
         return np.convolve( m[::-1], y, mode='valid')
 
-with JointController():
+parser=argparse.ArgumentParser(description='')
+
+parser.add_argument('--experiment', default="trajectory_replacement", type=str, help='(default=%(default)s)', required=True, choices=['home', 'random_joints', 'shortest_distance', 'shortest_distance_0', 'shortest_distance_1', 'repeat_same', 'acceleration', 'durations', 'trajectory_replacement'])
+parser.add_argument('--trajectory_duration', default=10, type=float, help='(default=%(default)s)')
+parser.add_argument('--rate', default=1, type=float, help='(default=%(default)s)')
+parser.add_argument('--computation_time', default=3., type=float, help='(default=%(default)s)')
+
+args=parser.parse_args()
+
+with JointController(args):
     input()
+
+
+
+###
+'''
+We need acceleration in the middle to be zero or setting it to the actual one
+
+save the trajectory in rosbag
+
+
+'''
