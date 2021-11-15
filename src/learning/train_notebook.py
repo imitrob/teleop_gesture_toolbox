@@ -107,34 +107,30 @@ if True:
         gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
 
     Gs = []
-    Gs_static = []
-    Gs_dynamic = []
-    for g in gestures_data_loaded['staticGestures'].keys():
-        go = gestures_data_loaded['staticGestures'][g]
-        try:
-            if go['train']:
-                Gs.append(g)
-                Gs_static.append(g)
-        except KeyError:
-            pass
-    for g in gestures_data_loaded['dynamicGestures'].keys():
-        go = gestures_data_loaded['dynamicGestures'][g]
-        try:
-            if go['train']:
-                Gs.append(g)
-                Gs_dynamic.append(g)
-        except KeyError:
-            pass
+    keys = gestures_data_loaded.keys()
+    Gs_set = keys['using_set']
+    del keys['using_set']; del keys['Recording']; del keys['configGestures']; del keys['Recognition']
 
-    print("Gestures for training are: ", Gs)
-
+    # Check if yaml file is setup properly
+    try:
+        keys[Gs_set]
+    except:
+        raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
+    try:
+        keys[Gs_set].keys()
+    except:
+        raise Exception("Error in gesture_recording.yaml, used gesture set does not have any item!")
+    # Setup gesture list
+    for key in gestures_data_loaded[Gs_set].keys():
+        g = gestures_data_loaded[Gs_set][key]
+        Gs.append(g)
 
     if gestures_data_loaded['Recognition']['args']:
         args = gestures_data_loaded['Recognition']['args']
     else:
-        args = ["all_defined", "middle", '1s']#,'interpolate','normalize']
+        args = {"all_defined":1, "middle":1, 's':1}
 
-    args.append('1s')
+    print("Gestures for training are: ", Gs)
     print("Arguments for training are: ", args)
 
     learn_path = expanduser('~/'+WS_FOLDER+'/src/mirracle_gestures/include/data/learning/')
@@ -153,7 +149,7 @@ if True:
 ## Import all data from learning folder
 if True:
     # Takes about 50sec.
-    data = import_data(learn_path, args, Gs=Gs_static)
+    data = import_data(learn_path, args, Gs=Gs)
 
     X = data['static']['X']
     Y = data['static']['Y']

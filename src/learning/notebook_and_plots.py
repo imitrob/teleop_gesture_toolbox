@@ -394,10 +394,55 @@ Make learning loop. Learning will be under 2 seconds is comfortably achieved, fr
 
 
 
+N+=1
+TITLE = 'Experiment '+str(N)+', 4 initial gestures, 3 new gestures update'
+ARGS = '4+3 static gestures, all_defined, take_every 3, 1s, tested on 25% data'
+accuracies =       [[2,      5,   50,  1000,  2500, 2505, 2510,  2520,  3500, 5000]]
+accuracies =       [[4,      10,   50,  1000,  2500, 2505, 2510,  2520,  3500, 5000]]
+accuracies.append( [40.4, 43.5, 65.9,  88.5,  94.4, 70.4, 94.5, 100.0, 100.0, 100.] )
+accuracies.append( [91.3, 99.3, 99.9, 100.0, 100.0, 56.5, 58.4,  64.6, 70.5, 72.4] )
+
+
+data_test = np.array(accuracies)
+'UCB iteration is slower, the iteration itself ~200ms, but with sampling and accuracy check arround ~2s, where PyMC3 1000 iterations about 5 seconds, based on the dataset, \
+UCB turn 100 in about 5 iterations in for initial learning and about 15 iterations for gesture updates, \
+when I compare with my model, the model never reached 100%, \
+my model has fewer n_hidden layers (50), their model has (1200), but when I set my model to 1200, with fewer iteartions, the ELBO is going down slowly and not as fast as UCB model '
+plot(data_test, TITLE+'\nArgs: '+ARGS, 'Iterations [-]', 'Balanced Accuracy [%]', ['Uncertainty guided updates', 'Initial weights', 'Sampled from Posterior', 'Mean Sampled Posterior'])
+
+accuracies =       [[4,      10, 10.1,   14,  20]]
+accuracies.append( [91.3, 100.0, 0.0, 78.4, 98.5] )
+accuracies.append( [88.5,  94.4, 0.0, 67.5, 72.4] )
+accuracies.append( [78.125, 92.32954545454545, 0.0, 72.43947858472998,  88.08193668528864] )
+accuracies.append( [75.85227272727273,  92.32954545454545, 0.0, 77.28119180633148,  85.84729981378027] )
+
+data_test = np.array(accuracies)
+
+'Recalculation to time, 1 UCB iteration to 500 (my model) iterations'
+plot(data_test, TITLE+'\nArgs: '+ARGS, 'Time [s]', 'Balanced Accuracy [%]', ['Uncertainty guided updates', 'Initial weights', 'Proportion'])
+
+N+=1
+TITLE = 'Experiment '+str(N)+', 3 initial gestures, 2+2 new gestures update'
+ARGS = '3+2+2 static gestures, all_defined, take_every 3, 1s, tested on 25% data'
+accuracies =       [[4,      10, 10.1,   14,  20, 20.1, 24, 30]]
+accuracies.append( [94.5, 100.0, 0.0, 78.4, 98.5, 0.0,  75.3, 100.0] ) # UCB
+accuracies.append( [88.5, 93.4, 0.0, 67, 72.4, 0.0, 45.4, 48.5] ) # Initial weights
+# Proportion 50 samples for every gesture (sampled from posterior)
+accuracies.append( [81.29496402877699,  94.24460431654677, 0.0, 71.39479905437352, 91.96217494089835, 0.0, 81.56424581005587, 88.45437616387338] )
+# Same as previous, but sampled mean 10 values
+accuracies.append( [80.2158273381295,  94.60431654676259, 0.0, 73.75886524822694, 87.70685579196218, 0.0, 65.73556797020484, 83.42644320297951] )
+
+data_test = np.array(accuracies)
+
+'I think, accuracy visualized is better than Loss in my particular situation'
+plot(data_test, TITLE+'\nArgs: '+ARGS, 'Time [s]', 'Balanced Accuracy [%]', ['Uncertainty guided updates', 'Initial weights', 'Sampled from Posterior', 'Mean Sampled Posterior'])
+
+
+'''
 
 
 
-
+'''
 
 
 """

@@ -1,7 +1,14 @@
 #!/usr/bin/env python3
 '''
+- Recommended to save alongside with mirracle_gestures package (ROS dependent)
+    > Expects source files (mirracle_gestures) in ~/<your workspace>/src/mirracle_gestures/src and ~/<your workspace>/src/mirracle_gestures/src/learning
+    > Expects dataset recordings saved in ~/<your workspace>/src/mirracle_gestures/include/data/learning/
+        - Download dataset from: https://drive.google.com/drive/u/0/folders/1lasIj7vPenx_ZkMyofvmro6-xtzYdyVm
+    > (optional) Expects saved neural_networks in ~/<your workspace>/src/mirracle_gestures/include/data/Trained_network/
+- Can be run with python3 train.py
 
 '''
+
 if True:
     import sys
     import os
@@ -39,6 +46,7 @@ if True:
     import theano.tensor as T
     import random
     import time
+    import argparse
 
     from sklearn import svm, datasets
     from sklearn.datasets import make_moons
@@ -338,8 +346,7 @@ class PyMC3Train():
         if 'inference_type' in self.args: inference_type = self.args['inference_type']
 
         print("Iterations: ", iter[0], " number of hidden layers: ", n_hidden)
-        g = list(dict.fromkeys(self.Y))
-        print("X train shape: ", self.X_train.shape, "Y train shape: ", self.Y_train.shape, " X test shape: ", self.X_test.shape, " Y test shape: ", self.Y_test.shape, " counts: ", [list(np.array(self.Y_train,int)).count(g_) for g_ in g])
+        g = list(dict.fromkeys(self.Y_train))
 
         self.neural_network = self.construct_nn_2l(self.X_train, self.Y_train, n_hidden=n_hidden)
         pm.set_tt_rng(theano.sandbox.rng_mrg.MRG_RandomStream(101)) # Set random seeds
@@ -351,7 +358,7 @@ class PyMC3Train():
                 self.inference = pm.ADVI()
             tstart = time.time()
 
-            self.approx = pm.fit(n=iter[0], method=self.inference, callbacks=self.clbcks)
+            self.approx = pm.fit(n=iter[0], method=self.inference)#, callbacks=self.clbcks)
             print("Train time [s]: ", time.time()-tstart)
 
     def train_update(self, X_update, Y_update):
@@ -370,9 +377,12 @@ class PyMC3Train():
         if 'n_hidden' in self.args: n_hidden = self.args['n_hidden']
         if 'inference_type' in self.args: inference_type = self.args['inference_type']
 
-        print("Iterations: ", iter[1], " number of hidden layers: ", n_hidden)
-        g = list(dict.fromkeys(Y_update))
-        print("X train shape: ", X_update.shape, "Y train shape: ", Y_update.shape, " X test shape: ", self.X_test.shape, " Y test shape: ", self.Y_test.shape, " counts: ", [list(np.array(Y_update,int)).count(g_) for g_ in g])
+        X_update = np.array(X_update)
+        Y_update = np.array(Y_update)
+
+        #print("Iterations: ", iter[1], " number of hidden layers: ", n_hidden)
+        #g = list(dict.fromkeys(Y_update))
+        #print("X train shape: ", X_update.shape, "Y train shape: ", Y_update.shape, " X test shape: ", self.X_test.shape, " Y test shape: ", self.Y_test.shape, " counts: ", [list(np.array(Y_update,int)).count(g_) for g_ in g])
 
         self.neural_network = self.construct_nn_2l(X_update, Y_update, n_hidden=n_hidden, update=True)
         pm.set_tt_rng(theano.sandbox.rng_mrg.MRG_RandomStream(101)) # Set random seeds
@@ -383,7 +393,7 @@ class PyMC3Train():
             else: # default option 'ADVI'
                 self.inference = pm.ADVI()
             tstart = time.time()
-            self.approx = pm.fit(n=iter[1], method=self.inference, local_rv=self.approx.params, callbacks=[self.clbcks])
+            self.approx = pm.fit(n=iter[1], method=self.inference, local_rv=self.approx.params)#, callbacks=[self.clbcks])
             print("Train time [s]: ", time.time()-tstart)
 
     def clbcks(approx, losses, i):
@@ -421,7 +431,7 @@ class PyMC3Train():
         plt.ylabel("ELBO")
         plt.xlabel("iteration")
 
-    def evaluate(self):
+    def evaluate(self, cutTestTo=0):
         ''' Evaluate network
         Object (self) parameters:
             X_train, Y_train (ndarray): Train datatset
@@ -430,6 +440,12 @@ class PyMC3Train():
             X_test, Y_test (ndarray): Test dataset
             args (Str{})
         '''
+        X_test = deepcopy(self.X_test)
+        Y_test = deepcopy(self.Y_test)
+        if cutTestTo:
+            X_test = X_test[Y_test<cutTestTo]
+            Y_test = Y_test[Y_test<cutTestTo]
+
         samples = 10000
         if 'samples' in self.args: samples = self.args['samples']
 
@@ -444,11 +460,11 @@ class PyMC3Train():
         )
         sample_proba = theano.function([x, n], _sample_proba)
 
-        pred = sample_proba(self.X_test,samples).mean(0)
+        pred = sample_proba(X_test,samples).mean(0)
         y_pred = np.argmax(pred, axis=1)
-        self.Y_test = np.array(self.Y_test).astype(int)
+        Y_test = np.array(Y_test).astype(int)
         y_pred = np.array(y_pred).astype(int)
-        print("Accuracy = {}%".format((self.Y_test == y_pred).mean() * 100))
+        print("Accuracy = {}%".format((Y_test == y_pred).mean() * 100))
 
         pred_t = sample_proba(self.X_train,samples).mean(0)
         y_pred_t = np.argmax(pred_t, axis=1)
@@ -456,8 +472,8 @@ class PyMC3Train():
         #print("y pred t shape: ", y_pred_t.shape)
         print("Accuracy on train = {}%".format((self.Y_train == y_pred_t).mean() * 100))
 
-        #confusion_matrix_pretty_print.plot_confusion_matrix_from_data(self.Y_test, y_pred, self.Gs, annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name="")
-        return (self.Y_test == y_pred).mean() * 100, (self.Y_train == y_pred_t).mean() * 100
+        #confusion_matrix_pretty_print.plot_confusion_matrix_from_data(Y_test, y_pred, self.Gs, annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name="")
+        return (Y_test == y_pred).mean() * 100, (self.Y_train == y_pred_t).mean() * 100
 
     def save(self, name=None, accuracy=-1.):
         ''' Save the network
@@ -649,7 +665,7 @@ class PyMC3Train():
         self.X_update[2], self.X_update[3], self.Y_update[2], self.Y_update[3] = train_test_split(self.X_update[0], self.Y_update[0], test_size=0.5)#, stratify=self.Y4[0])
         self.X_update[0], self.X_update[1], self.Y_update[0], self.Y_update[1] = train_test_split(self.X_update[1], self.Y_update[1], test_size=0.5)#, stratify=self.Y4[1])
 
-    def split_k_parts_mini(self):
+    def split_k_parts_mini(self, N_RECORDINGS_FOR_EACH_LEARNING=[1,2,5,10,20,50]):
         '''
         Object (self) parameters:
             X,Y (ndarray): Dataset
@@ -658,11 +674,9 @@ class PyMC3Train():
         '''
         assert not np.any(np.isnan(self.X))
         self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=0.3, stratify=self.Y)
-        TEST = [1,2,5,10,20,50]
-        #TEST = [50, 1, 1]
-        self.X_update, self.Y_update = [[]] * len(TEST), [[]] * len(TEST)
+        self.X_update, self.Y_update = [[]] * len(N_RECORDINGS_FOR_EACH_LEARNING), [[]] * len(N_RECORDINGS_FOR_EACH_LEARNING)
 
-        for n,e in enumerate(TEST):
+        for n,e in enumerate(N_RECORDINGS_FOR_EACH_LEARNING):
             self.X_update[n] = []
             sum = 0
             for i in range(0,7):
@@ -672,6 +686,88 @@ class PyMC3Train():
             sum += e
         self.X_train = self.X_update.pop(0)
         self.Y_train = self.Y_update.pop(0)
+
+    def split_43_parts_eachgesture(self):
+        '''
+        Object (self) parameters:
+            X,Y (ndarray): Dataset
+        Object (self) returns:
+            X_train, Y_train, X_test, Y_test, X_train_update, Y_train_update (ndarray): Splitted dataset
+        '''
+        assert not np.any(np.isnan(self.X))
+        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=0.3, stratify=self.Y)
+
+        self.X_update, self.Y_update = [[],[]], [[],[]]
+        for n in range(0,len(self.X_train)):
+
+            if self.Y_train[n] == 0:
+                self.X_update[0].append(deepcopy(self.X_train[n]))
+                self.Y_update[0].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 1:
+                self.X_update[0].append(deepcopy(self.X_train[n]))
+                self.Y_update[0].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 2:
+                self.X_update[0].append(deepcopy(self.X_train[n]))
+                self.Y_update[0].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 3:
+                self.X_update[0].append(deepcopy(self.X_train[n]))
+                self.Y_update[0].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 4:
+                self.X_update[1].append(deepcopy(self.X_train[n]))
+                self.Y_update[1].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 5:
+                self.X_update[1].append(deepcopy(self.X_train[n]))
+                self.Y_update[1].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 6:
+                self.X_update[1].append(deepcopy(self.X_train[n]))
+                self.Y_update[1].append(deepcopy(self.Y_train[n]))
+            else: raise Exception("Something is wrong")
+
+        self.X_train = self.X_update.pop(0)
+        self.Y_train = self.Y_update.pop(0)
+        self.X_train = np.array(self.X_train)
+        self.Y_train = np.array(self.Y_train)
+
+    def split_322_parts_eachgesture(self):
+        '''
+        Object (self) parameters:
+            X,Y (ndarray): Dataset
+        Object (self) returns:
+            X_train, Y_train, X_test, Y_test, X_train_update, Y_train_update (ndarray): Splitted dataset
+        '''
+        assert not np.any(np.isnan(self.X))
+        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=0.3, stratify=self.Y)
+
+        self.X_update, self.Y_update = [[],[],[]], [[],[],[]]
+        for n in range(0,len(self.X_train)):
+
+            if self.Y_train[n] == 0:
+                self.X_update[0].append(deepcopy(self.X_train[n]))
+                self.Y_update[0].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 1:
+                self.X_update[0].append(deepcopy(self.X_train[n]))
+                self.Y_update[0].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 2:
+                self.X_update[0].append(deepcopy(self.X_train[n]))
+                self.Y_update[0].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 3:
+                self.X_update[1].append(deepcopy(self.X_train[n]))
+                self.Y_update[1].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 4:
+                self.X_update[1].append(deepcopy(self.X_train[n]))
+                self.Y_update[1].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 5:
+                self.X_update[2].append(deepcopy(self.X_train[n]))
+                self.Y_update[2].append(deepcopy(self.Y_train[n]))
+            elif self.Y_train[n] == 6:
+                self.X_update[2].append(deepcopy(self.X_train[n]))
+                self.Y_update[2].append(deepcopy(self.Y_train[n]))
+            else: raise Exception("Something is wrong")
+
+        self.X_train = self.X_update.pop(0)
+        self.Y_train = self.Y_update.pop(0)
+        self.X_train = np.array(self.X_train)
+        self.Y_train = np.array(self.Y_train)
 
     def prepare_minibatch(self, n_samples=10):
         ''' Dataset -> distributions -> New dataset sampled from these distributions
@@ -703,6 +799,56 @@ class PyMC3Train():
 
         self.X = X_new
         self.Y = Y_new
+
+    '''
+    X = np.empty([0,87])
+    a = np.empty([50,87])
+    X
+    b = np.vstack([b,a])
+    b.shape'''
+    ''' debug
+
+    X = np.array([ [1,2], [3,4], [5,6], [6,7] ])
+    Y = np.array([0,0,1,1])
+    X_update = np.array([ [10,11], [11,12] ])
+    Y_update = np.array([3,3])
+    prepare_batch(0, X, Y, X_update, Y_update, batch_size=3) '''
+    def prepare_batch(self, X, Y, X_update, Y_update, batch_size=50):
+        ''' Scales down the number of samples to more relevant ones, with size as batch_size
+        '''
+        # join datasets
+        X = np.vstack([X, X_update])
+        Y = np.hstack([Y, Y_update])
+
+        X_new = np.empty([0,len(X[0])])
+        # roztridit samply na jednotliva gesta
+        IDs = list(dict.fromkeys(Y)) # [0,1,2,..,<number of gestures>]
+        for key in IDs:
+            Xkey = X[Y==key]
+
+            # ceil to batch_size samples
+            Xkey = self.shrink_to_more_relevant(Xkey, batch_size)
+            X_new = np.vstack([X_new, Xkey]) # or np.hstack ?
+
+        Y_new = np.repeat([IDs],(batch_size))
+        return X_new, Y_new
+
+    #debug
+    #Xkey = np.array([[1,2],[2,3],[3,4],[4,5],[5,6],[6,7]])
+    #shrink_to_more_relevant(0, Xkey, 5)
+    def shrink_to_more_relevant(self, Xkey, batch_size):
+        '''
+        '''
+        Xkey = Xkey.T # shape [rec x 87] -> [87 x rec]
+        X_new = np.empty([0,batch_size])
+        for feature in Xkey: # for every feature (87)
+            samples = np.random.normal(feature.mean(), feature.std(), batch_size)
+            #samples2 = np.random.normal(feature.mean(), feature.std(), batch_size*10)
+            #samples = []
+            #for i in range(0,len(samples2),10):
+            #    samples.append(np.mean(samples2[i:i+10]))
+            X_new = np.vstack([X_new, np.array(samples)])
+        return X_new.T
 
 
     def continuous_updates(self):
@@ -793,18 +939,14 @@ class PyMC3Train():
         plt.tight_layout();
 
 
-
-
-
 class Experiments():
-    def seed_wrapper(self, fun=None):
+    def seed_wrapper(self, fun=None, SEEDS=[93457, 12345, 45677, 82909, 75433]):
         print("------------")
         print("Seed Wrapper")
         print("------------")
         # Random seeds, specified for next repeatability
-        seeds = [93457, 12345, 45677, 82909, 75433]
         self.accuracies, self.accuracies_train = [], []
-        for n,seed in enumerate(seeds):
+        for n,seed in enumerate(SEEDS):
             print(str(n+1)+". seed: "+str(seed))
             accuracies_row, accuracies_train_row = [], []
             np.random.seed(seed)
@@ -815,8 +957,7 @@ class Experiments():
         print("Accuracies train: ", self.accuracies_train)
 
     def loadAndEvaluate(self):
-        '''
-        State: Prepared to test
+        ''' Loads network file and evaluate it
         '''
         accuracies, accuracies_train = [], []
         print("Load and evaluate")
@@ -837,14 +978,14 @@ class Experiments():
         return accuracy, accuracy_train
 
     def trainWithParameters(self):
-        ''' Static gestures train/evaluate, should it be it or it is something else, I don't know ak
-        State: Tested & Working
+        ''' Train/evaluate, use for single training
         '''
+        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
+        args = {'all_defined':True, 'split':0.3, 'take_every':10, 'iter':[2000], 'n_hidden':[50] }
+
         accuracies, accuracies_train = [], []
         print("Training With Parameters")
         print("---")
-        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = {'all_defined':True, 'split':0.3, 'take_every':10, 'iter':[2000], 'n_hidden':[50] }
         self.train = PyMC3Train(Gs, args)
 
         self.train.import_records()
@@ -858,17 +999,15 @@ class Experiments():
         print("accuracies_train.append(", accuracies_train, ")")
         return accuracies, accuracies_train
 
-
     def train90plus10_priors(self):
-        ''' Train on 90% data + 10% new data
-            Priors
-        State: Tested
+        ''' Train on 90% data then update on 10% new data, method update with priors
         '''
-        accuracies, accuracies_train = [], []
-        print("Training 90% + 10% with priors")
-        print("---")
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
         args = {'all_defined':True, 'split':0.25, 'take_every':10, 's':1, 'iter':[2500,1000], 'n_hidden':[50], 'samples':2000}
+
+        accuracies, accuracies_train = [], []
+        print("Train on 90% data then update on 10% new data, method update with priors")
+        print("---")
         self.train = PyMC3Train(Gs, args)
         self.train.import_records()
         self.train.split_k_parts()
@@ -888,15 +1027,206 @@ class Experiments():
         print("accuracies_train.append(", accuracies_train, ")")
         return accuracies, accuracies_train
 
-    def train90plus10_minibatch(self):
-        ''' Train on higher weights + 10% new data
-        State: Prepared to test
+    def train43(self):
+        ''' Train first on 4 gestures, then update on 3 new gestures dataset, method independent dataset generalization
         '''
+        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
+        args = {'all_defined':True, 'split':0.25, 'take_every':10, 's':1, 'iter':[1000,1000], 'n_hidden':[50], 'samples':2000}
+
         accuracies, accuracies_train = [], []
-        print("Training 90% + 10% with minibatch")
+        print("Train first on 4 gestures, then update on 3 new gestures dataset, method independent dataset generalization")
         print("---")
+        self.train = PyMC3Train(Gs, args)
+        self.train.import_records()
+        self.train.split_43_parts_eachgesture()
+
+        self.train.train()
+        accuracy, accuracy_train = self.train.evaluate(cutTestTo=4)
+        accuracies.append(accuracy)
+        accuracies_train.append(accuracy_train)
+
+        self.train.X_train, self.train.Y_train = self.train.prepare_batch(self.train.X_train, self.train.Y_train, self.train.X_update[0], self.train.Y_update[0], batch_size=50)
+        self.train.train()
+        accuracy, accuracy_train = self.train.evaluate()
+        accuracies.append(accuracy)
+        accuracies_train.append(accuracy_train)
+
+        print("accuracies.append(", accuracies, ")")
+        print("accuracies_train.append(", accuracies_train, ")")
+        return accuracies, accuracies_train
+
+    def train43update(self):
+        ''' Train first on 4 gestures, then update on 3 new gestures dataset, update method and dataset generalization
+        '''
+        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
+        args = {'all_defined':True, 'split':0.25, 'take_every':10, 's':1, 'iter':[2500,2500], 'n_hidden':[50], 'samples':2000}
+
+        accuracies, accuracies_train = [], []
+        print("Train first on 4 gestures, then update 3 new gestures dataset, update method and dataset generalization")
+        print("---")
+        self.train = PyMC3Train(Gs, args)
+        self.train.import_records()
+        self.train.split_43_parts_eachgesture()
+
+        self.train.train()
+        accuracy, accuracy_train = self.train.evaluate(cutTestTo=4)
+        accuracies.append(accuracy)
+        accuracies_train.append(accuracy_train)
+
+        self.train.train_update(self.train.X_update[0], self.train.Y_update[0])
+        accuracy, accuracy_train = self.train.evaluate()
+        accuracies.append(accuracy)
+        accuracies_train.append(accuracy_train)
+
+        print("accuracies.append(", accuracies, ")")
+        print("accuracies_train.append(", accuracies_train, ")")
+        return accuracies, accuracies_train
+
+    def train322(self):
+        ''' Train first on 3 gestures, then update on 2+2 new gesture dataset, method independent dataset generalization
+        '''
+        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
+        args = {'all_defined':True, 'split':0.25, 'take_every':10, 's':1, 'iter':[1000,1000,1000], 'n_hidden':[50], 'samples':2000}
+
+        accuracies, accuracies_train = [], []
+        print("Train first on 3 gestures, then update on 2+2 new gesture dataset, method independent dataset generalization")
+        print("---")
+        self.train = PyMC3Train(Gs, args)
+        self.train.import_records()
+        self.train.split_322_parts_eachgesture()
+
+        self.train.train()
+        accuracy, accuracy_train = self.train.evaluate(cutTestTo=3)
+        accuracies.append(accuracy)
+        accuracies_train.append(accuracy_train)
+
+        self.train.X_train, self.train.Y_train = self.train.prepare_batch(self.train.X_train, self.train.Y_train, self.train.X_update[0], self.train.Y_update[0], batch_size=50)
+        self.train.train()
+        accuracy, accuracy_train = self.train.evaluate(cutTestTo=5)
+        accuracies.append(accuracy)
+        accuracies_train.append(accuracy_train)
+
+        self.train.X_train, self.train.Y_train = self.train.prepare_batch(self.train.X_train, self.train.Y_train, self.train.X_update[1], self.train.Y_update[1], batch_size=50)
+        self.train.train()
+        accuracy, accuracy_train = self.train.evaluate()
+        accuracies.append(accuracy)
+        accuracies_train.append(accuracy_train)
+
+        print("accuracies.append(", accuracies, ")")
+        print("accuracies_train.append(", accuracies_train, ")")
+        return accuracies, accuracies_train
+
+    def trainDataProportion(self, PROPORTION_TRAIN_DATA=[0.9,0.7,0.5,0.3,0.1]):
+        ''' Grid search for parameter: proportion of train data (still tested with 30% test data each time), method independent chunks of train
+        '''
+        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
+        args = {'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000]}
+
+        accuracies, accuracies_train = [], []
+        print("Grid search for parameter: proportion of train data (still tested with 30% test data each time), method independent chunks of train")
+        print("---")
+        for i in PROPORTION_TRAIN_DATA:
+            args['split'] = [0.3, i]
+
+            self.train = PyMC3Train(Gs, args)
+            self.train.import_records()
+            self.train.split_k_parts(args['split'])
+            self.train.train()
+            accuracy, accuracy_train = self.train.evaluate()
+            accuracies.append(accuracy)
+            accuracies_train.append(accuracy_train)
+            print("---")
+        print("accuracies.append(", accuracies, ")")
+        print("accuracies_train.append(", accuracies_train, ")")
+        return accuracies, accuracies_train
+
+    def train_iterations(self, ITERATIONS=[1000, 3000, 4000, 5000, 7000, 9000]):
+        ''' Grid search for parameter: iterations, method independent chunks of train
+        '''
+        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
+        args = {'all_defined':True, 'take_every':3, 's':1, 'interpolate':True, 'split':0.25, 'samples':10000 }
+
+        accuracies, accuracies_train = [], []
+        print("Grid search with parameter: iterations, method independent chunks of train")
+        print("---")
+        for i in ITERATIONS:
+            args['iter'] = [i]
+
+            self.train = PyMC3Train(Gs, args)
+            self.train.import_records()
+            self.train.split_k_parts()
+            self.train.train()
+            accuracy, accuracy_train = self.train.evaluate()
+            accuracies.append(accuracy)
+            accuracies_train.append(accuracy_train)
+        print("accuracies.append(", accuracies , ")")
+        print("accuracies_train.append(", accuracies_train, ")")
+        return accuracies, accuracies_train
+
+    def trainAddingkupdates(self, N_RECORDINGS_FOR_EACH_LEARNING=[1,2,5,10,20,50]):
+        ''' Grid search with parameter: n recordings for each learning (MAIN_ARG_N_RECORDINGS_FOR_EACH_LEARNING), method update with priors
+        '''
+        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
+        args = { 'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
+
+        accuracies, accuracies_train = [], []
+        print("Grid search with parameter: n recordings for each learning (MAIN_ARG_N_RECORDINGS_FOR_EACH_LEARNING), method update with priors")
+        print("---")
+        self.train = PyMC3Train(Gs, args)
+        self.train.import_records()
+        self.train.split_k_parts_mini(N_RECORDINGS_FOR_EACH_LEARNING=MAIN_ARG_N_RECORDINGS_FOR_EACH_LEARNING)
+        self.train.train()
+        accuracy, accuracy_train = self.train.evaluate()
+        accuracies.append(accuracy)
+        accuracies_train.append(accuracy_train)
+        print("---")
+        for i in range(0,5):
+            self.train.train_update(self.train.X_update[i], self.train.Y_update[i])
+            accuracy, accuracy_train = self.train.evaluate()
+            accuracies.append(accuracy)
+            accuracies_train.append(accuracy_train)
+            print("---")
+        print("accuracies.append(", accuracies, ")")
+        print("accuracies_train.append(", accuracies_train, ")")
+        return accuracies, accuracies_train
+
+    def trainAdding4updates(self):
+        ''' Train first on 25% train data and then three times update on 25% train data (tested on previously splited 30% test data), method update with priors
+        '''
+        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
+        args = {'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
+
+        accuracies, accuracies_train = [], []
+        print("Train first on 25% train data and then three times update on 25% train data (tested on previously splited 30% test data) with priors")
+        print("---")
+        self.train = PyMC3Train(Gs, args)
+        self.train.import_records()
+        self.train.split_4_parts()
+        self.train.train()
+        accuracy, accuracy_train = self.train.evaluate()
+        accuracies.append(accuracy)
+        accuracies_train.append(accuracy_train)
+        print("---")
+        for i in range(0,4):
+            self.train.train_update(self.train.X_update[i], self.train.Y_update[i])
+            accuracy, accuracy_train = self.train.evaluate()
+            accuracies.append(accuracy)
+            accuracies_train.append(accuracy_train)
+            print("---")
+        print("accuracies.append(", accuracies, ")")
+        print("accuracies_train.append(", accuracies_train, ")")
+        return accuracies, accuracies_train
+
+    # NOT WORKING RIGHT NOW
+    def train90plus10_minibatch(self):
+        ''' Train first on 90% data and then update on 10% (tested on previously splited 30% test data), method update with minibatch
+        '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
         args = { 'all_defined':True, 'take_every':10, 's':1, 'iter':[2000,2000], 'n_hidden':[50], 'samples':1000}
+
+        accuracies, accuracies_train = [], []
+        print("Train first on 90% data and then update on 10% (tested on previously splited 30% test data), method update with minibatch")
+        print("---")
         self.train = PyMC3Train(Gs, args)
         self.train.import_records()
         self.train.split_k_parts()
@@ -916,112 +1246,16 @@ class Experiments():
         print("accuracies_train.append(", accuracies_train, ")")
         return accuracies, accuracies_train
 
-    def trainAdding10(self):
-        ''' Adding 10% every cycle
-            - Tested
-        State: Prepared to test
-        '''
-        accuracies, accuracies_train = [], []
-        print("Training proportions")
-        print("---")
-        for i in [0.9,0.7,0.5,0.3,0.1]:
-            Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-            args = {'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000], 'split':[0.3, i] }
-            self.train = PyMC3Train(Gs, args)
-            self.train.import_records()
-            self.train.split_k_parts(args['split'])
-            self.train.train()
-            accuracy, accuracy_train = self.train.evaluate()
-            accuracies.append(accuracy)
-            accuracies_train.append(accuracy_train)
-            print("---")
-        print("accuracies.append(", accuracies, ")")
-        print("accuracies_train.append(", accuracies_train, ")")
-        return accuracies, accuracies_train
-
-    def trainAdding1000iter(self):
-        ''' Adding X iteration every cycle
-        State: Testing right now
-        '''
-        accuracies, accuracies_train = [], []
-        for i in [1000, 3000, 4000, 5000, 7000, 9000]:
-            Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-            args = {'all_defined':True, 'take_every':3, 's':1, 'interpolate':True, 'iter':[i], 'split':0.25, 'samples':10000 }
-            self.train = PyMC3Train(Gs, args)
-            self.train.import_records()
-            self.train.split_k_parts()
-            self.train.train()
-            accuracy, accuracy_train = self.train.evaluate()
-            accuracies.append(accuracy)
-            accuracies_train.append(accuracy_train)
-        print("accuracies.append(", accuracies , ")")
-        print("accuracies_train.append(", accuracies_train, ")")
-        return accuracies, accuracies_train
-
-    def trainAddingkupdates(self):
-        ''' Updates
-        State: Prepared to test
-        '''
-        accuracies, accuracies_train = [], []
-        print("Training k updates with priors")
-        print("---")
-        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = { 'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
-        self.train = PyMC3Train(Gs, args)
-        self.train.import_records()
-        self.train.split_k_parts_mini()
-        self.train.train()
-        accuracy, accuracy_train = self.train.evaluate()
-        accuracies.append(accuracy)
-        accuracies_train.append(accuracy_train)
-        print("---")
-
-        for i in range(0,5):
-            self.train.train_update(self.train.X_update[i], self.train.Y_update[i])
-            accuracy, accuracy_train = self.train.evaluate()
-            accuracies.append(accuracy)
-            accuracies_train.append(accuracy_train)
-            print("---")
-        print("accuracies.append(", accuracies, ")")
-        print("accuracies_train.append(", accuracies_train, ")")
-        return accuracies, accuracies_train
-
-    def trainAdding4updates(self):
-        ''' Updates
-        State: Prepared to test
-        '''
-        accuracies, accuracies_train = [], []
-        print("Training 17.5% + 3 x 17.5% with priors")
-        print("---")
-        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = {'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
-        self.train = PyMC3Train(Gs, args)
-        self.train.import_records()
-        self.train.split_4_parts()
-        self.train.train()
-        accuracy, accuracy_train = self.train.evaluate()
-        accuracies.append(accuracy)
-        accuracies_train.append(accuracy_train)
-        print("---")
-        for i in range(0,4):
-            self.train.train_update(self.train.X_update[i], self.train.Y_update[i])
-            accuracy, accuracy_train = self.train.evaluate()
-            accuracies.append(accuracy)
-            accuracies_train.append(accuracy_train)
-            print("---")
-        print("accuracies.append(", accuracies, ")")
-        print("accuracies_train.append(", accuracies_train, ")")
-        return accuracies, accuracies_train
-
     def trainMinibatches(self):
         ''' MiniBatches
-        State: Need to update
+        State: Not working, Need to update
         '''
+        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
+        args = { 'all_defined':True, 'take_every':10 }
+
         accuracies, accuracies_train = [], []
         print("Training 17.5% + 3 x 17.5% with priors")
         print("---")
-        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = { 'all_defined':True, 'take_every':10 }
         self.train = PyMC3Train(Gs, args)
         self.train.import_records()
         self.train.split_4_parts()
@@ -1034,53 +1268,44 @@ class Experiments():
         return accuracies, accuracies_train
 
 
-#Experiments.trainAdding10()
-#Experiments.train90plus10_minibatch()
-#Experiments.trainAdding1000iter()
-def main():
-
-    ### TODO: Launch with arguments, after all done in the end
-    e = Experiments()
-    if len(sys.argv) > 1:
-        if sys.argv[1] == 'update':
-            e.trainAdding4updates()
-        elif sys.argv[1] == 'all':
-            e.trainOnAll()
-        else: raise Exception("Wrong input")
-
-    print("DONE")
-
 if __name__ == '__main__':
+    parser=argparse.ArgumentParser(description='')
+    parser.add_argument('--experiment', default="train_with_parameters", type=str, help='(default=%(default)s)', required=True)
+    parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default)s)')
+    args=parser.parse_args()
+
     e = Experiments()
 
-    ## Iterations local maximum seed independent search
-    #e.seed_wrapper(e.trainAdding1000iter)
+    if args.experiment == 'load_and_evaluate':
+        experiment = e.loadAndEvaluate
+    elif args.experiment == 'train_with_parameters':
+        experiment = e.trainWithParameters
+    elif args.experiment == 'train90plus10_priors':
+        experiment = e.train90plus10_priors
+    elif args.experiment == 'train90plus10_minibatch':
+        experiment = e.train90plus10_minibatch
+    elif args.experiment == 'train43':
+        experiment = e.train43
+    elif args.experiment == 'train43update':
+        experiment = e.train43update
+    elif args.experiment == 'train322':
+        experiment = e.train322
+    elif args.experiment == 'train322update':
+        experiment = e.train322update
+    elif args.experiment == 'train_data_proportion':
+        experiment = e.trainDataProportion
+    elif args.experiment == 'train_iterations':
+        experiment = e.train_iterations
+    elif args.experiment == 'train_Addingkupdates':
+        experiment = e.trainAddingkupdates
+    elif args.experiment == 'trainAdding4updates':
+        experiment = e.trainAdding4updates
+    else: raise Exception("You have chosen wrong experiment")
 
-    ## Updates 4 parts (seed independent) search
-    #e.seed_wrapper(e.trainAdding4updates)
-    ## Updates with 1,2,5,10,20 samples each gestures (seed independent) search
-    #e.seed_wrapper(e.trainAddingkupdates)
-    ## Test my best trained network on other seeds
-    #e.seed_wrapper(e.trainAdding10)
-    #e.train.X_train
-
-    #e.seed_wrapper(e.loadAndEvaluate)
-    ## Single update (seed independent) search
-
-    #e.seed_wrapper(e.train90plus10_priors)
-    #e.train90plus10_priors()
-    e.train = PyMC3Train()
-    e.train.online_thread()
-
-    #e.seed_wrapper(e.trainWithParameters())
-    #e.trainAdding4updates()
-    #e.trainAddingkupdates()#main()
-
-    #e.train90plus10_minibatch()
-
-
-
-
+    if args.seed_wrapper:
+        e.seed_wrapper(experiment)
+    else:
+        experiment()
 
 
 
