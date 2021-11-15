@@ -32,7 +32,7 @@ def ext_pos_diff_comb(pos_diff_comb):
         ret.extend(i)
     return ret
 
-def import_data(learn_path=None, args={}, Gs=None, dataset_files=[]):
+def import_data(learn_path=None, args={'s':1}, Gs=None, dataset_files=[]):
     ''' Prepares X, Y datasets from files format
         - Loads data from learn_path, gesture recordings are saved here
             - Every gesture has its own directory
@@ -92,7 +92,7 @@ def import_data(learn_path=None, args={}, Gs=None, dataset_files=[]):
                     dataset_files.append(i_file)
                     X.append(pickle.load(input, encoding="latin1"))
                     Y.append(n)
-    Ydyn = np.array(deepcopy(Y))
+
     if X == []:
         #raise Exception('No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)')
         print(('[WARN*] No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)'))
@@ -105,7 +105,7 @@ def import_data(learn_path=None, args={}, Gs=None, dataset_files=[]):
         for n,rec in enumerate(X):
             ## Find how long one second is:
             i = 0
-            while i < 300:
+            while i < len(rec):
                 i+=1
                 if abs((rec[-1].r.pPose.header.stamp-rec[-i].r.pPose.header.stamp).to_sec()) > int(args['s']):
                     break
@@ -125,7 +125,7 @@ def import_data(learn_path=None, args={}, Gs=None, dataset_files=[]):
         X = X_
         Y = Y_
         print("Records cutted to length "+str(args['s'])+"s")
-
+    Ydyn = np.array(deepcopy(Y))
     def elemOverN(X, n):
         c=0
         for i in X:
@@ -153,8 +153,6 @@ def import_data(learn_path=None, args={}, Gs=None, dataset_files=[]):
             row.append([*t.r.pRaw[0:3], l2])#,*t.r.index_position])
         Xpalm.append(row)
 
-
-
     if 'normalize' in args:
         Xpalm = np.array(Xpalm)
         Xpalm_ = []
@@ -171,18 +169,19 @@ def import_data(learn_path=None, args={}, Gs=None, dataset_files=[]):
 
     ## Interpolate palm_positions, to 100 time samples
     Xpalm_interpolated = []
+    invalid_ids = []
     for n,sample in enumerate(Xpalm):
         Xpalm_interpolated_sample = []
         try:
-            for dim in range(0,3):
+            for dim in range(0,4):
                 f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
                 Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
             Xpalm_interpolated.append(np.array(Xpalm_interpolated_sample).T)
         except IndexError:
             print("Sample with invalid data detected")
+            invalid_ids.append(n)
     Xpalm_interpolated=np.array(Xpalm_interpolated)
-
-
+    Ydyn = np.delete(Ydyn, invalid_ids)
 
     ## Create derivation to palm_positions
     dx = 1/100
@@ -190,7 +189,7 @@ def import_data(learn_path=None, args={}, Gs=None, dataset_files=[]):
     for sample in Xpalm_interpolated:
         DXpalm_interpolated_sample = []
         sampleT = sample.T
-        for dim in range(0,3):
+        for dim in range(0,4):
             DXpalm_interpolated_sample.append(np.diff(sampleT[dim]))
         DXpalm_interpolated.append(np.array(DXpalm_interpolated_sample).T)
     DXpalm_interpolated = np.array(DXpalm_interpolated)
@@ -326,33 +325,27 @@ def load_gestures_config(WS_FOLDER):
         gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
 
     Gs = []
-    Gs_static = []
-    Gs_dynamic = []
-    if 'staticGestures' in gestures_data_loaded.keys() and gestures_data_loaded['staticGestures']:
-        for g in gestures_data_loaded['staticGestures'].keys():
-            go = gestures_data_loaded['staticGestures'][g]
-            try:
-                if go['train']:
-                    Gs.append(g)
-                    Gs_static.append(g)
-            except KeyError:
-                pass
-    if 'dynamicGestures' in gestures_data_loaded.keys() and gestures_data_loaded['dynamicGestures']:
-        for g in gestures_data_loaded['dynamicGestures'].keys():
-            go = gestures_data_loaded['dynamicGestures'][g]
-            try:
-                if go['train']:
-                    Gs.append(g)
-                    Gs_dynamic.append(g)
-            except KeyError:
-                pass
+    keys = gestures_data_loaded.keys()
+    Gs_set = gestures_data_loaded['using_set']
+    configRecognition = gestures_data_loaded['Recognition']
+    del gestures_data_loaded['using_set']; del gestures_data_loaded['Recording']; del gestures_data_loaded['configGestures']; del gestures_data_loaded['Recognition']
 
-    if gestures_data_loaded['Recognition']['args']:
-        args = gestures_data_loaded['Recognition']['args']
+    # Check if yaml file is setup properly
+    try:
+        gestures_data_loaded[Gs_set]
+    except:
+        raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
+    try:
+        gestures_data_loaded[Gs_set].keys()
+    except:
+        raise Exception("Error in gesture_recording.yaml, used gesture set does not have any item!")
+    # Setup gesture list
+    Gs = gestures_data_loaded[Gs_set].keys()
+
+    if configRecognition['args']:
+        args = configRecognition['args']
     else:
         args = {"all_defined":1, "middle":1, 's':1}
-
-    args['s'] = 1
 
     return Gs, args
 

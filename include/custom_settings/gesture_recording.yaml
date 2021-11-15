@@ -1,77 +1,91 @@
 
+# Pick loaded set of gestures:
+using_set: set_1_static
+
 # Keyboard (use lowercase) key for recording
 # NOTE: Gesture names are lowercased when importing
-staticGestures:
+set_1_static:
   grab:
     key: 1
     filename: gesture56.png
     turn_on_off: [0.3, 0.9]
-    train: true
+    dynamic: false
   pinch:
     key: 2
     filename: gesture33.png
     turn_on_off: [0.3, 0.9]
-    train: true
+    dynamic: false
   point:
     key: 3
     filename: gesture0.png
     turn_on_off: [0.3, 0.9]
-    train: true
+    dynamic: false
   respectful:
     key: 4
     filename: gesture100.png
     turn_on_off: [0.3, 0.9]
-    train: true
+    dynamic: false
   spock:
     key: 5
     filename: gesture101.png
     turn_on_off: [0.3, 0.9]
-    train: true
+    dynamic: false
   rock:
     key: 6
     filename: gesture102.png
     turn_on_off: [0.3, 0.9]
-    train: true
+    dynamic: false
   victory:
     key: 7
     filename: gesture103.png
     turn_on_off: [0.3, 0.9]
-    train: true
+    dynamic: false
   italian:
     key: 8
     filename: gesture104.png
     turn_on_off: [0.3, 0.9]
-    train: false
-dynamicGestures:
+    dynamic: false
+set_2_dynamic:
   circ: #rotate
     key: q
     filename: gesture34.png
+    dynamic: true
   swipe: #swipe_Up
     key: w
     filename: gesture64.png
+    dynamic: true
   pin:
     key: e
     filename: gesture3.png
+    dynamic: true
   touch:
     key: r
     filename: gesture1.png
+    dynamic: true
   swipe_Left:
     key: a
+    dynamic: true
   swipe_Down:
     key: s
+    dynamic: true
   swipe_Right:
     key: d
+    dynamic: true
   move_in_axis:
     key: m
     var_len: 3
     minthre: 0.4
     maxthre: 0.1
+    dynamic: true
   rotation_in_axis:
     key: n
     var_len: 3
     minthre: [-0.9,-0.6,0.8]
     maxthre: [0.5,0.5,0.4]
+    dynamic: true
 
+
+# Recording, configGestures and Recognition are discarted from set names, but all other items here are included
 
 Recording:
   BufferLen: 300

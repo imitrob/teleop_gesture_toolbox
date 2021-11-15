@@ -79,22 +79,33 @@ def init(minimal=False):
         gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
         #gestures_data_loaded = yaml.safe_load(stream)
 
-    if 'staticGestures' in gestures_data_loaded.keys() and gestures_data_loaded['staticGestures'] and len(gestures_data_loaded['staticGestures'].keys())>0:
-        GESTURE_NAMES = list(gestures_data_loaded['staticGestures'].keys())
-        GESTURE_KEYS = [gestures_data_loaded['staticGestures'][g]['key'] for g in GESTURE_NAMES]
-    else:
-        gestures_data_loaded['staticGestures'] = {}
-        GESTURE_NAMES = []
-        GESTURE_KEYS = []
+    keys = gestures_data_loaded.keys()
+    Gs = []
+    Gs_set = gestures_data_loaded['using_set']
+    configGestures = deepcopy(gestures_data_loaded['configGestures'])
+    configRecording = deepcopy(gestures_data_loaded['Recording'])
+    configRecognition = deepcopy(gestures_data_loaded['Recognition'])
+    del gestures_data_loaded['using_set']; del gestures_data_loaded['Recording']; del gestures_data_loaded['configGestures']; del gestures_data_loaded['Recognition']
 
-    if 'dynamicGestures' in gestures_data_loaded.keys() and gestures_data_loaded['dynamicGestures'] and len(gestures_data_loaded['dynamicGestures'].keys())>0:
-        GESTURE_NAMES.extend(gestures_data_loaded['dynamicGestures'].keys())
-        GESTURE_KEYS.extend([gestures_data_loaded['dynamicGestures'][g]['key'] for g in gestures_data_loaded['dynamicGestures'].keys()])
-    else:
-        gestures_data_loaded['dynamicGestures'] = {}
+    GESTURE_NAMES = []
+    GESTURE_KEYS = []
+    # Check if yaml file is setup properly
+    try:
+        gestures_data_loaded[Gs_set]
+    except:
+        raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
+    try:
+        gestures_data_loaded[Gs_set].keys()
+    except:
+        raise Exception("Error in gesture_recording.yaml, used gesture set does not have any item!")
+    # Setup gesture list
+    for key in gestures_data_loaded[Gs_set].keys():
+        g = gestures_data_loaded[Gs_set][key]
+        GESTURE_NAMES.append(key)
+        GESTURE_KEYS.append(g['key'])
 
-    NETWORKS_DRIVE_URL = gestures_data_loaded['configGestures']['NETWORKS_DRIVE_URL']
-    GESTURE_NETWORK_FILE = gestures_data_loaded['configGestures']['NETWORK_FILE']
+    NETWORKS_DRIVE_URL = configGestures['NETWORKS_DRIVE_URL']
+    GESTURE_NETWORK_FILE = configGestures['NETWORK_FILE']
     ### 3. Loads config. about robot         ###
     ###     - ROSparams /mirracle_config/*   ###
     ###     - robot_move.yaml.yaml           ###
@@ -142,7 +153,7 @@ def init(minimal=False):
 
     # Note: updated in leapmotionlistener.py with Leap frame frequency (~80Hz)
     global BUFFER_LEN, frames, timestamps, frames_adv, goal_pose_array, eef_pose_array, joints_in_time
-    BUFFER_LEN = gestures_data_loaded['Recording']['BufferLen']
+    BUFFER_LEN = configRecording['BufferLen']
     frames = collections.deque(maxlen=BUFFER_LEN)
     timestamps = collections.deque(maxlen=BUFFER_LEN)
     frames_adv = collections.deque(maxlen=BUFFER_LEN)
@@ -203,7 +214,7 @@ def init(minimal=False):
     pymcin = Float64MultiArray()
 
     # Loaded from gesture_recording.yaml
-    train_args = gestures_data_loaded['Recognition']['args']
+    train_args = configRecognition['args']
 
     ## ROS publisher for pymc
     global pymc_in_pub; pymc_in_pub = None
@@ -324,22 +335,18 @@ class GestureDataHand():
         self.poses = []
         self.gests = []
         for gesture in GESTURE_NAMES:
-            # Check if gesture is in staticGestures from YAML
+            using_set = gestures_data_loaded['using_set']
             try:
-                if gesture in gestures_data_loaded['staticGestures'].keys():
-                    self.poses.append(PoseData(name=gesture, data=gestures_data_loaded['staticGestures'][gesture]))
-                    continue
+                if gesture in gestures_data_loaded[using_set].keys():
+                    if gestures_data_loaded[using_set][gesture]['dynamic'] == 'false' or gestures_data_loaded[using_set][gesture]['dynamic'] == False:
+                        self.poses.append(PoseData(name=gesture, data=gestures_data_loaded[using_set][gesture]))
+                    else:
+                        self.gests.append(GestureData(name=gesture, data=gestures_data_loaded[using_set][gesture]))
+                else:
+                    raise Exception("[ERROR* Settings] Information about gesture with name: ", gesture, " could not be found in gesture_recording.yaml file. Make an entry there.")
             except KeyError:
-                print("gesture key", gesture, " and keys ", gestures_data_loaded['staticGestures'].keys())
-            # If not exists, check if gesture is in dyamicGestures from YAML
-            try:
-                if gesture in gestures_data_loaded['dynamicGestures'].keys():
-                    self.gests.append(GestureData(name=gesture, data=gestures_data_loaded['dynamicGestures'][gesture]))
-                    continue
-            except KeyError:
-                print("gesture key", gesture, " and keys ", gestures_data_loaded['staticGestures'].keys())
+                print("gesture key", gesture, " and keys ", gestures_data_loaded[using].keys())
 
-            raise Exception("[ERROR* Settings] Information about gesture with name: ", gesture, " could not be found in gesture_recording.yaml file. Make an entry there.")
 
 
         # Create links for gestures
