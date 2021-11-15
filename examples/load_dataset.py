@@ -1,26 +1,27 @@
 '''
-1. Download dataset & unzip
+1. Download dataset & unzip (https://drive.google.com/drive/u/0/folders/1lasIj7vPenx_ZkMyofvmro6-xtzYdyVm)
 2. Use `import_data` function
 Note:
-    - If running standalone (without mirracle_gestures package), copy `settings.py` (from dataset) to your launch script directory
-    - Default path is set to: /home/<user>/<workspace>/src/mirracle_gestures/include/data/learning/
+    - If running standalone (without mirracle_gestures package), copy files from drive and run how_to_use.py
 '''
-import import_data
 import sys
-import os
+sys.path.append("../src/")
+sys.path.append("../src/learning/")
+import import_data
 
 Gs_static = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
 Gs_dynamic = ['pin', 'rotate', 'touch', 'swipe_left', 'swipe_right', 'swipe_up', 'swipe_down']
 #
 data = import_data.import_data(learn_path=None, Gs=Gs_dynamic)
 # Cartesian palm coordinates (shape = [Recordings x Time x 4]), [X,Y,Z,(euclidean distance from palm to point finger tip)]
-data['dynamic']['Xpalm']
+print(data['dynamic']['Xpalm'].shape)
+
 # Cartesian palm velocities (shape = [Recordings x Time x 4])
-data['dynamic']['DXpalm']
+print(data['dynamic']['DXpalm'].shape)
 # Flags (gesture IDs) (shape = [Recordings])
-data['dynamic']['Y']
+print(data['dynamic']['Y'].shape)
 
 # Static gestures data (shape = [Recordings x Observations])
-data['static']['X']
+print(data['static']['X'].shape)
 # Static gestures flags (shape = [Recordings])
-data['static']['Y']
+print(data['static']['Y'].shape)
