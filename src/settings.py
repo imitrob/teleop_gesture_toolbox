@@ -468,7 +468,7 @@ class CustomPath():
         '''
         assert data, "No Data!"
         assert len(data.keys()) == 1, "More input Paths!"
-        key = data.keys()[0]
+        key = list(data.keys())[0]
         path_data = data[key]
         self.NAME = key
         self.poses = []
@@ -534,7 +534,8 @@ class CustomScene():
     def __init__(self, data=None, poses_data=None):
         assert data, "No Data!"
         assert len(data.keys()) == 1, "More input Scenes!"
-        key = data.keys()[0]
+
+        key = list(data.keys())[0]
         scene_data = data[key]
         self.NAME = key
         self.object_names = []
