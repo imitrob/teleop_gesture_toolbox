@@ -23,7 +23,11 @@ import moveit_commander
 from rospy import Duration
 
 from sensor_msgs.msg import JointState
-import cProfile, pstats, StringIO
+import cProfile, pstats
+try:
+    from StringIO import StringIO ## for Python 2
+except ImportError:
+    from io import StringIO ## for Python 3
 
 from copy import copy
 import sys
@@ -740,7 +744,7 @@ class TrajectoryActionClient:
         self._goal = new_traj_goal
         self._client.send_goal(new_traj_goal)
 
-        s = StringIO.StringIO()
+        s = StringIO()
         sortby = 'cumtime'
         if PROFILE:
             ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
@@ -1018,7 +1022,7 @@ class TrajectoryActionClient:
         # self._goal = new_traj_goal
         # self._client.send_goal(new_traj_goal)
 
-        s = StringIO.StringIO()
+        s = StringIO()
         sortby = 'cumtime'
         if PROFILE:
             ps = pstats.Stats(pr, stream=s).sort_stats(sortby)
