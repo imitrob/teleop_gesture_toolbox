@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3
 '''
 **Tests around Trajectory replacement**
 Standalone script:
@@ -6,7 +6,7 @@ Launch:
     1. term: roslaunch panda_launch start_robot.launch
     2. term: rosrun mirracle_gestures joint_controller.py
         - For launch test
-rosrun mirracle_gestures joint_controller.py home
+rosrun mirracle_gestures joint_controller_toppra.py home
 
 '''
 import sys
