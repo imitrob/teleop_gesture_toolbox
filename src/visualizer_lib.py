@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python
 ''' Visualization library:
     - Visualize up to 6 window figures (Full HD monitor)
     - Visualize n trajectories on one figure
@@ -23,11 +23,16 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import time as t
+import argparse
 
 # Ensure package independency to ROS
 try:
     from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped, Vector3Stamped, QuaternionStamped, Vector3
+    from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal
+    import rospy
     ROS_COMPATIBILITY = True
+
+    trajectories = []
 except ImportError:
     ROS_COMPATIBILITY = False
 
@@ -104,7 +109,7 @@ class VisualizerLib():
         self.ax.set_ylabel(ylabel)
         self.ax.grid(b=True)
 
-        plt.axis('equal')
+        #plt.axis('equal')
         COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
         if color=="":
             color=COLORS[len(self.ax.lines)%7]
@@ -254,11 +259,48 @@ class VisualizerLib():
             return data
         return new_data
 
+    def rosecho(self, topic):
+        rospy.init_node("asd", anonymous=True)
+        rospy.Subscriber(topic, FollowJointTrajectoryGoal, save_trajectory)
 
-def main():
+        print("Press to plot harvested trajectory data")
+        input()
+        self.visualize_new_fig('Trajectory positions', dim=2)
+        global trajectories
+        if not trajectories: print("No trajectories were published")
+        # trajectories shape [ trajectory x 4 (position,velocity,acceleration,time_from_start) x 7 x points]
+        for trajectory in trajectories:
+            data = []
+            for i, j in zip(trajectory[3],[t[1] for t in trajectory[0]]):
+                data.append([i,j])
+            self.visualize_2d(data)
+        self.show()
+
+def save_trajectory(msg):
+    positions = [point.positions for point in msg.trajectory.points]
+    velocities = [point.velocities for point in msg.trajectory.points]
+    accelerations = [point.accelerations for point in msg.trajectory.points]
+    times_from_start = [point.time_from_start.to_sec() for point in msg.trajectory.points]
+    stamp = msg.trajectory.header.stamp.to_sec()
+    for n,time_from_start in enumerate(times_from_start):
+        times_from_start[n] += stamp
+
+    global trajectories
+    trajectories.append([positions, velocities, accelerations, times_from_start])
+    print("Trajectory saved")
+
+
+def main(args):
     ''' Test of printing multiple plots at once.
     '''
     viz = VisualizerLib()
+
+    if args.rosecho == 'true':
+        if not ROS_COMPATIBILITY:
+            raise Exception("Argument rosecho is true, while ROS libraries cannot be imported!")
+        viz.rosecho(args.topic)
+
+        return
 
     viz.visualize_new_fig("plot1")
     viz.visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]])
@@ -284,4 +326,10 @@ def main():
     return
 
 if __name__ == "__main__":
-    main()
+    parser=argparse.ArgumentParser(description='')
+
+    parser.add_argument('--rosecho', default='false', type=str, help='(default=%(default)s)', choices=['true','false'])
+    parser.add_argument('--topic', default='/followjointtrajectorygoalforplot', type=str)
+    args=parser.parse_args()
+
+    main(args)

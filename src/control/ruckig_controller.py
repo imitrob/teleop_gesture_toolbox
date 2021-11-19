@@ -21,8 +21,10 @@ from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 import numpy as np
 from copy import deepcopy
+import collections
 
-from ruckig import InputParameter, OutputParameter, Result, Ruckig
+from ruckig import InputParameter, OutputParameter, Result, Ruckig, Trajectory
+import time
 
 class JointController():
 
@@ -35,6 +37,7 @@ class JointController():
         self.joint_state.position = [0.,0.,0.,0.,0.,0.,0.]
         self.joint_state.velocity = [0.,0.,0.,0.,0.,0.,0.]
         self.joint_state.effort = [0.,0.,0.,0.,0.,0.,0.]
+        self.joint_states = collections.deque(maxlen=20)
 
         rospy.Subscriber("/joint_states", JointState, self.save_joints)
 
@@ -50,26 +53,46 @@ class JointController():
             jtp.positions = [0.,0.,0.,0.,0.,0.,0.]
             jtp.velocities = [0.,0.,0.,0.,0.,0.,0.]
             jtp.accelerations = [0.,0.,0.,0.,0.,0.,0.]
-            jtp.time_from_start = 0.0
+            jtp.time_from_start = 0.01*i
             self._goal.trajectory.points.append(deepcopy(jtp))
 
-        self.r = ruckig_wrapper(self.trajectory_points)
+        self.r = ruckig_wrapper(self.trajectory_points, self.args.trajectory_duration)
 
+        # time duration of replacement function
+        self.time_of_replace = 0.01
+
+        # TEMPORARY: Additional topic for publishing into bag files
+        self.pub_traj = rospy.Publisher('/followjointtrajectorygoalforplot',FollowJointTrajectoryGoal,queue_size=5)
+        print("initializing publisher")
+        time.sleep(5) ### It won't publish a first message otherwise, is it a bug?
+        print("done init")
 
     def save_joints(self, data):
         self.joint_state = data
+        self.joint_states.append(data)
 
     def tac_control(self, target_joints):
         ''' Basic trajectory action client control (NOT replacement of trajectory)
         '''
         self._goal.trajectory.header.seq += 1
 
-        # this function will update self._goal trajectory
-        self.r.compute(self.joint_state.position, self.joint_state.velocity, self.joint_state.acceleration, target_joints, np.zeros(7), np.zeros(7), self._goal)
+        # ADDON: interpolate first?
 
-        self._goal.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(1.0)
+        accelerations = np.gradient([joint_state.velocity for joint_state in self.joint_states], [joint_state.header.stamp.to_sec() for joint_state in self.joint_states], axis=0)
+        acceleration = accelerations[:,-1]
+
+        # this function will update self._goal trajectory
+        self.r.compute(self.joint_state.position, self.joint_state.velocity, acceleration, target_joints, np.zeros(7), np.zeros(7), self._goal)
+
+        self._goal.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(0.1)
+        for n,pt in enumerate(self._goal.trajectory.points):
+            self._goal.trajectory.points[n].time_from_start += rospy.Duration(0.05)
         self.tac.add_goal(self._goal)
         self.tac.replace()
+        # TMP: publish Trajectory
+        self.pub_traj.publish(self._goal)
+        # TMP: return duration of trajectory (time_from_start of first point is zero)
+        return self._goal.trajectory.points[-1].time_from_start.to_sec()
 
     def tac_control_replacement(self, target_joints):
         ''' Trajectory action client control with trajectory replacement
@@ -79,27 +102,36 @@ class JointController():
             self.tac_control(target_joints)
             return
         # 1. from time_hotizon (t*) -> find js1 - time where old trajectory changes to new one
-        time_horizon = self.args.time_horizon # time horizon of new trajectory
+        time_horizon = rospy.Time.now() + rospy.Duration(self.args.time_horizon)
 
         def findPointInTrajAfterTime(trajectory, time_horizon):
-            assert type(time_horizon)==float, "Wrong type, it is:"+str(type(time_horizon))
-            assert type(trajectory)==type(JointTrajectory()), "Wrong type"
             for n, point in enumerate(trajectory.points):
-                if point.time_from_start.to_sec() > time_horizon:
+                if trajectory.header.stamp.to_sec()+point.time_from_start.to_sec() > time_horizon.to_sec():
                     return n
-            return len(trajectory.points)-1
+            return None
 
         # js1 is the point where original trajectory is changed to new one
         index_js1 = findPointInTrajAfterTime(self._goal.trajectory, time_horizon)
+        if not index_js1:
+            #print(f"Points {len(self._goal.trajectory.points)}, index: {index_js1}")
+            #print(f"Trajectory end {self._goal.trajectory.header.stamp.to_sec()+self._goal.trajectory.points[-1].time_from_start.to_sec()}, will create new one {rospy.Time.now().to_sec() + self.args.time_horizon}")
+            print("Trajectory ending earlier than time")
+
         js1 = self._goal.trajectory.points[index_js1]
 
+        def npshift(seq, n):
+            ''' Shifts array of objects by n number of elements
+            '''
+            return np.concatenate((seq[-n:], seq[:-n]))
         # Drop points after js1
+
         # I don't want to drop point and append them again, shuffle the pointers to trajectory
-        self._goal.trajectory.points = self._goal.trajectory.points[0:index_js1+1]
+        last_tfs = self._goal.trajectory.points[index_js1].time_from_start.to_sec()
+        self._goal.trajectory.points = self._goal.trajectory.points[0:index_js1]
 
         # 2. make new trajectory (from js1 -> js2)
         self._goal.trajectory.header.seq += 1
-        # ADDITIONAL: increase trajectory velocity based on gesture
+        # ADDITIONAL: incrstartease trajectory velocity based on gesture
         goal = FollowJointTrajectoryGoal()
         for i in range(self.trajectory_points):
             jtp = JointTrajectoryPoint()
@@ -108,38 +140,58 @@ class JointController():
             jtp.accelerations = [0.,0.,0.,0.,0.,0.,0.]
             jtp.time_from_start = 0.0
             goal.trajectory.points.append(deepcopy(jtp))
-        self.r.compute(js1.position, js1.velocity, js1.acceleration, target_joints, np.zeros(7), np.zeros(7), goal)
+
+        self.r.compute(js1.positions, js1.velocities, js1.accelerations, target_joints, np.zeros(7), np.zeros(7), goal)
+
+        first_point_time = goal.trajectory.points[0].time_from_start
+        #for n,point in enumerate(goal.trajectory.points):
+        #    goal.trajectory.points[n].time_from_start -= first_point_time
 
         # 3. combine with trajectory from js0 -> js1 -> js2
-        for point in goal.trajectory.points:
-            goal.trajectory.points.time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + js1.time_from_start.to_sec())
+        for n,point in enumerate(goal.trajectory.points):
+            goal.trajectory.points[n].time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + last_tfs)
         self._goal.trajectory.points.extend(goal.trajectory.points)
 
         # Right now old and new trajectories are nicely connected
-        # - [ ] 1. Check if they are connected nicely, they should be
-        # - [ ] 2. Check if goal is really filled
+        # - [x] 1. Check if they are connected nicely, they should be
+        # - [x] 2. Check if goal is really filled
         # - [ ] 3. Time optimize
+
+
 
         # 4. Choose the point which will be the first point executed by sent trajectory
         #     - There will be chosen time in the future, for example 10ms in the future
-        time_10ms_in_the_future = rospy.Time.now() + rospy.Duration(0.01)
+        t0= time.perf_counter()
+        # NOTE: There should be maybe some additional offset (?)
+        time_10ms_in_the_future = rospy.Time.now() + rospy.Duration(self.time_of_replace) + rospy.Duration(0.02)
         #     - From this time, the index in computed trajectory is chosen
-        index_js0_new = findPointInTrajAfterNow(self._goal.trajectory)
+        index_js0_new = findPointInTrajAfterTime(self._goal.trajectory, time_10ms_in_the_future)
+        print("index_js0_new", index_js0_new)
         #     - And all points before are discarded
         self._goal.trajectory.points = self._goal.trajectory.points[index_js0_new:]
         #     - The stamp should be also the time, but few ms, should be backwards
         self._goal.trajectory.header.stamp = time_10ms_in_the_future
         #     - Zero time_from_start
         tfs = self._goal.trajectory.points[0].time_from_start
-        for point in self._goal.trajectory.points:
-            points.time_from_start -= tfs
+        for n,point in enumerate(self._goal.trajectory.points):
+            self._goal.trajectory.points[n].time_from_start -= tfs
+        # TMP: VARIABLE
+        self._goal.trajectory.points = self._goal.trajectory.points[60:]
 
         self.tac.add_goal(self._goal)
         self.tac.replace()
-
+        self.time_of_replace = time.perf_counter()-t0
+        # TMP TEST:
+        prev = -1.
+        for pt in self._goal.trajectory.points:
+            if pt.time_from_start.to_sec() <= prev:
+                print(f"HA TADY: pt.time_from_start.to_sec() {pt.time_from_start.to_sec()}, prev: {prev}")
+            prev = pt.time_from_start.to_sec()
+        # TMP: Publish traj
+        self.pub_traj.publish(self._goal)
 
 class ruckig_wrapper():
-    def __init__(self, trajectory_points):
+    def __init__(self, trajectory_points, minimum_duration):
         ''' Initialized for Panda
         r = ruckig_wrapper()
         trajecotry = r.compute(current_position, current_velocity, current_acceleration, target_position, target_velocity, target_acceleration)
@@ -153,7 +205,11 @@ class ruckig_wrapper():
 
         self.inp.max_velocity = [2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100]
         self.inp.max_acceleration = [15, 7.5, 10, 12.5, 15, 20, 20]
+        self.inp.max_acceleration = [i/5 for i in self.inp.max_acceleration]
         self.inp.max_jerk = [7500, 3750, 5000, 6250, 7500, 10000, 10000]
+        self.inp.max_jerk = [i/10 for i in self.inp.max_jerk]
+
+        #self.inp.minimum_duration = minimum_duration
 
         # additional
         self.min_positions = [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]
@@ -161,8 +217,7 @@ class ruckig_wrapper():
         self.max_effort = [87, 87, 87, 87, 12, 12, 12]
         self.max_deffort = [1000, 1000, 1000, 1000, 1000, 1000, 1000]
 
-    def compute(self, current_position, current_velocity, current_acceleration, target_position, target_velocity, target_acceleration, _goal,
-    start_postpone=rospy.Duration(0.1)):
+    def compute(self, current_position, current_velocity, current_acceleration, target_position, target_velocity, target_acceleration, _goal):
         self.inp.current_position = current_position
         self.inp.current_velocity = current_velocity
         self.inp.current_acceleration = current_acceleration
@@ -173,19 +228,20 @@ class ruckig_wrapper():
 
         # ERROR? Init Ruckig() again?
         # ~15us
-        result = otg.calculate(self.inp, self.trajectory)
+        result = self.otg.calculate(self.inp, self.trajectory)
         if result == Result.ErrorInvalidInput:
             raise Exception('Invalid input!')
         # trajectory.duration
 
-        ss = np.linspace(0,trajectory.duration,self.trajectory_points)
+        trajectory_points = len(_goal.trajectory.points)
+        ss = np.linspace(0,self.trajectory.duration,trajectory_points)
         # I didn't found better way to sample trajectory (https://github.com/pantor/ruckig/blob/master/include/ruckig/trajectory.hpp)
         # ~1ms for 1000 points
-        #return [self.trajectory.at_time(ss[i]) for i in range(self.trajectory_points)]
+        #return [self.trajectory.at_time(ss[i]) for i in range(trajectory_points)]
         # ~1.5ms for 1000 points, but already in _goal variable
-        for i in range(0, self.trajectory_points):
-            _goal.trajectory.points[i].time_from_start = ss[i]+start_postpone
-            _goal.trajectory.points[i].positions, _goal.trajectory.points[i].velocities, _goal.trajectory.points[i].accelerations = trajectory.at_time(ss[i])
+        for i in range(0, trajectory_points):
+            _goal.trajectory.points[i].time_from_start = rospy.Duration(ss[i])
+            _goal.trajectory.points[i].positions, _goal.trajectory.points[i].velocities, _goal.trajectory.points[i].accelerations = self.trajectory.at_time(ss[i])
 
     def online_compute(self, current_position, current_velocity, current_acceleration, target_position, target_velocity, target_acceleration):
         ''' ERROR: otg needs to be initialized to timediff as second parameter
