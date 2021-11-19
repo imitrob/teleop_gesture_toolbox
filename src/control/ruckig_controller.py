@@ -56,7 +56,7 @@ class JointController():
             jtp.time_from_start = 0.01*i
             self._goal.trajectory.points.append(deepcopy(jtp))
 
-        self.r = ruckig_wrapper(self.trajectory_points, self.args.trajectory_duration)
+        self.r = ruckig_wrapper(self.trajectory_points)
 
         # time duration of replacement function
         self.time_of_replace = 0.01
@@ -94,8 +94,22 @@ class JointController():
         # TMP: return duration of trajectory (time_from_start of first point is zero)
         return self._goal.trajectory.points[-1].time_from_start.to_sec()
 
+    def findPointInTrajAfterTime(self, time_horizon):
+        ''' Compares two absolute times
+        Parameters:
+            time_horizon (rospy Duration()): Absolute time [s]
+        Returns:
+            Point (Int or None if no result): Point in trajectory after threshold
+        '''
+        for n, point in enumerate(self._goal.trajectory.points):
+            if self._goal.trajectory.header.stamp.to_sec()+point.time_from_start.to_sec() > time_horizon.to_sec():
+                return n
+        return None
+
     def tac_control_replacement(self, target_joints):
         ''' Trajectory action client control with trajectory replacement
+        Parameters:
+            target_joints (Float[7]): Target robot positions
         '''
         # First time - call standard tac_control
         if self._goal.trajectory.header.seq == 0:
@@ -104,27 +118,21 @@ class JointController():
         # 1. from time_hotizon (t*) -> find js1 - time where old trajectory changes to new one
         time_horizon = rospy.Time.now() + rospy.Duration(self.args.time_horizon)
 
-        def findPointInTrajAfterTime(trajectory, time_horizon):
-            for n, point in enumerate(trajectory.points):
-                if trajectory.header.stamp.to_sec()+point.time_from_start.to_sec() > time_horizon.to_sec():
-                    return n
-            return None
-
         # js1 is the point where original trajectory is changed to new one
-        index_js1 = findPointInTrajAfterTime(self._goal.trajectory, time_horizon)
+        index_js1 = self.findPointInTrajAfterTime(time_horizon)
         if not index_js1:
-            #print(f"Points {len(self._goal.trajectory.points)}, index: {index_js1}")
-            #print(f"Trajectory end {self._goal.trajectory.header.stamp.to_sec()+self._goal.trajectory.points[-1].time_from_start.to_sec()}, will create new one {rospy.Time.now().to_sec() + self.args.time_horizon}")
-            print("Trajectory ending earlier than time")
-
+            print("INFO: Occured that previous trajectory ending earlier than new horizon, creating new trajectory!")
+            time.sleep(self.args.time_horizon)
+            self.tac_control(target_joints)
+            return
         js1 = self._goal.trajectory.points[index_js1]
 
+        # For future:
         def npshift(seq, n):
             ''' Shifts array of objects by n number of elements
             '''
             return np.concatenate((seq[-n:], seq[:-n]))
         # Drop points after js1
-
         # I don't want to drop point and append them again, shuffle the pointers to trajectory
         last_tfs = self._goal.trajectory.points[index_js1].time_from_start.to_sec()
         self._goal.trajectory.points = self._goal.trajectory.points[0:index_js1]
@@ -143,10 +151,6 @@ class JointController():
 
         self.r.compute(js1.positions, js1.velocities, js1.accelerations, target_joints, np.zeros(7), np.zeros(7), goal)
 
-        first_point_time = goal.trajectory.points[0].time_from_start
-        #for n,point in enumerate(goal.trajectory.points):
-        #    goal.trajectory.points[n].time_from_start -= first_point_time
-
         # 3. combine with trajectory from js0 -> js1 -> js2
         for n,point in enumerate(goal.trajectory.points):
             goal.trajectory.points[n].time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + last_tfs)
@@ -158,40 +162,39 @@ class JointController():
         # - [ ] 3. Time optimize
 
 
-
         # 4. Choose the point which will be the first point executed by sent trajectory
         #     - There will be chosen time in the future, for example 10ms in the future
         t0= time.perf_counter()
-        # NOTE: There should be maybe some additional offset (?)
-        time_10ms_in_the_future = rospy.Time.now() + rospy.Duration(self.time_of_replace) + rospy.Duration(0.02)
+        #     - Point of stamp is based on previous time_of_replace + 40ms additional offset
+        time_stamp = rospy.Time.now() + rospy.Duration(self.time_of_replace) + rospy.Duration(0.04)
         #     - From this time, the index in computed trajectory is chosen
-        index_js0_new = findPointInTrajAfterTime(self._goal.trajectory, time_10ms_in_the_future)
-        print("index_js0_new", index_js0_new)
+        index_js0_stamp = self.findPointInTrajAfterTime(time_stamp)
         #     - And all points before are discarded
-        self._goal.trajectory.points = self._goal.trajectory.points[index_js0_new:]
-        #     - The stamp should be also the time, but few ms, should be backwards
-        self._goal.trajectory.header.stamp = time_10ms_in_the_future
-        #     - Zero time_from_start
+        self._goal.trajectory.points = self._goal.trajectory.points[index_js0_stamp:]
+        #     - The stamp should be also the time
+        self._goal.trajectory.header.stamp = time_stamp
+        #     - Zero time_from_start to start at zero
         tfs = self._goal.trajectory.points[0].time_from_start
         for n,point in enumerate(self._goal.trajectory.points):
             self._goal.trajectory.points[n].time_from_start -= tfs
-        # TMP: VARIABLE
-        self._goal.trajectory.points = self._goal.trajectory.points[60:]
+        #     - Below is fixed Panda Issue, discarding 40ms of points in trajectory, because of inner Panda SplineInterpolator
+        ind = 0
+        for n,point in enumerate(self._goal.trajectory.points):
+            if point.time_from_start.to_sec() > 0.04:
+                ind = n
+                break
+        self._goal.trajectory.points = self._goal.trajectory.points[ind:]
 
         self.tac.add_goal(self._goal)
         self.tac.replace()
+        print(f"Number: {self._goal.trajectory.header.seq}, points {len(self._goal.trajectory.points)}, index_js0_stamp: {index_js0_stamp}, time_from_start {self._goal.trajectory.points[0].time_from_start.to_sec()}, time now: {rospy.Time.now()}, time of stamp: {self._goal.trajectory.header.stamp.to_sec()}, self.time_of_replace {self.time_of_replace}")
         self.time_of_replace = time.perf_counter()-t0
-        # TMP TEST:
-        prev = -1.
-        for pt in self._goal.trajectory.points:
-            if pt.time_from_start.to_sec() <= prev:
-                print(f"HA TADY: pt.time_from_start.to_sec() {pt.time_from_start.to_sec()}, prev: {prev}")
-            prev = pt.time_from_start.to_sec()
+
         # TMP: Publish traj
         self.pub_traj.publish(self._goal)
 
 class ruckig_wrapper():
-    def __init__(self, trajectory_points, minimum_duration):
+    def __init__(self, trajectory_points):
         ''' Initialized for Panda
         r = ruckig_wrapper()
         trajecotry = r.compute(current_position, current_velocity, current_acceleration, target_position, target_velocity, target_acceleration)
@@ -205,11 +208,11 @@ class ruckig_wrapper():
 
         self.inp.max_velocity = [2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100]
         self.inp.max_acceleration = [15, 7.5, 10, 12.5, 15, 20, 20]
-        self.inp.max_acceleration = [i/5 for i in self.inp.max_acceleration]
+        self.inp.max_acceleration = [i/10 for i in self.inp.max_acceleration]
         self.inp.max_jerk = [7500, 3750, 5000, 6250, 7500, 10000, 10000]
-        self.inp.max_jerk = [i/10 for i in self.inp.max_jerk]
+        self.inp.max_jerk = [i/15 for i in self.inp.max_jerk]
 
-        #self.inp.minimum_duration = minimum_duration
+        #self.inp.minimum_duration = xxx
 
         # additional
         self.min_positions = [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]

@@ -10,8 +10,7 @@ class Tests():
         parser=argparse.ArgumentParser(description='')
 
         parser.add_argument('--experiment', default="home", type=str, help='(default=%(default)s)', required=True, choices=['home', 'random_joints', 'shortest_distance', 'shortest_distance_0', 'shortest_distance_1', 'repeat_same', 'acceleration', 'durations', 'trajectory_replacement'])
-        parser.add_argument('--trajectory_duration', default=0.1, type=float, help='(default=%(default)s)')
-        parser.add_argument('--rate', default=50, type=float, help='(default=%(default)s)')
+        parser.add_argument('--rate', default=1, type=float, help='(default=%(default)s)')
         parser.add_argument('--time_horizon', default=0.3, type=float, help='(default=%(default)s)')
         parser.add_argument('--trajectory_points', default=1000, type=int, help='Number of trajectory points sended to robot')
         #parser.add_argument('--max_points_same', default=200, type=int, help='Number of maximum point same from old to new trajectory')
@@ -51,10 +50,14 @@ class Tests():
     def testTwoTrajectories(self):
         self.SAMPLE_JOINTS = []
         # Init. waypoints, where every waypoint is newly created trajectory
-        for i in range(0,10):
+        for i in range(0,2):
             self.SAMPLE_JOINTS.append([0.8, -1.0, -0.8, -1.9, 0.25, 2.3, 0.63])
-        for i in range(0,20):
+        for i in range(0,2):
             self.SAMPLE_JOINTS.append([0.8, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63])
+        for i in range(0,2):
+            self.SAMPLE_JOINTS.append([0.0, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63])
+        for i in range(0,2):
+            self.SAMPLE_JOINTS.append([0.8, -1.0, -0.8, -1.9, 0.25, 2.3, 0.63])
 
         for loop in range(0,len(self.SAMPLE_JOINTS)):
             t0=time.perf_counter()
@@ -122,7 +125,8 @@ class Tests():
         DUR_arr = [10.0, 5.0, 3.0, 2.0, 1.0, 0.5]
 
         for loop in range(0,len(self.SAMPLE_JOINTS)):
-            self.j.args.trajectory_duration = DUR_arr[loop]
+            # duration is not defined
+            #trajectory_duration = DUR_arr[loop]
             self.tac_control(loop)
 
             logging.debug("velocity ", sum(abs(np.array(self.joint_state.velocity))))
