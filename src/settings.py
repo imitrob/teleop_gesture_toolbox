@@ -119,6 +119,13 @@ def init(minimal=False):
         VIS_ON = rospy.get_param("/mirracle_config/visualize")
         IK_SOLVER = rospy.get_param("/mirracle_config/ik_solver")
         IK_TOPIC = rospy.get_param("/mirracle_config/ik_topic")
+    else:
+        ROBOT_NAME = 'panda'
+        SIMULATOR_NAME = 'coppelia'
+        GRIPPER_NAME = 'none'
+        VIS_ON = 'false'
+        IK_SOLVER = 'relaxed_ik'
+        IK_TOPIC = ''
     TOPPRA_ON = True
 
     with open(CUSTOM_SETTINGS_YAML+"robot_move.yaml", 'r') as stream:

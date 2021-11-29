@@ -3,11 +3,11 @@
 @@@@@@@
 This is copy of ruckig_controller.py
 
-This is my attempt to time optimize tac_control_replacement function.
+This is my attempt to time optimize tac_control_auto function.
 What I tried to achieve is to only update trajectory points as in circullar buffer
 and not need to initialize new points again.
 Reference switch of the trajectory points.
-Current state: I got error somewhere in tac_control_replacement code.
+Current state: I got error somewhere in tac_control_auto code.
 Maybe I will comeback later to solve it.
 @@@@@@@
 
@@ -102,7 +102,7 @@ class JointController():
         self.joint_state = data
         self.joint_states.append(data)
 
-    def tac_control(self, target_joints):
+    def tac_control_single(self, target_joints):
         ''' Basic trajectory action client control (NOT replacement of trajectory)
         '''
         self._goal.trajectory.header.seq += 1
@@ -137,14 +137,14 @@ class JointController():
                 return n
         return None
 
-    def tac_control_replacement(self, target_joints):
+    def tac_control_auto(self, target_joints):
         ''' Trajectory action client control with trajectory replacement
         Parameters:
             target_joints (Float[7]): Target robot positions
         '''
-        # First time - call standard tac_control
+        # First time - call standard tac_control_single
         if self._goal.trajectory.header.seq == 0:
-            self.tac_control(target_joints)
+            self.tac_control_single(target_joints)
             return
         # 1. from time_hotizon (t*) -> find js1 - time where old trajectory changes to new one
         time_horizon = rospy.Time.now() + rospy.Duration(self.args.time_horizon)
@@ -154,7 +154,7 @@ class JointController():
         if not index_js1:
             print("INFO: Occured that previous trajectory ending earlier than new horizon, creating new trajectory!")
             time.sleep(self.args.time_horizon)
-            self.tac_control(target_joints)
+            self.tac_control_single(target_joints)
             return
         js1 = self._goal.trajectory.points[index_js1]
 

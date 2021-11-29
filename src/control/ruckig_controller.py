@@ -20,7 +20,7 @@ from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
 from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
 
 import numpy as np
-from copy import deepcopy
+from copy import deepcopy, copy
 import collections
 
 from ruckig import InputParameter, OutputParameter, Result, Ruckig, Trajectory
@@ -33,10 +33,12 @@ class JointController():
         self.trajectory_points = args.trajectory_points
         rospy.init_node("joint_controller")
 
+        self.waypoints_queue_joints = []
+
         self.joint_state = JointState()
         self.joint_state.position = [0.,0.,0.,0.,0.,0.,0.]
         self.joint_state.velocity = [0.,0.,0.,0.,0.,0.,0.]
-        self.joint_state.effort = [0.,0.,0.,0.,0.,0.,0.]
+        self.joint_state.effort =   [0.,0.,0.,0.,0.,0.,0.]
         self.joint_states = collections.deque(maxlen=20)
 
         rospy.Subscriber("/joint_states", JointState, self.save_joints)
@@ -70,19 +72,37 @@ class JointController():
     def save_joints(self, data):
         self.joint_state = data
         self.joint_states.append(data)
+        # Delete waypoint from queue, if close
+        # %timeit sameJoints ~1.5us
+        if self.waypoints_queue_joints and self.sameJoints(data.position, self.waypoints_queue_joints[0]):
+            del self.waypoints_queue_joints[0]
+            print("deleted")
 
-    def tac_control(self, target_joints):
+    def sameJoints(self, joints1, joints2, accuracy=0.02):
+        ''' Checks if two type joints are near each other
+            Copied from moveit_lib.py, edited
+        Parameters:
+            joints1 (type float[7])
+            joints2 (type float[7])
+            threshold (Float): sum of joint differences threshold
+        '''
+        if sum([abs(i[0]-i[1]) for i in zip(joints1, joints2)]) < accuracy:
+            return True
+        return False
+
+    def tac_control_single(self, target_joints):
         ''' Basic trajectory action client control (NOT replacement of trajectory)
         '''
         self._goal.trajectory.header.seq += 1
 
         # ADDON: interpolate first?
-
         accelerations = np.gradient([joint_state.velocity for joint_state in self.joint_states], [joint_state.header.stamp.to_sec() for joint_state in self.joint_states], axis=0)
-        acceleration = accelerations[:,-1]
+        acceleration = accelerations[-1,:]
 
+        if not is_it_single_goal(target_joints):
+            self.waypoints_queue_joints = deepcopy(target_joints)
         # this function will update self._goal trajectory
-        self.r.compute(self.joint_state.position, self.joint_state.velocity, acceleration, target_joints, np.zeros(7), np.zeros(7), self._goal)
+        self.r.compute(current_position=self.joint_state.position, current_velocity=self.joint_state.velocity, current_acceleration=acceleration, target_position=target_joints, target_velocity=np.zeros(7), target_acceleration=np.zeros(7), _goal=self._goal)
 
         self._goal.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(0.1)
         for n,pt in enumerate(self._goal.trajectory.points):
@@ -106,14 +126,29 @@ class JointController():
                 return n
         return None
 
-    def tac_control_replacement(self, target_joints):
+    def tac_control_rewrite_new_goal(self, target_joints):
+        '''
+        Parameters:
+            target_joints (Float[waypoints x 7])
+        '''
+        self.waypoints_queue_joints = []
+        self.tac_control_auto(target_joints)
+
+    def tac_control_add_new_goal(self, target_joints):
+        '''
+        Parameters:
+            target_joints (Float[waypoints x 7])
+        '''
+        self.tac_control_auto(target_joints)
+
+    def tac_control_auto(self, target_joints):
         ''' Trajectory action client control with trajectory replacement
         Parameters:
-            target_joints (Float[7]): Target robot positions
+            target_joints (Float[waypoints x 7]): Target robot positions
         '''
-        # First time - call standard tac_control
+        # First time - call standard tac_control_single
         if self._goal.trajectory.header.seq == 0:
-            self.tac_control(target_joints)
+            self.tac_control_single(target_joints)
             return
         # 1. from time_hotizon (t*) -> find js1 - time where old trajectory changes to new one
         time_horizon = rospy.Time.now() + rospy.Duration(self.args.time_horizon)
@@ -123,15 +158,10 @@ class JointController():
         if not index_js1:
             print("INFO: Occured that previous trajectory ending earlier than new horizon, creating new trajectory!")
             time.sleep(self.args.time_horizon)
-            self.tac_control(target_joints)
+            self.tac_control_single(target_joints)
             return
         js1 = self._goal.trajectory.points[index_js1]
 
-        # For future:
-        def npshift(seq, n):
-            ''' Shifts array of objects by n number of elements
-            '''
-            return np.concatenate((seq[-n:], seq[:-n]))
         # Drop points after js1
         # I don't want to drop point and append them again, shuffle the pointers to trajectory
         last_tfs = self._goal.trajectory.points[index_js1].time_from_start.to_sec()
@@ -149,18 +179,14 @@ class JointController():
             jtp.time_from_start = 0.0
             goal.trajectory.points.append(deepcopy(jtp))
 
-        self.r.compute(js1.positions, js1.velocities, js1.accelerations, target_joints, np.zeros(7), np.zeros(7), goal)
+        if not is_it_single_goal(target_joints):
+            self.waypoints_queue_joints.extend(deepcopy(target_joints))
+        self.r.compute(current_position=js1.positions, current_velocity=js1.velocities, current_acceleration=js1.accelerations, target_position=target_joints, target_velocity=np.zeros(7), target_acceleration=np.zeros(7), _goal=goal)
 
         # 3. combine with trajectory from js0 -> js1 -> js2
         for n,point in enumerate(goal.trajectory.points):
             goal.trajectory.points[n].time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + last_tfs)
         self._goal.trajectory.points.extend(goal.trajectory.points)
-
-        # Right now old and new trajectories are nicely connected
-        # - [x] 1. Check if they are connected nicely, they should be
-        # - [x] 2. Check if goal is really filled
-        # - [ ] 3. Time optimize
-
 
         # 4. Choose the point which will be the first point executed by sent trajectory
         #     - There will be chosen time in the future, for example 10ms in the future
@@ -193,6 +219,18 @@ class JointController():
         # TMP: Publish traj
         self.pub_traj.publish(self._goal)
 
+def is_it_single_goal(goal):
+    ''' Get input target_joints
+    Parameters:
+        goal (ndarray): 1. 1Darray with len 7
+                        2. 2Darray with shape(waypoints x 7)
+    Returns:
+        is_single (Boolean): True if goal is single
+    '''
+    if isinstance(goal[0], (float,int)):
+        return True
+    return False
+
 class ruckig_wrapper():
     def __init__(self, trajectory_points):
         ''' Initialized for Panda
@@ -208,10 +246,9 @@ class ruckig_wrapper():
 
         self.inp.max_velocity = [2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100]
         self.inp.max_acceleration = [15, 7.5, 10, 12.5, 15, 20, 20]
-        self.inp.max_acceleration = [i/10 for i in self.inp.max_acceleration]
+        self.inp.max_acceleration = [i*0.1 for i in self.inp.max_acceleration]
         self.inp.max_jerk = [7500, 3750, 5000, 6250, 7500, 10000, 10000]
-        self.inp.max_jerk = [i/15 for i in self.inp.max_jerk]
-
+        self.inp.max_jerk = [i*0.07 for i in self.inp.max_jerk]
         #self.inp.minimum_duration = xxx
 
         # additional
@@ -224,17 +261,27 @@ class ruckig_wrapper():
         self.inp.current_position = current_position
         self.inp.current_velocity = current_velocity
         self.inp.current_acceleration = current_acceleration
-
-        self.inp.target_position = target_position
         self.inp.target_velocity = target_velocity
         self.inp.target_acceleration = target_acceleration
 
         # ERROR? Init Ruckig() again?
-        # ~15us
-        result = self.otg.calculate(self.inp, self.trajectory)
-        if result == Result.ErrorInvalidInput:
-            raise Exception('Invalid input!')
-        # trajectory.duration
+        if is_it_single_goal(target_position):
+            self.inp.target_position = target_position
+
+            result = self.otg.calculate(self.inp, self.trajectory)
+            if result == Result.ErrorInvalidInput:
+                print(self.inp)
+                raise Exception('Invalid input!')
+        else:
+            # if target_position has multiple targets -> setup waypoints
+            for n,single_target_position in enumrate(target_position):
+                self.inp.target_position = target_position[n]
+                result = self.otg.calculate(self.inp, self.trajectory)
+                if result == Result.ErrorInvalidInput:
+                    print(self.inp)
+                    raise Exception('Invalid input!')
+            ##### I ENDED HERE
+
 
         trajectory_points = len(_goal.trajectory.points)
         ss = np.linspace(0,self.trajectory.duration,trajectory_points)

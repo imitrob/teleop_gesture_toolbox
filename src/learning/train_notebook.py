@@ -26,11 +26,8 @@ if True:
         except NameError:
             return False      # Probably standard Python interpreter
     if isnotebook():
-        WS_FOLDER = os.getcwd().split('/')[-1]
-        "Notebook user, check, if this is your workspace folder"
-        WS_FOLDER
-        sys.path.insert(1, expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/src/learning"))
-        sys.path.insert(1, expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/src"))
+        WS_FOLDER = os.getcwd().split('/')[-5]
+        sys.path.append("..")
     if not isnotebook():
         THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
         THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..'))
@@ -108,25 +105,24 @@ if True:
 
     Gs = []
     keys = gestures_data_loaded.keys()
-    Gs_set = keys['using_set']
-    del keys['using_set']; del keys['Recording']; del keys['configGestures']; del keys['Recognition']
+    Gs_set = gestures_data_loaded['using_set']
+    configRecognition = gestures_data_loaded['Recognition']
+    del gestures_data_loaded['using_set']; del gestures_data_loaded['Recording']; del gestures_data_loaded['configGestures']; del gestures_data_loaded['Recognition']
 
     # Check if yaml file is setup properly
     try:
-        keys[Gs_set]
+        gestures_data_loaded[Gs_set]
     except:
         raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
     try:
-        keys[Gs_set].keys()
+        gestures_data_loaded[Gs_set].keys()
     except:
         raise Exception("Error in gesture_recording.yaml, used gesture set does not have any item!")
     # Setup gesture list
-    for key in gestures_data_loaded[Gs_set].keys():
-        g = gestures_data_loaded[Gs_set][key]
-        Gs.append(g)
+    Gs = list(gestures_data_loaded[Gs_set].keys())
 
-    if gestures_data_loaded['Recognition']['args']:
-        args = gestures_data_loaded['Recognition']['args']
+    if configRecognition['args']:
+        args = dict(configRecognition['args'])
     else:
         args = {"all_defined":1, "middle":1, 's':1}
 
@@ -149,8 +145,8 @@ if True:
 ## Import all data from learning folder
 if True:
     # Takes about 50sec.
+    Gs = ['swipe_up', 'swipe_down', 'swipe_left', 'swipe_right']
     data = import_data(learn_path, args, Gs=Gs)
-
     X = data['static']['X']
     Y = data['static']['Y']
     Xpalm = data['dynamic']['Xpalm']
@@ -162,6 +158,7 @@ if True:
     print(X.shape)
     print(Y.shape)
     print(Xpalm.shape)
+    print(DXpalm.shape)
     assert len(X) == len(Y), "Lengths not match"
     #assert len(X) == len(Xpalm), "Lengths not match"
     len(Y[Y==0])
@@ -213,6 +210,7 @@ def construct_nn_2l(ann_input, ann_output, n_hidden = [10], out_n=7):
 
         # Weights from input to hidden layer
         weights_in_1 = pm.Normal("w_in_1", 0, sigma=1, shape=(X.shape[1], n_hidden[0]), testval=init_1)
+        pm.Normal("aa", 0, sigma=1, shape=(4,4))
 
         # Weights from 1st to 2nd layer
         #weights_1_2 = pm.Normal("w_1_2", 0, sigma=1, shape=(n_hidden[0], n_hidden[1]), testval=init_2)

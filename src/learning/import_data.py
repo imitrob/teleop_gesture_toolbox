@@ -17,6 +17,7 @@ import yaml
 from collections import OrderedDict
 from os.path import expanduser
 
+
 ## Extraction functions
 def ext_fingers_angles_diff(fingers_angles_diff):
     ret = []
@@ -94,7 +95,6 @@ def import_data(learn_path=None, args={'s':1}, Gs=None, dataset_files=[]):
                     Y.append(n)
 
     if X == []:
-        #raise Exception('No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)')
         print(('[WARN*] No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)'))
         return None
 
@@ -240,9 +240,6 @@ def import_data(learn_path=None, args={'s':1}, Gs=None, dataset_files=[]):
 
     X = X_
     Y = Y_
-
-    plt.plot(X[0])
-
 
     len(Y)
     if 'interpolate' in args:

@@ -21,11 +21,8 @@ if True:
             else: return False
         except NameError: return False
     if isnotebook():
-        WS_FOLDER = os.getcwd().split('/')[-1]
-        "Notebook user, check, if this is your workspace folder"
-        WS_FOLDER
-        sys.path.insert(1, expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/src/learning"))
-        sys.path.insert(1, expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/src"))
+        WS_FOLDER = os.getcwd().split('/')[-5]
+        sys.path.append('..')
     if not isnotebook():
         THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
         THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..', '..'))

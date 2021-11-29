@@ -1,4 +1,4 @@
-#!/usr/bin/python2
+#!/usr/bin/python
 """ Launches Interface Application
     - Loads config from include/custom_settings/application.yaml
 """
@@ -13,7 +13,10 @@ import tf
 from copy import deepcopy
 import time
 from os.path import expanduser, isfile, isdir
-from sklearn.metrics import confusion_matrix
+try:
+    from sklearn.metrics import confusion_matrix
+except ModuleNotFoundError:
+    print("[WARNING*] Sklearn library not installed -> confusion_matrix won't be plotted!")
 from scipy import sparse
 from threading import Thread
 from gestures_lib import GesturesDetectionClass

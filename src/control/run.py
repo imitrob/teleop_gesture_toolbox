@@ -3,13 +3,12 @@ import argparse
 from ruckig_controller import JointController
 
 import numpy as np
-import logging
 
 class Tests():
     def __init__(self):
         parser=argparse.ArgumentParser(description='')
 
-        parser.add_argument('--experiment', default="home", type=str, help='(default=%(default)s)', required=True, choices=['home', 'random_joints', 'shortest_distance', 'shortest_distance_0', 'shortest_distance_1', 'repeat_same', 'acceleration', 'durations', 'trajectory_replacement'])
+        parser.add_argument('--experiment', default="home", type=str, help='(default=%(default)s)', required=True, choices=['home', 'random_joints', 'shortest_distance', 'shortest_distance_0', 'shortest_distance_1', 'repeat_same', 'acceleration', 'durations', 'trajectory_replacement', 'test_waypoints'])
         parser.add_argument('--rate', default=1, type=float, help='(default=%(default)s)')
         parser.add_argument('--time_horizon', default=0.3, type=float, help='(default=%(default)s)')
         parser.add_argument('--trajectory_points', default=1000, type=int, help='Number of trajectory points sended to robot')
@@ -44,38 +43,63 @@ class Tests():
             self.testDurations()
         elif self.j.args.experiment == 'trajectory_replacement':
             self.testTwoTrajectories()
+        elif self.j.args.experiment == 'test_waypoints':
+            self.testWaypoints()
 
-        logging.info("Done")
+        print("[INFO] Done")
 
     def testTwoTrajectories(self):
         self.SAMPLE_JOINTS = []
         # Init. waypoints, where every waypoint is newly created trajectory
-        for i in range(0,2):
+        for i in range(0,1):
             self.SAMPLE_JOINTS.append([0.8, -1.0, -0.8, -1.9, 0.25, 2.3, 0.63])
-        for i in range(0,2):
+        for i in range(0,1):
             self.SAMPLE_JOINTS.append([0.8, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63])
-        for i in range(0,2):
-            self.SAMPLE_JOINTS.append([0.0, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63])
-        for i in range(0,2):
-            self.SAMPLE_JOINTS.append([0.8, -1.0, -0.8, -1.9, 0.25, 2.3, 0.63])
+        #for i in range(0,2):
+        #    self.SAMPLE_JOINTS.append([0.0, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63])
+        #for i in range(0,2):
+        #    self.SAMPLE_JOINTS.append([0.8, -1.0, -0.8, -1.9, 0.25, 2.3, 0.63])
 
         for loop in range(0,len(self.SAMPLE_JOINTS)):
             t0=time.perf_counter()
-            self.j.tac_control_replacement(self.SAMPLE_JOINTS[loop])
+            self.j.tac_control_auto(self.SAMPLE_JOINTS[loop])
             print(f"tac_controller_replacement time{time.perf_counter()-t0}")
             self.j.rate.sleep()
+
+    def testWaypoints(self):
+        ''' Every self.SAMPLE_JOINTS[i] a new set of JOINTS are added and executed,
+            where self.SAMPLE_JOINTS[i][:-1] are intermediate waypoints and
+            self.SAMPLE_JOINTS[i][-1] is target point (position)
+        '''
+        self.SAMPLE_JOINTS = [[
+            [0.8, -1.0, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8, -0.2, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8, -0.5, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8, -0.8, -0.8, -1.9, 0.25, 2.3, 0.63]
+        ], [0.8, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63]
+        ]
+
+        for loop in range(0,len(self.SAMPLE_JOINTS)):
+            t0=time.perf_counter()
+            self.j.tac_control_add_new_goal(self.SAMPLE_JOINTS[loop])
+            print(f"loop {loop}, tac_controller_replacement time{time.perf_counter()-t0}")
+            self.j.rate.sleep()
+            while len(self.j.waypoints_queue_joints) > 0:
+                print(f"loop {loop}, waypoints still not empty with size: {len(self.waypoints_queue_joints)}")
+                time.sleep(1)
+            print(f"loop {loop}, waypoints finished!")
 
     def robotStopped(self, waitStart=3, waitEnd=0.):
         # first condition (robot got into move), maybe need to be altered later
         time.sleep(waitStart)
         # second condition (robot stopped)
         while sum(abs(np.array(self.j.joint_state.velocity))) > 0.005:
-            logging.debug("velocity ", sum(abs(np.array(self.j.joint_state.velocity))))
+            print(f"[DEBUG] velocity {sum(abs(np.array(self.j.joint_state.velocity)))}")
             time.sleep(0.5)
         time.sleep(waitEnd)
 
     def goHome(self):
-        duration = self.j.tac_control([0.8, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63])
+        duration = self.j.tac_control_single([0.8, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63])
         self.robotStopped(waitEnd=duration)
 
     def testRandomJoints(self):
@@ -87,10 +111,10 @@ class Tests():
         [1.09, 0.19, 1.35, -2.67, 0.12, 1.32, -0.44] ]
 
         for loop in range(0,len(self.SAMPLE_JOINTS)):
-            self.j.tac_control(self.SAMPLE_JOINTS[loop])
+            self.j.tac_control_single(self.SAMPLE_JOINTS[loop])
 
             self.robotStopped()
-            logging.info('Next joints configuration')
+            print('[INFO] Next joints configuration')
             self.j.rate.sleep()
 
     def testAccelerations(self):
@@ -106,11 +130,11 @@ class Tests():
 
         for loop in range(0,len(self.SAMPLE_JOINTS)):
             self.ALIMS = ALIMS_arr[loop]
-            self.tac_control(self.SAMPLE_JOINTS[loop])
+            self.j.tac_control_single(self.SAMPLE_JOINTS[loop])
 
-            logging.debug("velocity ", sum(abs(np.array(self.joint_state.velocity))))
+            print(f"[DEBUG] velocity {sum(abs(np.array(self.j.joint_state.velocity)))}")
             self.robotStopped()
-            logging.info('Next joints configuration')
+            print('[INFO] Next joints configuration')
             self.rate.sleep()
 
     def testDurations(self):
@@ -127,11 +151,11 @@ class Tests():
         for loop in range(0,len(self.SAMPLE_JOINTS)):
             # duration is not defined
             #trajectory_duration = DUR_arr[loop]
-            self.tac_control(loop)
+            self.tac_control_single(loop)
 
-            logging.debug("velocity ", sum(abs(np.array(self.joint_state.velocity))))
+            print(f"[DEBUG] velocity {sum(abs(np.array(self.j.joint_state.velocity)))}")
             self.robotStopped()
-            logging.info('Next joints configuration')
+            print('Next joints configuration')
             self.rate.sleep()
 
     def testShortestDistance(self, joint=6):
@@ -144,11 +168,11 @@ class Tests():
             self.SAMPLE_JOINTS.append(js)
 
         for loop in range(0,len(self.SAMPLE_JOINTS)):
-            self.j.tac_control(self.SAMPLE_JOINTS[loop])
+            self.j.tac_control_single(self.SAMPLE_JOINTS[loop])
 
-            logging.debug(f"velocity {sum(abs(np.array(self.j.joint_state.velocity)))}")
+            print(f"[DEBUG] velocity {sum(abs(np.array(self.j.joint_state.velocity)))}")
             self.robotStopped()
-            logging.info('Next joints configuration')
+            print('Next joints configuration')
             self.j.rate.sleep()
 
     def testPubSamePlace(self):
@@ -160,13 +184,13 @@ class Tests():
             self.SAMPLE_JOINTS.append(js)
 
         for loop in range(0,len(self.SAMPLE_JOINTS)):
-            self.j.tac_control(self.SAMPLE_JOINTS[loop])
+            self.j.tac_control_single(self.SAMPLE_JOINTS[loop])
 
-            logging.debug(f"velocity {sum(abs(np.array(self.j.joint_state.velocity)))}")
+            print(f"[DEBUG] velocity {sum(abs(np.array(self.j.joint_state.velocity)))}")
             self.robotStopped()
-            logging.info('Next joints configuration')
+            print('Next joints configuration')
             self.j.rate.sleep()
 
 if __name__=='__main__':
     with Tests():
-        input()
+        pass

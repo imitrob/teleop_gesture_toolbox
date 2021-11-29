@@ -1,5 +1,10 @@
 #!/usr/bin/env python2.7
-
+'''
+    |||
+  \ ||||
+   \AAA/
+     ||
+'''
 import sys
 import os
 from threading import Thread
