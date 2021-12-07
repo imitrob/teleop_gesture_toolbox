@@ -3,7 +3,11 @@
 '''
 import numpy as np
 # I can make independent to tf library if quaternion_from_euler function imported
-import tf
+try:
+    import tf
+    TF_IMPORT = True
+except ImportError:
+    TF_IMPORT = False
 
 class Frame():
     ''' Advanced variables derived from frame object
@@ -92,7 +96,7 @@ class Hand():
 
         self.palm_velocity = Vector(*hand.palm_velocity.to_float_array())
         self.basis = [Vector(*hand.basis.x_basis.to_float_array()),
-            Vector(*hand.basis,y_basis.to_float_array()),
+            Vector(*hand.basis.y_basis.to_float_array()),
             Vector(*hand.basis.z_basis.to_float_array())]
         self.palm_width = hand.palm_width
 
@@ -119,6 +123,7 @@ class Hand():
         return ret
 
     def get_palm_ros_pose(self):
+        if not TF_IMPORT: raise Exception("tf library not imported!")
         q = tf.transformations.quaternion_from_euler(self.palm_normal.roll, self.direction.pitch, self.direction.yaw)
         pose = PoseStamped()
         pose.pose.orientation = Quaternion(*q)
@@ -140,6 +145,8 @@ class Hand():
         Returns:
             open/close fingers (Float[5]): For every finger Float value (0.,1.), 0. - finger closed, 1. - finger opened
         '''
+        if not TF_IMPORT: raise Exception("tf library not imported!")
+
         oc = []
         for i in range(0,5):
             bone_1 = self.fingers[i].bone[0]
@@ -289,7 +296,7 @@ class Finger():
 ''' Leap Motion gestures definitions
 '''
 class LeapGestures():
-    def __init__(self, gestures):
+    def __init__(self):
         self.circle = LeapGesturesCircle()
         self.swipe = LeapGesturesSwipe()
         self.keytap = LeapGesturesKeytap()

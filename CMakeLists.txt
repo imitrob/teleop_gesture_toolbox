@@ -128,12 +128,13 @@ catkin_package(
 include_directories(
 # include
   ${catkin_INCLUDE_DIRS}
+  ~/LeapSDK/lib/x64
+  ~/LeapSDK/include
 )
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/mirracle_gestures.cpp
-# )
+#)
+add_library(handclasses src/leapmotion/handclasses.cpp)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -146,6 +147,11 @@ include_directories(
 # add_executable(${PROJECT_NAME}_node src/mirracle_gestures.cpp)
 #add_executable(visualization src/model.cpp)
 #add_executable(visualization src/moveit_lib.cpp)
+#add_executable(utils src/leapmotion/utils.cpp)
+add_executable(sample src/leapmotion/Sample.cpp)
+target_link_libraries(sample ${catkin_LIBRARIES} handclasses)
+#add_dependencies(sample ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the

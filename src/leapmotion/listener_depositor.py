@@ -1,14 +1,5 @@
 #!/usr/bin/env python2
-import tf
-
-import sys
-from os.path import expanduser, isfile
-import numpy as np
-from copy import deepcopy
-from itertools import permutations, combinations
-
-import Leap, time
-from Leap import CircleGesture, KeyTapGesture, ScreenTapGesture, SwipeGesture
+import sys, Leap, time
 
 sys.path.append('../os_and_utils')
 from saving import save_recording
@@ -18,7 +9,6 @@ import hand_classes
 if ROS_ENABLED():
     from mirracle_gestures.msg import Frame as Framemsg
     from mirracle_gestures.msg import Bone as Bonemsg
-exit()
 
 '''
 TODO:
@@ -27,6 +17,7 @@ TODO:
     - [x] Hand class FrameAdv and HandAdv needs to be independent from Leap Class --> All values needs to be saved to own defined objects
     - [ ] Setup service saverecordings
     - [ ] Test solution
+    - ----> It won't work, moving to C++ version ->
 
 Problems:
     - ui_lib is reffering to some variables that are not in FrameAdv anymore
@@ -152,7 +143,7 @@ class SampleListener(Leap.Listener):
         for gesture in gestures:
             if gesture.type == Leap.Gesture.TYPE_CIRCLE:
                 leap_gestures.circle.toggle = True
-                circle = CircleGesture(gesture)
+                circle = Leap.CircleGesture(gesture)
                 leap_gestures.circle.state = circle.state
                 # Determine clock direction using the angle between the pointable and the circle normal
                 if circle.pointable.direction.angle_to(circle.normal) <= Leap.PI/2:
@@ -162,22 +153,25 @@ class SampleListener(Leap.Listener):
 
                 # Calculate the angle swept since the last frame
                 swept_angle = 0
-                if circle.state != Leap.Gesture.STATE_START:
+                if circle.state == Leap.Gesture.STATE_STOP:
+                    leap_gestures.circle.in_progress = False
+                    leap_gestures.circle.progress = circle.progress
+                    previous_update = Leap.CircleGesture(controller.frame(1).gesture(circle.id))
+                    swept_angle =  (circle.progress - previous_update.progress) * 2 * Leap.PI
+                    leap_gestures.circle.angle = swept_angle * Leap.RAD_TO_DEG
+                    leap_gestures.circle.radius = circle.radius
+                elif circle.state != Leap.Gesture.STATE_START:
                     leap_gestures.circle.in_progress = True
-                    previous_update = CircleGesture(controller.frame(1).gesture(circle.id))
+                    previous_update = Leap.CircleGesture(controller.frame(1).gesture(circle.id))
                     swept_angle =  (circle.progress - previous_update.progress) * 2 * Leap.PI
                     leap_gestures.circle.progress = circle.progress
                     leap_gestures.circle.angle = swept_angle * Leap.RAD_TO_DEG
                     leap_gestures.circle.radius = circle.radius
-                if circle.state == Leap.Gesture.STATE_STOP:
-                    leap_gestures.circle.in_progress = False
-                    leap_gestures.circle.progress = circle.progress
-                    leap_gestures.circle.angle = swept_angle * Leap.RAD_TO_DEG
-                    leap_gestures.circle.radius = circle.radius
+
 
             if gesture.type == Leap.Gesture.TYPE_SWIPE:
                 leap_gestures.swipe.toggle = True
-                swipe = SwipeGesture(gesture)
+                swipe = Leap.SwipeGesture(gesture)
                 leap_gestures.swipe.state = swipe.state
                 if gesture.state != Leap.Gesture.STATE_START:
                     leap_gestures.swipe.in_progress = True
@@ -188,7 +182,7 @@ class SampleListener(Leap.Listener):
 
             if gesture.type == Leap.Gesture.TYPE_KEY_TAP:
                 leap_gestures.keytap.toggle = True
-                keytap = KeyTapGesture(gesture)
+                keytap = Leap.KeyTapGesture(gesture)
                 leap_gestures.keytap.state = keytap.state
                 if gesture.state != Leap.Gesture.STATE_START:
                     leap_gestures.pin.in_progress = True
@@ -198,7 +192,7 @@ class SampleListener(Leap.Listener):
 
             if gesture.type == Leap.Gesture.TYPE_SCREEN_TAP:
                 leap_gestures.screentap.toggle = True
-                screentap = ScreenTapGesture(gesture)
+                screentap = Leap.ScreenTapGesture(gesture)
                 leap_gestures.screentap.state = screentap.state
                 if gesture.state != Leap.Gesture.STATE_START:
                     leap_gestures.touch.in_progress = True
@@ -216,9 +210,9 @@ def main():
 
     # Have the sample listener receive events from the controller
     controller.add_listener(listener)
-    while True: pass
+    print("ROS_ENABLED: ", ROS_ENABLED())
     try:
-        sys.stdin.readline()
+        while True: time.sleep(100)
     except KeyboardInterrupt:
         pass
     finally:
