@@ -1,4 +1,4 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3.8
 '''
 Loads informations about robot, configurations, move data, gestures, ...
 All configurations are loaded from:
@@ -113,12 +113,12 @@ def init(minimal=False):
     global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, TOPPRA_ON, VIS_ON, IK_SOLVER, GRASPING_GROUP, IK_TOPIC
     global upper_lim, lower_lim, effort_lim, vel_lim
     if ROS:
-        ROBOT_NAME = rospy.get_param("/mirracle_config/robot")
-        SIMULATOR_NAME = rospy.get_param("/mirracle_config/simulator")
-        GRIPPER_NAME = rospy.get_param("/mirracle_config/gripper")
-        VIS_ON = rospy.get_param("/mirracle_config/visualize")
-        IK_SOLVER = rospy.get_param("/mirracle_config/ik_solver")
-        IK_TOPIC = rospy.get_param("/mirracle_config/ik_topic")
+        ROBOT_NAME = rospy.get_param("/mirracle_config/robot", 'panda')
+        SIMULATOR_NAME = rospy.get_param("/mirracle_config/simulator", 'coppelia')
+        GRIPPER_NAME = rospy.get_param("/mirracle_config/gripper", 'none')
+        VIS_ON = rospy.get_param("/mirracle_config/visualize", 'false')
+        IK_SOLVER = rospy.get_param("/mirracle_config/ik_solver", 'relaxed_ik')
+        IK_TOPIC = rospy.get_param("/mirracle_config/ik_topic", '')
     else:
         ROBOT_NAME = 'panda'
         SIMULATOR_NAME = 'coppelia'
@@ -216,9 +216,8 @@ def init(minimal=False):
     ### 6. Gesture Recognition              ###
     ###     - Learning settings             ###
     ###########################################
-    global pymcin, pymcout, train_args
+    global pymcout, train_args
     pymcout = None
-    pymcin = Float64MultiArray()
 
     # Loaded from gesture_recording.yaml
     train_args = configRecognition['args']

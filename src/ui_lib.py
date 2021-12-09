@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python3.8
 """ Launches Interface Application
     - Loads config from include/custom_settings/application.yaml
 """
@@ -90,30 +90,30 @@ class Example(QMainWindow):
         self.comboPlayNLive = QComboBox(self)
         self.comboPlayNLive.addItem("Play path")
         self.comboPlayNLive.activated[str].connect(self.onComboPlayNLiveChanged)
-        self.comboPlayNLive.setGeometry(LEFT_MARGIN+130, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
+        self.comboPlayNLive.setGeometry(LEFT_MARGIN+130, START_PANEL_Y-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
         self.comboPickPlayTraj = QComboBox(self)
         for path in settings.sp:
             self.comboPickPlayTraj.addItem(path.NAME)
         self.comboPickPlayTraj.activated[str].connect(self.onComboPickPlayTrajChanged)
-        self.comboPickPlayTraj.setGeometry(LEFT_MARGIN+130+ICON_SIZE*2, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
+        self.comboPickPlayTraj.setGeometry(LEFT_MARGIN+130+ICON_SIZE*2, START_PANEL_Y-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
         self.comboLiveMode = QComboBox(self)
         self.comboLiveMode.addItem("Default")
         self.comboLiveMode.addItem("Interactive")
         self.comboLiveMode.addItem("Gesture based")
         self.comboLiveMode.activated[str].connect(self.onComboLiveModeChanged)
-        self.comboLiveMode.setGeometry(LEFT_MARGIN+130+ICON_SIZE*2, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
+        self.comboLiveMode.setGeometry(LEFT_MARGIN+130+ICON_SIZE*2, START_PANEL_Y-10,ICON_SIZE*2,int(ICON_SIZE/2))
         ## Control of the movement exectution
         self.btnPlayMove = QPushButton('Forward', self)
         self.btnPlayMove.clicked.connect(self.button_play_move)
-        self.btnPlayMove.setGeometry(LEFT_MARGIN+130+ICON_SIZE*4, START_PANEL_Y-10,ICON_SIZE,ICON_SIZE/2)
+        self.btnPlayMove.setGeometry(LEFT_MARGIN+130+ICON_SIZE*4, START_PANEL_Y-10,ICON_SIZE,int(ICON_SIZE/2))
         self.btnPlayMove2 = QPushButton('Backward', self)
         self.btnPlayMove2.clicked.connect(self.button_play_move2)
-        self.btnPlayMove2.setGeometry(LEFT_MARGIN+130+ICON_SIZE*5, START_PANEL_Y-10,ICON_SIZE,ICON_SIZE/2)
+        self.btnPlayMove2.setGeometry(LEFT_MARGIN+130+ICON_SIZE*5, START_PANEL_Y-10,ICON_SIZE,int(ICON_SIZE/2))
         self.btnPlayMove3 = QPushButton('Stop', self)
         self.btnPlayMove3.clicked.connect(self.button_play_move3)
-        self.btnPlayMove3.setGeometry(LEFT_MARGIN+130+ICON_SIZE*6, START_PANEL_Y-10,ICON_SIZE,ICON_SIZE/2)
+        self.btnPlayMove3.setGeometry(LEFT_MARGIN+130+ICON_SIZE*6, START_PANEL_Y-10,ICON_SIZE,int(ICON_SIZE/2))
 
         self.recording = False # Bool if recording is happening
         self.REC_TIME = gestures_data_loaded['Recording']['Length'] # sec
@@ -128,7 +128,7 @@ class Example(QMainWindow):
         self.comboInteractiveSceneChanges.addItem("Scene 3 Push button")
         self.comboInteractiveSceneChanges.addItem("Scene 4 - 2 Pick/Place")
         self.comboInteractiveSceneChanges.activated[str].connect(self.onInteractiveSceneChanged)
-        self.comboInteractiveSceneChanges.setGeometry(LEFT_MARGIN+130+ICON_SIZE*4, START_PANEL_Y-10,ICON_SIZE*2,ICON_SIZE/2)
+        self.comboInteractiveSceneChanges.setGeometry(LEFT_MARGIN+130+ICON_SIZE*4, START_PANEL_Y-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
 
         # Move Page
@@ -150,16 +150,16 @@ class Example(QMainWindow):
 
         self.movePageUseEnvAboveButton = QPushButton('Above env.', self)
         self.movePageUseEnvAboveButton.clicked.connect(self.movePageUseEnvAboveButtonFun)
-        self.movePageUseEnvAboveButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+100,ICON_SIZE*2,ICON_SIZE/2)
+        self.movePageUseEnvAboveButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+100,ICON_SIZE*2,int(ICON_SIZE/2))
         self.movePageUseEnvWallButton = QPushButton('Wall env.', self)
         self.movePageUseEnvWallButton.clicked.connect(self.movePageUseEnvWallButtonFun)
-        self.movePageUseEnvWallButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+140,ICON_SIZE*2,ICON_SIZE/2)
+        self.movePageUseEnvWallButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+140,ICON_SIZE*2,int(ICON_SIZE/2))
         self.movePageUseEnvTableButton = QPushButton('Table env.', self)
         self.movePageUseEnvTableButton.clicked.connect(self.movePageUseEnvTableButtonFun)
-        self.movePageUseEnvTableButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+180,ICON_SIZE*2,ICON_SIZE/2)
+        self.movePageUseEnvTableButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+180,ICON_SIZE*2,int(ICON_SIZE/2))
         self.movePagePoseNowButton = QPushButton('Set current pose', self)
         self.movePagePoseNowButton.clicked.connect(self.movePagePoseNowButtonFun)
-        self.movePagePoseNowButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+20,ICON_SIZE*2,ICON_SIZE/2)
+        self.movePagePoseNowButton.setGeometry(LEFT_MARGIN+300, START_PANEL_Y+20,ICON_SIZE*2,int(ICON_SIZE/2))
 
         self.timer = QBasicTimer()
         self.timer.start(100, self)
@@ -318,6 +318,8 @@ class Example(QMainWindow):
         self.mousex, self.mousey = event.x(), event.y()
 
     def go_to_pose_button(self):
+        ''' Takes the text inputs given by user and change robot goal_pose
+        '''
         vals = []
         for obj in self.movePageGoPoseEdits:
             val = None
@@ -333,7 +335,7 @@ class Example(QMainWindow):
         settings.goal_pose = pose
 
     def keyPressEvent(self, event):
-        '''
+        ''' Callbacky for every keyboard button press
         '''
         if settings.record_with_keys:
             KEYS = [self.mapQtKey(key) for key in settings.GESTURE_KEYS]
@@ -350,6 +352,8 @@ class Example(QMainWindow):
 
 
     def changeNetwork(self, network):
+        ''' ROS service send request about network change
+        '''
         rospy.wait_for_service('/mirracle_gestures/change_network')
         try:
             change_network = rospy.ServiceProxy('/mirracle_gestures/change_network', ChangeNetwork)
@@ -368,6 +372,10 @@ class Example(QMainWindow):
 
 
     def download_networks_gdrive(self):
+        ''' Downloads all networks from google drive
+            1. Files download
+            2. Network info update
+        '''
         GesturesDetectionClass.download_networks_gdrive()
         # Update Networks Menu
         self.network_menu.clear()
@@ -393,6 +401,8 @@ class Example(QMainWindow):
         self.play_status = 0
 
     def save_data(self):
+        ''' Saving record data in this thread will be outdated, ROS service will be created
+        '''
         print("saving data")
         self.recording = False
         n_sample = ""
@@ -1033,9 +1043,6 @@ class RepeatableTimer(object):
         t.start()
 
 def main():
-    while not settings.mo:
-        time.sleep(2)
-        print("[Interface] moveit not connected")
     app = QApplication(sys.argv)
     ex = Example()
     sys.exit(app.exec_())
@@ -1046,9 +1053,7 @@ if __name__ == '__main__':
     try:
         main()
     except KeyboardInterrupt:
-        print('Interrupted')
         try:
             sys.exit(0)
         except SystemExit:
             os._exit(0)
-    print("UI Exit")

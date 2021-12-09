@@ -1,4 +1,4 @@
-
+#!/usr/bin/env python3.8
 
 ## TODO: Move gestures detection lib from leapmotionlistener.py
 
@@ -33,6 +33,150 @@ class GesturesDetectionClass():
             if file.endswith(".pkl"):
                 networks.append(file)
         return networks
+
+    @staticmethod
+    def receive_hand_data_callback(msg):
+        ''' Puts msg as new record into
+        '''
+        Frame()
+
+        framemsg = Framemsg()
+        framemsg.fps = f.fps
+        framemsg.hands = f.hands
+        framemsg.header.secs = f.secs
+        framemsg.header.nsecs = f.nsecs
+        framemsg.header.seq = f.seq
+
+        framemsg.leapgestures.circle_toggle = f.leapgestures.circle.toggle
+        framemsg.leapgestures.circle_in_progress = f.leapgestures.circle.in_progress
+        framemsg.leapgestures.circle_clockwise = f.leapgestures.circle.clockwise
+        framemsg.leapgestures.circle_progress = f.leapgestures.circle.progress
+        framemsg.leapgestures.circle_angle = f.leapgestures.circle.angle
+        framemsg.leapgestures.circle_radius = f.leapgestures.circle.radius
+        framemsg.leapgestures.circle_state = f.leapgestures.circle.state
+        framemsg.leapgestures.swipe_toggle = f.leapgestures.swipe.toggle
+        framemsg.leapgestures.swipe_in_progress = f.leapgestures.swipe.in_progress
+        framemsg.leapgestures.swipe_direction = f.leapgestures.swipe.direction
+        framemsg.leapgestures.swipe_speed = f.leapgestures.swipe.speed
+        framemsg.leapgestures.swipe_state = f.leapgestures.swipe.state
+        framemsg.leapgestures.keytap_toggle = f.leapgestures.keytap.toggle
+        framemsg.leapgestures.keytap_in_progress = f.leapgestures.keytap.in_progress
+        framemsg.leapgestures.keytap_direction = f.leapgestures.keytap.direction
+        framemsg.leapgestures.keytap_state = f.leapgestures.keytap.state
+        framemsg.leapgestures.screentap_toggle = f.leapgestures.screentap.toggle
+        framemsg.leapgestures.screentap_in_progress = f.leapgestures.screentap.in_progress
+        framemsg.leapgestures.screentap_direction = f.leapgestures.screentap.direction
+        framemsg.leapgestures.screentap_state = f.leapgestures.screentap.state
+
+        for (handmsg, hand) in [(framemsg.l, f.l), (framemsg.r, f.r)]:
+            handmsg.id = hand.id
+            handmsg.is_left = hand.is_left
+            handmsg.is_right = hand.is_right
+            handmsg.is_valid = hand.is_valid
+            handmsg.grab_strength = hand.grab_strength
+            handmsg.pinch_strength = hand.pinch_strength
+            handmsg.confidence = hand.confidence
+            handmsg.palm_normal = hand.palm_normal()
+            handmsg.direction = hand.direction()
+            handmsg.palm_position = hand.palm_position()
+
+            handmsg.finger_bones = []
+            for finger in hand.fingers:
+                for bone in finger.bones:
+                    bonemsg = Bonemsg()
+
+                    basis = bone.basis[0](), bone.basis[1](), bone.basis[2]()
+                    bonemsg.basis = [item for sublist in basis for item in sublist]
+                    bonemsg.direction = bone.direction()
+                    bonemsg.next_joint = bone.next_joint()
+                    bonemsg.prev_joint = bone.prev_joint()
+                    bonemsg.center = bone.center()
+                    bonemsg.is_valid = bone.is_valid
+                    bonemsg.length = bone.length
+                    bonemsg.width = bone.width
+
+                    handmsg.finger_bones.append(bonemsg)
+
+            handmsg.palm_velocity = hand.palm_velocity()
+            basis = hand.basis[0](), hand.basis[1](), hand.basis[2]()
+            handmsg.basis = [item for sublist in basis for item in sublist]
+            handmsg.palm_width = hand.palm_width
+            handmsg.sphere_center = hand.sphere_center()
+            handmsg.sphere_radius = hand.sphere_radius
+            handmsg.stabilized_palm_position = hand.stabilized_palm_position()
+            handmsg.time_visible = hand.time_visible
+            handmsg.wrist_position = hand.wrist_position()
+
+    def ros_publish(self, f):
+        # f hand_classes.Frame() -> framemsg mirracle_gestures.msg/Frame
+        framemsg = Framemsg()
+        framemsg.fps = f.fps
+        framemsg.hands = f.hands
+        framemsg.header.secs = f.secs
+        framemsg.header.nsecs = f.nsecs
+        framemsg.header.seq = f.seq
+
+        framemsg.leapgestures.circle_toggle = f.leapgestures.circle.toggle
+        framemsg.leapgestures.circle_in_progress = f.leapgestures.circle.in_progress
+        framemsg.leapgestures.circle_clockwise = f.leapgestures.circle.clockwise
+        framemsg.leapgestures.circle_progress = f.leapgestures.circle.progress
+        framemsg.leapgestures.circle_angle = f.leapgestures.circle.angle
+        framemsg.leapgestures.circle_radius = f.leapgestures.circle.radius
+        framemsg.leapgestures.circle_state = f.leapgestures.circle.state
+        framemsg.leapgestures.swipe_toggle = f.leapgestures.swipe.toggle
+        framemsg.leapgestures.swipe_in_progress = f.leapgestures.swipe.in_progress
+        framemsg.leapgestures.swipe_direction = f.leapgestures.swipe.direction
+        framemsg.leapgestures.swipe_speed = f.leapgestures.swipe.speed
+        framemsg.leapgestures.swipe_state = f.leapgestures.swipe.state
+        framemsg.leapgestures.keytap_toggle = f.leapgestures.keytap.toggle
+        framemsg.leapgestures.keytap_in_progress = f.leapgestures.keytap.in_progress
+        framemsg.leapgestures.keytap_direction = f.leapgestures.keytap.direction
+        framemsg.leapgestures.keytap_state = f.leapgestures.keytap.state
+        framemsg.leapgestures.screentap_toggle = f.leapgestures.screentap.toggle
+        framemsg.leapgestures.screentap_in_progress = f.leapgestures.screentap.in_progress
+        framemsg.leapgestures.screentap_direction = f.leapgestures.screentap.direction
+        framemsg.leapgestures.screentap_state = f.leapgestures.screentap.state
+
+        for (handmsg, hand) in [(framemsg.l, f.l), (framemsg.r, f.r)]:
+            handmsg.id = hand.id
+            handmsg.is_left = hand.is_left
+            handmsg.is_right = hand.is_right
+            handmsg.is_valid = hand.is_valid
+            handmsg.grab_strength = hand.grab_strength
+            handmsg.pinch_strength = hand.pinch_strength
+            handmsg.confidence = hand.confidence
+            handmsg.palm_normal = hand.palm_normal()
+            handmsg.direction = hand.direction()
+            handmsg.palm_position = hand.palm_position()
+
+            handmsg.finger_bones = []
+            for finger in hand.fingers:
+                for bone in finger.bones:
+                    bonemsg = Bonemsg()
+
+                    basis = bone.basis[0](), bone.basis[1](), bone.basis[2]()
+                    bonemsg.basis = [item for sublist in basis for item in sublist]
+                    bonemsg.direction = bone.direction()
+                    bonemsg.next_joint = bone.next_joint()
+                    bonemsg.prev_joint = bone.prev_joint()
+                    bonemsg.center = bone.center()
+                    bonemsg.is_valid = bone.is_valid
+                    bonemsg.length = bone.length
+                    bonemsg.width = bone.width
+
+                    handmsg.finger_bones.append(bonemsg)
+
+            handmsg.palm_velocity = hand.palm_velocity()
+            basis = hand.basis[0](), hand.basis[1](), hand.basis[2]()
+            handmsg.basis = [item for sublist in basis for item in sublist]
+            handmsg.palm_width = hand.palm_width
+            handmsg.sphere_center = hand.sphere_center()
+            handmsg.sphere_radius = hand.sphere_radius
+            handmsg.stabilized_palm_position = hand.stabilized_palm_position()
+            handmsg.time_visible = hand.time_visible
+            handmsg.wrist_position = hand.wrist_position()
+
+        self.frame_publisher.publish(framemsg)
 
 
 class Network():

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python3.8
 '''
 **Tests around Trajectory replacement (ruckig version)**
 Standalone script:
@@ -58,6 +58,24 @@ class JointController():
             jtp.time_from_start = 0.01*i
             self._goal.trajectory.points.append(deepcopy(jtp))
 
+        self._tmpgoal = FollowJointTrajectoryGoal()
+        for i in range(self.trajectory_points):
+            jtp = JointTrajectoryPoint()
+            jtp.positions = [0.,0.,0.,0.,0.,0.,0.]
+            jtp.velocities = [0.,0.,0.,0.,0.,0.,0.]
+            jtp.accelerations = [0.,0.,0.,0.,0.,0.,0.]
+            jtp.time_from_start = 0.0
+            self._tmpgoal.trajectory.points.append(deepcopy(jtp))
+
+        self._tmpgoal2 = FollowJointTrajectoryGoal()
+        for i in range(self.trajectory_points):
+            jtp = JointTrajectoryPoint()
+            jtp.positions = [0.,0.,0.,0.,0.,0.,0.]
+            jtp.velocities = [0.,0.,0.,0.,0.,0.,0.]
+            jtp.accelerations = [0.,0.,0.,0.,0.,0.,0.]
+            jtp.time_from_start = 0.0
+            self._tmpgoal2.trajectory.points.append(deepcopy(jtp))
+
         self.r = ruckig_wrapper(self.trajectory_points)
 
         # time duration of replacement function
@@ -99,10 +117,9 @@ class JointController():
         accelerations = np.gradient([joint_state.velocity for joint_state in self.joint_states], [joint_state.header.stamp.to_sec() for joint_state in self.joint_states], axis=0)
         acceleration = accelerations[-1,:]
 
-        if not is_it_single_goal(target_joints):
-            self.waypoints_queue_joints = deepcopy(target_joints)
         # this function will update self._goal trajectory
-        self.r.compute(current_position=self.joint_state.position, current_velocity=self.joint_state.velocity, current_acceleration=acceleration, target_position=target_joints, target_velocity=np.zeros(7), target_acceleration=np.zeros(7), _goal=self._goal)
+        self.r.compute_multiple(current_position=self.joint_state.position, current_velocity=self.joint_state.velocity, current_acceleration=acceleration, target_position=target_joints, target_velocity=np.zeros(7), target_acceleration=np.zeros(7), _goal=self._goal, _tmpgoal=self._tmpgoal)
+
 
         self._goal.trajectory.header.stamp = rospy.Time.now() + rospy.Duration(0.1)
         for n,pt in enumerate(self._goal.trajectory.points):
@@ -131,7 +148,12 @@ class JointController():
         Parameters:
             target_joints (Float[waypoints x 7])
         '''
+        # Handle single goal input
+        if is_it_single_goal(target_joints): target_joints = [target_joints]
+        # Only for validation purposes
         self.waypoints_queue_joints = []
+        self.waypoints_queue_joints.extend(deepcopy(target_joints))
+
         self.tac_control_auto(target_joints)
 
     def tac_control_add_new_goal(self, target_joints):
@@ -139,6 +161,11 @@ class JointController():
         Parameters:
             target_joints (Float[waypoints x 7])
         '''
+        # Handle single goal input
+        if is_it_single_goal(target_joints): target_joints = [target_joints]
+        # Only for validation purposes
+        self.waypoints_queue_joints.extend(deepcopy(target_joints))
+
         self.tac_control_auto(target_joints)
 
     def tac_control_auto(self, target_joints):
@@ -170,23 +197,13 @@ class JointController():
         # 2. make new trajectory (from js1 -> js2)
         self._goal.trajectory.header.seq += 1
         # ADDITIONAL: incrstartease trajectory velocity based on gesture
-        goal = FollowJointTrajectoryGoal()
-        for i in range(self.trajectory_points):
-            jtp = JointTrajectoryPoint()
-            jtp.positions = [0.,0.,0.,0.,0.,0.,0.]
-            jtp.velocities = [0.,0.,0.,0.,0.,0.,0.]
-            jtp.accelerations = [0.,0.,0.,0.,0.,0.,0.]
-            jtp.time_from_start = 0.0
-            goal.trajectory.points.append(deepcopy(jtp))
+        self.r.compute_multiple(current_position=js1.positions, current_velocity=js1.velocities, current_acceleration=js1.accelerations, target_position=target_joints, target_velocity=np.zeros(7), target_acceleration=np.zeros(7), _goal=self._tmpgoal, _tmpgoal=self._tmpgoal2)
 
-        if not is_it_single_goal(target_joints):
-            self.waypoints_queue_joints.extend(deepcopy(target_joints))
-        self.r.compute(current_position=js1.positions, current_velocity=js1.velocities, current_acceleration=js1.accelerations, target_position=target_joints, target_velocity=np.zeros(7), target_acceleration=np.zeros(7), _goal=goal)
-
-        # 3. combine with trajectory from js0 -> js1 -> js2
-        for n,point in enumerate(goal.trajectory.points):
-            goal.trajectory.points[n].time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + last_tfs)
-        self._goal.trajectory.points.extend(goal.trajectory.points)
+        # 3. combine with trajectory from js0 -> js1 -> js2 -> js3 -> js_n
+        for n,point in enumerate(self._tmpgoal.trajectory.points):
+            self._tmpgoal.trajectory.points[n].time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + last_tfs)
+        last_tfs = self._tmpgoal.trajectory.points[-1].time_from_start.to_sec() # every new trajectory aligns to old one
+        self._goal.trajectory.points.extend(self._tmpgoal.trajectory.points)
 
         # 4. Choose the point which will be the first point executed by sent trajectory
         #     - There will be chosen time in the future, for example 10ms in the future
@@ -258,30 +275,20 @@ class ruckig_wrapper():
         self.max_deffort = [1000, 1000, 1000, 1000, 1000, 1000, 1000]
 
     def compute(self, current_position, current_velocity, current_acceleration, target_position, target_velocity, target_acceleration, _goal):
+        ''' Ruckig wrapper function to compute trajectory (single trajectory)
+        '''
         self.inp.current_position = current_position
         self.inp.current_velocity = current_velocity
         self.inp.current_acceleration = current_acceleration
+        self.inp.target_position = target_position
         self.inp.target_velocity = target_velocity
         self.inp.target_acceleration = target_acceleration
 
         # ERROR? Init Ruckig() again?
-        if is_it_single_goal(target_position):
-            self.inp.target_position = target_position
-
-            result = self.otg.calculate(self.inp, self.trajectory)
-            if result == Result.ErrorInvalidInput:
-                print(self.inp)
-                raise Exception('Invalid input!')
-        else:
-            # if target_position has multiple targets -> setup waypoints
-            for n,single_target_position in enumrate(target_position):
-                self.inp.target_position = target_position[n]
-                result = self.otg.calculate(self.inp, self.trajectory)
-                if result == Result.ErrorInvalidInput:
-                    print(self.inp)
-                    raise Exception('Invalid input!')
-            ##### I ENDED HERE
-
+        result = self.otg.calculate(self.inp, self.trajectory)
+        if result == Result.ErrorInvalidInput:
+            print(self.inp)
+            raise Exception('Invalid input!')
 
         trajectory_points = len(_goal.trajectory.points)
         ss = np.linspace(0,self.trajectory.duration,trajectory_points)
@@ -292,6 +299,61 @@ class ruckig_wrapper():
         for i in range(0, trajectory_points):
             _goal.trajectory.points[i].time_from_start = rospy.Duration(ss[i])
             _goal.trajectory.points[i].positions, _goal.trajectory.points[i].velocities, _goal.trajectory.points[i].accelerations = self.trajectory.at_time(ss[i])
+
+    def compute_multiple(self, current_position, current_velocity, current_acceleration, target_position, target_velocity, target_acceleration, _goal, _tmpgoal):
+        ''' Calls compute multiple times, rewrites _goal trajectory -> multiple trajectories are added to each other
+            - uses _tmpgoal as memory for each waypoint trajectory
+        '''
+        last_tfs = 0.
+        _goal.trajectory.points = []
+        lastpositions, lastvelocities, lastacceleraions = current_position, current_velocity, current_acceleration
+        for n,target_position_single in enumerate(target_position):
+            # this function will update _goal trajectory
+            current_p_target_positions = [current_position]
+            current_p_target_positions.extend(target_position)
+            target_velocity = self.target_velocity_based_on_future_waypoints(current_p_target_positions[n:])
+            print(f" target velocity {target_velocity}")
+            self.compute(current_position=lastpositions, current_velocity=lastvelocities, current_acceleration=lastacceleraions, target_position=target_position_single, target_velocity=target_velocity, target_acceleration=target_acceleration, _goal=_tmpgoal)
+
+            # 3. combine with trajectory from js0 -> js1 -> js2 -> js3 -> js_n
+            for n,point in enumerate(_tmpgoal.trajectory.points):
+                _tmpgoal.trajectory.points[n].time_from_start = rospy.Time.from_sec(point.time_from_start.to_sec() + last_tfs)
+
+            lastpositions = _tmpgoal.trajectory.points[-1].positions
+            lastvelocities = _tmpgoal.trajectory.points[-1].velocities
+            lastacceleraions = _tmpgoal.trajectory.points[-1].accelerations
+
+            _goal.trajectory.points.extend(deepcopy(_tmpgoal.trajectory.points))
+            last_tfs = _goal.trajectory.points[-1].time_from_start.to_sec() # every new trajectory aligns to old one
+
+    def target_velocity_based_on_future_waypoints(self, target_position):
+        '''
+        1. (target_position[0] - current_position) < 0 defines zero return target velocity
+        2. target_position[1][j]-target_position[0][j] defines how big the velocity will be
+        Parameters:
+            target_positions (Float[waypoints x 7]): All future waypoints
+        '''
+        if len(target_position) < 2:
+            raise Exception("Wrong number of arguments")
+        elif len(target_position) < 3:
+            return np.zeros(7)
+
+        p_diff_1 = (np.array(target_position[1]) - np.array(target_position[0]))
+        p_diff_2 = (np.array(target_position[2]) - np.array(target_position[1]))
+
+        def single_joint(p_diff, v_max, k=0.4):
+            v_end = p_diff * v_max * k
+            if v_end > v_max: v_end = v_max
+            return v_end
+
+        v_end = np.zeros(7)
+        print(f"p_diff_1[1] {p_diff_1[1]}")
+        for j in range(0,7):
+            if (p_diff_1[j] > 0) == (p_diff_2[j] > 0):
+                v_end[j] = single_joint(min(p_diff_1[j], p_diff_2[j], key=abs), self.inp.max_velocity[j])
+            else:
+                v_end[j] = 0.
+        return v_end
 
     def online_compute(self, current_position, current_velocity, current_acceleration, target_position, target_velocity, target_acceleration):
         ''' ERROR: otg needs to be initialized to timediff as second parameter

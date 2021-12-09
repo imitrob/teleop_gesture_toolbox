@@ -1,3 +1,4 @@
+#!/usr/bin/env python3.8
 import time
 import argparse
 from ruckig_controller import JointController
@@ -9,7 +10,7 @@ class Tests():
         parser=argparse.ArgumentParser(description='')
 
         parser.add_argument('--experiment', default="home", type=str, help='(default=%(default)s)', required=True, choices=['home', 'random_joints', 'shortest_distance', 'shortest_distance_0', 'shortest_distance_1', 'repeat_same', 'acceleration', 'durations', 'trajectory_replacement', 'test_waypoints'])
-        parser.add_argument('--rate', default=1, type=float, help='(default=%(default)s)')
+        parser.add_argument('--rate', default=0.2, type=float, help='(default=%(default)s)')
         parser.add_argument('--time_horizon', default=0.3, type=float, help='(default=%(default)s)')
         parser.add_argument('--trajectory_points', default=1000, type=int, help='Number of trajectory points sended to robot')
         #parser.add_argument('--max_points_same', default=200, type=int, help='Number of maximum point same from old to new trajectory')
@@ -73,21 +74,34 @@ class Tests():
         '''
         self.SAMPLE_JOINTS = [[
             [0.8, -1.0, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8, -2.0, -0.8, -1.9, 0.25, 2.3, 0.63],
             [0.8, -0.2, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8,  0.5, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8,  0.8, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8,  1.6, -0.8, -1.9, 0.25, 2.3, 0.63]
+        ], [
+            [0.8,  0.2, -0.8, -1.9, 0.25, 2.3, 0.63],
             [0.8, -0.5, -0.8, -1.9, 0.25, 2.3, 0.63],
-            [0.8, -0.8, -0.8, -1.9, 0.25, 2.3, 0.63]
-        ], [0.8, 0.2, -0.8, -1.9, 0.25, 2.3, 0.63]
-        ]
+            [0.8, -0.8, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8, -1.8, -0.8, -1.9, 0.25, 2.3, 0.63]
+        ], [
+            [0.8, 1.0, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8, 2.0, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8, -1.0, -0.8, -1.9, 0.25, 2.3, 0.63],
+            [0.8, -2.0, -0.8, -1.9, 0.25, 2.3, 0.63]
+                             ]]
 
         for loop in range(0,len(self.SAMPLE_JOINTS)):
             t0=time.perf_counter()
-            self.j.tac_control_add_new_goal(self.SAMPLE_JOINTS[loop])
-            print(f"loop {loop}, tac_controller_replacement time{time.perf_counter()-t0}")
-            self.j.rate.sleep()
-            while len(self.j.waypoints_queue_joints) > 0:
-                print(f"loop {loop}, waypoints still not empty with size: {len(self.waypoints_queue_joints)}")
-                time.sleep(1)
-            print(f"loop {loop}, waypoints finished!")
+            self.j.tac_control_add_new_goal(self.SAMPLE_JOINTS[loop]) # control func
+            t1=time.perf_counter()
+            time.sleep(5)
+            print(f"loop final {loop}, tac_controller_replacement time{t1-t0}")
+            #while len(self.j.waypoints_queue_joints) > 0: # Note: waypoints are deleted when reached
+            #    print(f"loop {loop}, waypoints still not empty with size: {len(self.j.waypoints_queue_joints)}")
+            #    input()
+            #    return
+
 
     def robotStopped(self, waitStart=3, waitEnd=0.):
         # first condition (robot got into move), maybe need to be altered later

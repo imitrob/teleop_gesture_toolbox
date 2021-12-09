@@ -1,4 +1,4 @@
-#!/usr/bin/env python2.7
+#!/usr/bin/env python3.8
 '''
     |||
   \ ||||
@@ -18,12 +18,15 @@ import random
 import settings
 settings.init()
 
-import leapmotionlistener as lml
+#import leapmotionlistener as lml
 import ui_lib as ui
 import moveit_lib
 from moveit_lib import IK_bridge
 from markers_publisher import MarkersPublisher
 import trajectory_action_client
+sys.path.append(os.path.join(sys.path[0],'leapmotion'))
+from hand_classes import *
+
 #import modern_robotics as mr
 
 import matplotlib.pyplot as plt
@@ -36,7 +39,6 @@ from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
 from relaxed_ik.msg import EEPoseGoals, JointAngles
 from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
-
 
 # Temporary solution (reading from mirracle_sim pkg)
 sys.path.append(settings.HOME+"/"+settings.WS_FOLDER+'/src/mirracle_sim/src')
@@ -56,6 +58,11 @@ def coppelia_eef_callback(data):
 def camera_angle_callback(data):
     global camera_orientation
     camera_orientation = data
+
+def hand_data_callback(data):
+    ''' Hand data received by ROS msg is saved
+    '''
+    settings.frames_adv.append(Frame().import_from_ros())
 
 def save_joints(data):
     ''' Saves joint_states to * append array 'settings.joint_in_time' circle buffer.
@@ -101,24 +108,10 @@ def ext_pos_diff_comb(pos_diff_comb):
     return ret
 
 def sendInputPyMC():
-    dd = settings.frames_adv[-1]
-    if len(ext_fingers_angles_diff(dd.r.fingers_angles_diff)) == 0:
-        return
-    if 'user_defined' in settings.train_args:
-        f = [dd.r.OC[0], dd.r.OC[1], dd.r.OC[2], dd.r.OC[3], dd.r.OC[4], dd.r.TCH12, dd.r.TCH23, dd.r.TCH34, dd.r.TCH45, dd.r.TCH13, dd.r.TCH14, dd.r.TCH15]
-    elif 'all_defined' in settings.train_args:
-        f = []
-        f.extend(dd.r.wrist_hand_angles_diff[1:3])
-        f.extend(ext_fingers_angles_diff(dd.r.fingers_angles_diff))
-        f.extend(ext_pos_diff_comb(dd.r.pos_diff_comb))
-        if 'absolute' in settings.train_args:
-            f.extend(dd.r.pRaw)
-            if 'absolute+finger' in settings.train_args:
-                f.extend(dd.r.index_position)
-    settings.pymcin = Float64MultiArray()
-    settings.pymcin.data = f
+    msg = Float64MultiArray()
+    msg.data = settings.frames_adv[-1].r.get_learning_data()
 
-    settings.pymc_in_pub.publish(settings.pymcin)
+    settings.pymc_in_pub.publish(msg)
 
 def saveOutputPyMC(data):
     settings.pymcout = data.data
@@ -132,6 +125,8 @@ def publish_eef_goal_pose():
 
 
 def main():
+    rospy.Subscriber('/mirracle_gestures/hand_data', Frame, callbackik)
+
     # Saving the joint_states
     if settings.SIMULATOR_NAME == 'coppelia':
         rospy.Subscriber("joint_states_coppelia", JointState, save_joints)
@@ -152,15 +147,15 @@ def main():
     settings.mo = mo = moveit_lib.MoveGroupPythonInteface()
     # Don't use any mode for start
     settings.md.Mode = ''
-    if rospy.get_param("/mirracle_config/launch_ui") == "true":
+    if rospy.get_param("/mirracle_config/launch_ui", 'true') == "true":
         thread_ui = Thread(target = launch_ui)
         thread_ui.daemon=True
         thread_ui.start()
-    if rospy.get_param("/mirracle_config/launch_leap") == "true":
+    if rospy.get_param("/mirracle_config/launch_leap", 'false') == "true":
         thread_leap = Thread(target = launch_lml)
         thread_leap.daemon=True
         thread_leap.start()
-    if rospy.get_param("/mirracle_config/launch_gesture_detection") == "true":
+    if rospy.get_param("/mirracle_config/launch_gesture_detection", 'false') == "true":
         rospy.Subscriber('/mirracle_gestures/pymcout', Int8, saveOutputPyMC)
         settings.pymc_in_pub = rospy.Publisher('/mirracle_gestures/pymcin', Float64MultiArray, queue_size=5)
 
@@ -217,6 +212,7 @@ def updateValues():
             settings.md.camera_orientation = camera_orientation
         # Sleep
         time.sleep(0.1)
+
 
 def launch_lml():
     lml.main()
@@ -344,7 +340,7 @@ def main_manager():
             ## 1 - Forward, -1 - Backward
             direction = 1 if targetPose - settings.currentPose > 0 else -1
             ## Attaching/Detaching when moving backwards
-            if settings.leavingAction and time_on_one_pose <= 0.1 and direction == -1 and settings.sp[pp].actions[settings.currentPose] is not "":
+            if settings.leavingAction and time_on_one_pose <= 0.1 and direction == -1 and settings.sp[pp].actions[settings.currentPose] != "":
                 if settings.md.attached:
                     settings.mo.release_object(name=settings.sp[pp].actions[settings.currentPose])
                     settings.leavingAction = False
@@ -358,7 +354,7 @@ def main_manager():
                 settings.leavingAction = True
                 settings.currentPose = settings.currentPose+direction
                 ## Attaching/Detaching when moving forward
-                if settings.sp[pp].actions[settings.currentPose] is not "" and direction == 1:
+                if settings.sp[pp].actions[settings.currentPose] != "" and direction == 1:
                     if not settings.md.attached:
                         settings.mo.pick_object(name=settings.sp[pp].actions[settings.currentPose])
                     else:
