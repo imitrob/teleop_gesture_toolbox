@@ -75,7 +75,7 @@ class VisualizerLib():
         self.fig = fig
         self.ax = ax
 
-    def visualize_2d(self, data, color='', label="", transform='front', xlabel='X axis', ylabel='Y axis', scatter_pts=False):
+    def visualize_2d(self, data, color='', label="", transform='front', xlabel='X axis', ylabel='Y axis', scatter_pts=False, axvline=False):
         ''' Add trajectory to current figure for 2D Plot.
 
         Args:
@@ -117,6 +117,8 @@ class VisualizerLib():
         self.ax.plot(xt,yt,c=color, label=(label))#+" "+str(len(dparsed))) )
         self.ax.scatter(xt[0], yt[0], marker='o', color='black', zorder=2)
         self.ax.scatter(xt[-1], yt[-1], marker='x', color='black', zorder=2)
+        if axvline:
+            self.ax.axvline(x=xt[-1], color=color)
         if scatter_pts:
             self.ax.scatter(xt, yt, marker='|', color='black', zorder=2, alpha=0.3)
 
@@ -162,7 +164,10 @@ class VisualizerLib():
         ax.set_xlabel(xlabel)
         ax.set_ylabel(ylabel)
         ax.set_zlabel(zlabel)
-        plt.axis('equal')
+        try:
+            plt.axis('equal')
+        except:
+            plt.axis('auto')
 
         COLORS = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
         if color=="":
@@ -273,19 +278,19 @@ class VisualizerLib():
             data = []
             for i, j in zip(trajectory[3],[t[1] for t in trajectory[0]]):
                 data.append([i,j])
-            self.visualize_2d(data)#, scatter_pts=True)
+            self.visualize_2d(data, axvline=True)
         self.visualize_new_fig('Trajectory velocities', dim=2)
         for trajectory in trajectories:
             data = []
             for i, j in zip(trajectory[3],[t[1] for t in trajectory[1]]):
                 data.append([i,j])
-            self.visualize_2d(data)#, scatter_pts=True)
+            self.visualize_2d(data, axvline=True)
         self.visualize_new_fig('Trajectory acceleration', dim=2)
         for trajectory in trajectories:
             data = []
             for i, j in zip(trajectory[3],[t[1] for t in trajectory[2]]):
                 data.append([i,j])
-            self.visualize_2d(data)#, scatter_pts=True)
+            self.visualize_2d(data, axvline=True)
         self.show()
 
 def save_trajectory(msg):
@@ -322,16 +327,16 @@ def main(args):
     data = np.array([[[0,0,0],[0,1,1],[0,2,2],[0,3,3]], [[1,0,0],[1,1,1],[1,2,2],[1,3,3]]])
     viz.visualize_ntraj(data)
 
-    viz.visualize_new_fig()
+    viz.visualize_new_fig(dim=2)
     viz.visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]])
 
-    viz.visualize_new_fig()
+    viz.visualize_new_fig(dim=2)
     viz.visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]])
 
-    viz.visualize_new_fig()
+    viz.visualize_new_fig(dim=2)
     viz.visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]])
 
-    viz.visualize_new_fig()
+    viz.visualize_new_fig(dim=2)
     viz.visualize_2d([[0,0,0],[0,1,1],[0,2,2],[0,3,3]])
 
     viz.show()
