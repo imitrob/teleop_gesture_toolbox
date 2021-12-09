@@ -273,19 +273,19 @@ class VisualizerLib():
             data = []
             for i, j in zip(trajectory[3],[t[1] for t in trajectory[0]]):
                 data.append([i,j])
-            self.visualize_2d(data)
+            self.visualize_2d(data)#, scatter_pts=True)
         self.visualize_new_fig('Trajectory velocities', dim=2)
         for trajectory in trajectories:
             data = []
             for i, j in zip(trajectory[3],[t[1] for t in trajectory[1]]):
                 data.append([i,j])
-            self.visualize_2d(data)
+            self.visualize_2d(data)#, scatter_pts=True)
         self.visualize_new_fig('Trajectory acceleration', dim=2)
         for trajectory in trajectories:
             data = []
             for i, j in zip(trajectory[3],[t[1] for t in trajectory[2]]):
                 data.append([i,j])
-            self.visualize_2d(data)
+            self.visualize_2d(data)#, scatter_pts=True)
         self.show()
 
 def save_trajectory(msg):
