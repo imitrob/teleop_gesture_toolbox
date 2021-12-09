@@ -41,12 +41,13 @@ private:
 class Hand_{
 public:
   // Data processed for learning
+  // TODO: Update values
   double wrist_angles[90] = {};
   double bone_angles[90] = {};
   double finger_distances[90] = {};
 
   bool visible;
-  int64_t id;
+  int id;
   bool is_left;
   bool is_right;
   bool is_valid;

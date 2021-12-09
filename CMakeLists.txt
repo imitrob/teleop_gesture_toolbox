@@ -126,15 +126,16 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-# include
+  include
   ${catkin_INCLUDE_DIRS}
   ~/LeapSDK/lib/x64
   ~/LeapSDK/include
 )
+#FIND_LIBRARY(catkin_LIBRARIES Leap2 /home/pierro/LeapSDK/include)
+#FIND_LIBRARY(catkin_LIBRARIES Leap /home/pierro/LeapSDK/lib/x64)
 
 ## Declare a C++ library
-#)
-add_library(handclasses src/leapmotion/handclasses.cpp)
+#add_library(hand_classes src/leapmotion/hand_classes.cpp)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -148,8 +149,10 @@ add_library(handclasses src/leapmotion/handclasses.cpp)
 #add_executable(visualization src/model.cpp)
 #add_executable(visualization src/moveit_lib.cpp)
 #add_executable(utils src/leapmotion/utils.cpp)
-add_executable(sample src/leapmotion/Sample.cpp)
-target_link_libraries(sample ${catkin_LIBRARIES} handclasses)
+#add_executable(sample src/leapmotion/Sample.cpp)
+#rarget_link_libraries(sample hand_classes)
+add_executable(hand_classes src/leapmotion/hand_classes.cpp)
+#target_link_libraries(hand_classes)
 #add_dependencies(sample ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 

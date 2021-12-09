@@ -1,3 +1,4 @@
+bool visible
 float64 id
 bool is_left
 bool is_right

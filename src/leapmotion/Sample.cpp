@@ -6,12 +6,16 @@
 //#include "std_msgs/String.h"
 //#include "mirracle_gestures.msg/Frame.h"
 
-#include "handclasses.h"
+#include "hand_classes.h"
 
-using namespace Leap;
+//using namespace Leap;
 
 int main(){
-Vector_ v;
+Leap::Vector v1;
+Vector_ v2;
+v1.x = 3.0;
+//Vector_ v1;
+/*Vector_ v;
 std::cout << "v1 " << v.x << " " << v.y << " " << v.z << std::endl;
 v.x = 1.0;
 v.y = 2.0;
@@ -23,8 +27,8 @@ Finger_ f1;
 Hand_ h1;
 LeapGestures_ lg1;
 Frame_ fr1;
-
-std::cout << "done" << std::endl;
+*/
+std::cout << "done" << v1.x << std::endl;
 
 return 0;
 }
