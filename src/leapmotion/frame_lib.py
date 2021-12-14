@@ -12,9 +12,7 @@ except ImportError:
 class Frame():
     ''' Advanced variables derived from frame object
     '''
-    def __init__(self, frame=None):
-
-        if frame: self.import_from_leap(frame); return
+    def __init__(self, frame=None, leapgestures=None):
         # Stamp
         self.seq = 0 # ID of frame
         self.secs = 0 # seconds of frame
@@ -28,18 +26,24 @@ class Frame():
         # Leap gestures
         self.leapgestures = LeapGestures()
 
-    def import_from_leap(self, frame):
+        if frame: self.import_from_leap(frame, leapgestures)
+
+    def import_from_leap(self, frame, leapgestures):
         self.seq = frame.id
         self.fps = frame.current_frames_per_second
         self.secs = frame.timestamp//1000000
         self.nsecs = 1000*(frame.timestamp%1000000)
         self.hands = len(frame.hands)
+
+        self.l, self.r = None, None
         for hand in frame.hands:
             if hand.is_left:
                 self.l = Hand(hand)
             elif hand.is_right:
                 self.r = Hand(hand)
             Hand()
+
+        if leapgestures: self.leapgestures = leapgestures
 
     def import_from_ros(self, msg):
         self.seq = msg.header.seq
@@ -53,6 +57,160 @@ class Frame():
 
         self.leapgestures.import_from_ros(msg.leapgestures)
 
+    def __str__(self):
+        ''' Invoke: print(Frame())
+        '''
+        str = f""
+        str += f"fps {self.fps} "
+        str += f"n hands {self.hands} "
+        str += f"secs {self.secs} "
+        str += f"nsecs {self.nsecs} "
+        str += f"seq {self.seq} "
+
+        for hand in [self.l, self.r]:
+            str += f"id {hand.id} "
+            str += f"is_left {hand.is_left} "
+            str += f"is_right {hand.is_right} "
+            str += f"is_valid {hand.is_valid} "
+            str += f"grab_strength {hand.grab_strength} "
+            str += f"pinch_strength {hand.pinch_strength} "
+            str += f"confidence {hand.confidence} "
+            str += f"palm_normal {hand.palm_normal()} "
+            str += f"direction {hand.direction()} "
+            str += f"palm_position {hand.palm_position()} "
+
+            for finger in hand.fingers:
+                for bone in finger.bones:
+                    basis = [bone.basis[0](), bone.basis[1](), bone.basis[2]()]
+                    str += f"basis {[item for sublist in basis for item in sublist]} "
+                    str += f"direction {bone.direction()} "
+                    str += f"next_joint {bone.next_joint()} "
+                    str += f"prev_joint {bone.prev_joint()} "
+                    str += f"center {bone.center()} "
+                    str += f"is_valid {bone.is_valid} "
+                    str += f"length {bone.length} "
+                    str += f"width {bone.width} "
+
+            str += f"palm_velocity {hand.palm_velocity()} "
+            basis = [hand.basis[0](), hand.basis[1](), hand.basis[2]()]
+            str += f"basis {[item for sublist in basis for item in sublist]} "
+            str += f"palm_width {hand.palm_width} "
+            str += f"sphere_center {hand.sphere_center()} "
+            str += f"sphere_radius {hand.sphere_radius} "
+            str += f"stabilized_palm_position {hand.stabilized_palm_position()} "
+            str += f"time_visible {hand.time_visible} "
+            str += f"wrist_position {hand.wrist_position()} "
+
+        str += f"id {self.leapgestures.circle.id} "
+        str += f"in_progress {self.leapgestures.circle.in_progress} "
+        str += f"clockwise {self.leapgestures.circle.clockwise} "
+        str += f"progress {self.leapgestures.circle.progress} "
+        str += f"angle {self.leapgestures.circle.angle} "
+        str += f"radius {self.leapgestures.circle.radius} "
+        str += f"state {self.leapgestures.circle.state} "
+
+        str += f"id {self.leapgestures.swipe.id} "
+        str += f"in_progress {self.leapgestures.swipe.in_progress} "
+        str += f"direction {self.leapgestures.swipe.direction} "
+        str += f"speed {self.leapgestures.swipe.speed} "
+        str += f"state {self.leapgestures.swipe.state} "
+
+        str += f"id {self.leapgestures.keytap.id} "
+        str += f"in_progress {self.leapgestures.keytap.in_progress} "
+        str += f"direction {self.leapgestures.keytap.direction} "
+        str += f"position {self.leapgestures.keytap.position} "
+        str += f"state {self.leapgestures.keytap.state} "
+
+        str += f"id {self.leapgestures.screentap.id} "
+        str += f"in_progress {self.leapgestures.screentap.in_progress} "
+        str += f"direction {self.leapgestures.screentap.direction} "
+        str += f"position {self.leapgestures.screentap.position} "
+        str += f"state {self.leapgestures.screentap.state} "
+
+        return str
+
+    def to_ros(self):
+        try:
+            rosm.Frame()
+        except:
+            try:
+                import mirracle_gestures.msg as rosm
+            except:
+                raise Exception("ROS not imported")
+        # self frame_lib.Frame() -> frame mirracle_gestures.msg/Frame
+        frame = rosm.Frame()
+        frame.fps = self.fps
+        frame.hands = self.hands
+        frame.header.stamp.secs = self.secs
+        frame.header.stamp.nsecs = self.nsecs
+        frame.header.seq = self.seq
+
+        frame.leapgestures.circle_id = self.leapgestures.circle.id
+        frame.leapgestures.circle_in_progress = self.leapgestures.circle.in_progress
+        frame.leapgestures.circle_clockwise = self.leapgestures.circle.clockwise
+        frame.leapgestures.circle_progress = self.leapgestures.circle.progress
+        frame.leapgestures.circle_angle = self.leapgestures.circle.angle
+        frame.leapgestures.circle_radius = self.leapgestures.circle.radius
+        frame.leapgestures.circle_state = self.leapgestures.circle.state
+
+        frame.leapgestures.swipe_id = self.leapgestures.swipe.id
+        frame.leapgestures.swipe_in_progress = self.leapgestures.swipe.in_progress
+        frame.leapgestures.swipe_direction = self.leapgestures.swipe.direction
+        frame.leapgestures.swipe_speed = self.leapgestures.swipe.speed
+        frame.leapgestures.swipe_state = self.leapgestures.swipe.state
+
+        frame.leapgestures.keytap_id = self.leapgestures.keytap.id
+        frame.leapgestures.keytap_in_progress = self.leapgestures.keytap.in_progress
+        frame.leapgestures.keytap_direction = self.leapgestures.keytap.direction
+        frame.leapgestures.keytap_position = self.leapgestures.keytap.position
+        frame.leapgestures.keytap_state = self.leapgestures.keytap.state
+
+        frame.leapgestures.screentap_id = self.leapgestures.screentap.id
+        frame.leapgestures.screentap_in_progress = self.leapgestures.screentap.in_progress
+        frame.leapgestures.screentap_direction = self.leapgestures.screentap.direction
+        frame.leapgestures.screentap_position = self.leapgestures.screentap.position
+        frame.leapgestures.screentap_state = self.leapgestures.screentap.state
+
+        for (hand, h) in [(frame.l, self.l), (frame.r, self.r)]:
+            hand.id = h.id
+            hand.is_left = h.is_left
+            hand.is_right = h.is_right
+            hand.is_valid = h.is_valid
+            hand.grab_strength = h.grab_strength
+            hand.pinch_strength = h.pinch_strength
+            hand.confidence = h.confidence
+            hand.palm_normal = h.palm_normal()
+            hand.direction = h.direction()
+            hand.palm_position = h.palm_position()
+
+            hand.finger_bones = []
+            for fn in h.fingers:
+                for b in fn.bones:
+                    bone = Bone()
+
+                    basis = b.basis[0](), b.basis[1](), b.basis[2]()
+                    bone.basis = [item for sublist in basis for item in sublist]
+                    bone.direction = b.direction()
+                    bone.next_joint = b.next_joint()
+                    bone.prev_joint = b.prev_joint()
+                    bone.center = b.center()
+                    bone.is_valid = b.is_valid
+                    bone.length = b.length
+                    bone.width = b.width
+
+                    hand.finger_bones.append(bone)
+
+            hand.palm_velocity = h.palm_velocity()
+            basis = h.basis[0](), h.basis[1](), h.basis[2]()
+            hand.basis = [item for sublist in basis for item in sublist]
+            hand.palm_width = h.palm_width
+            hand.sphere_center = h.sphere_center()
+            hand.sphere_radius = h.sphere_radius
+            hand.stabilized_palm_position = h.stabilized_palm_position()
+            hand.time_visible = h.time_visible
+            hand.wrist_position = h.wrist_position()
+
+        return frame
 
 class Hand():
     ''' Advanced variables of hand derived from hand object
@@ -98,7 +256,7 @@ class Hand():
         self.TCH12, self.TCH23, self.TCH34, self.TCH45 = [0.0] * 4
         self.TCH13, self.TCH14, self.TCH15 = [0.0] * 3
         self.vel = [0.0] * 3
-        self.pPose = PoseStamped()
+        self.pPose = None
         self.pRaw = [0.0] * 6 # palm pose: x, y, z, roll, pitch, yaw
         self.pNormDir = [0.0] * 6 # palm normal vector and direction vector
         self.time_last_stop = 0.0
@@ -109,7 +267,7 @@ class Hand():
         self.pos_diff_comb = []
         self.index_position = []
 
-    def import_from_leap(hand):
+    def import_from_leap(self, hand):
         self.visible = True
         self.id = hand.id
         self.is_left = hand.is_left
@@ -378,7 +536,7 @@ class Bone():
         self.length = 0.
         self.width = 0.
 
-    def import_from_leap(bone):
+    def import_from_leap(self, bone):
         self.basis = [Vector(*bone.basis.x_basis.to_float_array()),
         Vector(*bone.basis.y_basis.to_float_array()),
         Vector(*bone.basis.z_basis.to_float_array())]
@@ -411,9 +569,9 @@ class Finger():
                      Bone()] # Distal
 
     def import_from_leap(self, finger):
-        self.bone = []
+        self.bones = []
         for i in range(4):
-            self.bone.append(Bone(finger.bone(i)))
+            self.bones.append(Bone(finger.bone(i)))
 
     def import_from_ros(self, bns):
         self.bones[0].import_from_ros(bns[0])
