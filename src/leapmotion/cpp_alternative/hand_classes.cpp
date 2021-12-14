@@ -1,4 +1,8 @@
 #include "hand_classes.h"
+
+#include "Leap.h"
+using namespace Leap;
+
 /*
  * 1. Default declarations
  * 2. Declarations from Leap Classes

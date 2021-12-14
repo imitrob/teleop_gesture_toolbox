@@ -11,9 +11,9 @@
 //using namespace Leap;
 
 int main(){
-Leap::Vector v1;
+//Leap::Vector v1;
 Vector_ v2;
-v1.x = 3.0;
+v2.x = 3.0;
 //Vector_ v1;
 /*Vector_ v;
 std::cout << "v1 " << v.x << " " << v.y << " " << v.z << std::endl;
@@ -28,7 +28,7 @@ Hand_ h1;
 LeapGestures_ lg1;
 Frame_ fr1;
 */
-std::cout << "done" << v1.x << std::endl;
+std::cout << "done" << v2.x << std::endl;
 
 return 0;
 }
