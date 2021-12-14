@@ -22,5 +22,5 @@ int32 keytap_state
 bool screentap_id
 bool screentap_in_progress
 float64[3] screentap_direction
-int32 screentap_state
 float64[3] screentap_position
+int32 screentap_state

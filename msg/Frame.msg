@@ -1,6 +1,6 @@
 
 std_msgs/Header header
-int32 fps
+float64 fps
 int32 hands
 
 mirracle_gestures/Hand l

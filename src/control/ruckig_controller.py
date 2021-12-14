@@ -11,6 +11,7 @@ rosrun mirracle_gestures joint_controller_ruckig.py home
 '''
 from sys import path
 path.append('..')
+path.append('../os_and_utils')
 import trajectory_action_client
 
 import rospy
@@ -156,6 +157,8 @@ class JointController():
 
         self.tac_control_auto(target_joints)
 
+        return self._goal.trajectory.points[-1].time_from_start.to_sec()
+
     def tac_control_add_new_goal(self, target_joints):
         '''
         Parameters:
@@ -167,6 +170,8 @@ class JointController():
         self.waypoints_queue_joints.extend(deepcopy(target_joints))
 
         self.tac_control_auto(target_joints)
+
+        self._goal.trajectory.points[-1].time_from_start.to_sec()
 
     def tac_control_auto(self, target_joints):
         ''' Trajectory action client control with trajectory replacement
@@ -262,10 +267,11 @@ class ruckig_wrapper():
         self.trajectory = Trajectory(7)
 
         self.inp.max_velocity = [2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100]
+        self.inp.max_velocity = [i*0.3 for i in self.inp.max_velocity]
         self.inp.max_acceleration = [15, 7.5, 10, 12.5, 15, 20, 20]
         self.inp.max_acceleration = [i*0.1 for i in self.inp.max_acceleration]
         self.inp.max_jerk = [7500, 3750, 5000, 6250, 7500, 10000, 10000]
-        self.inp.max_jerk = [i*0.07 for i in self.inp.max_jerk]
+        self.inp.max_jerk = [i*0.1 for i in self.inp.max_jerk]
         #self.inp.minimum_duration = xxx
 
         # additional
@@ -324,7 +330,7 @@ class ruckig_wrapper():
             lastacceleraions = _tmpgoal.trajectory.points[-1].accelerations
 
             _goal.trajectory.points.extend(deepcopy(_tmpgoal.trajectory.points))
-            last_tfs = _goal.trajectory.points[-1].time_from_start.to_sec() # every new trajectory aligns to old one
+            last_tfs = _goal.trajectory.points[-1].time_from_start.to_sec() + (_goal.trajectory.points[-1].time_from_start.to_sec() - _goal.trajectory.points[-2].time_from_start.to_sec()) # every new trajectory aligns to old one
 
     def target_velocity_based_on_future_waypoints(self, target_position):
         '''
@@ -337,11 +343,11 @@ class ruckig_wrapper():
             raise Exception("Wrong number of arguments")
         elif len(target_position) < 3:
             return np.zeros(7)
-
+        print(f"target_position {target_position}")
         p_diff_1 = (np.array(target_position[1]) - np.array(target_position[0]))
         p_diff_2 = (np.array(target_position[2]) - np.array(target_position[1]))
 
-        def single_joint(p_diff, v_max, k=0.4):
+        def single_joint(p_diff, v_max, k=1.8):
             v_end = p_diff * v_max * k
             if v_end > v_max: v_end = v_max
             return v_end

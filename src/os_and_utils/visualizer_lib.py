@@ -299,8 +299,11 @@ def save_trajectory(msg):
     accelerations = [point.accelerations for point in msg.trajectory.points]
     times_from_start = [point.time_from_start.to_sec() for point in msg.trajectory.points]
     stamp = msg.trajectory.header.stamp.to_sec()
+    #for n,time_from_start in enumerate(times_from_start):
+    #    times_from_start[n] += stamp
+    tfs0 = times_from_start[0]
     for n,time_from_start in enumerate(times_from_start):
-        times_from_start[n] += stamp
+        times_from_start[n] -= tfs0
 
     global trajectories
     trajectories.append([positions, velocities, accelerations, times_from_start])

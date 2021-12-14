@@ -1,7 +1,8 @@
 
 def ROS_ENABLED():
+    return False
     try:
-        import rospy
+        from mirracle_gestures.msg import Frame as Framemsg
         return True
     except:
         return False

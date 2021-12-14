@@ -49,7 +49,7 @@ class TrajectoryActionClient:
     def __init__(self, arm=None, moveGroupCommander=None, topic='/position_joint_trajectory_controller/follow_joint_trajectory', robotCommander=None, topic_joint_states='/franka_state_controller/joint_states'):
         if moveGroupCommander is None:
             assert isinstance(arm, str)
-            if arm is 'r1' or arm is 'r2':
+            if arm == 'r1' or arm == 'r2':
                 # TODO: this is a workaround to keep the code working for the kukas and for other robots like the kawada nextage
                 moveGroupCommander = moveit_commander.MoveGroupCommander(arm + "_arm")
             else:
