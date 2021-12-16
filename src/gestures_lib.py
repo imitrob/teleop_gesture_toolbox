@@ -1,7 +1,4 @@
 #!/usr/bin/env python3.8
-
-## TODO: Move gestures detection lib from leapmotionlistener.py
-
 import os
 import gdown
 
@@ -32,6 +29,8 @@ class GestureDetection():
 
 class GestureDataHand():
     '''
+        poses -> gd.r.static.grab.prob
+        gestures -> gd.l.dynamic.pinch.prob
     '''
     def __init__(self):
 
@@ -39,65 +38,60 @@ class GestureDataHand():
         gestures = ParseYAML.load_gestures_file(paths.custom_settings_yaml, ret='obj')
 
         self.conf = False
-        self.MIN_CONFIDENCE = configGestures['MIN_CONFIDENCE']
-        self.SINCE_FRAME_TIME = configGestures['SINCE_FRAME_TIME']
+        self.min_confidence = configGestures['min_confidence']
 
         self.tch12, self.tch23, self.tch34, self.tch45 = [False] * 4
         self.tch13, self.tch14, self.tch15 = [False] * 3
-        self.TCH_TURN_ON_DIST = configGestures['TCH_TURN_ON_DIST']
-        self.TCH_TURN_OFF_DIST = configGestures['TCH_TURN_OFF_DIST']
+        self.tch_turn_on_dist = configGestures['tch_turn_on_dist']
+        self.tch_turn_off_dist = configGestures['tch_turn_off_dist']
 
         self.oc = [False] * 5
-        self.OC_TURN_ON_THRE =  configGestures['OC_TURN_ON_THRE']
-        self.OC_TURN_OFF_THRE = configGestures['OC_TURN_OFF_THRE']
+        self.oc_turn_on_thre =  configGestures['oc_turn_on_thre']
+        self.oc_turn_off_thre = configGestures['oc_turn_off_thre']
 
-
-        self.poses = []
-        self.gests = []
-        for gesture in Gs:
-            using_set = configGestures['using_set']
-            try:
-                if gesture in gestures[using_set].keys():
-                    if gestures[using_set][gesture]['dynamic'] == 'false' or gestures[using_set][gesture]['dynamic'] == False:
-                        self.poses.append(PoseData(name=gesture, data=gestures[using_set][gesture]))
-                    else:
-                        self.gests.append(GestureData(name=gesture, data=gestures[using_set][gesture]))
-                else:
-                    raise Exception("[ERROR* Settings] Information about gesture with name: ", gesture, " could not be found in gesture_recording.yaml file. Make an entry there.")
-            except KeyError:
-                print("gesture key", gesture, " and keys ", gestures[using].keys())
-
-
-        # Create links for gestures
-        self.POSES = {}
-        for n, i in enumerate(self.poses):
-            self.POSES[i.NAME] = n
-        self.GESTS = {}
-        for n, i in enumerate(self.gests):
-            self.GESTS[i.NAME] = n
+        self.static = MorphClass()
+        self.dynamic = MorphClass()
+        ##
+        GsSet = gestures[configGestures['using_set']]
+        for gesture in GsSet:
+            if GsSet[gesture]['static'] == 'true' or GsSet[gesture]['static'] == True:
+                setattr(self.static, gesture, Static(name=gesture, data=GsSet[gesture]))
+            else:
+                setattr(self.dynamic, gesture, Dynamic(name=gesture, data=GsSet[gesture]))
 
         self.final_chosen_pose = 0
         self.final_chosen_gesture = 0
 
+        # Flag gesnerated by external network
         self.pymcout = None
 
-class PoseData():
+class MorphClass(object):
+    def __init__(self):
+        self.device = self
+
+
+class Static():
     def __init__(self, name, data):
         data = ParseYAML.parseStaticGesture(data)
-
-        self.NAME = name
+        # info
+        self.name = name
+        # current values
         self.prob = 0.0
         self.toggle = False
+        self.time_visible = 0.0
+        # config
         self.TURN_ON_THRE = data['turnon']
         self.TURN_OFF_THRE = data['turnoff']
-        self.time_visible = 0.0
         self.filename = data['filename']
 
-class GestureData():
+
+
+class Dynamic():
     def __init__(self, name, data):
         data = ParseYAML.parseDynamicGesture(data)
-
-        self.NAME = name
+        # info
+        self.name = name
+        # current values
         if data['var_len'] > 1:
             self.prob = [0.0] * data['var_len']
             self.toggle = [False] * data['var_len']
@@ -122,6 +116,7 @@ class GestureData():
         self.move = [False, False, False]
 
 
+
 class Network():
     def __init__(self, file):
         self.name = file
@@ -130,7 +125,7 @@ class Network():
 class GestureDetection():
     @staticmethod
     def all():
-        if settings.frames_adv and settings.mo:
+        if settings.frames and settings.mo:
             GestureDetection.processTch()
             GestureDetection.processOc()
 
@@ -152,39 +147,39 @@ class GestureDetection():
     def processTch():
         fa = settings.frames_adv[-1]
         if fa.r.visible:
-            if fa.r.conf > settings.gd.r.MIN_CONFIDENCE:
+            if fa.r.conf > settings.gd.r.min_confidence:
                 settings.gd.r.conf = True
             else:
                 settings.gd.r.conf = False
 
-            if fa.r.TCH12 > settings.gd.r.TCH_TURN_ON_DIST[0] and settings.gd.r.conf:
+            if fa.r.TCH12 > settings.gd.r.tch_turn_on_dist[0] and settings.gd.r.conf:
                 settings.gd.r.tch12 = False
-            elif fa.r.TCH12 < settings.gd.r.TCH_TURN_OFF_DIST[0]:
+            elif fa.r.TCH12 < settings.gd.r.tch_turn_off_dist[0]:
                 settings.gd.r.tch12 = True
-            if fa.r.TCH23 > settings.gd.r.TCH_TURN_ON_DIST[1] and settings.gd.r.conf:
+            if fa.r.TCH23 > settings.gd.r.tch_turn_on_dist[1] and settings.gd.r.conf:
                 settings.gd.r.tch23 = False
-            elif fa.r.TCH23 < settings.gd.r.TCH_TURN_OFF_DIST[1]:
+            elif fa.r.TCH23 < settings.gd.r.tch_turn_off_dist[1]:
                 settings.gd.r.tch23 = True
-            if fa.r.TCH34 > settings.gd.r.TCH_TURN_ON_DIST[2] and settings.gd.r.conf:
+            if fa.r.TCH34 > settings.gd.r.tch_turn_on_dist[2] and settings.gd.r.conf:
                 settings.gd.r.tch34 = False
-            elif fa.r.TCH34 < settings.gd.r.TCH_TURN_OFF_DIST[2]:
+            elif fa.r.TCH34 < settings.gd.r.tch_turn_off_dist[2]:
                 settings.gd.r.tch34 = True
-            if fa.r.TCH45 > settings.gd.r.TCH_TURN_ON_DIST[3] and settings.gd.r.conf:
+            if fa.r.TCH45 > settings.gd.r.tch_turn_on_dist[3] and settings.gd.r.conf:
                 settings.gd.r.tch45 = False
-            elif fa.r.TCH45 < settings.gd.r.TCH_TURN_OFF_DIST[3]:
+            elif fa.r.TCH45 < settings.gd.r.tch_turn_off_dist[3]:
                 settings.gd.r.tch45 = True
 
-            if fa.r.TCH13 > settings.gd.r.TCH_TURN_ON_DIST[4] and settings.gd.r.conf:
+            if fa.r.TCH13 > settings.gd.r.tch_turn_on_dist[4] and settings.gd.r.conf:
                 settings.gd.r.tch13 = False
-            elif fa.r.TCH13 < settings.gd.r.TCH_TURN_OFF_DIST[4]:
+            elif fa.r.TCH13 < settings.gd.r.tch_turn_off_dist[4]:
                 settings.gd.r.tch13 = True
-            if fa.r.TCH14 > settings.gd.r.TCH_TURN_ON_DIST[5] and settings.gd.r.conf:
+            if fa.r.TCH14 > settings.gd.r.tch_turn_on_dist[5] and settings.gd.r.conf:
                 settings.gd.r.tch14 = False
-            elif fa.r.TCH14 < settings.gd.r.TCH_TURN_OFF_DIST[5]:
+            elif fa.r.TCH14 < settings.gd.r.tch_turn_off_dist[5]:
                 settings.gd.r.tch14 = True
-            if fa.r.TCH15 > settings.gd.r.TCH_TURN_ON_DIST[6] and settings.gd.r.conf:
+            if fa.r.TCH15 > settings.gd.r.tch_turn_on_dist[6] and settings.gd.r.conf:
                 settings.gd.r.tch15 = False
-            elif fa.r.TCH15 < settings.gd.r.TCH_TURN_OFF_DIST[6]:
+            elif fa.r.TCH15 < settings.gd.r.tch_turn_off_dist[6]:
                 settings.gd.r.tch15 = True
 
     @staticmethod
@@ -192,15 +187,15 @@ class GestureDetection():
         fa = settings.frames_adv[-1]
         if fa.r.visible:
             gd = settings.gd.r
-            if fa.r.conf > gd.MIN_CONFIDENCE:
+            if fa.r.conf > gd.min_confidence:
                 gd.conf = True
             else:
                 gd.conf = False
 
             for i in range(0,5):
-                if fa.r.OC[i] > gd.OC_TURN_ON_THRE[i] and gd.conf:
+                if fa.r.OC[i] > gd.oc_turn_on_thre[i] and gd.conf:
                     gd.oc[i] = True
-                elif fa.r.OC[i] < gd.OC_TURN_OFF_THRE[i]:
+                elif fa.r.OC[i] < gd.oc_turn_off_thre[i]:
                     gd.oc[i] = False
 
     @staticmethod

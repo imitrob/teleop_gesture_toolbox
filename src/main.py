@@ -62,13 +62,13 @@ class Callbacks():
         camera_orientation = data
 
     @staticmethod
-    def hand_data(data):
+    def hand_frame(data):
         ''' Hand data received by ROS msg is saved
         '''
         md.frames.append(Frame().import_from_ros(data))
 
     @staticmethod
-    def save_joints(data):
+    def joint_states(data):
         ''' Saves joint_states to * append array 'settings.joint_in_time' circle buffer.
                                   * latest data 'md.joints', 'md.velocity', 'md.effort'
             Topic used:
@@ -113,11 +113,8 @@ def main():
     md = MoveData(settings)
     ps = PubsSubs()
     gd = GestureDetection()
-    ik_bridge = IK_bridge()
+    ik_bridge = IK_bridge(settings)
 
-    #settings.mo = mo = moveit_lib.MoveGroupPythonInteface()
-    # Don't use any mode for start
-    md.Mode = ''
     if rospy.get_param("/mirracle_config/launch_ui", 'false') == "true":
         thread_ui = Thread(target = launch_ui)
         thread_ui.daemon=True
@@ -192,16 +189,15 @@ def main_manager():
     pose.position = Point(0.4,0.,1.0)
     md.goal_pose = deepcopy(pose)
 
-    self.ik_bridge = IK_bridge()
 
     while not rospy.is_shutdown():
-        settings.mo.go_to_joint_state(joints = md.goal_joints)
+        ps.controller.publish(md.goal_joints)
 
         if settings.md.Mode == 'live':
 
-            o = md.frames[-1].r.palm_pose().orientation
-            if (np.sqrt(o.x**2 + o.y**2 + o.z**2 + o.w**2) - 1 > 0.000001):
-                print("[WARN*] Not valid orientation!")
+            #o = md.frames[-1].r.palm_pose().orientation
+            #if (np.sqrt(o.x**2 + o.y**2 + o.z**2 + o.w**2) - 1 > 0.000001):
+            #    print("[WARN*] Not valid orientation!")
             if md.frames[-1].r.visible:
                 ### MODE 1 default
                 if settings.md.liveMode == 'default':
@@ -272,14 +268,14 @@ def main_manager():
                     '''
 
                 ### MODE 3 gesture controlled
-                elif settings.md.liveMode == 'gesture':
+                elif md.liveMode == 'gesture':
                     md.goal_pose = settings.md.gestures_goal_pose
 
-        if settings.md.Mode == 'play':
+        if md.Mode == 'play':
             # controls everything:
             #settings.HoldValue
             ## -> Path that will be performed
-            pp = settings.md.PickedPath
+            pp = md.PickedPath
             ## -> HoldValue (0-100) to targetPose number (0,len(path))
             targetPose = int(settings.HoldValue / (100/len(settings.sp[pp].poses)))
             if targetPose >= len(settings.sp[pp].poses):
@@ -292,7 +288,7 @@ def main_manager():
             direction = 1 if targetPose - settings.currentPose > 0 else -1
             ## Attaching/Detaching when moving backwards
             if settings.leavingAction and time_on_one_pose <= 0.1 and direction == -1 and settings.sp[pp].actions[settings.currentPose] != "":
-                if settings.md.attached:
+                if md.attached:
                     settings.mo.release_object(name=settings.sp[pp].actions[settings.currentPose])
                     settings.leavingAction = False
                 else:
@@ -318,26 +314,26 @@ class PubsSubs():
     def __init__(self):
         # Saving the joint_states
         if settings.simulator == 'coppelia':
-            rospy.Subscriber("joint_states_coppelia", JointState, Callbacks.save_joints)
-        else:
-            rospy.Subscriber("joint_states", JointState, Callbacks.save_joints)
-        # Saving relaxedIK output
+            rospy.Subscriber("joint_states_coppelia", JointState, Callbacks.joint_states)
 
+            rospy.Subscriber('/pose_eef', Pose, Callbacks.coppelia_eef)
+            rospy.Subscriber('/coppelia/camera_angle', Vector3, Callbacks.camera_angle)
+        else:
+            rospy.Subscriber("joint_states", JointState, Callbacks.joint_states)
+
+        # Saving relaxedIK output
         rospy.Subscriber('/relaxed_ik/joint_angle_solutions', JointAngles, Callbacks.ik)
         # Goal pose publisher
         self.ee_pose_goals_pub = rospy.Publisher('/ee_pose_goals', Pose, queue_size=5)
 
-        rospy.Subscriber('/hand_frame', rosm.Frame, Callbacks.hand_data)
+        rospy.Subscriber('/hand_frame', rosm.Frame, Callbacks.hand_frame)
 
-        if settings.simulator == 'coppelia':
-            rospy.Subscriber('/pose_eef', Pose, Callbacks.coppelia_eef)
-
-            rospy.Subscriber('/coppelia/camera_angle', Vector3, Callbacks.camera_angle)
 
         if rospy.get_param("/mirracle_config/launch_gesture_detection", 'false') == "true":
             rospy.Subscriber('/mirracle_gestures/pymcout', Int8, Callbacks.saveOutputPyMC)
             self.pymc_in_pub = rospy.Publisher('/mirracle_gestures/pymcin', Float64MultiArray, queue_size=5)
 
+        self.controller = rospy.Publisher('/mirracle_gestures/target', Float64MultiArray, queue_size=5)
 
     @staticmethod
     def publish_eef_goal_pose():
@@ -345,7 +341,7 @@ class PubsSubs():
             Publish goal_pose /ee_pose_goals the goal eef pose
         '''
         ps.ee_pose_goals_pub.publish(md.goal_pose)
-        settings.mo.ik_node_publish(pose_r = settings.mo.relaxik_t(md.goal_pose))
+        ik_bridge.relaxedik.ik_node_publish(pose_r = ik_bridge.relaxedik.relaxik_t(md.goal_pose, settings))
 
 
 

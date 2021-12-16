@@ -1,3 +1,15 @@
+from inverse_kinematics.kinematics_interface import ForwardKinematics, InverseKinematics
+import rospy
+from os_and_utils.visualizer_lib import VisualizerLib
+from std_msgs.msg import Int8, Float64MultiArray, Int32, Bool
+from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, Vector3, Vector3Stamped, QuaternionStamped
+from moveit_msgs.msg import RobotTrajectory
+from trajectory_msgs.msg import JointTrajectoryPoint
+from control_msgs.msg import FollowJointTrajectoryGoal, JointTolerance
+from relaxed_ik.msg import EEPoseGoals, JointAngles
+from visualization_msgs.msg import MarkerArray, Marker
+from sensor_msgs.msg import JointState
+
 
 class RelaxedIKInterface():
     def __init__(self):
@@ -10,8 +22,8 @@ class RelaxedIKInterface():
         self.quit_pub = rospy.Publisher('/relaxed_ik/quit',Bool,queue_size=5)
         self.seq = 1
 
-
-    def relaxik_t(self, pose1):
+    @staticmethod
+    def relaxik_t(pose1, settings):
         ''' All position goals and orientation goals are specified with respect to specified initial configuration.
             -> This function relates, sets goal poses to origin [0.,0.,0.] with orientation pointing up [0.,0.,0.,1.]
         '''
@@ -32,7 +44,8 @@ class RelaxedIKInterface():
             pose_.position.y = -pose_.position.y
         return pose_
 
-    def relaxik_t_inv(self, pose1):
+    @staticmethod
+    def relaxik_t_inv(pose1):
         ''' Additional inverse transformation to relaxik_t()
         '''
         raise Exception("TODO!")
@@ -144,9 +157,11 @@ class IK_bridge():
         What are joints configuration and what is the latest link?
         Because the last link in urdf file should be linked with the tip_point of
     '''
-    def __init__(self):
-        self.fk = kinematics_interface.ForwardKinematics(frame_id=settings.base_link)
-        self.ikt = kinematics_interface.InverseKinematics()
+    def __init__(self, settings):
+        self.fk = ForwardKinematics(frame_id=settings.base_link)
+        self.ikt = InverseKinematics()
+
+        self.relaxedik = RelaxedIKInterface()
 
     def getFKmoveit(self):
         return self.fk.getCurrentFK(settings.eef).pose_stamped[0]
