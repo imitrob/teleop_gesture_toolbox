@@ -1,0 +1,7 @@
+BufferLen: 300
+Length: 1 # max. BufferLen/100, [sec]
+# Record 'after' pressing button or record (given time) 'before' pressing button
+RecordingStart: after # TODO:
+
+
+  

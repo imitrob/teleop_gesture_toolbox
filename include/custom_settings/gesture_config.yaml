@@ -1,0 +1,14 @@
+# Pick loaded set of gestures:
+using_set: set_1_static
+
+MIN_CONFIDENCE: 0.3
+SINCE_FRAME_TIME: 0.5
+TCH_TURN_ON_DIST: [0.9, 0.9, 0.9, 0.9,  0.9, 0.9, 0.9]
+TCH_TURN_OFF_DIST: [0.5, 0.5, 0.5, 0.5,  0.5, 0.5, 0.5]
+OC_TURN_ON_THRE: [0.94, 0.8, 0.8, 0.8, 0.8]
+OC_TURN_OFF_THRE: [0.85, 0.6, 0.6, 0.6, 0.6]
+
+# Link to networks in google drive folder
+NETWORKS_DRIVE_URL: https://drive.google.com/drive/folders/1T8jqeyb10WrwnqQoMA25bRKQQvTacF6Y
+# This is default network loaded from computer, it can be changed later in UI
+NETWORK_FILE: network0.pkl

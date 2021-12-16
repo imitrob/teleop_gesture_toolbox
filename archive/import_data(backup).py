@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-import os, sys
+import os
+import sys
+from os.path import isfile
 import pickle
 import numpy as np
 from copy import deepcopy
@@ -12,11 +14,26 @@ from scipy.interpolate import interp1d
 import matplotlib.pyplot as plt
 floatX = theano.config.floatX
 import yaml
+from collections import OrderedDict
+from os.path import expanduser
 
-sys.path.append('../os_and_utils')
-from utils import ordered_load, GlobalPaths
 
-def import_data(learn_path=None, args={}, Gs=None, dataset_files=[], import_method='numpy'):
+## Extraction functions
+def ext_fingers_angles_diff(fingers_angles_diff):
+    ret = []
+    for i in fingers_angles_diff:
+        for j in i:
+            ret.append(j[1])
+            ret.append(j[2])
+    return ret
+
+def ext_pos_diff_comb(pos_diff_comb):
+    ret = []
+    for i in pos_diff_comb:
+        ret.extend(i)
+    return ret
+
+def import_data(learn_path=None, args={'s':1}, Gs=None, dataset_files=[]):
     ''' Prepares X, Y datasets from files format
         - Loads data from learn_path, gesture recordings are saved here
             - Every gesture has its own directory
@@ -52,16 +69,147 @@ def import_data(learn_path=None, args={}, Gs=None, dataset_files=[], import_meth
         dataset_files: Array of filenames of dataset which were read from disc
     '''
     if not learn_path:
-        paths = GlobalPaths()
-        learn_path = paths.learn_path
+        THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
+        THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..', '..'))
+        WS_FOLDER = THIS_FILE_TMP.split('/')[-1]
 
+        learn_path = expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learning/")
+        print("learn path is: ", learn_path)
+    Gs
+    args
     X = []
     Y = []
-    HandData, HandDataFlags = HandDataLoader().load_directory(learn_path, Gs)
+
+    X
+    ## Load data from file (%timeit ~7s)
+    for n, G in enumerate(Gs):
+        for i in range(0,100):
+            if isfile(learn_path+G+"/"+str(i)+".pkl"):
+                i_file = G+"/"+str(i)+".pkl"
+                with open(learn_path+i_file, 'rb') as input:
+                    # Discard already learned part if it is in dataset_files array
+                    if i_file in dataset_files:
+                        continue
+                    dataset_files.append(i_file)
+                    X.append(pickle.load(input, encoding="latin1"))
+                    Y.append(n)
+
+    if X == []:
+        print(('[WARN*] No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)'))
+        return None
+
+    X_ = []
+    Y_ = []
+    ## Pick only last 1 second of recording
+    if 's' in args:
+        for n,rec in enumerate(X):
+            ## Find how long one second is:
+            i = 0
+            while i < len(rec):
+                i+=1
+                if abs((rec[-1].r.pPose.header.stamp-rec[-i].r.pPose.header.stamp).to_sec()) > int(args['s']):
+                    break
+            ## Pick i elements
+            if i < 10:
+                continue
+            c = False
+            for r in rec:
+                if r.r.wrist_hand_angles_diff[1:3] == []:
+                    c = True
+            if c: continue
+            rec_ = []
+            for j in range(-i, 0):
+                rec_.append(deepcopy(rec[j]))
+            X_.append(rec_)
+            Y_.append(Y[n])
+        X = X_
+        Y = Y_
+        print("Records cutted to length "+str(args['s'])+"s")
+    Ydyn = np.array(deepcopy(Y))
+    def elemOverN(X, n):
+        c=0
+        for i in X:
+            if len(i) > n:
+                c+=1
+        return c
+    elemOverN(X, 10)
+
+    if X == []:
+        #raise Exception('No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)')
+        print(('[WARN*] No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)'))
+        return None
 
 
-    Xpalm, DXpalm = DatasetLoader.get_dynamic(data)
+    ## Pick: samples x time x palm_position
 
+    Xpalm = []
+    for sample in X:
+        row = []
+        for t in sample:
+            if t.r.index_position == []:
+                t.r.index_position = [0.,0.,0.]
+
+            l2 = np.linalg.norm(np.array(t.r.pRaw[0:3]) - np.array(t.r.index_position))
+            row.append([*t.r.pRaw[0:3], l2])#,*t.r.index_position])
+        Xpalm.append(row)
+
+    if 'normalize' in args:
+        Xpalm = np.array(Xpalm)
+        Xpalm_ = []
+        for p in Xpalm:
+            p_ = []
+            p0 = deepcopy(p[0])
+            for n in range(0, len(p)):
+                p_.append(np.subtract(p[n], p0))
+            Xpalm_.append(p_)
+
+        Xpalm = Xpalm_
+
+
+
+    ## Interpolate palm_positions, to 100 time samples
+    Xpalm_interpolated = []
+    invalid_ids = []
+    for n,sample in enumerate(Xpalm):
+        Xpalm_interpolated_sample = []
+        try:
+            for dim in range(0,4):
+                f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
+                Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
+            Xpalm_interpolated.append(np.array(Xpalm_interpolated_sample).T)
+        except IndexError:
+            print("Sample with invalid data detected")
+            invalid_ids.append(n)
+    Xpalm_interpolated=np.array(Xpalm_interpolated)
+    Ydyn = np.delete(Ydyn, invalid_ids)
+
+    ## Create derivation to palm_positions
+    dx = 1/100
+    DXpalm_interpolated = []
+    for sample in Xpalm_interpolated:
+        DXpalm_interpolated_sample = []
+        sampleT = sample.T
+        for dim in range(0,4):
+            DXpalm_interpolated_sample.append(np.diff(sampleT[dim]))
+        DXpalm_interpolated.append(np.array(DXpalm_interpolated_sample).T)
+    DXpalm_interpolated = np.array(DXpalm_interpolated)
+
+    Xpalm = np.array(Xpalm_interpolated)
+    DXpalm = np.array(DXpalm_interpolated)
+
+    Xpalm_ = []
+    np.array(Xpalm).shape
+    Xpalm = np.swapaxes(Xpalm, 1, 2)
+    for n,dim1 in enumerate(Xpalm):
+        for m,dim2 in enumerate(dim1):
+            if (np.max(dim2) - np.min(dim2)) < 0.0000001:
+                Xpalm[n,m] = np.inf
+                continue
+            Xpalm[n,m] = (dim2 - np.min(dim2)) / (np.max(dim2) - np.min(dim2))
+    Xpalm = np.swapaxes(Xpalm, 1, 2)
+    Xpalm
+
+    len(Y)
     X_ = []
     Y_ = []
     if 'user_defined' in args:
@@ -156,10 +304,21 @@ def avg_dataframe(data_n):
     data_avg *= (1/len(data_n))
     return data_avg
 
+# function for loading dict from file ordered
+def ordered_load(stream, Loader=yaml.SafeLoader, object_pairs_hook=OrderedDict):
+    class OrderedLoader(Loader):
+        pass
+    def construct_mapping(loader, node):
+        loader.flatten_mapping(node)
+        return object_pairs_hook(loader.construct_pairs(node))
+    OrderedLoader.add_constructor(
+        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
+        construct_mapping)
+    return yaml.load(stream, OrderedLoader)
 
-def load_gestures_config(ws_folder):
+def load_gestures_config(WS_FOLDER):
     # Set of training gestures is given by 'gesture_recording.yaml' file
-    with open(os.path.expanduser("~/"+ws_folder+"/src/mirracle_gestures/include/custom_settings/gesture_recording.yaml"), 'r') as stream:
+    with open(expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/include/custom_settings/gesture_recording.yaml"), 'r') as stream:
         gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
 
     Gs = []
@@ -225,12 +384,12 @@ class NNWrapper():
         if name == None:
             n_network = ""
             for i in range(0,200):
-                if not os.path.isfile(network_path+"network"+str(i)+".pkl"):
+                if not isfile(network_path+"network"+str(i)+".pkl"):
                     n_network = str(i)
                     break
             name = "network"+str(n_network)
         else:
-            if not os.path.isfile(network_path+name+".pkl"):
+            if not isfile(network_path+name+".pkl"):
                 print("Error: file "+name+" exists, network is not saved!")
 
         wrapper = NNWrapper(X_train, approx, neural_network, Gs=Gs, args=args, accuracy=accuracy)

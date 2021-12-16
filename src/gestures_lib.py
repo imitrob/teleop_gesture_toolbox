@@ -8,175 +8,118 @@ import gdown
 import settings
 
 
-class GesturesDetectionClass():
+class GestureDetection():
     def __init__(self):
-        pass
+        self.l = GestureDataHand()
+        self.r = GestureDataHand()
 
     @staticmethod
     def download_networks_gdrive():
         # get one dir above
-        NETWORKS_PATH = '/'.join((settings.NETWORK_PATH).split('/')[:-2])
-        gdown.download_folder(settings.NETWORKS_DRIVE_URL, output=NETWORKS_PATH)
-
-
-    def change_current_network(self, network=None):
-        ''' Switches learned file
-        '''
-        pass
+        NETWORKS_PATH = '/'.join((settings.paths.network_path).split('/')[:-2])
+        gdown.download_folder(settings.configGestures['networks_drive_url'], output=NETWORKS_PATH)
 
     @staticmethod
     def get_networks():
-        ''' Looks at the settings.NETWORK_PATH folder and returns every file with extension *.pkl
+        ''' Looks at the settings.paths.network_path folder and returns every file with extension *.pkl
         '''
         networks = []
-        for file in os.listdir(settings.NETWORK_PATH):
+        for file in os.listdir(settings.paths.network_path):
             if file.endswith(".pkl"):
                 networks.append(file)
         return networks
 
-    @staticmethod
-    def receive_hand_data_callback(msg):
-        ''' Puts msg as new record into
-        '''
-        Frame()
 
-        framemsg = Framemsg()
-        framemsg.fps = f.fps
-        framemsg.hands = f.hands
-        framemsg.header.secs = f.secs
-        framemsg.header.nsecs = f.nsecs
-        framemsg.header.seq = f.seq
+class GestureDataHand():
+    '''
+    '''
+    def __init__(self):
 
-        framemsg.leapgestures.circle_toggle = f.leapgestures.circle.toggle
-        framemsg.leapgestures.circle_in_progress = f.leapgestures.circle.in_progress
-        framemsg.leapgestures.circle_clockwise = f.leapgestures.circle.clockwise
-        framemsg.leapgestures.circle_progress = f.leapgestures.circle.progress
-        framemsg.leapgestures.circle_angle = f.leapgestures.circle.angle
-        framemsg.leapgestures.circle_radius = f.leapgestures.circle.radius
-        framemsg.leapgestures.circle_state = f.leapgestures.circle.state
-        framemsg.leapgestures.swipe_toggle = f.leapgestures.swipe.toggle
-        framemsg.leapgestures.swipe_in_progress = f.leapgestures.swipe.in_progress
-        framemsg.leapgestures.swipe_direction = f.leapgestures.swipe.direction
-        framemsg.leapgestures.swipe_speed = f.leapgestures.swipe.speed
-        framemsg.leapgestures.swipe_state = f.leapgestures.swipe.state
-        framemsg.leapgestures.keytap_toggle = f.leapgestures.keytap.toggle
-        framemsg.leapgestures.keytap_in_progress = f.leapgestures.keytap.in_progress
-        framemsg.leapgestures.keytap_direction = f.leapgestures.keytap.direction
-        framemsg.leapgestures.keytap_state = f.leapgestures.keytap.state
-        framemsg.leapgestures.screentap_toggle = f.leapgestures.screentap.toggle
-        framemsg.leapgestures.screentap_in_progress = f.leapgestures.screentap.in_progress
-        framemsg.leapgestures.screentap_direction = f.leapgestures.screentap.direction
-        framemsg.leapgestures.screentap_state = f.leapgestures.screentap.state
+        configGestures = ParseYAML.load_gesture_config_file(paths.custom_settings_yaml)
+        gestures = ParseYAML.load_gestures_file(paths.custom_settings_yaml, ret='obj')
 
-        for (handmsg, hand) in [(framemsg.l, f.l), (framemsg.r, f.r)]:
-            handmsg.id = hand.id
-            handmsg.is_left = hand.is_left
-            handmsg.is_right = hand.is_right
-            handmsg.is_valid = hand.is_valid
-            handmsg.grab_strength = hand.grab_strength
-            handmsg.pinch_strength = hand.pinch_strength
-            handmsg.confidence = hand.confidence
-            handmsg.palm_normal = hand.palm_normal()
-            handmsg.direction = hand.direction()
-            handmsg.palm_position = hand.palm_position()
+        self.conf = False
+        self.MIN_CONFIDENCE = configGestures['MIN_CONFIDENCE']
+        self.SINCE_FRAME_TIME = configGestures['SINCE_FRAME_TIME']
 
-            handmsg.finger_bones = []
-            for finger in hand.fingers:
-                for bone in finger.bones:
-                    bonemsg = Bonemsg()
+        self.tch12, self.tch23, self.tch34, self.tch45 = [False] * 4
+        self.tch13, self.tch14, self.tch15 = [False] * 3
+        self.TCH_TURN_ON_DIST = configGestures['TCH_TURN_ON_DIST']
+        self.TCH_TURN_OFF_DIST = configGestures['TCH_TURN_OFF_DIST']
 
-                    basis = bone.basis[0](), bone.basis[1](), bone.basis[2]()
-                    bonemsg.basis = [item for sublist in basis for item in sublist]
-                    bonemsg.direction = bone.direction()
-                    bonemsg.next_joint = bone.next_joint()
-                    bonemsg.prev_joint = bone.prev_joint()
-                    bonemsg.center = bone.center()
-                    bonemsg.is_valid = bone.is_valid
-                    bonemsg.length = bone.length
-                    bonemsg.width = bone.width
+        self.oc = [False] * 5
+        self.OC_TURN_ON_THRE =  configGestures['OC_TURN_ON_THRE']
+        self.OC_TURN_OFF_THRE = configGestures['OC_TURN_OFF_THRE']
 
-                    handmsg.finger_bones.append(bonemsg)
 
-            handmsg.palm_velocity = hand.palm_velocity()
-            basis = hand.basis[0](), hand.basis[1](), hand.basis[2]()
-            handmsg.basis = [item for sublist in basis for item in sublist]
-            handmsg.palm_width = hand.palm_width
-            handmsg.sphere_center = hand.sphere_center()
-            handmsg.sphere_radius = hand.sphere_radius
-            handmsg.stabilized_palm_position = hand.stabilized_palm_position()
-            handmsg.time_visible = hand.time_visible
-            handmsg.wrist_position = hand.wrist_position()
+        self.poses = []
+        self.gests = []
+        for gesture in Gs:
+            using_set = configGestures['using_set']
+            try:
+                if gesture in gestures[using_set].keys():
+                    if gestures[using_set][gesture]['dynamic'] == 'false' or gestures[using_set][gesture]['dynamic'] == False:
+                        self.poses.append(PoseData(name=gesture, data=gestures[using_set][gesture]))
+                    else:
+                        self.gests.append(GestureData(name=gesture, data=gestures[using_set][gesture]))
+                else:
+                    raise Exception("[ERROR* Settings] Information about gesture with name: ", gesture, " could not be found in gesture_recording.yaml file. Make an entry there.")
+            except KeyError:
+                print("gesture key", gesture, " and keys ", gestures[using].keys())
 
-    def ros_publish(self, f):
-        # f hand_classes.Frame() -> framemsg mirracle_gestures.msg/Frame
-        framemsg = Framemsg()
-        framemsg.fps = f.fps
-        framemsg.hands = f.hands
-        framemsg.header.secs = f.secs
-        framemsg.header.nsecs = f.nsecs
-        framemsg.header.seq = f.seq
 
-        framemsg.leapgestures.circle_toggle = f.leapgestures.circle.toggle
-        framemsg.leapgestures.circle_in_progress = f.leapgestures.circle.in_progress
-        framemsg.leapgestures.circle_clockwise = f.leapgestures.circle.clockwise
-        framemsg.leapgestures.circle_progress = f.leapgestures.circle.progress
-        framemsg.leapgestures.circle_angle = f.leapgestures.circle.angle
-        framemsg.leapgestures.circle_radius = f.leapgestures.circle.radius
-        framemsg.leapgestures.circle_state = f.leapgestures.circle.state
-        framemsg.leapgestures.swipe_toggle = f.leapgestures.swipe.toggle
-        framemsg.leapgestures.swipe_in_progress = f.leapgestures.swipe.in_progress
-        framemsg.leapgestures.swipe_direction = f.leapgestures.swipe.direction
-        framemsg.leapgestures.swipe_speed = f.leapgestures.swipe.speed
-        framemsg.leapgestures.swipe_state = f.leapgestures.swipe.state
-        framemsg.leapgestures.keytap_toggle = f.leapgestures.keytap.toggle
-        framemsg.leapgestures.keytap_in_progress = f.leapgestures.keytap.in_progress
-        framemsg.leapgestures.keytap_direction = f.leapgestures.keytap.direction
-        framemsg.leapgestures.keytap_state = f.leapgestures.keytap.state
-        framemsg.leapgestures.screentap_toggle = f.leapgestures.screentap.toggle
-        framemsg.leapgestures.screentap_in_progress = f.leapgestures.screentap.in_progress
-        framemsg.leapgestures.screentap_direction = f.leapgestures.screentap.direction
-        framemsg.leapgestures.screentap_state = f.leapgestures.screentap.state
+        # Create links for gestures
+        self.POSES = {}
+        for n, i in enumerate(self.poses):
+            self.POSES[i.NAME] = n
+        self.GESTS = {}
+        for n, i in enumerate(self.gests):
+            self.GESTS[i.NAME] = n
 
-        for (handmsg, hand) in [(framemsg.l, f.l), (framemsg.r, f.r)]:
-            handmsg.id = hand.id
-            handmsg.is_left = hand.is_left
-            handmsg.is_right = hand.is_right
-            handmsg.is_valid = hand.is_valid
-            handmsg.grab_strength = hand.grab_strength
-            handmsg.pinch_strength = hand.pinch_strength
-            handmsg.confidence = hand.confidence
-            handmsg.palm_normal = hand.palm_normal()
-            handmsg.direction = hand.direction()
-            handmsg.palm_position = hand.palm_position()
+        self.final_chosen_pose = 0
+        self.final_chosen_gesture = 0
 
-            handmsg.finger_bones = []
-            for finger in hand.fingers:
-                for bone in finger.bones:
-                    bonemsg = Bonemsg()
+        self.pymcout = None
 
-                    basis = bone.basis[0](), bone.basis[1](), bone.basis[2]()
-                    bonemsg.basis = [item for sublist in basis for item in sublist]
-                    bonemsg.direction = bone.direction()
-                    bonemsg.next_joint = bone.next_joint()
-                    bonemsg.prev_joint = bone.prev_joint()
-                    bonemsg.center = bone.center()
-                    bonemsg.is_valid = bone.is_valid
-                    bonemsg.length = bone.length
-                    bonemsg.width = bone.width
+class PoseData():
+    def __init__(self, name, data):
+        data = ParseYAML.parseStaticGesture(data)
 
-                    handmsg.finger_bones.append(bonemsg)
+        self.NAME = name
+        self.prob = 0.0
+        self.toggle = False
+        self.TURN_ON_THRE = data['turnon']
+        self.TURN_OFF_THRE = data['turnoff']
+        self.time_visible = 0.0
+        self.filename = data['filename']
 
-            handmsg.palm_velocity = hand.palm_velocity()
-            basis = hand.basis[0](), hand.basis[1](), hand.basis[2]()
-            handmsg.basis = [item for sublist in basis for item in sublist]
-            handmsg.palm_width = hand.palm_width
-            handmsg.sphere_center = hand.sphere_center()
-            handmsg.sphere_radius = hand.sphere_radius
-            handmsg.stabilized_palm_position = hand.stabilized_palm_position()
-            handmsg.time_visible = hand.time_visible
-            handmsg.wrist_position = hand.wrist_position()
+class GestureData():
+    def __init__(self, name, data):
+        data = ParseYAML.parseDynamicGesture(data)
 
-        self.frame_publisher.publish(framemsg)
+        self.NAME = name
+        if data['var_len'] > 1:
+            self.prob = [0.0] * data['var_len']
+            self.toggle = [False] * data['var_len']
+        else:
+            self.prob = 0.0
+            self.toggle = False
+        self.time_visible = 0.0
+        self.in_progress = False
+        self.direction = [0.0,0.0,0.0]
+        self.speed = 0.0
+        self.filename = data['filename']
+
+        # for circle movement
+        self.clockwise = False
+        self.angle = 0.0
+        self.progress = 0.0
+        self.radius = 0.0
+        # for move_in_axis thresholds
+        self.MIN_THRE = data['minthre']
+        self.MAX_THRE = data['maxthre']
+        ## move in x,y,z, Positive/Negative
+        self.move = [False, False, False]
 
 
 class Network():
@@ -191,19 +134,19 @@ class GestureDetection():
             GestureDetection.processTch()
             GestureDetection.processOc()
 
-            if 'grab' in settings.GESTURE_NAMES: GestureDetection.processPose_grab()
-            if 'pinch' in settings.GESTURE_NAMES: GestureDetection.processPose_pinch()
-            if 'point' in settings.GESTURE_NAMES: GestureDetection.processPose_point()
-            if 'respectful' in settings.GESTURE_NAMES: GestureDetection.processPose_respectful()
-            if 'spock' in settings.GESTURE_NAMES: GestureDetection.processPose_spock()
-            if 'rock' in settings.GESTURE_NAMES: GestureDetection.processPose_rock()
-            if 'victory' in settings.GESTURE_NAMES: GestureDetection.processPose_victory()
-            if 'italian' in settings.GESTURE_NAMES: GestureDetection.processPose_italian()
+            if 'grab' in settings.Gs: GestureDetection.processPose_grab()
+            if 'pinch' in settings.Gs: GestureDetection.processPose_pinch()
+            if 'point' in settings.Gs: GestureDetection.processPose_point()
+            if 'respectful' in settings.Gs: GestureDetection.processPose_respectful()
+            if 'spock' in settings.Gs: GestureDetection.processPose_spock()
+            if 'rock' in settings.Gs: GestureDetection.processPose_rock()
+            if 'victory' in settings.Gs: GestureDetection.processPose_victory()
+            if 'italian' in settings.Gs: GestureDetection.processPose_italian()
 
-            if 'move_in_axis' in settings.GESTURE_NAMES: GestureDetection.processGest_move_in_axis()
-            if 'rotation_in_axis' in settings.GESTURE_NAMES: GestureDetection.processGest_rotation_in_axis()
+            if 'move_in_axis' in settings.Gs: GestureDetection.processGest_move_in_axis()
+            if 'rotation_in_axis' in settings.Gs: GestureDetection.processGest_rotation_in_axis()
 
-            if 'move_in_axis' in settings.GESTURE_NAMES: GestureDetection.processComb_goToConfig()
+            if 'move_in_axis' in settings.Gs: GestureDetection.processComb_goToConfig()
 
     @staticmethod
     def processTch():

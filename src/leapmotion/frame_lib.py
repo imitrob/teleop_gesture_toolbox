@@ -1,7 +1,16 @@
-'''
+''' Frame, Hand, Finger, Bone classes definitions
+Dependency:
+    numpy, itertools
+Independent to ROS, Leap (you won't be able to export to ROS msgs)
 
+%timeit init empty
+Frame: ~143us
+Hand: ~70.5us
+Figner: ~11.1us
+Bone: ~2.7us
 '''
 import numpy as np
+from itertools import combinations
 # I can make independent to tf library if quaternion_from_euler function imported
 try:
     import tf
@@ -9,26 +18,30 @@ try:
 except ImportError:
     TF_IMPORT = False
 
+
 class Frame():
     ''' Advanced variables derived from frame object
     '''
     def __init__(self, frame=None, leapgestures=None):
-        # Stamp
-        self.seq = 0 # ID of frame
-        self.secs = 0 # seconds of frame
-        self.nsecs = 0 # nanoseconds
-        self.fps = 0 # Frames per second
-        self.hands = 0 # Number of hands
-        # Hand data
-        self.l = Hand()
-        self.r = Hand()
+        if frame:
+            self.import_from_leap(frame)
+        else:
+            # Stamp
+            self.seq = 0 # ID of frame
+            self.secs = 0 # seconds of frame
+            self.nsecs = 0 # nanoseconds
+            self.fps = 0. # Frames per second
+            self.hands = 0 # Number of hands
+            # Hand data
+            self.l = Hand()
+            self.r = Hand()
 
-        # Leap gestures
-        self.leapgestures = LeapGestures()
+        if leapgestures:
+            self.leapgestures = leapgestures
+        else:
+            self.leapgestures = LeapGestures()
 
-        if frame: self.import_from_leap(frame, leapgestures)
-
-    def import_from_leap(self, frame, leapgestures):
+    def import_from_leap(self, frame):
         self.seq = frame.id
         self.fps = frame.current_frames_per_second
         self.secs = frame.timestamp//1000000
@@ -41,9 +54,8 @@ class Frame():
                 self.l = Hand(hand)
             elif hand.is_right:
                 self.r = Hand(hand)
-            Hand()
-
-        if leapgestures: self.leapgestures = leapgestures
+        if not self.l: self.l = Hand()
+        if not self.r: self.r = Hand()
 
     def import_from_ros(self, msg):
         self.seq = msg.header.seq
@@ -60,76 +72,85 @@ class Frame():
     def __str__(self):
         ''' Invoke: print(Frame())
         '''
-        str = f""
-        str += f"fps {self.fps} "
-        str += f"n hands {self.hands} "
-        str += f"secs {self.secs} "
-        str += f"nsecs {self.nsecs} "
-        str += f"seq {self.seq} "
+        str  = f"Frame {self.seq}: "
+        str += f"fps: {self.fps}, "
+        str += f"n hands: {self.hands}, "
+        str += f"secs: {self.secs}, "
+        str += f"nsecs: {self.nsecs}\n"
 
         for hand in [self.l, self.r]:
-            str += f"id {hand.id} "
-            str += f"is_left {hand.is_left} "
-            str += f"is_right {hand.is_right} "
-            str += f"is_valid {hand.is_valid} "
-            str += f"grab_strength {hand.grab_strength} "
-            str += f"pinch_strength {hand.pinch_strength} "
-            str += f"confidence {hand.confidence} "
-            str += f"palm_normal {hand.palm_normal()} "
-            str += f"direction {hand.direction()} "
-            str += f"palm_position {hand.palm_position()} "
+            if hand.visible:
+                if hand.is_left:
+                    str += f"Left hand: \n"
+                elif hand.is_right:
+                    str += f"Right hand: \n"
+                str += f"ID: {hand.id}, "
+                if hand.is_valid: str += f"valid, "
+                str += f"grab_strength: {hand.grab_strength}, "
+                str += f"pinch_strength: {hand.pinch_strength}, "
+                str += f"confidence: {hand.confidence}, "
+                str += f"palm_normal {hand.palm_normal()}, "
+                str += f"direction {hand.direction()}, "
+                str += f"palm_position {hand.palm_position()} \n"
 
-            for finger in hand.fingers:
-                for bone in finger.bones:
-                    basis = [bone.basis[0](), bone.basis[1](), bone.basis[2]()]
-                    str += f"basis {[item for sublist in basis for item in sublist]} "
-                    str += f"direction {bone.direction()} "
-                    str += f"next_joint {bone.next_joint()} "
-                    str += f"prev_joint {bone.prev_joint()} "
-                    str += f"center {bone.center()} "
-                    str += f"is_valid {bone.is_valid} "
-                    str += f"length {bone.length} "
-                    str += f"width {bone.width} "
+                for finger in hand.fingers:
+                    for bone in finger.bones:
+                        basis = [bone.basis[0](), bone.basis[1](), bone.basis[2]()]
+                        str += f"basis: {[item for sublist in basis for item in sublist]}, "
+                        str += f"direction: {bone.direction()}, "
+                        str += f"next_joint: {bone.next_joint()}, "
+                        str += f"prev_joint: {bone.prev_joint()}, "
+                        str += f"center: {bone.center()}, "
+                        str += f"is_valid: {bone.is_valid}, "
+                        str += f"length: {bone.length}, "
+                        str += f"width: {bone.width} \n"
 
-            str += f"palm_velocity {hand.palm_velocity()} "
-            basis = [hand.basis[0](), hand.basis[1](), hand.basis[2]()]
-            str += f"basis {[item for sublist in basis for item in sublist]} "
-            str += f"palm_width {hand.palm_width} "
-            str += f"sphere_center {hand.sphere_center()} "
-            str += f"sphere_radius {hand.sphere_radius} "
-            str += f"stabilized_palm_position {hand.stabilized_palm_position()} "
-            str += f"time_visible {hand.time_visible} "
-            str += f"wrist_position {hand.wrist_position()} "
+                str += f"palm_velocity: {hand.palm_velocity()}, "
+                basis = [hand.basis[0](), hand.basis[1](), hand.basis[2]()]
+                str += f"basis: {[item for sublist in basis for item in sublist]}, "
+                str += f"palm_width: {hand.palm_width}, "
+                str += f"sphere_center: {hand.sphere_center()}, "
+                str += f"sphere_radius: {hand.sphere_radius}, "
+                str += f"stabilized_palm_position: {hand.stabilized_palm_position()}, "
+                str += f"time_visible: {hand.time_visible}, "
+                str += f"wrist_position: {hand.wrist_position()} \n"
 
-        str += f"id {self.leapgestures.circle.id} "
-        str += f"in_progress {self.leapgestures.circle.in_progress} "
-        str += f"clockwise {self.leapgestures.circle.clockwise} "
-        str += f"progress {self.leapgestures.circle.progress} "
-        str += f"angle {self.leapgestures.circle.angle} "
-        str += f"radius {self.leapgestures.circle.radius} "
-        str += f"state {self.leapgestures.circle.state} "
+        if self.leapgestures.circle.present:
+            str += f"id: {self.leapgestures.circle.id}, "
+            str += f"in_progress: {self.leapgestures.circle.in_progress}, "
+            str += f"clockwise: {self.leapgestures.circle.clockwise}, "
+            str += f"progress: {self.leapgestures.circle.progress}, "
+            str += f"angle: {self.leapgestures.circle.angle}, "
+            str += f"radius: {self.leapgestures.circle.radius}, "
+            str += f"state: {self.leapgestures.circle.state} \n"
 
-        str += f"id {self.leapgestures.swipe.id} "
-        str += f"in_progress {self.leapgestures.swipe.in_progress} "
-        str += f"direction {self.leapgestures.swipe.direction} "
-        str += f"speed {self.leapgestures.swipe.speed} "
-        str += f"state {self.leapgestures.swipe.state} "
+        if self.leapgestures.swipe.present:
+            str += f"id: {self.leapgestures.swipe.id}, "
+            str += f"in_progress: {self.leapgestures.swipe.in_progress}, "
+            str += f"direction: {self.leapgestures.swipe.direction}, "
+            str += f"speed: {self.leapgestures.swipe.speed}, "
+            str += f"state: {self.leapgestures.swipe.state} \n"
 
-        str += f"id {self.leapgestures.keytap.id} "
-        str += f"in_progress {self.leapgestures.keytap.in_progress} "
-        str += f"direction {self.leapgestures.keytap.direction} "
-        str += f"position {self.leapgestures.keytap.position} "
-        str += f"state {self.leapgestures.keytap.state} "
+        if self.leapgestures.keytap.present:
+            str += f"id: {self.leapgestures.keytap.id}, "
+            str += f"in_progress: {self.leapgestures.keytap.in_progress}, "
+            str += f"direction: {self.leapgestures.keytap.direction}, "
+            str += f"position: {self.leapgestures.keytap.position}, "
+            str += f"state: {self.leapgestures.keytap.state} \n"
 
-        str += f"id {self.leapgestures.screentap.id} "
-        str += f"in_progress {self.leapgestures.screentap.in_progress} "
-        str += f"direction {self.leapgestures.screentap.direction} "
-        str += f"position {self.leapgestures.screentap.position} "
-        str += f"state {self.leapgestures.screentap.state} "
+        if self.leapgestures.screentap.present:
+            str += f"id: {self.leapgestures.screentap.id}, "
+            str += f"in_progress: {self.leapgestures.screentap.in_progress}, "
+            str += f"direction: {self.leapgestures.screentap.direction}, "
+            str += f"position: {self.leapgestures.screentap.position}, "
+            str += f"state: {self.leapgestures.screentap.state} \n"
 
+        str +='\n'
         return str
 
     def to_ros(self):
+        ''' This function requires ROS and mirracle_gestures pkg
+        '''
         try:
             rosm.Frame()
         except:
@@ -216,38 +237,39 @@ class Hand():
     ''' Advanced variables of hand derived from hand object
     '''
     def __init__(self, hand=None):
+        if hand:
+            # Import Hand data from Leap Motion hand object
+            self.import_from_leap(hand)
+        else:
+            self.visible = False
+            self.id = 0
+            self.is_left = False
+            self.is_right = False
+            self.is_valid = False
+            self.grab_strength = 0.
+            self.pinch_strength = 0.
+            self.confidence = 0.
+            self.palm_normal = Vector()
+            self.direction = Vector()
+            self.palm_position = Vector()
+            self.fingers = [Finger(), # Thumb
+                            Finger(), # Index
+                            Finger(), # Middle
+                            Finger(), # Ring
+                            Finger()] # Pinky
+            self.palm_velocity = Vector()
+            self.basis = [Vector(),Vector(),Vector()]
+            self.palm_width = 0.
+            self.sphere_center = Vector()
+            self.sphere_radius = 0.
+            self.stabilized_palm_position = Vector()
+            self.time_visible = 0.
+            self.wrist_position = Vector()
+
         # Data processed for learning
         self.wrist_angles = []
         self.bone_angles = []
         self.finger_distances = []
-
-        # Import Hand data from Leap Motion hand object
-        if hand: self.import_from_leap(hand); return
-
-        self.visible = False
-        self.id = 0
-        self.is_left = False
-        self.is_right = False
-        self.is_valid = False
-        self.grab_strength = 0.
-        self.pinch_strength = 0.
-        self.confidence = 0.
-        self.palm_normal = Vector()
-        self.direction = Vector()
-        self.palm_position = Vector()
-        self.fingers = [Finger(), # Thumb
-                        Finger(), # Index
-                        Finger(), # Middle
-                        Finger(), # Ring
-                        Finger()] # Pinky
-        self.palm_velocity = Vector()
-        self.basis = [Vector(),Vector(),Vector()]
-        self.palm_width = 0.
-        self.sphere_center = Vector()
-        self.sphere_radius = 0.
-        self.stabilized_palm_position = Vector()
-        self.time_visible = 0.
-        self.wrist_position = Vector()
 
         ## Deprecated data: For compatibility
         ## Filled with function
@@ -256,7 +278,7 @@ class Hand():
         self.TCH12, self.TCH23, self.TCH34, self.TCH45 = [0.0] * 4
         self.TCH13, self.TCH14, self.TCH15 = [0.0] * 3
         self.vel = [0.0] * 3
-        self.pPose = None
+        self.pPose = 0
         self.pRaw = [0.0] * 6 # palm pose: x, y, z, roll, pitch, yaw
         self.pNormDir = [0.0] * 6 # palm normal vector and direction vector
         self.time_last_stop = 0.0
@@ -400,13 +422,24 @@ class Hand():
             bone_1 = self.fingers[i].bone[0]
             if i == 0: bone_1 = self.fingers[i].bone[1]
             bone_4 = self.fingers[i].bone[3]
-            q1 = tf.transformations.quaternion_from_euler(0.0, asin(-bone_1.direction[1]), atan2(bone_1.direction[0], bone_1.direction[2])) # roll, pitch, yaw
-            q2 = tf.transformations.quaternion_from_euler(0.0, asin(-bone_4.direction[1]), atan2(bone_4.direction[0], bone_4.direction[2])) # roll, pitch, yaw
+            q1 = tf.transformations.quaternion_from_euler(0.0, np.arcsin(-bone_1.direction[1]), np.arctan2(bone_1.direction[0], bone_1.direction[2])) # roll, pitch, yaw
+            q2 = tf.transformations.quaternion_from_euler(0.0, np.arcsin(-bone_4.direction[1]), np.arctan2(bone_4.direction[0], bone_4.direction[2])) # roll, pitch, yaw
             oc.append(np.dot(q1, q2))
         return oc
 
     def prepare_open_fingers(self):
         self.OC = self.get_open_fingers()
+
+    def get_position_tip_of_fingers(self):
+        # shape = 5 (fingers) x 3 (Cartesian position)
+        position_tip_of_fingers = []
+        for i in range(0,5):
+            bone_1 = self.fingers[i].bones[0]
+            if i == 0: bone_1 = self.fingers[i].bones[1]
+            bone_4 = self.fingers[i].bones[3]
+            position_tip_of_fingers.append([bone_4.next_joint()[0], bone_4.next_joint()[1], bone_4.next_joint()[2]])
+
+        return position_tip_of_fingers
 
     def get_finger_distance_combinations(self):
         ''' Distance of finger tips combinations, for deterministic gesture detection
@@ -415,22 +448,15 @@ class Hand():
         Returns:
             Finger distance combs. (Dict with Floats): Distance values in meters
         '''
-        # shape = 5 (fingers) x 3 (Cartesian position)
-        position_tip_of_fingers = []
-        for i in range(0,5):
-            bone_1 = self.fingers[i].bone[0]
-            if i == 0: bone_1 = self.fingers[i].bone[1]
-            bone_4 = self.fingers[i].bone[3]
-            position_tip_of_fingers.append([bone_4.next_joint[0], bone_4.next_joint[1], bone_4.next_joint[2]])
-
+        position_tip_of_fingers = self.get_position_tip_of_fingers()
         tch = {}
-        tch['12'] = np.sum(np.power(np.subtract(position_of_fingers[1], position_of_fingers[0]),2))/1000
-        tch['23'] = np.sum(np.power(np.subtract(position_of_fingers[2], position_of_fingers[1]),2))/1000
-        tch['34'] = np.sum(np.power(np.subtract(position_of_fingers[3], position_of_fingers[2]),2))/1000
-        tch['45'] = np.sum(np.power(np.subtract(position_of_fingers[4], position_of_fingers[3]),2))/1000
-        tch['13'] = np.sum(np.power(np.subtract(position_of_fingers[2], position_of_fingers[0]),2))/1000
-        tch['14'] = np.sum(np.power(np.subtract(position_of_fingers[3], position_of_fingers[0]),2))/1000
-        tch['15'] = np.sum(np.power(np.subtract(position_of_fingers[4], position_of_fingers[0]),2))/1000
+        tch['12'] = np.sum(np.power(np.subtract(position_tip_of_fingers[1], position_tip_of_fingers[0]),2))/1000
+        tch['23'] = np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[1]),2))/1000
+        tch['34'] = np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[2]),2))/1000
+        tch['45'] = np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[3]),2))/1000
+        tch['13'] = np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[0]),2))/1000
+        tch['14'] = np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[0]),2))/1000
+        tch['15'] = np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[0]),2))/1000
         return tch
 
     def prepare_finger_distance_combinations(self):
@@ -447,21 +473,21 @@ class Hand():
         ''' Data will be saved inside object
         '''
         # bone directions and angles
-        hand_direction = np.array(self.direction)
-        hand_angles = np.array([0., asin(-self.direction[1]), atan2(self.direction[0], self.direction[2])])
-        v = np.array(self.palm_position.to_float_array()) - np.array(self.wrist_position.to_float_array())
+        hand_direction = np.array(self.direction())
+        hand_angles = np.array([0., np.arcsin(-self.direction()[1]), np.arctan2(self.direction()[0], self.direction()[2])])
+        v = np.array(self.palm_position()) - np.array(self.wrist_position())
 
         wrist_direction = v / np.sqrt(np.sum(v**2))
-        wrist_angles = np.array([0., asin(-wrist_direction[1]), atan2(wrist_direction[0], wrist_direction[2])])
+        wrist_angles = np.array([0., np.arcsin(-wrist_direction[1]), np.arctan2(wrist_direction[0], wrist_direction[2])])
         bone_direction, bone_angles_pre = np.zeros([5,4,3]), np.zeros([5,4,3])
         for i in range(0,5):
             for j in range(0,4):
-                bone_direction[i][j] = np.array(self.fingers[i].bone[j].direction.to_float_array())
-                bone_angles_pre[i][j] = np.array((0., np.arcsin(-self.fingers[i].bone[j].direction[1]), np.arctan2(self.fingers[i].bone[j].direction[0], self.fingers[i].bone[j].direction[2])))
+                bone_direction[i][j] = np.array(self.fingers[i].bones[j].direction())
+                bone_angles_pre[i][j] = np.array((0., np.arcsin(-self.fingers[i].bones[j].direction()[1]), np.arctan2(self.fingers[i].bones[j].direction()[0], self.fingers[i].bones[j].direction()[2])))
 
         # bone angles differences
-        self.wrist_angles = wrist_angles - hand_angles
-        self.bone_angles = np.zeros([5,4,3])
+        self.wrist_angles = (wrist_angles - hand_angles)[1:3]
+        self.bone_angles = np.zeros([5,4,2])
         for i in range(0,5):
             for j in range(0,4):
                 if j == 0:
@@ -469,21 +495,24 @@ class Hand():
                 else:
                     d1 = bone_angles_pre[i][j-1]
                 d2 = bone_angles_pre[i][j]
-                self.bone_angles[i][j] = d1 - d2
+                self.bone_angles[i][j] = (d1 - d2)[1:3]
+        self.bone_angles = self.bone_angles.flatten()
         # distance between finger positions
-        palm_position = np.array(self.palm_position.to_float_array())
+        palm_position = np.array(self.palm_position())
 
         self.finger_distances = []
-        combs = position_of_fingers; combs.extend([palm_position])
+        combs = self.get_position_tip_of_fingers()
+        combs.extend([palm_position])
         for comb in combinations(combs,2):
-            self.finger_distances.append(np.array(comb[0]) - np.array(comb[1]))
+            self.finger_distances.append(np.sqrt(np.sum(np.power(np.array(comb[0]) - np.array(comb[1]),2))))
+
 
     def get_learning_data(self, type='all_defined'):
         ''' Return Vector of Observation Parameters
         '''
-        if not self.wrist_angles: self.prepare_learning_data()
+        if len(self.wrist_angles)==0: self.prepare_learning_data()
 
-        learning_data = self.wrist_angles
+        learning_data = list(self.wrist_angles)
         learning_data.extend(self.bone_angles)
         learning_data.extend(self.finger_distances)
         return learning_data
@@ -503,38 +532,42 @@ class Vector():
         self.x = x
         self.y = y
         self.z = z
+        self.prepare()
+
     def __getitem__(self, key):
         if key == 0: return self.x
         elif key == 1: return self.y
         elif key == 2: return self.z
         else: raise IndexError("Set only indexes (0,1,2) as (x,y,z)")
+
     def __setitem__(self, key, value):
         if key == 0: self.x = value
         elif key == 1: self.y = value
         elif key == 2: self.z = value
         else: raise IndexError("Set only indexes (0,1,2) as (x,y,z)")
+        self.prepare()
+
     def __call__(self):
         return [self.x,self.y,self.z]
-    def __getattr__(self, attribute):
-        if attribute == 'pitch':
-            return np.arcsin(-self.y)
-        elif attribute == 'yaw':
-            return np.arctan2(self.x, self.z)
 
+    def prepare(self):
+        self.pitch = np.arcsin(-self.y)
+        self.yaw = np.arctan2(self.x, self.z)
 
 class Bone():
     def __init__(self, bone=None):
-        # Import Finger data from Leap Motion finger object
-        if bone: self.import_from_leap(bone); return
-
-        self.basis = [Vector(),Vector(),Vector()]
-        self.direction = Vector()
-        self.next_joint = Vector()
-        self.prev_joint = Vector()
-        self.center = Vector()
-        self.is_valid = False
-        self.length = 0.
-        self.width = 0.
+        if bone:
+            # Import Finger data from Leap Motion finger object
+            self.import_from_leap(bone)
+        else:
+            self.basis = [Vector(),Vector(),Vector()]
+            self.direction = Vector()
+            self.next_joint = Vector()
+            self.prev_joint = Vector()
+            self.center = Vector()
+            self.is_valid = False
+            self.length = 0.
+            self.width = 0.
 
     def import_from_leap(self, bone):
         self.basis = [Vector(*bone.basis.x_basis.to_float_array()),
@@ -560,13 +593,14 @@ class Bone():
 
 class Finger():
     def __init__(self, finger=None):
-        # Import Finger data from Leap Motion finger object
-        if finger: self.import_from_leap(finger); return
-
-        self.bones = [Bone(), # Metacarpal
-                     Bone(), # Proximal
-                     Bone(), # Intermediate
-                     Bone()] # Distal
+        if finger:
+            # Import Finger data from Leap Motion finger object
+            self.import_from_leap(finger)
+        else:
+            self.bones = [Bone(), # Metacarpal
+                         Bone(), # Proximal
+                         Bone(), # Intermediate
+                         Bone()] # Distal
 
     def import_from_leap(self, finger):
         self.bones = []
@@ -589,6 +623,7 @@ class LeapGestures():
         self.screentap = LeapGesturesScreentap()
 
     def import_from_ros(self, lg):
+        self.circle.present = lg.circle_present
         self.circle.id = lg.circle_id
         self.circle.in_progress = lg.circle_in_progress
         self.circle.clockwise = lg.circle_clockwise
@@ -597,18 +632,21 @@ class LeapGestures():
         self.circle.radius = lg.circle_radius
         self.circle.state = lg.circle_state
 
+        self.swipe.present = lg.swipe_present
         self.swipe.id = lg.swipe_id
         self.swipe.in_progress = lg.swipe_in_progress
         self.swipe.direction = lg.swipe_direction
         self.swipe.speed = lg.swipe_speed
         self.swipe.state = lg.swipe_state
 
+        self.keytap.present = lg.keytap_present
         self.keytap.id = lg.keytap_id
         self.keytap.in_progress = lg.keytap_in_progress
         self.keytap.direction = lg.keytap_direction
         self.keytap.position = lg.keytap_position
         self.keytap.state = lg.keytap_state
 
+        self.screentap.present = lg.screentap_present
         self.screentap.id = lg.screentap_id
         self.screentap.in_progress = lg.screentap_in_progress
         self.screentap.direction = lg.screentap_direction
@@ -617,6 +655,7 @@ class LeapGestures():
 
 class LeapGesturesCircle():
     def __init__(self):
+        self.present = False
         self.id = 0
         self.in_progress = False
         self.clockwise = False
@@ -627,6 +666,7 @@ class LeapGesturesCircle():
 
 class LeapGesturesSwipe():
     def __init__(self):
+        self.present = False
         self.id = 0
         self.in_progress = False
         self.direction = [0.,0.,0.]
@@ -635,6 +675,7 @@ class LeapGesturesSwipe():
 
 class LeapGesturesKeytap():
     def __init__(self):
+        self.present = False
         self.id = 0
         self.in_progress = False
         self.direction = [0.,0.,0.]
@@ -643,6 +684,7 @@ class LeapGesturesKeytap():
 
 class LeapGesturesScreentap():
     def __init__(self):
+        self.present = False
         self.id = 0
         self.in_progress = False
         self.direction = [0.,0.,0.]

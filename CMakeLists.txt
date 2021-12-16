@@ -24,6 +24,7 @@ find_package(catkin REQUIRED COMPONENTS
 add_service_files (
   FILES
    ChangeNetwork.srv
+	 SaveHandRecord.srv
 #  AddOrEditObject.srv
 #  RemoveObject.srv
 #  GripperControl.srv

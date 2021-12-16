@@ -39,7 +39,7 @@ class MarkersPublisher():
         ## marker_interaction_box
         sx,sy,sz = settings.extv(settings.md.ENV['start'])
         m = Marker()
-        m.header.frame_id = "/"+settings.BASE_LINK
+        m.header.frame_id = "/"+settings.base_link
         m.type = m.SPHERE
         m.action = m.ADD
         m.scale.x = 0.01
@@ -77,7 +77,7 @@ class MarkersPublisher():
 
         ## Marker env + normal
         m = Marker()
-        m.header.frame_id = "/"+settings.BASE_LINK
+        m.header.frame_id = "/"+settings.base_link
         m.type = m.ARROW
         m.action = m.ADD
         m.scale.x = 0.1
@@ -98,7 +98,7 @@ class MarkersPublisher():
 
         ## Marker endeffector + normal + action to attach
         m = Marker()
-        m.header.frame_id = "/"+settings.EEF_NAME
+        m.header.frame_id = "/"+settings.eef
         m.type = m.ARROW
         m.action = m.ADD
         m.scale.x = 0.2
@@ -137,9 +137,9 @@ class MarkersPublisher():
             markers_array.append(deepcopy(m))
 
         ## Marker relaxit input
-        if isinstance(settings.goal_pose, Pose):
+        if isinstance(md.goal_pose, Pose):
             m = Marker()
-            m.header.frame_id = "/"+settings.BASE_LINK
+            m.header.frame_id = "/"+settings.base_link
             m.type = m.ARROW
             m.action = m.ADD
             m.scale.x = 0.2
@@ -151,7 +151,7 @@ class MarkersPublisher():
             m.color.b = 0.0
             m.id += 1
             m.pose = Pose()
-            m.pose = deepcopy(settings.goal_pose)
+            m.pose = deepcopy(md.goal_pose)
             markers_array.append(deepcopy(m))
             m.color.g = 0.0
             m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(settings.extq(m.pose.orientation), settings.extq(q_norm_to_dir)))
@@ -161,7 +161,7 @@ class MarkersPublisher():
 
         ## Writing trajectory
         m = Marker()
-        m.header.frame_id = "/"+settings.BASE_LINK
+        m.header.frame_id = "/"+settings.base_link
         m.type = m.SPHERE
         m.action = m.ADD
         m.scale.x = 0.01
@@ -173,12 +173,12 @@ class MarkersPublisher():
         m.color.b = 1.0
         m.id = 1000
         if settings.print_path_trace:
-            for frame in list(settings.goal_pose_array):
+            for frame in list(md.goal_pose_array):
                 m.pose = frame
                 m.id += 1
                 markers_array.append(deepcopy(m))
         else:
-            for frame in list(settings.goal_pose_array):
+            for frame in list(md.goal_pose_array):
                 m.action = m.DELETE
                 m.id += 1
                 markers_array.append(deepcopy(m))

@@ -54,7 +54,7 @@ class ProbabilisticGestureComputationSamplePublisher():
 
         rospy.init_node('pymcpublisher', anonymous=True)
         rospy.Service('/mirracle_gestures/change_network', ChangeNetwork, self.change_network_callback)
-        self.init_pymc(settings.GESTURE_NETWORK_FILE)
+        self.init_pymc(settings.configGestures['network_file'])
         self.pub = rospy.Publisher('/mirracle_gestures/pymcout', Int8, queue_size=5)
         self.sub = rospy.Subscriber('/mirracle_gestures/pymcin', Float64MultiArray, self.callback)
 
@@ -88,8 +88,8 @@ class ProbabilisticGestureComputationSamplePublisher():
         return ret
 
     def init_pymc(self, network):
-        if network in os.listdir(settings.NETWORK_PATH):
-            nn = NNWrapper.load_network(settings.NETWORK_PATH, name=network)
+        if network in os.listdir(settings.paths.network_path):
+            nn = NNWrapper.load_network(settings.paths.network_path, name=network)
             self.X_train = nn.X_train
             self.approx = nn.approx
             self.neural_network = nn.neural_network

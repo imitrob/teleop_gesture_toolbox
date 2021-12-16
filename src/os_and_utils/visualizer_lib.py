@@ -345,6 +345,103 @@ def main(args):
     viz.show()
     return
 
+
+    def plotPosesCallViz(self, dataPosePlot, dataPoseGoalsPlot, load_data=True, md=None):
+        ''' Visualize data + show. Loading series from:
+            - eef poses: settings.dataPosePlot
+            - goal poses: settings.dataPoseGoalsPlot
+
+        Parameters:
+            load_data (bool): Loads the data from:
+                - eef poses: md.goal_pose_array
+                - goal poses: md.goal_pose_array
+        '''
+
+        if load_data:
+            dataPosePlot = [pt.position for pt in list(md.goal_pose_array)]
+            dataPoseGoalsPlot = [pt.position for pt in list(md.goal_pose_array)]
+
+        if not settings.dataPosePlot:
+            print("[ERROR*] No data when plotting poses were found, probably call with param: load_data=True")
+            return
+
+        # Plot positions
+        self.visualize_new_fig(title="Trajectory executed - vis. poses of panda eef:", dim=3)
+        self.visualize_3d(data=dataPosePlot, color='b', label="Real trajectory poses")
+        self.visualize_3d(data=dataPoseGoalsPlot, color='r', label="Goal poses")
+
+
+    def plotJointsCallViz(self, load_data=False, plotToppraPlan=False, plotVelocities=True, plotAccelerations=False, plotEfforts=False, md=None):
+        ''' NEED TO BE UPDATED!
+
+        Visualize data + show. Loading series from:
+                - Sended trajectory values: settings.sendedPlot, settings.sendedPlotVel
+                - The joint states values: settings.realPlot, settings.realPlotVel
+                - Section of toppra execution, start/end pts: [settings.point_before_toppra, settings.point_after_toppra]
+                - Section of trajectory replacement, start/end pts: [settings.point_after_toppra, settings.point_after_replace]
+            Note: Every plot visualization takes ~200ms
+
+        Parameters:
+            load_data (bool): Loads joint_states positions and velocities to get up-to-date trajectories
+            plotVelocities (bool): Plots velocities
+            plotToppraPlan (bool): Plots toppra RobotTrajectory plan
+            plotAccelerations (bool): Plots accelerations
+            plotEfforts (bool): Plots efforts
+        '''
+        # Load/Update Data
+        if load_data or settings.simulator == 'coppelia':
+            dataJointPlot = [pt.position[settings.NJ] for pt in list(md.joint_states)]
+            timeJointPlot = [pt.header.stamp.to_sec() for pt in list(md.joint_states)]
+            settings.realPlot = zip(timeJointPlot, dataJointPlot)
+            timeJointPlotVel = [pt.header.stamp.to_sec() for pt in list(md.joint_states)]
+            dataJointPlotVel = [pt.velocity[settings.NJ] for pt in list(md.joint_states)]
+            settings.realPlotVel = zip(timeJointPlotVel, dataJointPlotVel)
+
+        # Plot positions
+        settings.viz.visualize_new_fig(title="Trajectory number "+str(settings.loopn)+" executed - vis. position of panda_joint"+str(settings.NJ+1), dim=2)
+        if settings.robot == 'panda' and (settings.simulator == 'gazebo' or settings.simulator == 'real'):
+            settings.viz.visualize_2d(data=settings.sendedPlot, color='r', label="Replaced (sended) trajectory position", scatter_pts=True)
+            settings.viz.visualize_2d(data=[settings.point_before_toppra, settings.point_after_toppra], color='y', label="Toppra executing")
+            settings.viz.visualize_2d(data=[settings.point_after_toppra, settings.point_after_replace], color='k', label="Replace executing")
+        else:
+            pass
+        settings.viz.visualize_2d(data=settings.realPlot, color='b', label="Real (joint states) trajectory position", xlabel='time (global rospy) [s]', ylabel='joint positons [rad]')
+
+        # Plot velocities
+        if plotVelocities:
+            settings.viz.visualize_new_fig(title="Trajectory number "+str(settings.loopn)+" executed - vis. velocity of panda_joint"+str(settings.NJ+1), dim=2)
+
+            if settings.robot == 'panda' and (settings.simulator == 'gazebo' or settings.simulator == 'real'):
+                settings.viz.visualize_2d(data=settings.sendedPlotVel, color='r', label="Replaced (sended) trajectory velocity", scatter_pts=True)
+            else:
+                pass
+            settings.viz.visualize_2d(data=settings.realPlotVel, color='b', label="Real (states) velocity", xlabel='time (global rospy) [s]', ylabel='joint velocities [rad/s]')
+
+        # Plot accelerations
+        if plotAccelerations:
+            dataPlot = [pt.accelerations[settings.NJ] for pt in settings.md._goal.trajectory.points]
+            timePlot = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
+            timeJointPlot = [pt.header.stamp.to_sec() for pt in list(md.joint_states)]
+            dataJointPlot = [pt.effort[settings.NJ] for pt in list(md.joint_states)]
+            settings.figdata = visualizer_lib.visualize_new_fig(title="Loop"+str(settings.loopn)+" ACC", dim=2)
+            settings.viz.visualize_2d(data=zip(timePlot, dataPlot), color='r', label="sended trajectory accelerations", transform='front')
+            settings.viz.visualize_2d(data=zip(timeJointPlot, dataJointPlot), color='b', label="real efforts")
+
+        # Plot efforts
+        if plotEfforts:
+            #dataPlot = [pt.effort[settings.NJ] for pt in settings.md._goal.trajectory.points]
+            timePlot = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
+            timeJointPlot = [pt.header.stamp.to_sec() for pt in list(md.joint_states)]
+            dataJointPlot = [pt.effort[settings.NJ] for pt in list(md.joint_states)]
+            settings.viz.visualize_new_fig(title="Path", dim=2)
+            #settings.viz.visualize_2d(data=zip(timePlot, dataPlot), color='r', label="sended trajectory effort")
+            settings.viz.visualizer_lib.visualize_2d(data=zip(timeJointPlot, dataJointPlot), color='b', label="real effort")
+
+        if plotToppraPlan:
+            self.plot_plan(plan=settings.toppraPlan)
+
+
+
 if __name__ == "__main__":
     parser=argparse.ArgumentParser(description='')
 

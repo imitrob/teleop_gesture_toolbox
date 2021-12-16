@@ -13,192 +13,62 @@ All configurations are loaded from:
 Import this file and call init() to access parameters, info and data
 '''
 import collections
-from collections import OrderedDict
 import numpy as np
 from copy import deepcopy
-import os
+import os, yaml, random
 from os.path import expanduser, isfile
 import time
-# Needed to load and save rosparams
-try:
-    ROS = True
+from os_and_utils.utils import ordered_load, GlobalPaths, ros_enabled, load_params, merge_two_dicts, isarray, isnumber
+from os_and_utils.utils_ros import extv, extp, extq
+
+if ros_enabled():
     import rospy
     from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
     from visualization_msgs.msg import MarkerArray, Marker
     from std_msgs.msg import Int8, Float64MultiArray
-except ModuleNotFoundError:
+else:
     print("[WARN*] ROS cannot be not imported!")
-    ROS = False
-import yaml
-import io
-import random
 
-# function for loading dict from file ordered
-def ordered_load(stream, Loader=yaml.SafeLoader, object_pairs_hook=OrderedDict):
-    class OrderedLoader(Loader):
-        pass
-    def construct_mapping(loader, node):
-        loader.flatten_mapping(node)
-        return object_pairs_hook(loader.construct_pairs(node))
-    OrderedLoader.add_constructor(
-        yaml.resolver.BaseResolver.DEFAULT_MAPPING_TAG,
-        construct_mapping)
-    return yaml.load(stream, OrderedLoader)
+
 
 def init(minimal=False):
     ''' Initialize the shared data across threads (Leap, UI, Control)
     Parameters:
         minimal (Bool): Import only file paths and general informations
     '''
-    # tmp
-    global loopn
-    loopn = 0
+    global Gs, GsK, configGestures, paths
+    # 1. Initialize File/Folder Paths
+    paths = GlobalPaths()
 
-    ### 1. Initialize File/Folder Paths ###
-    #######################################
-    global HOME, LEARN_PATH, GRAPHICS_PATH, GESTURE_NAMES, GESTURE_KEYS, NETWORK_PATH, PLOTS_PATH, WS_FOLDER, COPPELIA_SCENE_PATH, MODELS_PATH, CUSTOM_SETTINGS_YAML, NETWORKS_DRIVE_URL, GESTURE_NETWORK_FILE
-    HOME = expanduser("~")
-    # searches for the WS name + print it
-    THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
-    THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..'))
-    WS_FOLDER = THIS_FILE_TMP.split('/')[-1]
+    # 2. Loads config. data to gestures
+    # - gesture_recording.yaml
+    configGestures = ParseYAML.load_gesture_config_file(paths.custom_settings_yaml)
+    recordingConfig = ParseYAML.load_recording_file(paths.custom_settings_yaml)
+    Gs, GsK = ParseYAML.load_gestures_file(paths.custom_settings_yaml)
 
-    LEARN_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/learning/"
-    GRAPHICS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/graphics/"
-    PLOTS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/plots/"
-    NETWORK_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/data/Trained_network/"
-    COPPELIA_SCENE_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_sim/include/scenes/"
-    MODELS_PATH = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/models/"
-    CUSTOM_SETTINGS_YAML = HOME+"/"+WS_FOLDER+"/src/mirracle_gestures/include/custom_settings/"
+    # 3. Loads config. about robot
+    # - ROSparams /mirracle_config/*
+    # - robot_move.yaml.yaml
+    global robot, simulator, gripper, plot, inverse_kinematics, inverse_kinematics_topic
+    robot, simulator, gripper, plot, inverse_kinematics, inverse_kinematics_topic = load_params()
 
-    ### 2. Loads config. data to gestures  ###
-    ###     - gesture_recording.yaml       ###
-    ##########################################
+    global vel_lim, effort_lim, lower_lim, upper_lim, joint_names, base_link, group_name, eef, grasping_group, tac_topic, joint_states_topic
+    vel_lim, effort_lim, lower_lim, upper_lim, joint_names, base_link, group_name, eef, grasping_group, tac_topic, joint_states_topic = ParseYAML.load_robot_move_file(paths.custom_settings_yaml, robot, simulator)
 
-    with open(CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
-        gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
-        #gestures_data_loaded = yaml.safe_load(stream)
+    print("[Settings] Workspace folder is set to: "+paths.ws_folder)
 
-    keys = gestures_data_loaded.keys()
-    Gs = []
-    Gs_set = gestures_data_loaded['using_set']
-    configGestures = deepcopy(gestures_data_loaded['configGestures'])
-    configRecording = deepcopy(gestures_data_loaded['Recording'])
-    configRecognition = deepcopy(gestures_data_loaded['Recognition'])
-    del gestures_data_loaded['using_set']; del gestures_data_loaded['Recording']; del gestures_data_loaded['configGestures']; del gestures_data_loaded['Recognition']
-
-    GESTURE_NAMES = []
-    GESTURE_KEYS = []
-    # Check if yaml file is setup properly
-    try:
-        gestures_data_loaded[Gs_set]
-    except:
-        raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
-    try:
-        gestures_data_loaded[Gs_set].keys()
-    except:
-        raise Exception("Error in gesture_recording.yaml, used gesture set does not have any item!")
-    # Setup gesture list
-    for key in gestures_data_loaded[Gs_set].keys():
-        g = gestures_data_loaded[Gs_set][key]
-        GESTURE_NAMES.append(key)
-        GESTURE_KEYS.append(g['key'])
-
-    NETWORKS_DRIVE_URL = configGestures['NETWORKS_DRIVE_URL']
-    GESTURE_NETWORK_FILE = configGestures['NETWORK_FILE']
-    ### 3. Loads config. about robot         ###
-    ###     - ROSparams /mirracle_config/*   ###
-    ###     - robot_move.yaml.yaml           ###
-    ############################################
-    global JOINT_NAMES, BASE_LINK, GROUP_NAME, ROBOT_NAME, GRIPPER_NAME, SIMULATOR_NAME, TAC_TOPIC, JOINT_STATES_TOPIC, EEF_NAME, TOPPRA_ON, VIS_ON, IK_SOLVER, GRASPING_GROUP, IK_TOPIC
-    global upper_lim, lower_lim, effort_lim, vel_lim
-    if ROS:
-        ROBOT_NAME = rospy.get_param("/mirracle_config/robot", 'panda')
-        SIMULATOR_NAME = rospy.get_param("/mirracle_config/simulator", 'coppelia')
-        GRIPPER_NAME = rospy.get_param("/mirracle_config/gripper", 'none')
-        VIS_ON = rospy.get_param("/mirracle_config/visualize", 'false')
-        IK_SOLVER = rospy.get_param("/mirracle_config/ik_solver", 'relaxed_ik')
-        IK_TOPIC = rospy.get_param("/mirracle_config/ik_topic", '')
-    else:
-        ROBOT_NAME = 'panda'
-        SIMULATOR_NAME = 'coppelia'
-        GRIPPER_NAME = 'none'
-        VIS_ON = 'false'
-        IK_SOLVER = 'relaxed_ik'
-        IK_TOPIC = ''
-    TOPPRA_ON = True
-
-    with open(CUSTOM_SETTINGS_YAML+"robot_move.yaml", 'r') as stream:
-        robot_move_data_loaded = ordered_load(stream, yaml.SafeLoader)
-        #robot_move_data_loaded = yaml.safe_load(stream)
-    vel_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['vel_lim']
-    effort_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['effort_lim']
-    lower_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['lower_lim']
-    upper_lim = robot_move_data_loaded['robots'][ROBOT_NAME]['upper_lim']
-    JOINT_NAMES = robot_move_data_loaded['robots'][ROBOT_NAME]['JOINT_NAMES']
-    BASE_LINK = robot_move_data_loaded['robots'][ROBOT_NAME]['BASE_LINK']
-    GROUP_NAME = robot_move_data_loaded['robots'][ROBOT_NAME]['GROUP_NAME']
-    EEF_NAME = robot_move_data_loaded['robots'][ROBOT_NAME]['EEF_NAME']
-    GRASPING_GROUP = robot_move_data_loaded['robots'][ROBOT_NAME]['GRASPING_GROUP']
-    if SIMULATOR_NAME not in robot_move_data_loaded['simulators']:
-        raise Exception("Wrong simualator name")
-    TAC_TOPIC = robot_move_data_loaded['robots'][ROBOT_NAME][SIMULATOR_NAME]['TAC_TOPIC']
-    JOINT_STATES_TOPIC = robot_move_data_loaded['robots'][ROBOT_NAME][SIMULATOR_NAME]['JOINT_STATES_TOPIC']
-
-    ### HERE ENDS MINIMAL CONFIGURATION      ###
-    if minimal:
-        return
-    print("[Settings] Workspace folder is set to: "+WS_FOLDER)
-    ### 4. Init. Data                              ###
-    ###   > saved in arrays                        ###
-    ###     - Leap Controller                      ###
-    ###     - Plan (eef_pose, goal_pose, ...)      ###
-    ###   > single data                            ###
-    ###     - Plan (eef_pose, goal_pose, ...)      ###
-    ###     - States (joints, velocity, eff, ... ) ###
-    ##################################################
-
-    # Note: updated in leapmotionlistener.py with Leap frame frequency (~80Hz)
-    global BUFFER_LEN, frames, timestamps, frames_adv, goal_pose_array, eef_pose_array, joints_in_time
-    BUFFER_LEN = configRecording['BufferLen']
-    frames = collections.deque(maxlen=BUFFER_LEN)
-    timestamps = collections.deque(maxlen=BUFFER_LEN)
-    frames_adv = collections.deque(maxlen=BUFFER_LEN)
-    # Note: updated in main.py with rate 10Hz
-    goal_pose_array = collections.deque(maxlen=BUFFER_LEN)
-    eef_pose_array = collections.deque(maxlen=BUFFER_LEN)
-
-    joints_in_time = collections.deque(maxlen=BUFFER_LEN)
-
-    ## Current/Active robot data at the moment
-    global goal_joints, goal_pose, eef_pose, joints, velocity, effort
-    goal_joints, goal_pose, joints, velocity, effort, eef_pose = None, None, None, None, None, Pose()
-    # Goal joints -> RelaxedIK output
-    # Goal pose -> RelaxedIK input
-    # joints -> JointStates topic
-    # eef_pose -> from joint_states
-
-    ## Publisher holder for ROS topic
-    global ee_pose_goals_pub; ee_pose_goals_pub = None
 
     ### 5. Latest Data                      ###
-    ###     - GestureData()                 ###
-    ###     - MoveData()                    ###
     ###     - Generated Scenes from YAML    ###
     ###     - Generated Paths from YAML     ###
     ###     - Current scene info            ###
     ###########################################
-    global gd, md, rd, sp, mo, ss, scene
-    # Active gesture data at the moment
-    gd = GestureDataHands()
-    # Move robot and control data
-    md = MoveData()
+    global sp, mo, ss, scene
 
     ## Objects for saved scenes and paths
     ss = CustomScene.GenerateFromYAML()
     sp = CustomPath.GenerateFromYAML()
     scene = None # current scene informations
-    mo = None # MoveIt object
 
     ## Fixed Conditions
     global POSITION_MODE, ORIENTATION_MODE, print_path_trace
@@ -213,24 +83,12 @@ def init(minimal=False):
     # When turned on, rViz marker array of executed trajectory is published
     print_path_trace = False
 
-    ### 6. Gesture Recognition              ###
-    ###     - Learning settings             ###
-    ###########################################
-    global pymcout, train_args
-    pymcout = None
-
-    # Loaded from gesture_recording.yaml
-    train_args = configRecognition['args']
-
-    ## ROS publisher for pymc
-    global pymc_in_pub; pymc_in_pub = None
 
     ### 7. User Interface Data              ###
     ###     - From application.yaml         ###
     ###########################################
-    with open(CUSTOM_SETTINGS_YAML+"application.yaml", 'r') as stream:
+    with open(paths.custom_settings_yaml+"application.yaml", 'r') as stream:
         app_data_loaded = ordered_load(stream, yaml.SafeLoader)
-        #app_data_loaded = yaml.safe_load(stream)
     # Configuration page values
     global NumConfigBars, VariableValues
     NumConfigBars = [app_data_loaded['ConfigurationPage']['Rows'], app_data_loaded['ConfigurationPage']['Columns']]
@@ -248,222 +106,8 @@ def init(minimal=False):
     ui_scale = app_data_loaded['Scale']
 
     record_with_keys = False # Bool, Enables recording with keys in UI
-
-    ### 8. For visualization data holder    ###
-    ###########################################
-    global viz; viz = None # VisualizerLib obj
-    ## Joints visualization
-    global sendedPlot; sendedPlot = None
-    global realPlot; realPlot = None
-    global sendedPlotVel; sendedPlotVel = None
-    global realPlotVel; realPlotVel = None
-    global point_before_toppra; point_before_toppra = None
-    global point_after_toppra; point_after_toppra = None
-    global point_after_replace; point_after_replace = None
-    global toppraPlan; toppraPlan = None
-    # Visualized Number of Joint <0,6>
-    global NJ; NJ = 0
-
-    ## Pose visualization
-    global dataPosePlot; dataPosePlot = None
-    global dataPoseGoalsPlot; dataPoseGoalsPlot = None
-
-
     print("[Settings] done")
 
-
-class FrameAdv():
-    ''' Advanced variables derived from frame object
-    '''
-    def __init__(self):
-        self.l = HandAdv()
-        self.r = HandAdv()
-
-class HandAdv():
-    ''' Advanced variables of hand derived from hand object
-    '''
-    def __init__(self):
-        self.visible = False
-        self.conf = 0.0
-        self.OC = [0.0] * 5
-        self.TCH12, self.TCH23, self.TCH34, self.TCH45 = [0.0] * 4
-        self.TCH13, self.TCH14, self.TCH15 = [0.0] * 3
-        self.vel = [0.0] * 3
-        self.pPose = PoseStamped()
-        self.pRaw = [0.0] * 6 # palm pose: x, y, z, roll, pitch, yaw
-        self.pNormDir = [0.0] * 6 # palm normal vector and direction vector
-        self.rot = Quaternion()
-        self.rotRaw = [0.0] * 3
-        self.rotRawEuler = [0.0] * 3
-
-        self.time_last_stop = 0.0
-
-        self.grab = 0.0
-        self.pinch = 0.0
-
-        ## Data processed for learning
-        # direction vectors
-        self.wrist_hand_angles_diff = []
-        self.fingers_angles_diff = []
-        self.pos_diff_comb = []
-        #self.pRaw
-        self.index_position = []
-
-
-class GestureDataHands():
-    '''
-    '''
-    def __init__(self):
-        self.l = GestureDataHand()
-        self.r = GestureDataHand()
-
-
-class GestureDataHand():
-    '''
-    '''
-    def __init__(self):
-        with open(CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
-            gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
-        self.conf = False
-        self.MIN_CONFIDENCE = gestures_data_loaded['configGestures']['MIN_CONFIDENCE']
-        self.SINCE_FRAME_TIME = gestures_data_loaded['configGestures']['SINCE_FRAME_TIME']
-
-        self.tch12, self.tch23, self.tch34, self.tch45 = [False] * 4
-        self.tch13, self.tch14, self.tch15 = [False] * 3
-        self.TCH_TURN_ON_DIST = gestures_data_loaded['configGestures']['TCH_TURN_ON_DIST']
-        self.TCH_TURN_OFF_DIST = gestures_data_loaded['configGestures']['TCH_TURN_OFF_DIST']
-
-        self.oc = [False] * 5
-        self.OC_TURN_ON_THRE =  gestures_data_loaded['configGestures']['OC_TURN_ON_THRE']
-        self.OC_TURN_OFF_THRE = gestures_data_loaded['configGestures']['OC_TURN_OFF_THRE']
-
-
-        self.poses = []
-        self.gests = []
-        for gesture in GESTURE_NAMES:
-            using_set = gestures_data_loaded['using_set']
-            try:
-                if gesture in gestures_data_loaded[using_set].keys():
-                    if gestures_data_loaded[using_set][gesture]['dynamic'] == 'false' or gestures_data_loaded[using_set][gesture]['dynamic'] == False:
-                        self.poses.append(PoseData(name=gesture, data=gestures_data_loaded[using_set][gesture]))
-                    else:
-                        self.gests.append(GestureData(name=gesture, data=gestures_data_loaded[using_set][gesture]))
-                else:
-                    raise Exception("[ERROR* Settings] Information about gesture with name: ", gesture, " could not be found in gesture_recording.yaml file. Make an entry there.")
-            except KeyError:
-                print("gesture key", gesture, " and keys ", gestures_data_loaded[using].keys())
-
-
-
-        # Create links for gestures
-        self.POSES = {}
-        for n, i in enumerate(self.poses):
-            self.POSES[i.NAME] = n
-        self.GESTS = {}
-        for n, i in enumerate(self.gests):
-            self.GESTS[i.NAME] = n
-
-        self.final_chosen_pose = 0
-        self.final_chosen_gesture = 0
-
-class PoseData():
-    def __init__(self, name, data):
-        data = ParseYAML.parseStaticGesture(data)
-
-        self.NAME = name
-        self.prob = 0.0
-        self.toggle = False
-        self.TURN_ON_THRE = data['turnon']
-        self.TURN_OFF_THRE = data['turnoff']
-        self.time_visible = 0.0
-        self.filename = data['filename']
-
-class GestureData():
-    def __init__(self, name, data):
-        data = ParseYAML.parseDynamicGesture(data)
-
-        self.NAME = name
-        if data['var_len'] > 1:
-            self.prob = [0.0] * data['var_len']
-            self.toggle = [False] * data['var_len']
-        else:
-            self.prob = 0.0
-            self.toggle = False
-        self.time_visible = 0.0
-        self.in_progress = False
-        self.direction = [0.0,0.0,0.0]
-        self.speed = 0.0
-        self.filename = data['filename']
-
-        # for circle movement
-        self.clockwise = False
-        self.angle = 0.0
-        self.progress = 0.0
-        self.radius = 0.0
-        # for move_in_axis thresholds
-        self.MIN_THRE = data['minthre']
-        self.MAX_THRE = data['maxthre']
-        ## move in x,y,z, Positive/Negative
-        self.move = [False, False, False]
-
-class MoveData():
-    def __init__(self):
-        with open(CUSTOM_SETTINGS_YAML+"robot_move.yaml", 'r') as stream:
-            robot_move_data_loaded = ordered_load(stream, yaml.SafeLoader)
-            #robot_move_data_loaded = yaml.safe_load(stream)
-
-        self.LEAP_AXES = robot_move_data_loaded['LEAP_AXES']
-        self.ENV_DAT = {}
-        for key in robot_move_data_loaded['ENV_DAT']:
-            self.ENV_DAT[key] = {}
-            self.ENV_DAT[key]['view'] = robot_move_data_loaded['ENV_DAT'][key]['view']
-            self.ENV_DAT[key]['ori_axes'] = robot_move_data_loaded['ENV_DAT'][key]['ori_axes']
-            self.ENV_DAT[key]['ori_live'] = robot_move_data_loaded['ENV_DAT'][key]['ori_live']
-            self.ENV_DAT[key]['axes'] = robot_move_data_loaded['ENV_DAT'][key]['axes']
-            self.ENV_DAT[key]['min'] = Point(*robot_move_data_loaded['ENV_DAT'][key]['min'])
-            self.ENV_DAT[key]['max'] = Point(*robot_move_data_loaded['ENV_DAT'][key]['max'])
-            self.ENV_DAT[key]['start'] = Point(*robot_move_data_loaded['ENV_DAT'][key]['start'])
-            self.ENV_DAT[key]['ori'] = Quaternion(*robot_move_data_loaded['ENV_DAT'][key]['ori'])
-
-
-        # TODO: Remove this condition
-        if IK_SOLVER == 'pyrep':
-            self.ENV_DAT['above']['ori'] = Quaternion(0.0, 0.0, 1.0, 0.0)
-            self.ENV_DAT['wall']['ori']  = Quaternion(0, np.sqrt(2)/2, 0, np.sqrt(2)/2)
-            self.ENV_DAT['table']['ori'] = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
-        # chosen workspace
-        self.ENV = self.ENV_DAT['above']
-
-        # beta
-        # angles from camera -> coppelia
-        # angles from real worls -> some params
-        # TODO: load from YAML
-        self.camera_orientation = Vector3(0.,0.,0.)
-
-        self.Mode = 'live' # 'play'/'live'/'alternative'
-        self.SCALE = 2 # scaling factor for Leap
-        ## interactive
-        self.ACTION = False
-        self.STRICT_MODE = False
-        # if play path
-        self.PickedPath = 0
-        self.attached = False
-        self.liveMode = 'default'
-
-        self.gripper = 0.
-        self.speed = 5
-        self.applied_force = 10
-
-        ### Live mode: gesture data
-        self.gestures_goal_pose = Pose()
-        self.gestures_goal_pose.position = self.ENV['start']
-        self.gestures_goal_pose.orientation = self.ENV['ori']
-        self.gestures_goal_stride = 0.1
-        self.gestures_goal_rot_stride = np.pi/8
-        # The copy of goal_pose in form of active trajectory
-        self._goal = None
-
-        self.traj_update_horizon = 0.6
 
 
 
@@ -501,7 +145,7 @@ class CustomPath():
         ''' Generates All paths from YAML files
 
         Parameters:
-            paths_folder (Str): folder to specify YAML files, if not specified the default CUSTOM_SETTINGS_YAML folder is used
+            paths_folder (Str): folder to specify YAML files, if not specified the default paths.custom_settings_yaml folder is used
             paths_file_catch_phrase (Str): Searches for files with this substring (e.g. use 'paths' to load all names -> 'paths1.yaml', paths2.yaml)
                 - If not specified then paths_file_catch_phrase='paths'
                 - If specified as '', all files are loaded
@@ -511,7 +155,7 @@ class CustomPath():
         '''
         sp = []
         if not paths_folder:
-            paths_folder = CUSTOM_SETTINGS_YAML
+            paths_folder = paths.custom_settings_yaml
 
         files = os.listdir(paths_folder)
 
@@ -593,7 +237,7 @@ class CustomScene():
         ''' Generates All scenes from YAML files
 
         Parameters:
-            scenes_folder (Str): folder to specify YAML files, if not specified the default CUSTOM_SETTINGS_YAML folder is used
+            scenes_folder (Str): folder to specify YAML files, if not specified the default paths.custom_settings_yaml folder is used
             scenes_file_catch_phrase (Str): Searches for files with this substring (e.g. use 'scene' to load all names -> 'scene1.yaml', scene2.yaml)
                 - If not specified then scenes_file_catch_phrase='scene'
                 - If specified as '', all files are loaded
@@ -601,7 +245,7 @@ class CustomScene():
         '''
         ss = []
         if not scenes_folder:
-            scenes_folder = CUSTOM_SETTINGS_YAML
+            scenes_folder = paths.custom_settings_yaml
 
         files = os.listdir(scenes_folder)
 
@@ -1013,6 +657,73 @@ class ParseYAML():
             gesture['filename']=""
         return gesture
 
+    @staticmethod
+    def load_gesture_config_file(custom_settings_yaml):
+        with open(custom_settings_yaml+"gesture_config.yaml", 'r') as stream:
+            gesture_config = ordered_load(stream, yaml.SafeLoader)
+        return gesture_config
+
+    @staticmethod
+    def load_recording_file(custom_settings_yaml):
+        with open(custom_settings_yaml+"recording.yaml", 'r') as stream:
+            recording = ordered_load(stream, yaml.SafeLoader)
+        return recording
+
+
+    @staticmethod
+    def load_gestures_file(custom_settings_yaml, ret=''):
+        with open(custom_settings_yaml+"gestures.yaml", 'r') as stream:
+            gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
+
+        if ret=='obj': return gestures_data_loaded
+
+        gesture_config = ParseYAML.load_gesture_config_file(custom_settings_yaml)
+
+        keys = gestures_data_loaded.keys()
+
+        Gs_set = gesture_config['using_set']
+
+        Gs = []
+        GsK = []
+        # Check if yaml file is setup properly
+        try:
+            gestures_data_loaded[Gs_set]
+        except:
+            raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
+        try:
+            gestures_data_loaded[Gs_set].keys()
+        except:
+            raise Exception("Error in gesture_recording.yaml, used gesture set does not have any item!")
+        # Setup gesture list
+        for key in gestures_data_loaded[Gs_set].keys():
+            g = gestures_data_loaded[Gs_set][key]
+            Gs.append(key)
+            GsK.append(g['key'])
+
+        return Gs, GsK
+
+    @staticmethod
+    def load_robot_move_file(custom_settings_yaml, robot, simulator):
+        with open(paths.custom_settings_yaml+"robot_move.yaml", 'r') as stream:
+            robot_move_data_loaded = ordered_load(stream, yaml.SafeLoader)
+        vel_lim = robot_move_data_loaded['robots'][robot]['vel_lim']
+        effort_lim = robot_move_data_loaded['robots'][robot]['effort_lim']
+        lower_lim = robot_move_data_loaded['robots'][robot]['lower_lim']
+        upper_lim = robot_move_data_loaded['robots'][robot]['upper_lim']
+
+        joint_names = robot_move_data_loaded['robots'][robot]['joint_names']
+        base_link = robot_move_data_loaded['robots'][robot]['base_link']
+        group_name = robot_move_data_loaded['robots'][robot]['group_name']
+        eef = robot_move_data_loaded['robots'][robot]['eef']
+        grasping_group = robot_move_data_loaded['robots'][robot]['grasping_group']
+        if simulator not in robot_move_data_loaded['simulators']:
+            raise Exception("Wrong simualator name")
+        tac_topic = robot_move_data_loaded['robots'][robot][simulator]['tac_topic']
+        joint_states_topic = robot_move_data_loaded['robots'][robot][simulator]['joint_states_topic']
+
+        return vel_lim, effort_lim, lower_lim, upper_lim, joint_names, base_link, group_name, eef, grasping_group, tac_topic, joint_states_topic
+
+
 ## Helper functions
 def indx(ss, str):
     ''' Returns index of scene specified by name as parameter 'str'
@@ -1032,60 +743,6 @@ def getPathNames():
 
 def getModes():
     return ['live', 'interactive', '']
-
-# Handy functions
-def extq(q):
-    ''' Extracts Quaternion object
-    Parameters:
-        q (Quaternion()): From geometry_msgs.msg
-    Returns:
-        x,y,z,w (Floats tuple[4]): Quaternion extracted
-    '''
-    if type(q) == type(Quaternion()):
-        return q.x, q.y, q.z, q.w
-    elif (isinstance(q, dict) and 'w' in q.keys()):
-        return q['x'], q['y'], q['z'], q['w']
-    else: raise Exception("extq input arg q: Not Quaternion or dict with 'x'..'w' keys!")
-
-
-def extv(v):
-    ''' Extracts Point/Vector3 to Cartesian values
-    Parameters:
-        v (Point() or Vector3() or dict with 'x'..'z' in keys): From geometry_msgs.msg or dict
-    Returns:
-        [x,y,z] (Floats tuple[3]): Point/Vector3 extracted
-    '''
-    if type(v) == type(Point()) or type(v) == type(Vector3()):
-        return v.x, v.y, v.z
-    elif (isinstance(v, dict) and 'x' in v.keys()):
-        return v['x'], v['y'], v['z']
-    else: raise Exception("extv input arg v: Not Point or Vector3 or dict!")
-
-
-def extp(p):
-    ''' Extracts pose
-    Paramters:
-        p (Pose())
-    Returns:
-        list (Float[7])
-    '''
-    assert type(p) == type(Pose()), "extp input arg p: Not Pose type!"
-    return p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w
-
-def isnumber(n):
-    if type(n) == int or type(n) == float:
-        return True
-    return False
-
-def isarray(a):
-    if type(a) == tuple or type(a) == list:
-        return True
-    return False
-
-def merge_two_dicts(x, y):
-    z = x.copy()   # start with keys and values of x
-    z.update(y)    # modifies z with keys and values of y
-    return z
 
 def TransformWithAxes(data_to_transform, transform_mat):
     '''
@@ -1111,43 +768,3 @@ def TransformWithAxes(data_to_transform, transform_mat):
         orig_.z = np.dot(transform_mat[2],[orig.x, orig.y, orig.z])
         data_transformed.append(Vector3(orig_.x, orig_.y, orig_.z))
     return data_transformed
-
-#TransformWithAxes(data_to_transform=[Vector3(0.,0.,0.), Vector3(0.024574, 0., 0.032766+0.094613+0.015387+0.124468+0.016383), Vector3(0.024574, 0., 0.032766+0.094613+0.015387), Vector3(0.024574, 0., 0.032766)], transform_mat=[[0.,1.,0.],[-1.,0.,0.],[0.,0.,1.]])
-
-'''
-def waitForValue(ooo, errormsg="Wait for value error!"):
-    def valueLoaded(ooo.value):
-        if type(ooo.value) == type(False) or type(ooo.value) == type(None):
-            return False
-        return True
-
-    if valueLoaded(ooo.value):
-        return
-    time.sleep(0.4)
-    if valueLoaded(ooo.value):
-        return
-    time.sleep(0.4)
-    if valueLoaded(ooo.value):
-        return
-    time.sleep(0.8)
-    if valueLoaded(ooo.value):
-        return
-    time.sleep(2)
-    if valueLoaded(ooo.value):
-        return
-    time.sleep(2)
-    print(errormsg)
-    if valueLoaded(ooo.value):
-        return
-    time.sleep(2)
-    print(errormsg)
-    if valueLoaded(ooo.value):
-        return
-    time.sleep(4)
-    print(errormsg)
-    while True:
-        if valueLoaded(ooo.value):
-            return True
-        time.sleep(4)
-        print(errormsg)
-'''

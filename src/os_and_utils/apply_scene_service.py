@@ -1,6 +1,5 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3.8
 
-from __future__ import print_function
 from moveit_msgs.srv import ApplyPlanningScene
 
 import rospy

@@ -21,15 +21,15 @@ if True:
             else: return False
         except NameError: return False
     if isnotebook():
-        WS_FOLDER = os.getcwd().split('/')[-5]
+        paths.ws_folder = os.getcwd().split('/')[-5]
         sys.path.append('..')
     if not isnotebook():
         THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
         THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..', '..'))
-        WS_FOLDER = THIS_FILE_TMP.split('/')[-1]
+        paths.ws_folder = THIS_FILE_TMP.split('/')[-1]
 
-        sys.path.insert(1, expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/src/learning"))
-        sys.path.insert(1, expanduser("~/"+WS_FOLDER+"/src/mirracle_gestures/src"))
+        sys.path.insert(1, expanduser("~/"+paths.ws_folder+"/src/mirracle_gestures/src/learning"))
+        sys.path.insert(1, expanduser("~/"+paths.ws_folder+"/src/mirracle_gestures/src"))
     from import_data import *
     from warnings import filterwarnings
 
@@ -103,8 +103,8 @@ if True:
     # Initialize random number generator
     np.random.seed(0)
 
-    learn_path = expanduser('~/'+WS_FOLDER+'/src/mirracle_gestures/include/data/learning/')
-    network_path = expanduser('~/'+WS_FOLDER+'/src/mirracle_gestures/include/data/Trained_network/')
+    learn_path = expanduser('~/'+paths.ws_folder+'/src/mirracle_gestures/include/data/learning/')
+    network_path = expanduser('~/'+paths.ws_folder+'/src/mirracle_gestures/include/data/Trained_network/')
 
     print("Saved gestures are in folder: ", learn_path)
     print("Saved networks are in folder (for loading): ", network_path)
@@ -113,7 +113,7 @@ if True:
 class PyMC3Train():
 
     def __init__(self, Gs=[], args={}):
-        self.Gs, self.args = load_gestures_config(WS_FOLDER)
+        self.Gs, self.args = load_gestures_config(paths.ws_folder)
         global learn_path, network_path
         self.learn_path = learn_path
         self.network_path = network_path

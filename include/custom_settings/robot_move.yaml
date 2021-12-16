@@ -9,36 +9,36 @@ robots:
     effort_lim: [ 140, 140, 120, 100, 70, 70, 70 ]
     lower_lim: [-2.97, -2.09, -2.97, -2.09, -2.97, -2.09, -3.05]
     upper_lim: [2.97, 2.09, 2.97, 2.09, 2.97, 2.09, 3.05]
-    JOINT_NAMES: ['r1_joint_1', 'r1_joint_2', 'r1_joint_3', 'r1_joint_4', 'r1_joint_5', 'r1_joint_6', 'r1_joint_7']
-    BASE_LINK: base_link
-    GROUP_NAME: r1_arm
-    EEF_NAME: r1_ee
-    GRASPING_GROUP: r1_gripper
+    joint_names: ['r1_joint_1', 'r1_joint_2', 'r1_joint_3', 'r1_joint_4', 'r1_joint_5', 'r1_joint_6', 'r1_joint_7']
+    base_link: base_link
+    group_name: r1_arm
+    eef: r1_ee
+    grasping_group: r1_gripper
     rviz:
-      TAC_TOPIC: /r1/trajectory_controller/follow_joint_trajectory
-      JOINT_STATES_TOPIC: /r1/joint_states
+      tac_topic: /r1/trajectory_controller/follow_joint_trajectory
+      joint_states_topic: /r1/joint_states
   panda:
     vel_lim: [2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100]
     effort_lim: [ 87, 87, 87, 87, 12, 12, 12 ]
     lower_lim: [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]
     upper_lim: [2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973]
-    JOINT_NAMES: ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
-    BASE_LINK: panda_link0
-    GROUP_NAME: panda_arm
-    EEF_NAME: panda_link8
-    GRASPING_GROUP: hand
+    joint_names: ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
+    base_link: panda_link0
+    group_name: panda_arm
+    eef: panda_link8
+    grasping_group: hand
     gazebo:
-      TAC_TOPIC: /position_joint_trajectory_controller/follow_joint_trajectory
-      JOINT_STATES_TOPIC: /franka_state_controller/joint_states
+      tac_topic: /position_joint_trajectory_controller/follow_joint_trajectory
+      joint_states_topic: /franka_state_controller/joint_states
     real:
-      TAC_TOPIC: /position_joint_trajectory_controller/follow_joint_trajectory
-      JOINT_STATES_TOPIC: /franka_state_controller/joint_states
+      tac_topic: /position_joint_trajectory_controller/follow_joint_trajectory
+      joint_states_topic: /franka_state_controller/joint_states
     rviz:
-      TAC_TOPIC: /execute_trajectory
-      JOINT_STATES_TOPIC: /joint_states
+      tac_topic: /execute_trajectory
+      joint_states_topic: /joint_states
     coppelia:
-      TAC_TOPIC: /fakeFCI/joint_state
-      JOINT_STATES_TOPIC: /vrep/franka/joint_state
+      tac_topic: /fakeFCI/joint_state
+      joint_states_topic: /vrep/franka/joint_state
 
 LEAP_AXES: [[1,0,0],[0,0,-1],[0,1,0]]
 ENV_DAT:

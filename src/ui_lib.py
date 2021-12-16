@@ -19,13 +19,12 @@ except ModuleNotFoundError:
     print("[WARNING*] Sklearn library not installed -> confusion_matrix won't be plotted!")
 from scipy import sparse
 from threading import Thread
-from gestures_lib import GesturesDetectionClass
+from gestures_lib import GestureDetection
 import matplotlib.pyplot as plt
 import csv
 import pickle
 import ctypes
 from threading import Timer
-from visualizer_lib import VisualizerLib
 import yaml
 import io
 import rospy
@@ -33,16 +32,16 @@ import pickle
 
 # ros msg classes
 from geometry_msgs.msg import PoseStamped, Quaternion, Pose, Point
-from mirracle_gestures.srv import ChangeNetwork
+from mirracle_gestures.srv import ChangeNetwork, SaveHandRecord
 
 class Example(QMainWindow):
 
     def __init__(self):
         super(Example, self).__init__()
 
-        with open(settings.CUSTOM_SETTINGS_YAML+"gesture_recording.yaml", 'r') as stream:
+        with open(settings.paths.custom_settings_yaml+"gesture_recording.yaml", 'r') as stream:
             gestures_data_loaded = yaml.safe_load(stream)
-        with open(settings.CUSTOM_SETTINGS_YAML+"application.yaml", 'r') as stream:
+        with open(settings.paths.custom_settings_yaml+"application.yaml", 'r') as stream:
             app_data_loaded = yaml.safe_load(stream)
         global LEFT_MARGIN, RIGHT_MARGIN, BOTTOM_MARGIN, ICON_SIZE, START_PANEL_Y, BarMargin
         LEFT_MARGIN = app_data_loaded['LEFT_MARGIN']
@@ -219,7 +218,7 @@ class Example(QMainWindow):
         download_networks_action = QAction('Download networks from gdrive', self)
         download_networks_action.triggered.connect(self.download_networks_gdrive)
         self.network_menu = QMenu('Pick detection network', self)
-        self.networks = GesturesDetectionClass.get_networks()
+        self.networks = GesturesDetection.get_networks()
         self.network_actions = []
         for index,network in enumerate(self.networks):
             action = QAction(network, self)
@@ -332,18 +331,18 @@ class Example(QMainWindow):
         pose = Pose()
         pose.position = Point(*vals[0:3])
         pose.orientation = Quaternion(*vals[3:7])
-        settings.goal_pose = pose
+        md.goal_pose = pose
 
     def keyPressEvent(self, event):
         ''' Callbacky for every keyboard button press
         '''
         if settings.record_with_keys:
-            KEYS = [self.mapQtKey(key) for key in settings.GESTURE_KEYS]
+            KEYS = [self.mapQtKey(key) for key in settings.GsK]
             if event.key() in KEYS:
                 self.recording = True
                 for n, key in enumerate(KEYS):
                     if event.key() == key:
-                        self.dir_queue.append(settings.GESTURE_NAMES[n])
+                        self.dir_queue.append(settings.Gs[n])
                         self.caller = RepeatableTimer(self.REC_TIME, self.save_data, ())
                         self.caller.start()
         else:
@@ -358,16 +357,16 @@ class Example(QMainWindow):
         try:
             change_network = rospy.ServiceProxy('/mirracle_gestures/change_network', ChangeNetwork)
             response = change_network(data=network)
-            settings.GESTURE_NAMES = [g.lower() for g in response.Gs]
+            settings.Gs = [g.lower() for g in response.Gs]
             settings.args = response.args
-            print("[UI] Gestures & Network changed, new set of gestures: "+str(", ".join(settings.GESTURE_NAMES)))
+            print("[UI] Gestures & Network changed, new set of gestures: "+str(", ".join(settings.Gs)))
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
-        settings.GESTURE_NETWORK_FILE = network
+        settings.paths.gesture_network_file = network
 
         def updateGesturesUI():
-            self.lblGesturesPosesNames = settings.GESTURE_NAMES
-            settings.gd = settings.GestureDataHands()
+            self.lblGesturesPosesNames = settings.Gs
+            settings.gd = settings.GestureDetection()
         updateGesturesUI()
 
 
@@ -376,10 +375,10 @@ class Example(QMainWindow):
             1. Files download
             2. Network info update
         '''
-        GesturesDetectionClass.download_networks_gdrive()
+        GesturesDetection.download_networks_gdrive()
         # Update Networks Menu
         self.network_menu.clear()
-        self.networks = GesturesDetectionClass.get_networks()
+        self.networks = GesturesDetection.get_networks()
         self.network_actions = []
         for network in self.networks:
             action = QAction(network, self)
@@ -403,24 +402,12 @@ class Example(QMainWindow):
     def save_data(self):
         ''' Saving record data in this thread will be outdated, ROS service will be created
         '''
-        print("saving data")
-        self.recording = False
-        n_sample = ""
-        dir = self.dir_queue.pop(0)
-        if not isdir(settings.LEARN_PATH+dir):
-            from os import mkdir
-            mkdir(settings.LEARN_PATH+dir)
-        for i in range(0,200):
-            if not isfile(settings.LEARN_PATH+dir+"/"+str(i)+".pkl"):
-                n_sample = str(i)
-                break
-
-        with open(settings.LEARN_PATH+dir+"/"+str(n_sample)+'.pkl', 'wb') as output:
-            pickle.dump(settings.frames_adv, output, pickle.HIGHEST_PROTOCOL)
-
-        print("Gesture movement ", dir," saved")
-
-
+        rospy.wait_for_service('save_hand_record')
+        try:
+            save_hand_record = rospy.ServiceProxy('save_hand_record', SaveHandRecord)
+            resp1 = save_hand_record(directory=self.dir_queue.pop(0), save_method='numpy', recording_length=1.0)
+        except rospy.ServiceException as e:
+            print("Service call failed: %s"%e)
 
     def play_method(self):
         while True:
@@ -505,14 +492,14 @@ class Example(QMainWindow):
         self.movePageGoPoseEdits[5].setText(str(settings.md.ENV_DAT['table']['ori'].z))
         self.movePageGoPoseEdits[6].setText(str(settings.md.ENV_DAT['table']['ori'].w))
     def movePagePoseNowButtonFun(self):
-        self.movePageGoPoseEdits[0].setText(str(settings.goal_pose.position.x))
-        self.movePageGoPoseEdits[1].setText(str(settings.goal_pose.position.y))
-        self.movePageGoPoseEdits[2].setText(str(settings.goal_pose.position.z))
+        self.movePageGoPoseEdits[0].setText(str(md.goal_pose.position.x))
+        self.movePageGoPoseEdits[1].setText(str(md.goal_pose.position.y))
+        self.movePageGoPoseEdits[2].setText(str(md.goal_pose.position.z))
 
-        self.movePageGoPoseEdits[3].setText(str(settings.goal_pose.orientation.x))
-        self.movePageGoPoseEdits[4].setText(str(settings.goal_pose.orientation.y))
-        self.movePageGoPoseEdits[5].setText(str(settings.goal_pose.orientation.z))
-        self.movePageGoPoseEdits[6].setText(str(settings.goal_pose.orientation.w))
+        self.movePageGoPoseEdits[3].setText(str(md.goal_pose.orientation.x))
+        self.movePageGoPoseEdits[4].setText(str(md.goal_pose.orientation.y))
+        self.movePageGoPoseEdits[5].setText(str(md.goal_pose.orientation.z))
+        self.movePageGoPoseEdits[6].setText(str(md.goal_pose.orientation.w))
 
     # Fixed orientation function
     def fixedOriAct(self, state):
@@ -577,15 +564,15 @@ class Example(QMainWindow):
         painter = QPainter(self)
         painter.setPen(QPen(Qt.red, 3))
 
-        if len(settings.frames_adv) > 10 and 'point' in settings.gd.r.POSES.keys():
+        if len(md.frames) > 10 and 'point' in settings.gd.r.POSES.keys():
             for n in range(1,10):
-                if settings.frames_adv[-n-1].r.visible and settings.frames_adv[-n].r.visible:
-                    p1 = settings.mo.transformLeapToUIsimple(settings.frames_adv[-n].r.pPose.pose)
-                    p2 = settings.mo.transformLeapToUIsimple(settings.frames_adv[-n-1].r.pPose.pose)
+                if md.frames[-n-1].r.visible and md.frames[-n].r.visible:
+                    p1 = tfm.transformLeapToUIsimple(md.frames[-n].r.palm_pose())
+                    p2 = tfm.transformLeapToUIsimple(md.frames[-n-1].r.palm_pose())
                     painter.setPen(QPen(Qt.red, p1.position.z))
                     painter.drawLine(p1.position.x, p1.position.y, p2.position.x, p2.position.y)
-            last_pose = settings.frames_adv[-1].r.pPose
-            pose_c = settings.mo.transformLeapToUIsimple(last_pose.pose)
+
+            pose_c = tfm.transformLeapToUIsimple(md.frames[-1].r.palm_pose())
             x_c,y_c = pose_c.position.x, pose_c.position.y
 
             rad = settings.gd.r.poses[settings.gd.r.POSES["point"]].time_visible*80
@@ -603,8 +590,8 @@ class Example(QMainWindow):
 
         ## Paint the bones structure
         painter.setPen(QPen(Qt.black, 1))
-        if settings.frames:
-            hand = settings.frames[-1].hands[0]
+        if md.frames:
+            hand = md.frames[-1].hands[0]
             palm = hand.palm_position
             wrist = hand.wrist_position
             elbow = hand.arm.elbow_position
@@ -645,10 +632,10 @@ class Example(QMainWindow):
         qp = QPainter()
         qp.begin(self)
         textStatus = ""
-        if settings.goal_pose and settings.goal_joints:
-            textStatus += "eef: "+str(round(settings.eef_pose.position.x,2))+" "+str(round(settings.eef_pose.position.y,2))+" "+str(round(settings.eef_pose.position.z,2))
-            textStatus += '\ng p:'+str(round(settings.goal_pose.position.x,2))+" "+str(round(settings.goal_pose.position.y,2))+" "+str(round(settings.goal_pose.position.z,2))
-            textStatus += '\ng q:'+str(round(settings.goal_pose.orientation.x,2))+" "+str(round(settings.goal_pose.orientation.y,2))+" "+str(round(settings.goal_pose.orientation.z,2))+" "+str(round(settings.goal_pose.orientation.w,2))
+        if md.goal_pose and md.goal_joints:
+            textStatus += "eef: "+str(round(md.eef_pose.position.x,2))+" "+str(round(md.eef_pose.position.y,2))+" "+str(round(md.eef_pose.position.z,2))
+            textStatus += '\ng p:'+str(round(md.goal_pose.position.x,2))+" "+str(round(md.goal_pose.position.y,2))+" "+str(round(md.goal_pose.position.z,2))
+            textStatus += '\ng q:'+str(round(md.goal_pose.orientation.x,2))+" "+str(round(md.goal_pose.orientation.y,2))+" "+str(round(md.goal_pose.orientation.z,2))+" "+str(round(md.goal_pose.orientation.w,2))
 
 
         if self.recording:
@@ -661,30 +648,30 @@ class Example(QMainWindow):
         if self.GesturesViewState:
             self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
             # up late
-            if settings.frames_adv:
+            if md.frames:
                 # hand fingers
                 for i in range(1,6):
                     if settings.gd.r.oc[i-1]:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"hand"+str(i)+"open.png"))
+                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i)+"open.png"))
                     else:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"hand"+str(i)+"closed.png"))
+                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i)+"closed.png"))
                 # arrows
                 if 'move_in_axis' in settings.gd.r.GESTS.keys():
                     g = settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]]
                     X = w-RIGHT_MARGIN-100-ICON_SIZE
                     Y = START_PANEL_Y-20
                     if g.toggle[0] and g.move[0]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_right.png"))
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_right.png"))
                     if g.toggle[0] and not g.move[0]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_left.png"))
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
                     if g.toggle[1] and g.move[1]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_up.png"))
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_up.png"))
                     if g.toggle[1] and not g.move[1]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_down.png"))
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_down.png"))
                     if g.toggle[2] and g.move[2]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_front.png"))
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_front.png"))
                     if g.toggle[2] and not g.move[2]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_back.png"))
+                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_back.png"))
 
             # left lane
             POSE_FILE_IMAGES = [p.filename for p in settings.gd.r.poses]
@@ -692,20 +679,20 @@ class Example(QMainWindow):
             GEST_FILE_IMAGES = [p.filename for p in settings.gd.r.gests][0:4]
             GEST_NMS = [p.NAME for p in settings.gd.r.gests][0:4]
             for n, i in enumerate(POSE_FILE_IMAGES):
-                qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+i))
+                qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
                 if settings.gd.r.poses[n].toggle:
                     qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                 qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE-settings.gd.r.poses[n].prob*ICON_SIZE)
                 qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+n*ICON_SIZE+10, POSE_NMS[n])
             for n, i in enumerate(GEST_FILE_IMAGES):
-                qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+i))
+                qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
                 if settings.gd.r.gests[n].toggle:
                     qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                 qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE-settings.gd.r.gests[n].prob*ICON_SIZE)
                 qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE+10, GEST_NMS[n])
-            if settings.pymcout is not None:
-                n_ = settings.pymcout
-                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y+(n_)*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.GRAPHICS_PATH+"arrow_left.png"))
+            if settings.gd.r.pymcout is not None:
+                n_ = settings.gs.r.pymcout
+                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y+(n_)*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
             # circ options
             if 'circ' in settings.gd.r.GESTS.keys():
                 g = settings.gd.r.gests[settings.gd.r.GESTS["circ"]]
@@ -726,12 +713,11 @@ class Example(QMainWindow):
         if self.MoveViewState:
             if settings.md.Mode == 'play':
                 if settings.gd.l.poses[settings.gd.l.POSES['grab']].toggle:
-                    qp.drawPixmap(w/2, 50, 20, 20, QPixmap(settings.GRAPHICS_PATH+"hold.png"))
+                    qp.drawPixmap(w/2, 50, 20, 20, QPixmap(settings.paths.graphics_path+"hold.png"))
                     if settings.HoldPrevState == False:
-                        settings.HoldAnchor = settings.HoldValue - settings.frames_adv[-1].l.pPose.pose.position.x/len(settings.sp[settings.md.PickedPath].poses)
-                    #settings.HoldValue = settings.frames_adv[-1].l.pPose.pose.position.x/2 + 100
-                    settings.HoldValue = settings.HoldAnchor + settings.frames_adv[-1].l.pPose.pose.position.x/len(settings.sp[settings.md.PickedPath].poses)
-                    settings.HoldValue = settings.HoldAnchor + settings.frames_adv[-1].l.pPose.pose.position.x/2
+                        settings.HoldAnchor = settings.HoldValue - md.frames[-1].l.palm_pose().position.x/len(settings.sp[settings.md.PickedPath].poses)
+                    settings.HoldValue = settings.HoldAnchor + md.frames[-1].l.palm_pose().position.x/len(settings.sp[settings.md.PickedPath].poses)
+                    settings.HoldValue = settings.HoldAnchor + md.frames[-1].l.palm_pose().position.x/2
                     if settings.HoldValue > 100: settings.HoldValue = 100
                     if settings.HoldValue < 0: settings.HoldValue = 0
                 settings.HoldPrevState = settings.gd.l.poses[settings.gd.l.POSES['grab']].toggle
@@ -747,27 +733,25 @@ class Example(QMainWindow):
             for n, i in enumerate(self.lblObservationPosesNamesObj):
                 i.setVisible(True)
                 i.move(w-RIGHT_MARGIN, START_PANEL_Y+n*ICON_SIZE/2)
-            if settings.frames and settings.frames_adv:
+            if md.frames and md.frames:
                 ValuesArr = []
                 ToggleArr = []
-                ValuesArr.append(round(settings.frames_adv[-1].r.conf,2))
-                oc = [round(i,2) for i in settings.frames_adv[-1].r.OC]
+                ValuesArr.append(round(md.frames[-1].r.confidence,2))
+                oc = [round(i,2) for i in md.frames[-1].r.OC]
                 ValuesArr.extend(oc)
-                ValuesArr.append(round(settings.frames_adv[-1].r.TCH12, 2))
-                ValuesArr.append(round(settings.frames_adv[-1].r.TCH23, 2))
-                ValuesArr.append(round(settings.frames_adv[-1].r.TCH34, 2))
-                ValuesArr.append(round(settings.frames_adv[-1].r.TCH45, 2))
-                ValuesArr.append(round(settings.frames_adv[-1].r.TCH13, 2))
-                ValuesArr.append(round(settings.frames_adv[-1].r.TCH14, 2))
-                ValuesArr.append(round(settings.frames_adv[-1].r.TCH15, 2))
-                vel = [round(i,2) for i in settings.frames_adv[-1].r.vel]
-                ValuesArr.extend(vel)
-                rr = settings.frames_adv[-1].r.rotRaw
-                ValuesArr.append(round(rr[0], 2))
-                ValuesArr.append(round(rr[1], 2))
-                ValuesArr.append(round(rr[2], 2))
+                ValuesArr.append(round(md.frames[-1].r.TCH12, 2))
+                ValuesArr.append(round(md.frames[-1].r.TCH23, 2))
+                ValuesArr.append(round(md.frames[-1].r.TCH34, 2))
+                ValuesArr.append(round(md.frames[-1].r.TCH45, 2))
+                ValuesArr.append(round(md.frames[-1].r.TCH13, 2))
+                ValuesArr.append(round(md.frames[-1].r.TCH14, 2))
+                ValuesArr.append(round(md.frames[-1].r.TCH15, 2))
+                ValuesArr.extend([round(i,2) for i in md.frames[-1].r.palm_velocity()])
+                ValuesArr.append(0.0)
+                ValuesArr.append(0.0)
+                ValuesArr.append(0.0)
 
-                ToggleArr.append(settings.gd.r.conf)
+                ToggleArr.append(settings.gd.r.confidence)
                 ToggleArr.extend(settings.gd.r.oc)
                 ToggleArr.append(settings.gd.r.tch12)
                 ToggleArr.append(settings.gd.r.tch23)
@@ -791,13 +775,12 @@ class Example(QMainWindow):
                         qp.drawRect(w-RIGHT_MARGIN-5, START_PANEL_Y+(n)*ICON_SIZE/2+5, ICON_SIZE, ICON_SIZE/2-10)
             # orientation
             if self.cursorEnabled():
-                roll, pitch, yaw = tf.transformations.euler_from_quaternion([settings.frames_adv[-1].r.pPose.pose.orientation.x, settings.frames_adv[-1].r.pPose.pose.orientation.y, settings.frames_adv[-1].r.pPose.pose.orientation.z, settings.frames_adv[-1].r.pPose.pose.orientation.w])
+                roll, pitch, yaw = tf.transformations.euler_from_quaternion([md.frames[-1].r.palm_pose().orientation.x, md.frames[-1].r.palm_pose().orientation.y, md.frames[-1].r.palm_pose().orientation.z, md.frames[-1].r.palm_pose().orientation.w])
                 x = np.cos(yaw)*np.cos(pitch)
                 y = np.sin(yaw)*np.cos(pitch)
                 z = np.sin(pitch)
-                last_pose = settings.frames_adv[-1].r.pPose
 
-                last_pose_ = settings.mo.transformLeapToUIsimple(last_pose.pose)
+                last_pose_ = settings.mo.transformLeapToUIsimple(md.frames[-1].r.palm_pose())
                 x_c,y_c = last_pose_.position.x, last_pose_.position.y
                 qp.setPen(QPen(Qt.blue, 4))
                 qp.drawLine(x_c, y_c, x_c+y*2*ICON_SIZE, y_c-z*2*ICON_SIZE)
@@ -823,8 +806,7 @@ class Example(QMainWindow):
         Y_BOUND = tuple(zip(Y_START, Y_END))
         # picking part
         if self.cursorEnabled():
-            last_pose = settings.frames_adv[-1].r.pPose
-            last_pose_ = settings.mo.transformLeapToUIsimple(last_pose.pose)
+            last_pose_ = settings.mo.transformLeapToUIsimple(md.frames[-1].r.palm_pose())
             x,y = last_pose_.position.x, last_pose_.position.y
         else:
             x,y = self.mousex, self.mousey
@@ -927,18 +909,18 @@ class Example(QMainWindow):
     def cursorEnabled(self):
         ''' Checks if enough samples are made
         '''
-        if len(settings.frames_adv) >= 10 and settings.frames_adv[-1].r:
+        if len(md.frames) >= 10 and md.frames[-1].r:
             return True
         return False
 
     def timerEvent(self, event):
-        if settings.frames_adv and self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn:
+        if md.frames and self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn:
             self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn = False
             self.GesturesViewState = True
             self.comboPlayNLive.addItem("Live hand")
 
-        if settings.frames_adv:
-            fa = settings.frames_adv[-1]
+        if md.frames:
+            fa = md.frames[-1]
             for i in settings.gd.r.gests[0:4]: # circ, swipe, pin, touch
                 if i.time_visible > 0:
                     i.time_visible -= 0.1
