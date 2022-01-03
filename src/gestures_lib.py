@@ -3,29 +3,7 @@ import os
 import gdown
 
 import settings
-
-
-class GestureDetection():
-    def __init__(self):
-        self.l = GestureDataHand()
-        self.r = GestureDataHand()
-
-    @staticmethod
-    def download_networks_gdrive():
-        # get one dir above
-        NETWORKS_PATH = '/'.join((settings.paths.network_path).split('/')[:-2])
-        gdown.download_folder(settings.configGestures['networks_drive_url'], output=NETWORKS_PATH)
-
-    @staticmethod
-    def get_networks():
-        ''' Looks at the settings.paths.network_path folder and returns every file with extension *.pkl
-        '''
-        networks = []
-        for file in os.listdir(settings.paths.network_path):
-            if file.endswith(".pkl"):
-                networks.append(file)
-        return networks
-
+from os_and_utils.parse_yaml import ParseYAML
 
 class GestureDataHand():
     '''
@@ -34,16 +12,16 @@ class GestureDataHand():
     '''
     def __init__(self):
 
-        configGestures = ParseYAML.load_gesture_config_file(paths.custom_settings_yaml)
-        gestures = ParseYAML.load_gestures_file(paths.custom_settings_yaml, ret='obj')
+        configGestures = ParseYAML.load_gesture_config_file(settings.paths.custom_settings_yaml)
+        gestures = ParseYAML.load_gestures_file(settings.paths.custom_settings_yaml, ret='obj')
 
-        self.conf = False
+        self.confidence = 0.0
         self.min_confidence = configGestures['min_confidence']
 
-        self.tch12, self.tch23, self.tch34, self.tch45 = [False] * 4
-        self.tch13, self.tch14, self.tch15 = [False] * 3
-        self.tch_turn_on_dist = configGestures['tch_turn_on_dist']
-        self.tch_turn_off_dist = configGestures['tch_turn_off_dist']
+        self.touch12, self.touch23, self.touch34, self.touch45 = [False] * 4
+        self.touch13, self.touch14, self.touch15 = [False] * 3
+        self.touch_turn_on_dist = configGestures['touch_turn_on_dist']
+        self.touch_turn_off_dist = configGestures['touch_turn_off_dist']
 
         self.oc = [False] * 5
         self.oc_turn_on_thre =  configGestures['oc_turn_on_thre']
@@ -53,14 +31,12 @@ class GestureDataHand():
         self.dynamic = MorphClass()
         ##
         GsSet = gestures[configGestures['using_set']]
+
         for gesture in GsSet:
-            if GsSet[gesture]['static'] == 'true' or GsSet[gesture]['static'] == True:
+            if 'static' in GsSet[gesture] and (GsSet[gesture]['static'] == 'true' or GsSet[gesture]['static'] == True):
                 setattr(self.static, gesture, Static(name=gesture, data=GsSet[gesture]))
             else:
                 setattr(self.dynamic, gesture, Dynamic(name=gesture, data=GsSet[gesture]))
-
-        self.final_chosen_pose = 0
-        self.final_chosen_gesture = 0
 
         # Flag gesnerated by external network
         self.pymcout = None
@@ -68,6 +44,51 @@ class GestureDataHand():
 class MorphClass(object):
     def __init__(self):
         self.device = self
+
+    def get_all_attributes(self):
+        ''' Get all gestures
+        '''
+        l = list(self.__dict__.keys())
+        l.remove('device')
+        return l
+
+    def filenames(self):
+        attrs = self.get_all_attributes()
+        filenames = []
+        for attr in attrs:
+            filenames.append(getattr(self,attr).filename)
+        return filenames
+
+    def names(self):
+        attrs = self.get_all_attributes()
+        names = []
+        for attr in attrs:
+            names.append(getattr(self,attr).name)
+        return names
+
+    def __iter__(self):
+        attrs = self.get_all_attributes()
+        objs = []
+        for attr in attrs:
+            objs.append(getattr(self,attr))
+        return iter(objs)
+
+    def __getitem__(self, index):
+        all_gesutres = self.get_all_attributes()
+        if all_gesutres == []:
+            return None
+        attr = all_gesutres[index]
+
+        ret = None
+        if isinstance(attr, list):
+            ret = [getattr(self,att) for att in attr]
+        else:
+            ret = getattr(self,attr)
+
+        if ret == None:
+            return []
+        return ret
+#m = MorphClass()
 
 
 class Static():
@@ -123,10 +144,32 @@ class Network():
 
 
 class GestureDetection():
+    ''' The main class
+    '''
+    def __init__(self):
+        self.l = GestureDataHand()
+        self.r = GestureDataHand()
+
+    @staticmethod
+    def download_networks_gdrive():
+        # get one dir above
+        NETWORKS_PATH = '/'.join((settings.paths.network_path).split('/')[:-2])
+        gdown.download_folder(settings.configGestures['networks_drive_url'], output=NETWORKS_PATH)
+
+    @staticmethod
+    def get_networks():
+        ''' Looks at the settings.paths.network_path folder and returns every file with extension *.pkl
+        '''
+        networks = []
+        for file in os.listdir(settings.paths.network_path):
+            if file.endswith(".pkl"):
+                networks.append(file)
+        return networks
+
     @staticmethod
     def all():
         if settings.frames and settings.mo:
-            GestureDetection.processTch()
+            GestureDetection.processTouches()
             GestureDetection.processOc()
 
             if 'grab' in settings.Gs: GestureDetection.processPose_grab()
@@ -144,47 +187,47 @@ class GestureDetection():
             if 'move_in_axis' in settings.Gs: GestureDetection.processComb_goToConfig()
 
     @staticmethod
-    def processTch():
-        fa = settings.frames_adv[-1]
+    def processTouches():
+        fa = settings.frames[-1]
         if fa.r.visible:
-            if fa.r.conf > settings.gd.r.min_confidence:
-                settings.gd.r.conf = True
+            if fa.r.conf > gd.r.min_confidence:
+                gd.r.conf = True
             else:
-                settings.gd.r.conf = False
+                gd.r.conf = False
 
-            if fa.r.TCH12 > settings.gd.r.tch_turn_on_dist[0] and settings.gd.r.conf:
-                settings.gd.r.tch12 = False
-            elif fa.r.TCH12 < settings.gd.r.tch_turn_off_dist[0]:
-                settings.gd.r.tch12 = True
-            if fa.r.TCH23 > settings.gd.r.tch_turn_on_dist[1] and settings.gd.r.conf:
-                settings.gd.r.tch23 = False
-            elif fa.r.TCH23 < settings.gd.r.tch_turn_off_dist[1]:
-                settings.gd.r.tch23 = True
-            if fa.r.TCH34 > settings.gd.r.tch_turn_on_dist[2] and settings.gd.r.conf:
-                settings.gd.r.tch34 = False
-            elif fa.r.TCH34 < settings.gd.r.tch_turn_off_dist[2]:
-                settings.gd.r.tch34 = True
-            if fa.r.TCH45 > settings.gd.r.tch_turn_on_dist[3] and settings.gd.r.conf:
-                settings.gd.r.tch45 = False
-            elif fa.r.TCH45 < settings.gd.r.tch_turn_off_dist[3]:
-                settings.gd.r.tch45 = True
+            if fa.r.touch12 > settings.gd.r.touch_turn_on_dist[0] and settings.gd.r.conf:
+                settings.gd.r.touch12 = False
+            elif fa.r.touch12 < settings.gd.r.touch_turn_off_dist[0]:
+                settings.gd.r.touch12 = True
+            if fa.r.touch23 > settings.gd.r.touch_turn_on_dist[1] and settings.gd.r.conf:
+                settings.gd.r.touch23 = False
+            elif fa.r.touch23 < settings.gd.r.touch_turn_off_dist[1]:
+                settings.gd.r.touch23 = True
+            if fa.r.touch34 > settings.gd.r.touch_turn_on_dist[2] and settings.gd.r.conf:
+                settings.gd.r.touch34 = False
+            elif fa.r.touch34 < settings.gd.r.touch_turn_off_dist[2]:
+                settings.gd.r.touch34 = True
+            if fa.r.touch45 > settings.gd.r.touch_turn_on_dist[3] and settings.gd.r.conf:
+                settings.gd.r.touch45 = False
+            elif fa.r.touch45 < settings.gd.r.touch_turn_off_dist[3]:
+                settings.gd.r.touch45 = True
 
-            if fa.r.TCH13 > settings.gd.r.tch_turn_on_dist[4] and settings.gd.r.conf:
-                settings.gd.r.tch13 = False
-            elif fa.r.TCH13 < settings.gd.r.tch_turn_off_dist[4]:
-                settings.gd.r.tch13 = True
-            if fa.r.TCH14 > settings.gd.r.tch_turn_on_dist[5] and settings.gd.r.conf:
-                settings.gd.r.tch14 = False
-            elif fa.r.TCH14 < settings.gd.r.tch_turn_off_dist[5]:
-                settings.gd.r.tch14 = True
-            if fa.r.TCH15 > settings.gd.r.tch_turn_on_dist[6] and settings.gd.r.conf:
-                settings.gd.r.tch15 = False
-            elif fa.r.TCH15 < settings.gd.r.tch_turn_off_dist[6]:
-                settings.gd.r.tch15 = True
+            if fa.r.touch13 > settings.gd.r.touch_turn_on_dist[4] and settings.gd.r.conf:
+                settings.gd.r.touch13 = False
+            elif fa.r.touch13 < settings.gd.r.touch_turn_off_dist[4]:
+                settings.gd.r.touch13 = True
+            if fa.r.touch14 > settings.gd.r.touch_turn_on_dist[5] and settings.gd.r.conf:
+                settings.gd.r.touch14 = False
+            elif fa.r.touch14 < settings.gd.r.touch_turn_off_dist[5]:
+                settings.gd.r.touch14 = True
+            if fa.r.touch15 > settings.gd.r.touch_turn_on_dist[6] and settings.gd.r.conf:
+                settings.gd.r.touch15 = False
+            elif fa.r.touch15 < settings.gd.r.touch_turn_off_dist[6]:
+                settings.gd.r.touch15 = True
 
     @staticmethod
     def processOc():
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             gd = settings.gd.r
             if fa.r.conf > gd.min_confidence:
@@ -200,7 +243,7 @@ class GestureDetection():
 
     @staticmethod
     def processPose_grab():
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.l.visible:
             gd = settings.gd.l
             g = gd.poses[gd.POSES["grab"]]
@@ -222,7 +265,7 @@ class GestureDetection():
 
     @staticmethod
     def processPose_pinch():
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             gd = settings.gd.r
             g = gd.poses[gd.POSES["pinch"]]
@@ -236,9 +279,9 @@ class GestureDetection():
 
     @staticmethod
     def processPose_point():
-        ''' tch, oc functions need to be called before to get fingers O/C
+        ''' touch, open/close functions need to be called before to get fingers O/C
         '''
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             gd = settings.gd.r
             g = gd.poses[gd.POSES["point"]]
@@ -251,9 +294,9 @@ class GestureDetection():
 
     @staticmethod
     def processPose_respectful():
-        ''' tch, oc functions need to be called before to get fingers O/C
+        ''' touches, open/close functions need to be called before to get fingers O/C
         '''
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             gd = settings.gd.r
             g = gd.poses[gd.POSES["respectful"]]
@@ -265,23 +308,23 @@ class GestureDetection():
 
     @staticmethod
     def processPose_spock():
-        ''' tch, oc functions need to be called before to get fingers O/C
+        ''' touches, open/close functions need to be called before to get fingers O/C
         '''
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             gd = settings.gd.r
             g = gd.poses[gd.POSES["spock"]]
-            if gd.oc[1] is True and gd.oc[2] is True and gd.oc[3] is True and gd.oc[4] is True and gd.tch23 is True and gd.tch34 is False and gd.tch45 is True:
+            if gd.oc[1] is True and gd.oc[2] is True and gd.oc[3] is True and gd.oc[4] is True and gd.touch23 is True and gd.touch34 is False and gd.touch45 is True:
                 g.toggle = True
                 g.time_visible = 1
-            elif gd.oc[1] is False or gd.oc[2] is False or gd.oc[3] is False or gd.oc[4] is False or gd.tch23 is False or gd.tch34 is True or gd.tch45 is False:
+            elif gd.oc[1] is False or gd.oc[2] is False or gd.oc[3] is False or gd.oc[4] is False or gd.touch23 is False or gd.touch34 is True or gd.touch45 is False:
                 g.toggle = False
 
     @staticmethod
     def processPose_rock():
-        ''' tch, oc functions need to be called before to get fingers O/C
+        ''' touches, open/close functions need to be called before to get fingers O/C
         '''
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             gd = settings.gd.r
             g = gd.poses[gd.POSES["rock"]]
@@ -293,9 +336,9 @@ class GestureDetection():
 
     @staticmethod
     def processPose_victory():
-        ''' tch, oc functions need to be called before to get fingers O/C
+        ''' touches, open/close functions need to be called before to get fingers O/C
         '''
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             gd = settings.gd.r
             g = gd.poses[gd.POSES["victory"]]
@@ -307,25 +350,25 @@ class GestureDetection():
 
     @staticmethod
     def processPose_italian():
-        ''' tch, oc functions need to be called before to get fingers O/C
+        ''' touches, open/close functions need to be called before to get fingers O/C
         '''
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             gd = settings.gd.r
             g = gd.poses[gd.POSES["italian"]]
-            if gd.tch12 is True and gd.tch23 is True and gd.tch34 is True and gd.tch45 is True:
+            if gd.touch12 is True and gd.touch23 is True and gd.touch34 is True and gd.touch45 is True:
                 g.toggle = True
                 g.time_visible = 1
-            elif gd.tch12 is False or gd.tch23 is False or gd.tch34 is False or gd.tch45 is False:
+            elif gd.touch12 is False or gd.touch23 is False or gd.touch34 is False or gd.touch45 is False:
                 g.toggle = False
 
     @staticmethod
     def processComb_goToConfig():
-        ''' tch, oc functions need to be called before to get fingers O/C
+        ''' touches, open/close functions need to be called before to get fingers O/C
         '''
-        fa = settings.frames_adv[-1]
-        g = settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]]
-        g_time = settings.gd.r.poses[settings.gd.r.POSES["point"]].time_visible
+        fa = md.frames[-1]
+        g = settings.gd.r.dynamic.move_in_axis
+        g_time = settings.gd.r.static.point.time_visible
         if g_time > 2:
             if g.toggle[0] and g.move[0]:
                 settings.WindowState = 1
@@ -337,7 +380,7 @@ class GestureDetection():
     def processGest_move_in_axis():
         '''
         '''
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             gd = settings.gd.r
             g = gd.gests[gd.GESTS["move_in_axis"]]
@@ -372,7 +415,7 @@ class GestureDetection():
     def processGest_rotation_in_axis():
         '''
         '''
-        fa = settings.frames_adv[-1]
+        fa = md.frames[-1]
         if fa.r.visible:
             euler = fa.r.pRaw[3:6]
             gd = settings.gd.r
@@ -402,3 +445,7 @@ class GestureDetection():
                     settings.mo.gestureGoalPoseRotUpdate(2, g.move[2])
             else:
                 g.toggle[2] = False
+
+def init():
+    global gd
+    gd = GestureDetection()

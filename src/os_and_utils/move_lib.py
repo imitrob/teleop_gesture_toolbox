@@ -1,19 +1,23 @@
 import collections
 import numpy as np
 import yaml, random
+import settings
+from copy import deepcopy
 
 from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
 from os_and_utils.utils import ordered_load
+import os_and_utils.scenes as sl
 
 class MoveData():
-    def __init__(self, settings):
-        ###   > saved in arrays                        ###
-        ###     - Leap Controller                      ###
-        ###     - Plan (eef_pose, goal_pose, ...)      ###
-        ###   > single data                            ###
-        ###     - Plan (eef_pose, goal_pose, ...)      ###
-        ###     - States (joints, velocity, eff, ... ) ###
-        ##################################################
+    def __init__(self):
+        '''
+        > saved in arrays
+        - Leap Controller
+        - Plan (eef_pose, goal_pose, ...)
+        > single data
+        - Plan (eef_pose, goal_pose, ...)
+        - States (joints, velocity, eff, ... )
+        '''
 
         bfr_len = 300 #settings.configRecording['BufferLen']
         self.frames = collections.deque(maxlen=bfr_len)
@@ -29,7 +33,7 @@ class MoveData():
         self.joints = None
         self.velocity = None
         self.effort = None
-        eef_pose = Pose()
+        self.eef_pose = Pose()
         # Goal joints -> RelaxedIK output
         # Goal pose -> RelaxedIK input
         # joints -> JointStates topic
@@ -39,7 +43,7 @@ class MoveData():
         with open(settings.paths.custom_settings_yaml+"robot_move.yaml", 'r') as stream:
             robot_move_data_loaded = ordered_load(stream, yaml.SafeLoader)
 
-        self.LEAP_AXES = robot_move_data_loaded['LEAP_AXES']
+        self.leap_axes = robot_move_data_loaded['LEAP_AXES']
         self.ENV_DAT = {}
         for key in robot_move_data_loaded['ENV_DAT']:
             self.ENV_DAT[key] = {}
@@ -67,15 +71,15 @@ class MoveData():
         # TODO: load from YAML
         self.camera_orientation = Vector3(0.,0.,0.)
 
-        self.Mode = 'live' # 'play'/'live'/'alternative'
-        self.SCALE = 2 # scaling factor for Leap
+        self.mode = 'live' # 'play'/'live'/'alternative'
+        self.scale = 2 # scaling factor for Leap
         ## interactive
-        self.ACTION = False
-        self.STRICT_MODE = False
+        self.action = False
+        self.strict_mode = False
         # if play path
-        self.PickedPath = 0
+        self.picked_path = 0
         self.attached = False
-        self.liveMode = 'default'
+        self.live_mode = 'default'
 
         self.gripper = 0.
         self.speed = 5
@@ -92,11 +96,22 @@ class MoveData():
 
         self.traj_update_horizon = 0.6
 
+    def r_present(self):
+        if self.frames and self.frames[-1] and self.frames[-1].r and self.frames[-1].r.visible:
+            return True
+        return False
 
+    def l_present(self):
+        if self.frames and self.frames[-1] and self.frames[-1].l and self.frames[-1].l.visible:
+            return True
+        return False
+
+    def modes(self):
+        return ['play', 'live', 'alternative']
 
     def get_random_position(self):
-        ''' Get random position (ret pose obj) within environment based on settings.md.ENV['max'|'min'] boundaries
-            Orientation is set to default settings.md.ENV['ori']
+        ''' Get random position (ret pose obj) within environment based on md.ENV['max'|'min'] boundaries
+            Orientation is set to default md.ENV['ori']
 
         Returns:
             Pose (Pose()): Random pose
@@ -135,8 +150,34 @@ class MoveData():
                 return True
         return False
 
+    def changePlayPath(self, path_=None):
+        for n, path in enumerate(sl.paths):
+            if not path_ or path.name == path_: # pick first path if path_ not given
+                sl.scenes.make_scene(path.scene)
+                self.picked_path = n
+                self.ENV = self.ENV_DAT[path.ENV]
+                settings.HoldValue = 0
+                settings.currentPose = 0
+                self.goal_pose = deepcopy(sl.paths[1].poses[1])
+                break
+
+    def changeLiveMode(self, text):
+        # Reset Gestures
+        self.gestures_goal_pose = Pose()
+        self.gestures_goal_pose.position = deepcopy(self.ENV['start'])
+        self.gestures_goal_pose.orientation.w = 1.0
+        if text == "Default":
+            self.live_mode = 'default'
+        elif text == "Gesture based":
+            self.live_mode = 'gesture'
+        elif text == "Interactive":
+            self.live_mode = 'interactive'
 
 
+
+def init():
+    global md
+    md = MoveData()
 
 
 

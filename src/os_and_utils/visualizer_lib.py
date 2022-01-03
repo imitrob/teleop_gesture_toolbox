@@ -419,8 +419,8 @@ def main(args):
 
         # Plot accelerations
         if plotAccelerations:
-            dataPlot = [pt.accelerations[settings.NJ] for pt in settings.md._goal.trajectory.points]
-            timePlot = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
+            dataPlot = [pt.accelerations[settings.NJ] for pt in md._goal.trajectory.points]
+            timePlot = [pt.time_from_start.to_sec()+md._goal.trajectory.header.stamp.to_sec() for pt in md._goal.trajectory.points]
             timeJointPlot = [pt.header.stamp.to_sec() for pt in list(md.joint_states)]
             dataJointPlot = [pt.effort[settings.NJ] for pt in list(md.joint_states)]
             settings.figdata = visualizer_lib.visualize_new_fig(title="Loop"+str(settings.loopn)+" ACC", dim=2)
@@ -429,8 +429,8 @@ def main(args):
 
         # Plot efforts
         if plotEfforts:
-            #dataPlot = [pt.effort[settings.NJ] for pt in settings.md._goal.trajectory.points]
-            timePlot = [pt.time_from_start.to_sec()+settings.md._goal.trajectory.header.stamp.to_sec() for pt in settings.md._goal.trajectory.points]
+            #dataPlot = [pt.effort[settings.NJ] for pt in md._goal.trajectory.points]
+            timePlot = [pt.time_from_start.to_sec()+md._goal.trajectory.header.stamp.to_sec() for pt in md._goal.trajectory.points]
             timeJointPlot = [pt.header.stamp.to_sec() for pt in list(md.joint_states)]
             dataJointPlot = [pt.effort[settings.NJ] for pt in list(md.joint_states)]
             settings.viz.visualize_new_fig(title="Path", dim=2)

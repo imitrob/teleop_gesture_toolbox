@@ -37,7 +37,7 @@ class MarkersPublisher():
         q_norm_to_dir = Quaternion(0.0, -np.sqrt(2)/2, 0.0, np.sqrt(2)/2)
         markers_array = []
         ## marker_interaction_box
-        sx,sy,sz = settings.extv(settings.md.ENV['start'])
+        sx,sy,sz = extv(md.ENV['start'])
         m = Marker()
         m.header.frame_id = "/"+settings.base_link
         m.type = m.SPHERE
@@ -49,7 +49,7 @@ class MarkersPublisher():
         m.color.r = 1.0
         m.color.g = 1.0
         m.color.b = 0.0
-        m.pose.orientation = settings.md.ENV['ori']
+        m.pose.orientation = md.ENV['ori']
         m.pose.position = settings.mo.pointToScene(Point(+0.1175, +0.0735, +0.0825))
         m.id = 100
         markers_array.append(deepcopy(m))
@@ -87,12 +87,12 @@ class MarkersPublisher():
         m.color.r = 1.0
         m.color.g = 1.0
         m.color.b = 0.0
-        m.pose.position = settings.md.ENV['start']
-        m.pose.orientation = settings.md.ENV['ori']
+        m.pose.position = md.ENV['start']
+        m.pose.orientation = md.ENV['ori']
         m.id += 1
         markers_array.append(deepcopy(m))
         m.color.g = 0.0
-        m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(settings.extq(m.pose.orientation), settings.extq(q_norm_to_dir)))
+        m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(extq(m.pose.orientation), extq(q_norm_to_dir)))
         m.id += 1
         markers_array.append(deepcopy(m))
 
@@ -118,10 +118,10 @@ class MarkersPublisher():
         m.id += 1
         markers_array.append(deepcopy(m))
         m.color.g = 0.0
-        m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(settings.extq(m.pose.orientation), settings.extq(q_norm_to_dir)))
+        m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(extq(m.pose.orientation), extq(q_norm_to_dir)))
         m.id += 1
         markers_array.append(deepcopy(m))
-        if settings.md.ACTION:
+        if md.action:
             m.type = m.SPHERE
             m.scale.x = 0.2
             m.scale.y = 0.2
@@ -154,7 +154,7 @@ class MarkersPublisher():
             m.pose = deepcopy(md.goal_pose)
             markers_array.append(deepcopy(m))
             m.color.g = 0.0
-            m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(settings.extq(m.pose.orientation), settings.extq(q_norm_to_dir)))
+            m.pose.orientation = Quaternion(*tf.transformations.quaternion_multiply(extq(m.pose.orientation), extq(q_norm_to_dir)))
             m.id += 1
             markers_array.append(deepcopy(m))
 

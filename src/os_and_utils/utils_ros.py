@@ -1,3 +1,5 @@
+import numpy as np
+
 from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
 from visualization_msgs.msg import MarkerArray, Marker
 from std_msgs.msg import Int8, Float64MultiArray
@@ -41,7 +43,7 @@ def extp(p):
     assert type(p) == type(Pose()), "extp input arg p: Not Pose type!"
     return p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w
 
-def samePoses(self, pose1, pose2, accuracy=0.05):
+def samePoses(pose1, pose2, accuracy=0.05):
     ''' Checks if two type poses are near each other
         (Only for cartesian (xyz), not orientation wise)
     Parameters:
@@ -71,7 +73,7 @@ def samePoses(self, pose1, pose2, accuracy=0.05):
         return True
     return False
 
-def sameJoints(self, joints1, joints2, accuracy=0.1):
+def sameJoints(joints1, joints2, accuracy=0.1):
     ''' Checks if two type joints are near each other
     Parameters:
         joints1 (type float[7])

@@ -82,7 +82,7 @@ def all_close(goal, actual, tolerance):
 
 class MoveGroupPythonInteface(object):
     """MoveGroupPythonInteface, Not only MoveIt"""
-    def __init__(self, env='above'):
+    def __init__(self):
         super(MoveGroupPythonInteface, self).__init__()
 
         moveit_commander.roscpp_initialize(sys.argv)
@@ -341,7 +341,7 @@ class MoveGroupPythonInteface(object):
         try:
             remove_object = rospy.ServiceProxy('remove_object', RemoveObject)
             resp1 = remove_object(name)
-            settings.md.attached = []
+            md.attached = []
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
 
@@ -362,7 +362,7 @@ class MoveGroupPythonInteface(object):
             try:
                 gripper_control = rospy.ServiceProxy('gripper_control', GripperControl)
                 resp1 = gripper_control(position, effort, "grasp", name)
-                settings.md.attached = [name]
+                md.attached = [name]
             except rospy.ServiceException as e:
                 print("Service call failed: %s"%e)
 
@@ -400,7 +400,7 @@ class MoveGroupPythonInteface(object):
         self.scene.attach_mesh(self.eef_link, name, touch_links=touch_links)
 
         ## Mark what item was attached
-        settings.md.attached = [name]
+        md.attached = [name]
         print("Attached item")
 
         # We wait for the planning scene to update.
@@ -414,7 +414,7 @@ class MoveGroupPythonInteface(object):
         self.scene.remove_attached_object(self.eef_link, name=name)
 
         ## Mark that item was detached
-        settings.md.attached = False
+        md.attached = False
         print("Detached item")
 
         # We wait for the planning scene to update.
@@ -436,81 +436,6 @@ class MoveGroupPythonInteface(object):
         print("=== Printing robot state")
         print(self.robot.get_current_state())
         print("")
-
-
-
-
-    '''
-    Further custom functions
-    '''
-    def make_scene(self, scene=''):
-        ''' Prepare scene, add objects for obstacle or manipulation.
-        Parameters:
-            scene (str): Scenes names are from settings.ss[:].NAME and are generated from settings.GenerateSomeScenes() function
-            (you can get scene names settings.getSceneNames())
-        '''
-        scenes = settings.getSceneNames()
-        if settings.scene: # When scene is initialized
-            # get id of current scene
-            id = scenes.index(settings.scene.NAME)
-            # remove objects from current scene
-            for i in range(0, len(settings.ss[id].object_names)):
-                self.remove_object(name=settings.ss[id].object_names[i])
-            if settings.md.attached:
-                self.detach_item_moveit(name=settings.md.attached)
-        # get id of new scene
-        id = scenes.index(scene)
-
-        for i in range(0, len(settings.ss[id].object_names)):
-            obj_name = settings.ss[id].object_names[i] # object name
-            size = settings.extv(settings.ss[id].object_sizes[i])
-            color = settings.ss[id].object_colors[i]
-            scale = settings.ss[id].object_scales[i]
-            shape = settings.ss[id].object_shapes[i]
-            mass = settings.ss[id].object_masses[i]
-            friction = settings.ss[id].object_frictions[i]
-            inertia = settings.ss[id].object_inertia[i]
-            inertiaTransformation = settings.ss[id].object_inertiaTransform[i]
-            dynamic = settings.ss[id].object_dynamic[i]
-            pub_info = settings.ss[id].object_pub_info[i]
-            texture_file = settings.ss[id].object_texture_file[i]
-            file = settings.ss[id].object_file[i]
-
-            if shape:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=settings.ss[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
-            elif file:
-                if scale: size = [settings.ss[id].object_scales[i], 0, 0]
-                else: size = [0,0,0]
-                self.add_or_edit_object(file=settings.paths.home+'/'+settings.paths.ws_folder+'/src/mirracle_gestures/include/models/'+file, size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=settings.ss[id].object_poses[i], frame_id=settings.base_link)
-            else:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=settings.ss[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
-        settings.scene = settings.ss[id]
-        if id == 0:
-            settings.scene = None
-
-        print("[Make Scene] Scene "+scene+" ready!")
-
-
-    def distancePoses(self, p1, p2):
-        ''' Returns distance between two pose objects
-        Parameters:
-            pose1 (type Pose() from geometry_msgs.msg)
-            pose2 (type Pose() from geometry_msgs.msg)
-        Returns:
-            distance (Float)
-        '''
-        p1 = p1.position
-        p2 = p2.position
-        return np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2)
-
-    def pointToScene(self, point):
-        x,y,z = point.x, point.y, point.z
-        point_ = Point()
-        point_.x = np.dot([x,y,z], settings.md.ENV['axes'][0])*settings.md.SCALE + settings.md.ENV['start'].x
-        point_.y = np.dot([x,y,z], settings.md.ENV['axes'][1])*settings.md.SCALE + settings.md.ENV['start'].y
-        point_.z = np.dot([x,y,z], settings.md.ENV['axes'][2])*settings.md.SCALE + settings.md.ENV['start'].z
-        return point_
-
 
 
 
@@ -572,45 +497,6 @@ class MoveGroupPythonInteface(object):
 
 
 
-    def inSceneObj(self, point):
-        ''' in the zone of a box with length l
-            Compatible for: Pose, Point, [x,y,z]
-            Cannot be in two zones at once, return id of first zone
-        '''
-        collisionObjs = []
-        if not settings.scene:
-            return False
-        z = [False] * len(settings.scene.object_poses)
-        assert settings.scene, "Scene not published yet"
-        if isinstance(point, Pose):
-            point = point.position
-        if isinstance(point, Point):
-            point = [point.x, point.y, point.z]
-        for n, pose in enumerate(settings.scene.object_poses):
-            zone_point = pose.position
-
-            zone_point = self.PointAdd(zone_point, settings.scene.mesh_trans_origin[n])
-            #print(n, ": \n",zone_point.z, "\n" ,settings.scene.object_sizes[n].z, "\n", point[2])
-            if settings.scene.object_sizes[n].y > 0.0:
-                if zone_point.x <= point[0] <= zone_point.x+settings.scene.object_sizes[n].x:
-                  if zone_point.y <= point[1] <= zone_point.y+settings.scene.object_sizes[n].y:
-                    if zone_point.z <= point[2] <= zone_point.z+settings.scene.object_sizes[n].z:
-                        collisionObjs.append(settings.scene.object_names[n])
-
-            else:
-                if zone_point.x <= point[0] <= zone_point.x+settings.scene.object_sizes[n].x:
-                  if zone_point.y >= point[1] >= zone_point.y+settings.scene.object_sizes[n].y:
-                    if zone_point.z <= point[2] <= zone_point.z+settings.scene.object_sizes[n].z:
-                        collisionObjs.append(settings.scene.object_names[n])
-            '''
-                    else:
-                        print("z")
-                  else:
-                    print("y")
-                else:
-                  print("x")
-            '''
-        return collisionObjs
 
 
     def points_in_env(self, points):
@@ -620,39 +506,6 @@ class MoveGroupPythonInteface(object):
                 points_in_workspace = False
         return points_in_workspace
 
-    def cropToLimits(self, joint_states, safety_distance = 0.01):
-        ''' Crop the joints if they are near limits
-        '''
-        for n, joint in enumerate(joint_states):
-            if joint_states[n] > settings.upper_lim[n] - safety_distance:
-                joint_states[n] = settings.upper_lim[n] - safety_distance
-            if joint_states[n] < settings.lower_lim[n] + safety_distance:
-                joint_states[n] = settings.lower_lim[n] + safety_distance
-        return joint_states
-
-
-    def cutToNearestPoint(self, robot_traj):
-        ''' Old -> new trajectory
-            New trajectory will have first point nearest to actual/current joint positions
-        '''
-        goal_trajectory = JointTrajectory()
-        goal_trajectory.header = robot_traj.joint_trajectory.header
-        goal_trajectory.joint_names = robot_traj.joint_trajectory.joint_names
-        diffPrev = np.inf
-        indx = 0
-        for n, point in enumerate(robot_traj.joint_trajectory.points):
-            diff = np.linalg.norm(md.joints - point.positions)
-            if diff > diffPrev:
-                indx = n
-                break
-            diffPrev = diff
-        print("indx", indx)
-        for n, point in enumerate(robot_traj.joint_trajectory.points):
-            if n > np.ceil(indx):
-                #point.time_from_start = point.time_from_start - rospy.Duration(time_from_start)
-                goal_trajectory.points.append(deepcopy(point))
-
-        return goal_trajectory
 
     def scale_speed(self, scaling_factor=1.0):
         '''
@@ -668,12 +521,12 @@ class MoveGroupPythonInteface(object):
             rospy.logerr("scaling_factor out of range [0.01 .. 10]: {}".format(scaling_factor))
             rospy.logerr("I don't scale the trajectory.")
             return
-        t_s = settings.md._goal.trajectory.header.stamp
+        t_s = md._goal.trajectory.header.stamp
         t_now = rospy.Time.now()
         dt_now = t_now - t_s
         dt_now_ = rospy.Time(secs=dt_now.secs, nsecs=dt_now.nsecs)
         # create new goal with all non-passed TrajectoryPoints
-        new_traj_goal = deepcopy(settings.md._goal)
+        new_traj_goal = deepcopy(md._goal)
         # type: FollowJointTrajectoryGoal
         for index, tp in enumerate(new_traj_goal.trajectory.points):
             # type: int, JointTrajectoryPoint
@@ -726,80 +579,57 @@ class MoveGroupPythonInteface(object):
 
 
 
-    def changePlayPath(self, path_=None):
-        for n, path in enumerate(settings.sp):
-            if not path_ or path.NAME == path_: # pick first path if path_ not given
-                self.make_scene(scene=path.scene)
-                settings.md.PickedPath = n
-                settings.md.ENV = settings.md.ENV_DAT[path.ENV]
-                settings.HoldValue = 0
-                settings.currentPose = 0
-                md.goal_pose = deepcopy(settings.sp[1].poses[1])
-                break
-
-    def changeLiveMode(self, text):
-
-        # Reset Gestures
-        settings.gestures_goal_pose = Pose()
-        settings.gestures_goal_pose.position = deepcopy(settings.md.ENV['start'])
-        settings.gestures_goal_pose.orientation.w = 1.0
-        if text == "Default":
-            settings.md.liveMode = 'default'
-        elif text == "Gesture based":
-            settings.md.liveMode = 'gesture'
-        elif text == "Interactive":
-            settings.md.liveMode = 'interactive'
 
     def gestureGoalPoseUpdate(self, toggle, move):
-        if abs(md.frames[-1].timestamp - settings.frames_adv[-1].r.time_last_stop) < 200000:
+        if abs(md.frames[-1].timestamp - md.frames[-1].r.time_last_stop) < 200000:
             pass
         else:
-            #print("blocked", md.frames[-1].timestamp, settings.frames_adv[-1].r.time_last_stop)
+            #print("blocked", md.frames[-1].timestamp, md.frames[-1].r.time_last_stop)
             return
 
         move_ = 1 if move else -1
-        move_ = move_ * settings.md.gestures_goal_stride
+        move_ = move_ * md.gestures_goal_stride
 
         pt = [0.] * 3
         pt[toggle] = move_
         # switch axes a) Leap
         Pt_a = [0.] * 3
-        Pt_a[0] = np.dot(pt, settings.md.LEAP_AXES[0])
-        Pt_a[1] = np.dot(pt, settings.md.LEAP_AXES[1])
-        Pt_a[2] = np.dot(pt, settings.md.LEAP_AXES[2])
+        Pt_a[0] = np.dot(pt, md.LEAP_AXES[0])
+        Pt_a[1] = np.dot(pt, md.LEAP_AXES[1])
+        Pt_a[2] = np.dot(pt, md.LEAP_AXES[2])
         # b) Scene
         Pt_b = [0.] * 3
-        Pt_b[0] = np.dot(Pt_a, settings.md.ENV['axes'][0])
-        Pt_b[1] = np.dot(Pt_a, settings.md.ENV['axes'][1])
-        Pt_b[2] = np.dot(Pt_a, settings.md.ENV['axes'][2])
+        Pt_b[0] = np.dot(Pt_a, md.ENV['axes'][0])
+        Pt_b[1] = np.dot(Pt_a, md.ENV['axes'][1])
+        Pt_b[2] = np.dot(Pt_a, md.ENV['axes'][2])
 
         # axis swtich
-        settings.md.gestures_goal_pose.position = self.PointAdd(settings.md.gestures_goal_pose.position, Point(*Pt_b))
+        md.gestures_goal_pose.position = self.PointAdd(md.gestures_goal_pose.position, Point(*Pt_b))
 
     def gestureGoalPoseRotUpdate(self, toggle, move):
-        if abs(md.frames[-1].timestamp - settings.frames_adv[-1].r.time_last_stop) < 200000:
+        if abs(md.frames[-1].timestamp - settings.frames[-1].r.time_last_stop) < 200000:
             pass
         else:
-            #print("blocked", md.frames[-1].timestamp, settings.frames_adv[-1].r.time_last_stop)
+            #print("blocked", md.frames[-1].timestamp, settings.frames[-1].r.time_last_stop)
             return
         move_ = 1 if move else -1
-        move_ = move_ * settings.md.gestures_goal_rot_stride
+        move_ = move_ * md.gestures_goal_rot_stride
 
         pt = [0.] * 3
         pt[toggle] = move_
 
         Pt_b = [0.] * 3
-        Pt_b[0] = np.dot(pt, settings.md.ENV['ori_axes'][0])
-        Pt_b[1] = np.dot(pt, settings.md.ENV['ori_axes'][1])
-        Pt_b[2] = np.dot(pt, settings.md.ENV['ori_axes'][2])
+        Pt_b[0] = np.dot(pt, md.ENV['ori_axes'][0])
+        Pt_b[1] = np.dot(pt, md.ENV['ori_axes'][1])
+        Pt_b[2] = np.dot(pt, md.ENV['ori_axes'][2])
 
         # axis swtich
-        o = settings.md.gestures_goal_pose.orientation
+        o = md.gestures_goal_pose.orientation
         euler = list(tf.transformations.euler_from_quaternion([o.x, o.y, o.z, o.w]))
         euler[0] += Pt_b[0]
         euler[1] += Pt_b[1]
         euler[2] += Pt_b[2]
-        settings.md.gestures_goal_pose.orientation = Quaternion(*tf.transformations.quaternion_from_euler(euler[0],euler[1],euler[2]))
+        md.gestures_goal_pose.orientation = Quaternion(*tf.transformations.quaternion_from_euler(euler[0],euler[1],euler[2]))
 
 
 
@@ -863,55 +693,55 @@ class MoveGroupPythonInteface(object):
         print("[MoveIt*] Init test")
 
         pose = Pose()
-        pose.orientation = settings.md.ENV_DAT['above']['ori']
+        pose.orientation = md.ENV_DAT['above']['ori']
         pose.position = Point(0.4,0.,1.0)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 1, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 1, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
 
-        pose.orientation = settings.md.ENV_DAT['wall']['ori']
+        pose.orientation = md.ENV_DAT['wall']['ori']
         pose.position = Point(0.7,0.1,0.5)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 1/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 2 1/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
         pose.position = Point(0.7,-0.1,0.5)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 2/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 2 2/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
         pose.position = Point(0.7,-0.1,0.4)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 3/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 2 3/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
         pose.position = Point(0.7,0.1,0.4)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 4/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 2 4/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
         pose.position = Point(0.7,0.1,0.5)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 2 5/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 2 5/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
 
-        pose.orientation = settings.md.ENV_DAT['table']['ori']
+        pose.orientation = md.ENV_DAT['table']['ori']
         pose.position = Point(0.4,-0.1,0.2)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 1/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 3 1/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
         pose.position = Point(0.6,-0.1,0.2)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 2/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 3 2/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
         pose.position = Point(0.6,0.1,0.2)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 3/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 3 3/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
         pose.position = Point(0.4,0.1,0.2)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 4/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 3 4/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
         pose.position = Point(0.4,-0.1,0.2)
         md.goal_pose = deepcopy(pose)
         self.advancedWait()
-        print("[MoveIt*] Init test 3 5/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+        print("[MoveIt*] Init test 3 5/5, error: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
 
         print("[MoveIt*] Init test ended")
 
@@ -940,7 +770,7 @@ class MoveGroupPythonInteface(object):
                 pose.orientation.w = float(raw_input())
                 md.goal_pose = deepcopy(pose)
                 time.sleep(8)
-                print("Distance between given and real coords.: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(settings.extv(md.eef_pose.position), settings.extv(md.goal_pose.position)))
+                print("Distance between given and real coords.: ", round(self.distancePoses(md.eef_pose, pose), 2), " [x,y,z] diff: ", np.subtract(extv(md.eef_pose.position), extv(md.goal_pose.position)))
             except ValueError:
                 print("[MoveIt*] Test ended")
                 break
@@ -953,12 +783,12 @@ class MoveGroupPythonInteface(object):
 
         poses = []
         pose = Pose()
-        pose.orientation = settings.md.ENV_DAT['table']['ori']
+        pose.orientation = md.ENV_DAT['table']['ori']
         dists = []
         for i in ys:
             row = []
             for j in xs:
-                pose.position = Point(j*0.1,i*0.1,0.1)#settings.md.ENV_DAT['table']['min']
+                pose.position = Point(j*0.1,i*0.1,0.1)
                 p = deepcopy(pose)
 
                 md.goal_pose = deepcopy(p)
@@ -970,7 +800,7 @@ class MoveGroupPythonInteface(object):
 
 
     def testTrajectoryActionClient(self):
-        settings.md.Mode = ''
+        md.mode = ''
         self.trajectory_action_perform = False
         Js = [ [-1.72, 0.42, -1.61, -1.98, -1.36, 0.49, -1.48],
         [1.87, -1.49, -2.60, -1.13, -0.34, 3.19, -1.83],
@@ -987,8 +817,8 @@ class MoveGroupPythonInteface(object):
             settings.mo.plotJointsCallViz(load_data=True)
             raw_input()
 
-            settings.md._goal.trajectory.header.stamp = rospy.Time.now()
-            settings.mo.tac.add_goal(deepcopy(settings.md._goal))
+            md._goal.trajectory.header.stamp = rospy.Time.now()
+            settings.mo.tac.add_goal(deepcopy(md._goal))
             settings.mo.tac.replace()
 
             time.sleep(3)

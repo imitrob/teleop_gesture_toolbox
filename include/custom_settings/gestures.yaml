@@ -2,6 +2,17 @@
 
 # Keyboard (use lowercase) key for recording
 # NOTE: Gesture names are lowercased when importing
+set_test_new_version:
+  grab:
+    key: g
+    filename: gesture56.png
+  kick:
+    key: k
+    filename: gesture57.png
+  nothing:
+    key: n
+    filename: gesture45.png
+
 set_1_static:
   grab:
     key: 1

@@ -21,11 +21,16 @@ def ordered_load(stream, Loader=yaml.SafeLoader, object_pairs_hook=OrderedDict):
     return yaml.load(stream, OrderedLoader)
 
 class GlobalPaths():
-    ''' Note: This cannot work when importing this function from script that is in different directory
     '''
-    def __init__(self):
+    '''
+    def __init__(self, change_working_directory=True):
+        '''
+        Parameters:
+            change_working_directory (bool): Changed to '<this_file>/../'
+        '''
         self.home = os.path.expanduser("~")
         # searches for the WS name + print it
+
         THIS_FILE_PATH = os.path.dirname(inspect.getabsfile(inspect.currentframe()))
         THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..', '..'))
         self.ws_folder = THIS_FILE_TMP.split('/')[-1]
@@ -40,6 +45,9 @@ class GlobalPaths():
         self.custom_settings_yaml = MG_PATH+'/include/custom_settings/'
         TMP2 = os.path.abspath(os.path.join(MG_PATH, '..'))
         self.coppelia_scene_path = TMP2+"/mirracle_sim/include/scenes/"
+        if change_working_directory:
+            os.chdir(MG_PATH+'/src')
+
 def load_params():
     if ros_enabled():
         try:
@@ -53,6 +61,9 @@ def load_params():
         plot = rospy.get_param("/mirracle_config/visualize", 'false')
         inverse_kinematics = rospy.get_param("/mirracle_config/ik_solver", 'relaxed_ik')
         inverse_kinematics_topic = rospy.get_param("/mirracle_config/ik_topic", '')
+        gesture_detection_on = rospy.get_param("/mirracle_config/launch_gesture_detection", 'false')
+        launch_gesture_detection = rospy.get_param("/mirracle_config/launch_gesture_detection", 'false')
+        launch_ui = rospy.get_param("/mirracle_config/launch_ui", 'false')
     else:
         robot = 'panda'
         simulator = 'coppelia'
@@ -60,7 +71,10 @@ def load_params():
         plot = 'false'
         inverse_kinematics = 'relaxed_ik'
         inverse_kinematics_topic = ''
-    return robot, simulator, gripper, plot, inverse_kinematics, inverse_kinematics_topic
+        gesture_detection_on = 'false'
+        launch_gesture_detection = 'false'
+        launch_ui = 'false'
+    return robot, simulator, gripper, plot, inverse_kinematics, inverse_kinematics_topic, gesture_detection_on, launch_gesture_detection, launch_ui
 
 
 
@@ -78,6 +92,18 @@ def merge_two_dicts(x, y):
     z = x.copy()   # start with keys and values of x
     z.update(y)    # modifies z with keys and values of y
     return z
+
+def distancePoses(self, p1, p2):
+    ''' Returns distance between two pose objects
+    Parameters:
+        pose1 (type Pose() from geometry_msgs.msg)
+        pose2 (type Pose() from geometry_msgs.msg)
+    Returns:
+        distance (Float)
+    '''
+    p1 = p1.position
+    p2 = p2.position
+    return np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2)
 
 
 #

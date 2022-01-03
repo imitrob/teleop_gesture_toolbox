@@ -3,7 +3,7 @@
 
   <arg name="ik_solver" default="relaxed_ik" /> <!-- 'relaxed_ik'/'pyrep' -->
   <arg name="launch_ui" default="true" />
-  <arg name="launch_leap" default="true" />
+  <arg name="launch_leap" default='true' />
   <arg name="launch_gesture_detection" default="true" />
   <arg name="robot" default="panda" /> <!-- 'panda'/('iiwa' not tested) -->
   <arg name="gripper" default="franka_hand" /> <!-- 'none'/'franka_hand'/'franka_hand_with_camera'-->
@@ -55,17 +55,21 @@
     <param name="/mirracle_config/config_file_scene" value="$(arg scene_file_franka_hand_with_camera)" />
   </group>
 
-  <group if="$(eval arg('simulator') == 'coppelia')">
+  <!--<group if="$(eval arg('simulator') == 'coppelia')">
     <include file="$(find mirracle_sim)/launch/coppelia_ros.launch" />
     <node pkg="mirracle_sim" name="coppelia_sim" type="coppelia_sim_ros_interface.py" output="screen"/>
-  </group>
+  </group>-->
 
   <!-- There will be pick to three .config files no gripper/gripper/custom gripper -->
-  <group if="$(eval arg('ik_solver') == 'relaxed_ik')">
+  <!--<group if="$(eval arg('ik_solver') == 'relaxed_ik')">
     <node pkg="relaxed_ik" type="relaxed_ik_node.py" name="relaxed_ik_node" output="screen"/>
+  </group>-->
+
+  <group if="$(arg launch_leap)">
+    <node pkg="mirracle_gestures" name="leap" type="leap.py" output="screen"/>
   </group>
 
   <node pkg="mirracle_gestures" name="apply_scene_service" type="apply_scene_service.py" output="screen"/>
   <node pkg="mirracle_gestures" name="main" type="main.py" output="screen"/>
-  <node pkg="mirracle_gestures" name="sample_send" type="sample.py" output="screen"/>
+  <!--<node pkg="mirracle_gestures" name="sample_send" type="sample.py" output="screen"/>-->
 </launch>

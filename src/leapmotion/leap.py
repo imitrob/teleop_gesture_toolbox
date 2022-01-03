@@ -1,39 +1,25 @@
 #!/usr/bin/env python3.8
-import sys, Leap, time, argparse
+import sys, os, Leap, time, argparse, inspect
 
-sys.path.append('../os_and_utils')
-from saving import Recording
-from utils import ROS_ENABLED
+THIS_DIR = os.path.dirname(inspect.getabsfile(inspect.currentframe()))
+sys.path.append(os.path.abspath(os.path.join(THIS_DIR, '..')))
+from os_and_utils.saving import Recording
+from os_and_utils.utils import ros_enabled
 import frame_lib
 
-if ROS_ENABLED():
+import settings
+settings.init()
+
+if ros_enabled():
     import rospy
     import mirracle_gestures.msg as rosm
     import mirracle_gestures.srv as ross
-    #ross.SaveHandRecord, ross.SaveHandRecordResponse
-
-global args
-
-'''
-TODO:
-    - [x] Add also the ROS publisher of the data
-    - [x] Saved data to Frame are not ROS dependent
-    - [x] Hand class Frame and Hand needs to be independent from Leap Class --> All values needs to be saved to own defined objects
-    - [x] Setup service to save recordings
-    - [ ] Test solution
-
-Problems:
-    - ui_lib is reffering to some variables that are not in Frame anymore
-        -> Solutions: need to change these variables to their substitution function
-    -
-'''
+    #ross.SaveHandRecord, ross.SaveHandRecordResponseS
 
 class SampleListener(Leap.Listener):
     def on_init(self, controller):
         self.record = Recording()
-        global args
-        self.is_printing = args.print
-        if ROS_ENABLED():
+        if ros_enabled():
             self.frame_publisher = rospy.Publisher("/hand_frame", rosm.Frame, queue_size=5)
             rospy.Service('save_hand_record', ross.SaveHandRecord, self.save_hand_record_callback)
         print("[leap] Initialized")
@@ -61,12 +47,13 @@ class SampleListener(Leap.Listener):
         leapgestures = LeapMotionGestures.extract(frame.gestures(), frame1)
         f = frame_lib.Frame(frame, leapgestures)
 
-        if ROS_ENABLED():
-            self.frame_publisher.publish(f.to_ros())
+        if ros_enabled():
+            fros = f.to_ros()
+            self.frame_publisher.publish(fros)
 
         self.record.auto_handle(f)
 
-        if self.is_printing:
+        if self.print_on:
             print(f)
 
     def save_hand_record_callback(self, msg):
@@ -159,31 +146,51 @@ def main():
     parser.add_argument('--print', default=False, type=bool, help='(default=%(default)s)')
     parser.add_argument('--record_with_enter', default=False, type=bool, help='(default=%(default)s)', choices=[True, False])
     parser.add_argument('--recording_length', default=1., type=float, help='(default=%(default)s)')
-    parser.add_argument('--directory', default='/home/pierro/Downloads/asd', type=str, help='(default=%(default)s)')
+    parser.add_argument('--directory', default='', type=str, help='(default=%(default)s)')
     parser.add_argument('--save_method', default='numpy', type=str, help='(default=%(default)s)')
-    global args
-    args=parser.parse_args()
-    print(args)
-    record_settings = [args.directory, args.save_method, args.recording_length]
 
-    if ROS_ENABLED():
+    try:
+        args=parser.parse_args()
+        print_on = args.print
+        record_with_enter = args.record_with_enter
+        recording_length = args.recording_length
+        directory = args.directory
+        save_method = args.save_method
+    except:
+        print("[Leap] parse_args failed -> parse_known_args")
+        args=parser.parse_known_args()
+        print_on = False
+        record_with_enter = False
+        recording_length = 1.0
+        directory = ''
+        save_method = 'numpy'
+
+    if directory == '':
+        directory = settings.paths.learn_path
+
+    print(f"[Leap] {print_on}, record_with_enter: {record_with_enter}, recording_length {recording_length}, directory {directory}, save_method {save_method}")
+
+    record_settings = [directory, save_method, recording_length]
+
+    if ros_enabled():
         rospy.init_node('leap', anonymous=True)
     else:
         print(f"ROS is not enabled! Check also sourcing the mirracle_gestures package")
 
     # Create a sample listener and controller
     listener = SampleListener()
+    listener.print_on = print_on
     controller = Leap.Controller()
 
     # Have the sample listener receive events from the controller
     controller.add_listener(listener)
 
-    if args.record_with_enter:
+    if record_with_enter:
         spin = spin_record_with_enter
     else:
         spin = spin_default
 
-    if ROS_ENABLED():
+    if ros_enabled():
         while not rospy.is_shutdown():
             spin(listener, record_settings)
     else:

@@ -10,6 +10,10 @@ from relaxed_ik.msg import EEPoseGoals, JointAngles
 from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
 
+from copy import deepcopy
+import tf
+import settings
+from os_and_utils.utils_ros import extq
 
 class RelaxedIKInterface():
     def __init__(self):
@@ -23,7 +27,7 @@ class RelaxedIKInterface():
         self.seq = 1
 
     @staticmethod
-    def relaxik_t(pose1, settings):
+    def relaxik_t(pose1):
         ''' All position goals and orientation goals are specified with respect to specified initial configuration.
             -> This function relates, sets goal poses to origin [0.,0.,0.] with orientation pointing up [0.,0.,0.,1.]
         '''
@@ -33,7 +37,7 @@ class RelaxedIKInterface():
             pose_.position.x -= 0.55442+0.04
             pose_.position.y -= 0.0
             pose_.position.z -= 0.62443
-            pose_.orientation = Quaternion(*tf.transformations.quaternion_multiply([1.0, 0.0, 0.0, 0.0], settings.extq(pose_.orientation)))
+            pose_.orientation = Quaternion(*tf.transformations.quaternion_multiply([1.0, 0.0, 0.0, 0.0], extq(pose_.orientation)))
             #pose_.position.z -= 0.926
             #pose_.position.x -= 0.107
         elif settings.robot == 'iiwa':
@@ -157,9 +161,11 @@ class IK_bridge():
         What are joints configuration and what is the latest link?
         Because the last link in urdf file should be linked with the tip_point of
     '''
-    def __init__(self, settings):
-        self.fk = ForwardKinematics(frame_id=settings.base_link)
-        self.ikt = InverseKinematics()
+    def __init__(self):
+        if not settings.simulator == 'coppelia':
+
+            self.fk = ForwardKinematics(frame_id=settings.base_link)
+            self.ikt = InverseKinematics()
 
         self.relaxedik = RelaxedIKInterface()
 

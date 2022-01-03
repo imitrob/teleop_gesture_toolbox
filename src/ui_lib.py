@@ -6,32 +6,24 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-import sys, random
+import sys, random, time, csv, yaml
 import settings
+import os_and_utils.move_lib as ml
+import gestures_lib as gl
+import os_and_utils.scenes as sl
 import numpy as np
-import tf
+from threading import Thread, Timer
 from copy import deepcopy
-import time
 from os.path import expanduser, isfile, isdir
+from os_and_utils.transformations import Transformations as tfm
 try:
     from sklearn.metrics import confusion_matrix
 except ModuleNotFoundError:
     print("[WARNING*] Sklearn library not installed -> confusion_matrix won't be plotted!")
-from scipy import sparse
-from threading import Thread
-from gestures_lib import GestureDetection
-import matplotlib.pyplot as plt
-import csv
-import pickle
-import ctypes
-from threading import Timer
-import yaml
-import io
-import rospy
-import pickle
 
+import rospy
 # ros msg classes
-from geometry_msgs.msg import PoseStamped, Quaternion, Pose, Point
+from geometry_msgs.msg import Quaternion, Pose, Point
 from mirracle_gestures.srv import ChangeNetwork, SaveHandRecord
 
 class Example(QMainWindow):
@@ -39,8 +31,8 @@ class Example(QMainWindow):
     def __init__(self):
         super(Example, self).__init__()
 
-        with open(settings.paths.custom_settings_yaml+"gesture_recording.yaml", 'r') as stream:
-            gestures_data_loaded = yaml.safe_load(stream)
+        with open(settings.paths.custom_settings_yaml+"recording.yaml", 'r') as stream:
+            recording_data_loaded = yaml.safe_load(stream)
         with open(settings.paths.custom_settings_yaml+"application.yaml", 'r') as stream:
             app_data_loaded = yaml.safe_load(stream)
         global LEFT_MARGIN, RIGHT_MARGIN, BOTTOM_MARGIN, ICON_SIZE, START_PANEL_Y, BarMargin
@@ -76,7 +68,7 @@ class Example(QMainWindow):
             self.lblConfValuesObj.append(QLabel(self.lblConfValues[i], self))
 
         ## Label Observation Poses
-        self.lblObservationPosesNames = ['conf.', 'oc1', 'oc2', 'oc3', 'oc4', 'oc5', 'tch12', 'tch23', 'tch34', 'tch45', 'tch13', 'tch14', 'tch15', 'x_vel', 'y_vel', 'z_vel', 'x_rot', 'y_rot', 'z_rot']
+        self.lblObservationPosesNames = ['conf.', 'oc1', 'oc2', 'oc3', 'oc4', 'oc5', 'touch12', 'touch23', 'touch34', 'touch45', 'touch13', 'touch14', 'touch15', 'x_vel', 'y_vel', 'z_vel', 'x_rot', 'y_rot', 'z_rot']
         self.lblObservationPosesValues = ['0.0' , '0.0', '0.0', '0.0', '0.0', '0.0', '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',  '0.0', '0.0']
         self.lblObservationPosesNamesObj = []
         self.lblObservationPosesValuesObj = []
@@ -92,8 +84,8 @@ class Example(QMainWindow):
         self.comboPlayNLive.setGeometry(LEFT_MARGIN+130, START_PANEL_Y-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
         self.comboPickPlayTraj = QComboBox(self)
-        for path in settings.sp:
-            self.comboPickPlayTraj.addItem(path.NAME)
+        for path in sl.paths:
+            self.comboPickPlayTraj.addItem(path.name)
         self.comboPickPlayTraj.activated[str].connect(self.onComboPickPlayTrajChanged)
         self.comboPickPlayTraj.setGeometry(LEFT_MARGIN+130+ICON_SIZE*2, START_PANEL_Y-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
@@ -115,7 +107,7 @@ class Example(QMainWindow):
         self.btnPlayMove3.setGeometry(LEFT_MARGIN+130+ICON_SIZE*6, START_PANEL_Y-10,ICON_SIZE,int(ICON_SIZE/2))
 
         self.recording = False # Bool if recording is happening
-        self.REC_TIME = gestures_data_loaded['Recording']['Length'] # sec
+        self.REC_TIME = recording_data_loaded['Length'] # [s]
         self.dir_queue = []
 
         self.lblStatus = QLabel('Status bar', self)
@@ -218,7 +210,7 @@ class Example(QMainWindow):
         download_networks_action = QAction('Download networks from gdrive', self)
         download_networks_action.triggered.connect(self.download_networks_gdrive)
         self.network_menu = QMenu('Pick detection network', self)
-        self.networks = GesturesDetection.get_networks()
+        self.networks = gl.GestureDetection.get_networks()
         self.network_actions = []
         for index,network in enumerate(self.networks):
             action = QAction(network, self)
@@ -232,7 +224,7 @@ class Example(QMainWindow):
         self.confusion_mat_action.triggered.connect(self.confustion_mat)
 
 
-        SCENES = settings.getSceneNames()
+        SCENES = sl.scenes.names()
         for index, SCENE in enumerate(SCENES):
             action = QAction('Scene '+str(index)+' '+SCENE, self)
             action.triggered.connect(
@@ -331,11 +323,12 @@ class Example(QMainWindow):
         pose = Pose()
         pose.position = Point(*vals[0:3])
         pose.orientation = Quaternion(*vals[3:7])
-        md.goal_pose = pose
+        ml.md.goal_pose = pose
 
     def keyPressEvent(self, event):
         ''' Callbacky for every keyboard button press
         '''
+        print("Handle only Enter and Tab (?)")
         if settings.record_with_keys:
             KEYS = [self.mapQtKey(key) for key in settings.GsK]
             if event.key() in KEYS:
@@ -366,7 +359,7 @@ class Example(QMainWindow):
 
         def updateGesturesUI():
             self.lblGesturesPosesNames = settings.Gs
-            settings.gd = settings.GestureDetection()
+            gl.gd = gl.GestureDetection()
         updateGesturesUI()
 
 
@@ -375,10 +368,10 @@ class Example(QMainWindow):
             1. Files download
             2. Network info update
         '''
-        GesturesDetection.download_networks_gdrive()
+        gl.gd.download_networks_gdrive()
         # Update Networks Menu
         self.network_menu.clear()
-        self.networks = GesturesDetection.get_networks()
+        self.networks = gl.gd.get_networks()
         self.network_actions = []
         for network in self.networks:
             action = QAction(network, self)
@@ -429,21 +422,22 @@ class Example(QMainWindow):
         y_true = []
         y_pred = []
 
-        poses_list = [p.NAME for p in settings.gd.r.poses]
-        for n, i in enumerate(poses_list):
+        gl.gd.r.static.names
+        static_gestures_list = gl.gd.r.static.names()
+        for n, i in enumerate(static_gestures_list):
             for j in range(0,NUM_SAMPLES):
                 self.lblInfo.setText(i+" "+str(j))
                 time.sleep(DELAY_BETW_SAMPLES)
-                for m,g in enumerate(poses_list):
-                    if settings.gd.r.poses[m].toggle:
+                for m,g in enumerate(static_gestures_list):
+                    if gl.gd.r.poses[m].toggle:
                         y_true.append(n)
                         y_pred.append(m)
 
         self.lblInfo.setText("Done (Saved as confusionmatrix.csv)")
         cm = confusion_matrix(y_true, y_pred)
-        cm_ = np.vstack((poses_list,cm))
-        poses_list.insert(0,"Confusion matrix")
-        cm__ = np.hstack((np.array([poses_list]).transpose(),cm_))
+        cm_ = np.vstack((static_gestures_list,cm))
+        static_gestures_list.insert(0,"Confusion matrix")
+        cm__ = np.hstack((np.array([static_gestures_list]).transpose(),cm_))
         with open('confusionmatrix.csv', 'w') as file:
             writer = csv.writer(file)
             writer.writerows(cm__)
@@ -462,44 +456,44 @@ class Example(QMainWindow):
         settings.WindowState = 2
 
     def gestures_goal_init_procedure(self):
-        settings.md.gestures_goal_pose.position = settings.md.ENV['start']
-        settings.md.gestures_goal_pose.orientation = settings.md.ENV['ori']
+        ml.md.gestures_goal_pose.position = ml.md.ENV['start']
+        ml.md.gestures_goal_pose.orientation = ml.md.ENV['ori']
 
     # Switch the environment functions
     def switchEnvAbove(self):
-        settings.md.ENV = settings.md.ENV_DAT['above']
+        ml.md.ENV = ml.md.ENV_DAT['above']
         self.gestures_goal_init_procedure()
     def switchEnvWall(self):
-        settings.md.ENV = settings.md.ENV_DAT['wall']
+        ml.md.ENV = ml.md.ENV_DAT['wall']
         self.gestures_goal_init_procedure()
     def switchEnvTable(self):
-        settings.md.ENV = settings.md.ENV_DAT['table']
+        ml.md.ENV = ml.md.ENV_DAT['table']
         self.gestures_goal_init_procedure()
 
     def movePageUseEnvAboveButtonFun(self):
-        self.movePageGoPoseEdits[3].setText(str(settings.md.ENV_DAT['above']['ori'].x))
-        self.movePageGoPoseEdits[4].setText(str(settings.md.ENV_DAT['above']['ori'].y))
-        self.movePageGoPoseEdits[5].setText(str(settings.md.ENV_DAT['above']['ori'].z))
-        self.movePageGoPoseEdits[6].setText(str(settings.md.ENV_DAT['above']['ori'].w))
+        self.movePageGoPoseEdits[3].setText(str(ml.md.ENV_DAT['above']['ori'].x))
+        self.movePageGoPoseEdits[4].setText(str(ml.md.ENV_DAT['above']['ori'].y))
+        self.movePageGoPoseEdits[5].setText(str(ml.md.ENV_DAT['above']['ori'].z))
+        self.movePageGoPoseEdits[6].setText(str(ml.md.ENV_DAT['above']['ori'].w))
     def movePageUseEnvWallButtonFun(self):
-        self.movePageGoPoseEdits[3].setText(str(settings.md.ENV_DAT['wall']['ori'].x))
-        self.movePageGoPoseEdits[4].setText(str(settings.md.ENV_DAT['wall']['ori'].y))
-        self.movePageGoPoseEdits[5].setText(str(settings.md.ENV_DAT['wall']['ori'].z))
-        self.movePageGoPoseEdits[6].setText(str(settings.md.ENV_DAT['wall']['ori'].w))
+        self.movePageGoPoseEdits[3].setText(str(ml.md.ENV_DAT['wall']['ori'].x))
+        self.movePageGoPoseEdits[4].setText(str(ml.md.ENV_DAT['wall']['ori'].y))
+        self.movePageGoPoseEdits[5].setText(str(ml.md.ENV_DAT['wall']['ori'].z))
+        self.movePageGoPoseEdits[6].setText(str(ml.md.ENV_DAT['wall']['ori'].w))
     def movePageUseEnvTableButtonFun(self):
-        self.movePageGoPoseEdits[3].setText(str(settings.md.ENV_DAT['table']['ori'].x))
-        self.movePageGoPoseEdits[4].setText(str(settings.md.ENV_DAT['table']['ori'].y))
-        self.movePageGoPoseEdits[5].setText(str(settings.md.ENV_DAT['table']['ori'].z))
-        self.movePageGoPoseEdits[6].setText(str(settings.md.ENV_DAT['table']['ori'].w))
+        self.movePageGoPoseEdits[3].setText(str(ml.md.ENV_DAT['table']['ori'].x))
+        self.movePageGoPoseEdits[4].setText(str(ml.md.ENV_DAT['table']['ori'].y))
+        self.movePageGoPoseEdits[5].setText(str(ml.md.ENV_DAT['table']['ori'].z))
+        self.movePageGoPoseEdits[6].setText(str(ml.md.ENV_DAT['table']['ori'].w))
     def movePagePoseNowButtonFun(self):
-        self.movePageGoPoseEdits[0].setText(str(md.goal_pose.position.x))
-        self.movePageGoPoseEdits[1].setText(str(md.goal_pose.position.y))
-        self.movePageGoPoseEdits[2].setText(str(md.goal_pose.position.z))
+        self.movePageGoPoseEdits[0].setText(str(ml.md.goal_pose.position.x))
+        self.movePageGoPoseEdits[1].setText(str(ml.md.goal_pose.position.y))
+        self.movePageGoPoseEdits[2].setText(str(ml.md.goal_pose.position.z))
 
-        self.movePageGoPoseEdits[3].setText(str(md.goal_pose.orientation.x))
-        self.movePageGoPoseEdits[4].setText(str(md.goal_pose.orientation.y))
-        self.movePageGoPoseEdits[5].setText(str(md.goal_pose.orientation.z))
-        self.movePageGoPoseEdits[6].setText(str(md.goal_pose.orientation.w))
+        self.movePageGoPoseEdits[3].setText(str(ml.md.goal_pose.orientation.x))
+        self.movePageGoPoseEdits[4].setText(str(ml.md.goal_pose.orientation.y))
+        self.movePageGoPoseEdits[5].setText(str(ml.md.goal_pose.orientation.z))
+        self.movePageGoPoseEdits[6].setText(str(ml.md.goal_pose.orientation.w))
 
     # Fixed orientation function
     def fixedOriAct(self, state):
@@ -510,31 +504,31 @@ class Example(QMainWindow):
         settings.record_with_keys = state
 
     def goScene(self, index):
-        SCENES = settings.getSceneNames()
-        settings.mo.make_scene(scene=SCENES[index])
+        scenes = sl.scenes.names()
+        sl.scenes.make_scene(scenes[index])
 
     def onComboPlayNLiveChanged(self, text):
         if text=="Live hand":
-            settings.md.Mode = 'live'
+            ml.md.mode = 'live'
         elif text=="Play path":
-            settings.md.Mode = 'play'
+            ml.md.mode = 'play'
     def onComboPickPlayTrajChanged(self, text):
-        settings.mo.changePlayPath(text)
+        ml.md.changePlayPath(text)
     def onComboLiveModeChanged(self, text):
-        settings.mo.changeLiveMode(text)
+        ml.md.changeLiveMode(text)
     def onInteractiveSceneChanged(self, text):
         if text == "Scene 1 Drawer":
-            settings.mo.make_scene(scene='drawer')
-            settings.md.ENV = settings.md.ENV_DAT['wall']
+            sl.scenes.make_scene('drawer')
+            ml.md.ENV = ml.md.ENV_DAT['wall']
         elif text == "Scene 2 Pick/Place":
-            settings.mo.make_scene(scene='pickplace')
-            settings.md.ENV = settings.md.ENV_DAT['table']
+            sl.scenes.make_scene('pickplace')
+            ml.md.ENV = ml.md.ENV_DAT['table']
         elif text == "Scene 3 Push button":
-            settings.mo.make_scene(scene='pushbutton')
-            settings.md.ENV = settings.md.ENV_DAT['table']
+            sl.scenes.make_scene('pushbutton')
+            ml.md.ENV = ml.md.ENV_DAT['table']
         elif text == "Scene 4 - 2 Pick/Place":
-            settings.mo.make_scene(scene='pickplace2')
-            settings.md.ENV = settings.md.ENV_DAT['table']
+            sl.scenes.make_scene('pickplace2')
+            ml.md.ENV = ml.md.ENV_DAT['table']
         else: raise Exception("Item not on a list!")
         self.gestures_goal_init_procedure()
 
@@ -546,7 +540,7 @@ class Example(QMainWindow):
         ## Set all objects on page visible (the rest set invisible)
         for obj in self.AllVisibleObjects:
             # Every object that belongs to that group are conditioned by that group
-            if obj.page == settings.WindowState and (self.GesturesViewState if 'GesturesViewState' in obj.view_group else True) and  (self.MoveViewState if 'MoveViewState' in obj.view_group else True) and ((settings.md.Mode=='live') if 'live' in obj.view_group else True) and ((settings.md.Mode=='play') if 'play' in obj.view_group else True):
+            if obj.page == settings.WindowState and (self.GesturesViewState if 'GesturesViewState' in obj.view_group else True) and  (self.MoveViewState if 'MoveViewState' in obj.view_group else True) and ((ml.md.mode=='live') if 'live' in obj.view_group else True) and ((ml.md.mode=='play') if 'play' in obj.view_group else True):
                 obj.qt.setVisible(True)
             else:
                 obj.qt.setVisible(False)
@@ -564,18 +558,18 @@ class Example(QMainWindow):
         painter = QPainter(self)
         painter.setPen(QPen(Qt.red, 3))
 
-        if len(md.frames) > 10 and 'point' in settings.gd.r.POSES.keys():
+        if self.cursor_enabled() and 'point' in gl.gd.r.static.names():
             for n in range(1,10):
-                if md.frames[-n-1].r.visible and md.frames[-n].r.visible:
-                    p1 = tfm.transformLeapToUIsimple(md.frames[-n].r.palm_pose())
-                    p2 = tfm.transformLeapToUIsimple(md.frames[-n-1].r.palm_pose())
+                if ml.md.frames[-n-1].r.visible and ml.md.frames[-n].r.visible:
+                    p1 = tfm.transformLeapToUIsimple(ml.md.frames[-n].r.palm_pose())
+                    p2 = tfm.transformLeapToUIsimple(ml.md.frames[-n-1].r.palm_pose())
                     painter.setPen(QPen(Qt.red, p1.position.z))
                     painter.drawLine(p1.position.x, p1.position.y, p2.position.x, p2.position.y)
 
-            pose_c = tfm.transformLeapToUIsimple(md.frames[-1].r.palm_pose())
+            pose_c = tfm.transformLeapToUIsimple(ml.md.frames[-1].r.palm_pose())
             x_c,y_c = pose_c.position.x, pose_c.position.y
 
-            rad = settings.gd.r.poses[settings.gd.r.POSES["point"]].time_visible*80
+            rad = gl.gd.r.static.point.time_visible*80
             if rad > 100:
                 rad = 100
 
@@ -586,38 +580,39 @@ class Example(QMainWindow):
         #painter.drawLine(self.w/2,self.h-20, self.w-RIGHT_MARGIN-ICON_SIZE, self.h-20)
         #painter.drawLine(self.w/2,self.h-20, self.w/2, START_PANEL_Y+ICON_SIZE)
         #self.lblStartAxis.setGeometry(self.w/2+5, self.h-70, 100, 50)
-        #self.lblStartAxis.setText(str(settings.md.ENV['start']))
+        #self.lblStartAxis.setText(str(ml.md.ENV['start']))
 
         ## Paint the bones structure
         painter.setPen(QPen(Qt.black, 1))
-        if md.frames:
-            hand = md.frames[-1].hands[0]
-            palm = hand.palm_position
-            wrist = hand.wrist_position
-            elbow = hand.arm.elbow_position
+        if ml.md.r_present():
+            hand = ml.md.frames[-1].r
+            palm = hand.palm_position()
+            wrist = hand.wrist_position()
+
+            elbow = [0.,0.,0.]#hand.arm.elbow_position()
             pose_palm = Pose()
             pose_palm.position = Point(palm[0], palm[1], palm[2])
             pose_wrist = Pose()
             pose_wrist.position = Point(wrist[0], wrist[1], wrist[2])
             pose_elbow = Pose()
             pose_elbow.position = Point(elbow[0], elbow[1], elbow[2])
-            pose_palm_ = settings.mo.transformLeapToUIsimple(pose_palm)
-            pose_wrist_ = settings.mo.transformLeapToUIsimple(pose_wrist)
+            pose_palm_ = tfm.transformLeapToUIsimple(pose_palm)
+            pose_wrist_ = tfm.transformLeapToUIsimple(pose_wrist)
             x, y = pose_palm_.position.x, pose_palm_.position.y
             x_, y_ = pose_wrist_.position.x, pose_wrist_.position.y
             painter.drawLine(x, y, x_, y_)
-            pose_elbow_ = settings.mo.transformLeapToUIsimple(pose_elbow)
+            pose_elbow_ = tfm.transformLeapToUIsimple(pose_elbow)
             x, y = pose_elbow_.position.x, pose_elbow_.position.y
             painter.drawLine(x, y, x_, y_)
             for finger in hand.fingers:
                 for b in range(0, 4):
-                    bone = finger.bone(b)
+                    bone = finger.bones[b]
                     pose_bone_prev = Pose()
                     pose_bone_prev.position = Point(bone.prev_joint[0], bone.prev_joint[1], bone.prev_joint[2])
                     pose_bone_next = Pose()
                     pose_bone_next.position = Point(bone.next_joint[0], bone.next_joint[1], bone.next_joint[2])
-                    pose_bone_prev_ = settings.mo.transformLeapToUIsimple(pose_bone_prev)
-                    pose_bone_next_ = settings.mo.transformLeapToUIsimple(pose_bone_next)
+                    pose_bone_prev_ = tfm.transformLeapToUIsimple(pose_bone_prev)
+                    pose_bone_next_ = tfm.transformLeapToUIsimple(pose_bone_next)
                     x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
                     x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
                     painter.drawLine(x, y, x_, y_)
@@ -632,10 +627,10 @@ class Example(QMainWindow):
         qp = QPainter()
         qp.begin(self)
         textStatus = ""
-        if md.goal_pose and md.goal_joints:
-            textStatus += "eef: "+str(round(md.eef_pose.position.x,2))+" "+str(round(md.eef_pose.position.y,2))+" "+str(round(md.eef_pose.position.z,2))
-            textStatus += '\ng p:'+str(round(md.goal_pose.position.x,2))+" "+str(round(md.goal_pose.position.y,2))+" "+str(round(md.goal_pose.position.z,2))
-            textStatus += '\ng q:'+str(round(md.goal_pose.orientation.x,2))+" "+str(round(md.goal_pose.orientation.y,2))+" "+str(round(md.goal_pose.orientation.z,2))+" "+str(round(md.goal_pose.orientation.w,2))
+        if ml.md.goal_pose and ml.md.goal_joints:
+            textStatus += "eef: "+str(round(ml.md.eef_pose.position.x,2))+" "+str(round(ml.md.eef_pose.position.y,2))+" "+str(round(ml.md.eef_pose.position.z,2))
+            textStatus += '\ng p:'+str(round(ml.md.goal_pose.position.x,2))+" "+str(round(ml.md.goal_pose.position.y,2))+" "+str(round(ml.md.goal_pose.position.z,2))
+            textStatus += '\ng q:'+str(round(ml.md.goal_pose.orientation.x,2))+" "+str(round(ml.md.goal_pose.orientation.y,2))+" "+str(round(ml.md.goal_pose.orientation.z,2))+" "+str(round(ml.md.goal_pose.orientation.w,2))
 
 
         if self.recording:
@@ -648,16 +643,16 @@ class Example(QMainWindow):
         if self.GesturesViewState:
             self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
             # up late
-            if md.frames:
+            if ml.md.frames:
                 # hand fingers
                 for i in range(1,6):
-                    if settings.gd.r.oc[i-1]:
+                    if gl.gd.r.oc[i-1]:
                         qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i)+"open.png"))
                     else:
                         qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i)+"closed.png"))
                 # arrows
-                if 'move_in_axis' in settings.gd.r.GESTS.keys():
-                    g = settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]]
+                if 'move_in_axis' in gl.gd.r.dynamic.names():
+                    g = gl.gd.r.dynamic.move_in_axis
                     X = w-RIGHT_MARGIN-100-ICON_SIZE
                     Y = START_PANEL_Y-20
                     if g.toggle[0] and g.move[0]:
@@ -674,28 +669,29 @@ class Example(QMainWindow):
                         qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_back.png"))
 
             # left lane
-            POSE_FILE_IMAGES = [p.filename for p in settings.gd.r.poses]
-            POSE_NMS = [p.NAME for p in settings.gd.r.poses]
-            GEST_FILE_IMAGES = [p.filename for p in settings.gd.r.gests][0:4]
-            GEST_NMS = [p.NAME for p in settings.gd.r.gests][0:4]
+
+            POSE_FILE_IMAGES = gl.gd.r.static.filenames()
+            POSE_NMS = gl.gd.r.static.names()
+            GEST_FILE_IMAGES = gl.gd.r.dynamic.filenames()[0:4]
+            GEST_NMS = gl.gd.r.dynamic.names()[0:4]
             for n, i in enumerate(POSE_FILE_IMAGES):
                 qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
-                if settings.gd.r.poses[n].toggle:
+                if gl.gd.r.static[n].toggle:
                     qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
-                qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE-settings.gd.r.poses[n].prob*ICON_SIZE)
+                qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y+(n+1)*ICON_SIZE-gl.gd.r.static[n].prob*ICON_SIZE))
                 qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+n*ICON_SIZE+10, POSE_NMS[n])
             for n, i in enumerate(GEST_FILE_IMAGES):
                 qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
-                if settings.gd.r.gests[n].toggle:
+                if gl.gd.r.dynamic[n].toggle:
                     qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE)
-                qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE-settings.gd.r.gests[n].prob*ICON_SIZE)
+                qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE-gl.gd.r.dynamic[n].prob*ICON_SIZE)
                 qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE+10, GEST_NMS[n])
-            if settings.gd.r.pymcout is not None:
+            if gl.gd.r.pymcout is not None:
                 n_ = settings.gs.r.pymcout
                 qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y+(n_)*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
             # circ options
-            if 'circ' in settings.gd.r.GESTS.keys():
-                g = settings.gd.r.gests[settings.gd.r.GESTS["circ"]]
+            if 'circ' in gl.gd.r.dynamic.names():
+                g = gl.gd.r.dynamic.circ
                 if g.toggle:
                     X = LEFT_MARGIN+130
                     Y = START_PANEL_Y+len(POSE_FILE_IMAGES)*ICON_SIZE
@@ -711,18 +707,20 @@ class Example(QMainWindow):
                         qp.drawLine(X, Y+rh, X+ARRL, Y-ARRL+rh)
 
         if self.MoveViewState:
-            if settings.md.Mode == 'play':
-                if settings.gd.l.poses[settings.gd.l.POSES['grab']].toggle:
-                    qp.drawPixmap(w/2, 50, 20, 20, QPixmap(settings.paths.graphics_path+"hold.png"))
-                    if settings.HoldPrevState == False:
-                        settings.HoldAnchor = settings.HoldValue - md.frames[-1].l.palm_pose().position.x/len(settings.sp[settings.md.PickedPath].poses)
-                    settings.HoldValue = settings.HoldAnchor + md.frames[-1].l.palm_pose().position.x/len(settings.sp[settings.md.PickedPath].poses)
-                    settings.HoldValue = settings.HoldAnchor + md.frames[-1].l.palm_pose().position.x/2
-                    if settings.HoldValue > 100: settings.HoldValue = 100
-                    if settings.HoldValue < 0: settings.HoldValue = 0
-                settings.HoldPrevState = settings.gd.l.poses[settings.gd.l.POSES['grab']].toggle
-                diff_pose_progress = 100/len(settings.sp[settings.md.PickedPath].poses)
-                for i in range(0, len(settings.sp[settings.md.PickedPath].poses)):
+            if ml.md.mode == 'play':
+                if hasattr(gl.gd.l.static, 'grab'):
+                    if gl.gd.l.static.grab.toggle:
+                        qp.drawPixmap(w/2, 50, 20, 20, QPixmap(settings.paths.graphics_path+"hold.png"))
+                        if settings.HoldPrevState == False:
+                            settings.HoldAnchor = settings.HoldValue - ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
+                        settings.HoldValue = settings.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
+                        settings.HoldValue = settings.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/2
+                        if settings.HoldValue > 100: settings.HoldValue = 100
+                        if settings.HoldValue < 0: settings.HoldValue = 0
+
+                    settings.HoldPrevState = gl.gd.l.static.grab.toggle
+                diff_pose_progress = 100/len(sl.paths[ml.md.picked_path].poses)
+                for i in range(0, len(sl.paths[ml.md.picked_path].poses)):
                     qp.fillRect(LEFT_MARGIN+diff_pose_progress*i*((w-40.0)/100.0), 30, 2, 20, Qt.black)
                 qp.fillRect(LEFT_MARGIN+diff_pose_progress*settings.currentPose*((w-40.0)/100.0)+2, 35, diff_pose_progress*((w-40.0)/100.0), 10, Qt.red)
                 qp.drawRect(LEFT_MARGIN, 30, w-40, 20)
@@ -732,39 +730,39 @@ class Example(QMainWindow):
             # right lane
             for n, i in enumerate(self.lblObservationPosesNamesObj):
                 i.setVisible(True)
-                i.move(w-RIGHT_MARGIN, START_PANEL_Y+n*ICON_SIZE/2)
-            if md.frames and md.frames:
+                i.move(w-RIGHT_MARGIN, int(START_PANEL_Y+n*ICON_SIZE/2))
+            if ml.md.r_present():
                 ValuesArr = []
                 ToggleArr = []
-                ValuesArr.append(round(md.frames[-1].r.confidence,2))
-                oc = [round(i,2) for i in md.frames[-1].r.OC]
+                ValuesArr.append(round(ml.md.frames[-1].r.confidence,2))
+                oc = [round(i,2) for i in ml.md.frames[-1].r.OC]
                 ValuesArr.extend(oc)
-                ValuesArr.append(round(md.frames[-1].r.TCH12, 2))
-                ValuesArr.append(round(md.frames[-1].r.TCH23, 2))
-                ValuesArr.append(round(md.frames[-1].r.TCH34, 2))
-                ValuesArr.append(round(md.frames[-1].r.TCH45, 2))
-                ValuesArr.append(round(md.frames[-1].r.TCH13, 2))
-                ValuesArr.append(round(md.frames[-1].r.TCH14, 2))
-                ValuesArr.append(round(md.frames[-1].r.TCH15, 2))
-                ValuesArr.extend([round(i,2) for i in md.frames[-1].r.palm_velocity()])
+                ValuesArr.append(round(ml.md.frames[-1].r.touch12, 2))
+                ValuesArr.append(round(ml.md.frames[-1].r.touch23, 2))
+                ValuesArr.append(round(ml.md.frames[-1].r.touch34, 2))
+                ValuesArr.append(round(ml.md.frames[-1].r.touch45, 2))
+                ValuesArr.append(round(ml.md.frames[-1].r.touch13, 2))
+                ValuesArr.append(round(ml.md.frames[-1].r.touch14, 2))
+                ValuesArr.append(round(ml.md.frames[-1].r.touch15, 2))
+                ValuesArr.extend([round(i,2) for i in ml.md.frames[-1].r.palm_velocity()])
                 ValuesArr.append(0.0)
                 ValuesArr.append(0.0)
                 ValuesArr.append(0.0)
 
-                ToggleArr.append(settings.gd.r.confidence)
-                ToggleArr.extend(settings.gd.r.oc)
-                ToggleArr.append(settings.gd.r.tch12)
-                ToggleArr.append(settings.gd.r.tch23)
-                ToggleArr.append(settings.gd.r.tch34)
-                ToggleArr.append(settings.gd.r.tch45)
-                ToggleArr.append(settings.gd.r.tch13)
-                ToggleArr.append(settings.gd.r.tch14)
-                ToggleArr.append(settings.gd.r.tch15)
-                if 'move_in_axis' in settings.gd.r.GESTS.keys():
-                    ToggleArr.extend(settings.gd.r.gests[settings.gd.r.GESTS["move_in_axis"]].toggle)
+                ToggleArr.append(gl.gd.r.confidence)
+                ToggleArr.extend(gl.gd.r.oc)
+                ToggleArr.append(gl.gd.r.touch12)
+                ToggleArr.append(gl.gd.r.touch23)
+                ToggleArr.append(gl.gd.r.touch34)
+                ToggleArr.append(gl.gd.r.touch45)
+                ToggleArr.append(gl.gd.r.touch13)
+                ToggleArr.append(gl.gd.r.touch14)
+                ToggleArr.append(gl.gd.r.touch15)
+                if 'move_in_axis' in gl.gd.r.dynamic.names():
+                    ToggleArr.extend(gl.gd.r.dynamic.move_in_axis.toggle)
                 else: ToggleArr.extend([False,False,False])
-                if 'rotation_in_axis' in settings.gd.r.GESTS.keys():
-                    ToggleArr.extend(settings.gd.r.gests[settings.gd.r.GESTS["rotation_in_axis"]].toggle)
+                if 'rotation_in_axis' in gl.gd.r.dynamic.names():
+                    ToggleArr.extend(gl.gd.r.dynamic.rotation_in_axis.toggle)
                 else: ToggleArr.extend([False,False,False])
 
                 for n, i in enumerate(self.lblObservationPosesValuesObj):
@@ -774,13 +772,13 @@ class Example(QMainWindow):
                     if ToggleArr[n]:
                         qp.drawRect(w-RIGHT_MARGIN-5, START_PANEL_Y+(n)*ICON_SIZE/2+5, ICON_SIZE, ICON_SIZE/2-10)
             # orientation
-            if self.cursorEnabled():
-                roll, pitch, yaw = tf.transformations.euler_from_quaternion([md.frames[-1].r.palm_pose().orientation.x, md.frames[-1].r.palm_pose().orientation.y, md.frames[-1].r.palm_pose().orientation.z, md.frames[-1].r.palm_pose().orientation.w])
+            if self.cursor_enabled():
+                roll, pitch, yaw = ml.md.frames[-1].r.palm_euler()
                 x = np.cos(yaw)*np.cos(pitch)
                 y = np.sin(yaw)*np.cos(pitch)
                 z = np.sin(pitch)
 
-                last_pose_ = settings.mo.transformLeapToUIsimple(md.frames[-1].r.palm_pose())
+                last_pose_ = tfm.transformLeapToUIsimple(ml.md.frames[-1].r.palm_pose())
                 x_c,y_c = last_pose_.position.x, last_pose_.position.y
                 qp.setPen(QPen(Qt.blue, 4))
                 qp.drawLine(x_c, y_c, x_c+y*2*ICON_SIZE, y_c-z*2*ICON_SIZE)
@@ -805,8 +803,8 @@ class Example(QMainWindow):
         X_BOUND = tuple(zip(X_START, X_END))
         Y_BOUND = tuple(zip(Y_START, Y_END))
         # picking part
-        if self.cursorEnabled():
-            last_pose_ = settings.mo.transformLeapToUIsimple(md.frames[-1].r.palm_pose())
+        if self.cursor_enabled():
+            last_pose_ = tfm.transformLeapToUIsimple(ml.md.frames[-1].r.palm_pose())
             x,y = last_pose_.position.x, last_pose_.position.y
         else:
             x,y = self.mousex, self.mousey
@@ -838,32 +836,32 @@ class Example(QMainWindow):
 
     def saveConfigPageValues(self, m, n, value):
         # Items on the list
-        # ['Gripper open', 'Applied force', 'Work reach', 'Shift start x', 'Speed', 'Scene change', 'Mode', 'Path']
+        # ['Gripper open', 'Applied force', 'Work reach', 'Shift start x', 'Speed', 'Scene change', 'mode', 'Path']
         settings.VariableValues[m, n] = value
         if m == 0:
             if   n == 0:
-                settings.md.gripper = value
+                ml.md.gripper = value
             elif n == 1:
-                settings.md.applied_force = value
+                ml.md.applied_force = value
             elif n == 2:
-                settings.md.SCALE = value/50
+                ml.md.SCALE = value/50
             elif n == 3:
-                settings.md.ENV['start'].x = value/100
+                ml.md.ENV['start'].x = value/100
         elif m == 1:
             if   n == 0:
-                settings.md.speed = value
+                ml.md.speed = value
             elif n == 1:
                 scenes = settings.getSceneNames()
                 v = int(len(scenes)/125. * value)
                 if v >= len(scenes):
                     v = len(scenes)-1
-                settings.mo.make_scene(scene=scenes[v])
+                sl.scene.make_scene(scene=scenes[v])
             elif n == 2:
-                modes = settings.getModes()
+                modes = ml.md.modes()
                 v = int(len(modes)/125. * value)
                 if v >= len(modes):
                     v = len(modes)-1
-                settings.md.Mode = modes[v]
+                ml.md.mode = modes[v]
             elif n == 3:
                 paths = settings.getPathNames()
                 v = int(len(paths)/125. * value)
@@ -875,29 +873,29 @@ class Example(QMainWindow):
         string = None
         if m == 0:
             if   n == 0:
-                value = settings.md.gripper
+                value = ml.md.gripper
             elif n == 1:
-                value = settings.md.applied_force
+                value = ml.md.applied_force
             elif n == 2:
-                value = settings.md.SCALE*50
+                value = ml.md.scale*50
             elif n == 3:
-                value = settings.md.ENV['start'].x*100
+                value = ml.md.ENV['start'].x*100
         elif m == 1:
             if   n == 0:
-                value = settings.md.speed
+                value = ml.md.speed
             elif n == 1:
-                if settings.scene:
-                    scenes = settings.getSceneNames()
-                    value = scenes.index(settings.scene.NAME)
-                    string = settings.scene.NAME
+                if sl.scene:
+                    scenes = sl.scenes.names()
+                    value = scenes.index(sl.scene.name)
+                    string = sl.scene.name
                 else: value = 0
             elif n == 2:
-                modes = settings.getModes()
-                value = modes.index(settings.md.Mode)
-                string = settings.md.Mode
+                modes = ml.md.modes()
+                value = modes.index(ml.md.mode)
+                string = ml.md.mode
             elif n == 3:
-                value = settings.md.PickedPath
-                paths = settings.getPathNames()
+                value = ml.md.picked_path
+                paths = sl.paths.names()
                 string = paths[value]
 
         settings.VariableValues[m, n] = float(value)
@@ -906,35 +904,35 @@ class Example(QMainWindow):
         return value, string
 
 
-    def cursorEnabled(self):
+    def cursor_enabled(self):
         ''' Checks if enough samples are made
         '''
-        if len(md.frames) >= 10 and md.frames[-1].r:
+        if ml.md.r_present() and len(ml.md.frames) >= 10:
             return True
         return False
 
     def timerEvent(self, event):
-        if md.frames and self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn:
+        if ml.md.frames and self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn:
             self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn = False
             self.GesturesViewState = True
             self.comboPlayNLive.addItem("Live hand")
 
-        if md.frames:
-            fa = md.frames[-1]
-            for i in settings.gd.r.gests[0:4]: # circ, swipe, pin, touch
+        if ml.md.frames and gl.gd.r.dynamic.names():
+            fa = ml.md.frames[-1]
+            for i in gl.gd.r.dynamic[0:4]: # circ, swipe, pin, touch
                 if i.time_visible > 0:
                     i.time_visible -= 0.1
                 else:
                     i.toggle = False
             if fa.r.visible == False:
-                for i in settings.gd.r.gests:
+                for i in gl.gd.r.dynamic:
                     i.toggle = False if isinstance(i.toggle, bool) else [False] * len(i.toggle)
-                for i in settings.gd.r.poses:
+                for i in gl.gd.r.static:
                     i.toggle = False
             if fa.l.visible == False:
-                for i in settings.gd.l.gests:
+                for i in gl.gd.l.dynamic:
                     i.toggle = False if isinstance(i.toggle, bool) else [False] * len(i.toggle)
-                for i in settings.gd.l.poses:
+                for i in gl.gd.l.static:
                     i.toggle = False
 
             self.step = self.step + 1
@@ -984,19 +982,19 @@ class Example(QMainWindow):
         return mapDict[key]
 
     def thread_testInit(self):
-        thread = Thread(target = settings.mo.testInit)
+        thread = Thread(target = ml.md.testInit)
         thread.start()
     def thread_testMovements(self):
-        thread = Thread(target = settings.mo.testMovements)
+        thread = Thread(target = ml.md.testMovements)
         thread.start()
     def thread_testMovementsInput(self):
-        thread = Thread(target = settings.mo.testMovementsInput)
+        thread = Thread(target = ml.md.testMovementsInput)
         thread.start()
     def thread_inputPlotJointsAction(self):
-        thread = Thread(target = settings.mo.inputPlotJointsAction)
+        thread = Thread(target = ml.md.inputPlotJointsAction)
         thread.start()
     def thread_inputPlotPosesAction(self):
-        thread = Thread(target = settings.mo.inputPlotPosesAction)
+        thread = Thread(target = ml.md.inputPlotPosesAction)
         thread.start()
 
 
@@ -1024,14 +1022,25 @@ class RepeatableTimer(object):
         t = Timer(self._interval, self._function, *self._args, **self._kwargs)
         t.start()
 
+
 def main():
     app = QApplication(sys.argv)
     ex = Example()
     sys.exit(app.exec_())
 
+def ui_thread_launch():
+
+    if rospy.get_param("/mirracle_config/launch_ui", 'false') == "true":
+        thread_ui = Thread(target = main)
+        thread_ui.daemon=True
+        thread_ui.start()
+
 
 if __name__ == '__main__':
     settings.init()
+    ml.init()
+    gl.init()
+    sl.init()
     try:
         main()
     except KeyboardInterrupt:
