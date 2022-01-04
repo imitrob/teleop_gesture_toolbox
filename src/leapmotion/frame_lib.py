@@ -61,6 +61,7 @@ class Frame():
                 self.r = Hand(hand)
 
     def import_from_ros(self, msg):
+        if not ROS_IMPORT: raise Exception("ROS cannot be imported")
         self.seq = msg.header.seq
         self.fps = msg.fps
         self.secs = msg.header.stamp.secs
@@ -322,7 +323,16 @@ class Hand():
         self.sphere_radius = hand.sphere_radius
         self.stabilized_palm_position = Vector(*hand.stabilized_palm_position.to_float_array())
         self.time_visible = hand.time_visible
+
         self.wrist_position = Vector(*hand.wrist_position.to_float_array())
+        self.elbow_position = Vector(*hand.arm.elbow_position.to_float_array())
+
+        self.arm_valid = hand.arm.is_valid
+        self.arm_width = hand.arm.width
+        self.arm_direction = Vector(*hand.arm.direction.to_float_array())
+        self.arm_basis = [Vector(*hand.arm.basis.x_basis.to_float_array()),
+            Vector(*hand.arm.basis.y_basis.to_float_array()),
+            Vector(*hand.arm.basis.z_basis.to_float_array())]
 
     def import_from_ros(self, hnd):
         self.visible = hnd.visible
@@ -348,7 +358,14 @@ class Hand():
         self.sphere_radius = hnd.sphere_radius
         self.stabilized_palm_position = Vector(hnd.stabilized_palm_position)
         self.time_visible = hnd.time_visible
+
         self.wrist_position = Vector(hnd.wrist_position)
+        self.elbow_position = Vector(hnd.elbow_position)
+
+        self.arm_valid = hnd.arm_valid
+        self.arm_width = hnd.arm_width
+        self.arm_direction = Vector(hnd.arm_direction)
+        self.arm_basis = [Vector(hnd.arm_basis[0:3]), Vector(hnd.arm_basis[3:6]),Vector(hnd.arm_basis[6:9])]
 
     def get_angles_array(self):
         if not self.wrist_angles: self.prepare_learning_data()

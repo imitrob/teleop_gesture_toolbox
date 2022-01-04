@@ -19,4 +19,11 @@ float64[3] sphere_center
 float64 sphere_radius
 float64[3] stabilized_palm_position
 float64 time_visible
+
 float64[3] wrist_position
+float64[3] elbow_position
+
+float64[3] arm_valid
+float64 arm_width
+float64[3] arm_direction
+float64[9] arm_basis
