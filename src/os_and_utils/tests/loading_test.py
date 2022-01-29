@@ -42,6 +42,9 @@ def test_import_dynamic(Gs=['grab']):
 
 test_import_dynamic()
 
+# New - oneliner
+
+X, Y = DatasetLoader(['interpolate', 'discards']).load_dynamic(GlobalPaths().learn_path, Gs)
 
 
 

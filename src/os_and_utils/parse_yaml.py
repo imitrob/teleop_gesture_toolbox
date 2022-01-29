@@ -381,12 +381,21 @@ class ParseYAML():
 
     @staticmethod
     def parseStaticGesture(gesture):
-        if 'turnon' not in gesture.keys():
-            gesture['turnon']=0.0
-        if 'turnoff' not in gesture.keys():
-            gesture['turnoff']=0.0
+        if 'thresholds' in gesture.keys():
+            pass # gesture['thresholds'] = gesture['thresholds']
+        elif 'turn_on_off' in gesture.keys():
+            gesture['thresholds'] = gesture['turn_on_off']
+        elif 'turnon' in gesture.keys() and 'turnoff' in gesture.keys():
+            gesture['thresholds'] = [gesture['turnon'], gesture['turnoff']]
+        elif 'threshold' in gesture.keys() and 'off_threshold' in gesture.keys():
+            gesture['thresholds'] = [gesture['threshold'], gesture['off_threshold']]
+        else: gesture['thresholds'] = None
+
         if 'filename' not in gesture.keys():
             gesture['filename']=""
+
+        if 'time_visible_threshold' not in gesture.keys():
+            gesture['time_visible_threshold'] = None
         return gesture
 
     @staticmethod

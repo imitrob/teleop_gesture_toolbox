@@ -9,7 +9,7 @@ from os_and_utils.utils import ordered_load
 import os_and_utils.scenes as sl
 
 class MoveData():
-    def __init__(self):
+    def __init__(self, init_goal_pose=True):
         '''
         > saved in arrays
         - Leap Controller
@@ -95,6 +95,17 @@ class MoveData():
         self._goal = None
 
         self.traj_update_horizon = 0.6
+
+        #tmp
+        self.mouse3d_position = [0.3, 0.0, 0.5]
+
+        if init_goal_pose:
+            self.goal_pose = Pose()
+            self.goal_pose.orientation = self.ENV_DAT['above']['ori']
+            self.goal_pose.position = Point(0.4,0.,1.0)
+
+    def present(self):
+        return self.r_present() or self.l_present()
 
     def r_present(self):
         if self.frames and self.frames[-1] and self.frames[-1].r and self.frames[-1].r.visible:

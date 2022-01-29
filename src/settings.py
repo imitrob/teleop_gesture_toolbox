@@ -12,24 +12,10 @@ All configurations are loaded from:
 
 Import this file and call init() to access parameters, info and data
 '''
-import collections
 import numpy as np
-from copy import deepcopy
-import os, yaml, random
-from os.path import expanduser, isfile
-import time
-from os_and_utils.utils import ordered_load, GlobalPaths, ros_enabled, load_params, merge_two_dicts, isarray, isnumber
+import yaml
+from os_and_utils.utils import ordered_load, GlobalPaths, load_params
 from os_and_utils.parse_yaml import ParseYAML
-
-if ros_enabled():
-    import rospy
-    from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
-    from visualization_msgs.msg import MarkerArray, Marker
-    from std_msgs.msg import Int8, Float64MultiArray
-else:
-    print("[WARN*] ROS cannot be not imported!")
-
-
 
 def init():
     ''' Initialize the shared data across threads (Leap, UI, Control)
@@ -71,9 +57,8 @@ def init():
     print_path_trace = False
 
 
-    ### 7. User Interface Data              ###
-    ###     - From application.yaml         ###
-    ###########################################
+    ## User Interface Data
+    #   - From application.yaml
     with open(paths.custom_settings_yaml+"application.yaml", 'r') as stream:
         app_data_loaded = ordered_load(stream, yaml.SafeLoader)
     # Configuration page values

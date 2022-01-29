@@ -92,7 +92,7 @@ pickplace:
   Objects:
     box:
       pose:
-        position: {'x': 0.5, 'y': -0.15, 'z': 0.04}
+        position: {'x': 0.4, 'y': 0.15, 'z': 0.04}
         orientation: [0, 0, 0.3826834, 0.9238795]
       size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       shape: cube

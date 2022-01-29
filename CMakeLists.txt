@@ -18,6 +18,8 @@ find_package(catkin REQUIRED COMPONENTS
    Hand.msg
    Frame.msg
    LeapGestures.msg
+   DetectionObservations.msg
+   DetectionSolution.msg
  )
 
 ## Generate services in the 'srv' folder

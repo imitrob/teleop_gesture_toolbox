@@ -10,34 +10,20 @@
 '''
 
 if True:
-    import sys
-    import os
-    assert sys.version_info[0]==3 and sys.version_info[1]>6, "Wrong Python version (min.v.req. 3.7), it is: "+sys.version
+    import sys, os
     from os.path import expanduser
-    def isnotebook():
-        try:
-            shell = get_ipython().__class__.__name__
-            if shell == 'ZMQInteractiveShell': return True
-            else: return False
-        except NameError: return False
-    if isnotebook():
-        paths.ws_folder = os.getcwd().split('/')[-5]
-        sys.path.append('..')
-    if not isnotebook():
-        THIS_FILE_PATH = os.path.dirname(os.path.realpath(__file__))
-        THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..', '..'))
-        paths.ws_folder = THIS_FILE_TMP.split('/')[-1]
+    from copy import deepcopy
 
-        sys.path.insert(1, expanduser("~/"+paths.ws_folder+"/src/mirracle_gestures/src/learning"))
-        sys.path.insert(1, expanduser("~/"+paths.ws_folder+"/src/mirracle_gestures/src"))
-    from import_data import *
-    from warnings import filterwarnings
+    sys.path.append("..")
+    from os_and_utils.utils import GlobalPaths
+    sys.path.append("learning")
+
+    from warnings import filterwarnings; filterwarnings("ignore")
 
     import matplotlib.pyplot as plt
     import numpy as np
     import pymc3 as pm
-    import pandas as pd
-    import seaborn as sns
+    #import seaborn as sns
     import sklearn
     import theano
     import theano.tensor as T
@@ -53,28 +39,19 @@ if True:
     from sklearn.metrics import confusion_matrix
     import csv
     from sklearn.metrics import plot_confusion_matrix
-    import confusion_matrix_pretty_print
+    import os_and_utils.confusion_matrix_pretty_print
     from fastdtw import fastdtw
-    import promp_lib2
+    from promps import promp_lib
     from statistics import mode, StatisticsError
     from itertools import combinations, permutations
     from scipy import stats
 
     from timewarp_lib import *
 
-    # Check and Import of ROS message types to Jupyter notebook
-    try:
-        import geometry_msgs
-    except ModuleNotFoundError:
-        sys.path.insert(1, expanduser("/opt/ros/melodic/lib/python2.7/dist-packages"))
-
     rc = {'xtick.labelsize': 20, 'ytick.labelsize': 20, 'axes.labelsize': 20, 'font.size': 20,
           'legend.fontsize': 12.0, 'axes.titlesize': 10, "figure.figsize": [12, 6]}
-    sns.set(rc = rc)
-    sns.set_style("white")
-
-    #%config InlineBackend.figure_format = 'retina'
-    filterwarnings("ignore")
+    #sns.set(rc = rc)
+    #sns.set_style("white")
 
     if os.path.isdir(expanduser("~/promps_python")):
         PROMP_ON = True
@@ -87,6 +64,10 @@ if True:
     if not os.path.isdir(expanduser("~/promps_python")):
         PROMP_ON = False
 
+    import settings
+    if __name__ == '__main__': settings.init()
+
+    from os_and_utils.loading import HandDataLoader, DatasetLoader
 
     #%matplotlib inline
     import arviz as az
@@ -103,20 +84,12 @@ if True:
     # Initialize random number generator
     np.random.seed(0)
 
-    learn_path = expanduser('~/'+paths.ws_folder+'/src/mirracle_gestures/include/data/learning/')
-    network_path = expanduser('~/'+paths.ws_folder+'/src/mirracle_gestures/include/data/Trained_network/')
-
-    print("Saved gestures are in folder: ", learn_path)
-    print("Saved networks are in folder (for loading): ", network_path)
-
-
 class PyMC3Train():
 
     def __init__(self, Gs=[], args={}):
-        self.Gs, self.args = load_gestures_config(paths.ws_folder)
-        global learn_path, network_path
-        self.learn_path = learn_path
-        self.network_path = network_path
+        self.Gs, self.args = settings.Gs, {}
+        self.learn_path = GlobalPaths().learn_path
+        self.network_path = GlobalPaths().network_path
         if Gs: self.Gs = Gs
         if args: self.args = args
         self.approx = None
@@ -166,19 +139,18 @@ class PyMC3Train():
             DYpalm (ndarray): Palm trajectories velocities
             Ydyn (1darray): (Y solutions flags for palm trajectories)
         '''
-        # Takes about 50sec.
-        data = import_data(self.learn_path, self.args, Gs=self.Gs, dataset_files=dataset_files)
+        # X, Y = DatasetLoader(['interpolate', 'discards']).load_dynamic(GlobalPaths().learn_path, Gs)
+
+        HandData, HandDataFlags = HandDataLoader().load_directory_update(GlobalPaths().learn_path, self.Gs)
+        self.X, self.Y = DatasetLoader().get_static(HandData, HandDataFlags)
+
+        self.Xpalm, self.Ydyn = DatasetLoader().get_dynamic(HandData, HandDataFlags)
+
         self.new_data_arrived = True
-        if not data:
+        if HandData == []:
             self.new_data_arrived = False
             print("No new data!")
             return
-        self.X = data['static']['X']
-        self.Y = data['static']['Y']
-        self.Xpalm = data['dynamic']['Xpalm']
-        self.DXpalm = data['dynamic']['DXpalm']
-        self.Ydyn = data['dynamic']['Y']
-        self.dataset_files = data['info']['dataset_files']
 
         print("Gestures imported: ", self.Gs)
         print("Args used: ", self.args)
@@ -214,7 +186,7 @@ class PyMC3Train():
             fig, ax = plt.subplots()
             ax.scatter(self.X[self.Y == 0, 0], self.X[self.Y == 0, i], label="class 0")
             ax.scatter(self.X[self.Y == 1, 0], self.X[self.Y == 1, i], color="r", label="class "+str(i))
-            sns.despine()
+            #sns.despine()
             ax.legend()
             ax.set(xlabel="X", ylabel="Y")
 
@@ -539,7 +511,7 @@ class PyMC3Train():
         fig, ax = plt.subplots()
         ax.scatter(self.X_test[self.pred == 0, 0], self.X_test[self.pred == 0, 1])
         ax.scatter(self.X_test[self.pred == 1, 0], self.X_test[self.pred == 1, 1], color="r")
-        sns.despine()
+        #sns.despine()
         ax.set(title="Predicted labels in testing set", xlabel="X", ylabel="Y");
 
         print("Accuracy = {}%".format((self.Y_test == pred).mean() * 100))
@@ -555,9 +527,9 @@ class PyMC3Train():
 
         ppc = sample_proba(grid_12d, 500)
 
-        cmap = sns.diverging_palette(250, 12, s=85, l=25, as_cmap=True)
+        #cmap = sns.diverging_palette(250, 12, s=85, l=25, as_cmap=True)
         fig, ax = plt.subplots(figsize=(16, 9))
-        contour = ax.contourf(grid[0], grid[1], ppc.mean(axis=0).reshape(100, 100), cmap=cmap)
+        contour = ax.contourf(grid[0], grid[1], ppc.mean(axis=0).reshape(100, 100))#, cmap=cmap)
         ax.scatter(X_test[pred == 0, 0], X_test[pred == 0, 1])
         ax.scatter(X_test[pred == 1, 0], X_test[pred == 1, 1], color="r")
         cbar = plt.colorbar(contour, ax=ax)
@@ -565,9 +537,9 @@ class PyMC3Train():
         cbar.ax.set_ylabel("Posterior predictive mean probability of class label = 0");
         plt.show()
 
-        cmap = sns.cubehelix_palette(light=1, as_cmap=True)
+        #cmap = sns.cubehelix_palette(light=1, as_cmap=True)
         fig, ax = plt.subplots(figsize=(16, 9))
-        contour = ax.contourf(grid[0], grid[1], ppc.std(axis=0).reshape(100, 100), cmap=cmap)
+        contour = ax.contourf(grid[0], grid[1], ppc.std(axis=0).reshape(100, 100))#, cmap=cmap)
         ax.scatter(X_test[pred == 0, 0], X_test[pred == 0, 1])
         ax.scatter(X_test[pred == 1, 0], X_test[pred == 1, 1], color="r")
         cbar = plt.colorbar(contour, ax=ax)
@@ -606,7 +578,7 @@ class PyMC3Train():
         ''' Dynamic gestures via promp (not useful)
         '''
 
-        self.X, self.Y = promp_lib2.get_weights(self.Xpalm,self.DXpalm,self.Ydyn)
+        self.X, self.Y = promp_lib2.get_weights(self.Xpalm, self.Ydyn)
         print("X shape", X.shape)
 
         promp_launch(args=self.args)
@@ -977,13 +949,12 @@ class Experiments():
     def trainWithParameters(self):
         ''' Train/evaluate, use for single training
         '''
-        Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
         args = {'all_defined':True, 'split':0.3, 'take_every':10, 'iter':[2000], 'n_hidden':[50] }
 
         accuracies, accuracies_train = [], []
         print("Training With Parameters")
         print("---")
-        self.train = PyMC3Train(Gs, args)
+        self.train = PyMC3Train(args=args)
 
         self.train.import_records()
         self.train.split()
@@ -1267,7 +1238,7 @@ class Experiments():
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(description='')
-    parser.add_argument('--experiment', default="train_with_parameters", type=str, help='(default=%(default)s)', required=True)
+    parser.add_argument('--experiment', default="train_with_parameters", type=str, help='(default=%(default)s)')
     parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default)s)')
     args=parser.parse_args()
 

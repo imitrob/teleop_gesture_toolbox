@@ -483,8 +483,11 @@ class Hand():
                 bone_direction[i][j] = np.array(self.fingers[i].bones[j].direction())
                 bone_angles_pre[i][j] = np.array((0., np.arcsin(-self.fingers[i].bones[j].direction()[1]), np.arctan2(self.fingers[i].bones[j].direction()[0], self.fingers[i].bones[j].direction()[2])))
 
-        # bone angles differences
+        # bone angles differences (shape = 2)
         self.wrist_angles = (wrist_angles - hand_angles)[1:3]
+        # bone angles (shape = 5 x 4 x 2 = 40)
+        # distance between finger positions (shape = comb(6,2) = 15), before 45
+        len(list(combinations([1,2,3,4,5,6], 2)))
         self.bone_angles = np.zeros([5,4,2])
         for i in range(0,5):
             for j in range(0,4):
@@ -495,24 +498,29 @@ class Hand():
                 d2 = bone_angles_pre[i][j]
                 self.bone_angles[i][j] = (d1 - d2)[1:3]
         self.bone_angles = self.bone_angles.flatten()
-        # distance between finger positions
         palm_position = np.array(self.palm_position())
 
         self.finger_distances = []
+        self.finger_distances_old = []
         combs = self.get_position_tip_of_fingers()
         combs.extend([palm_position])
         for comb in combinations(combs,2):
             self.finger_distances.append(np.sqrt(np.sum(np.power(np.array(comb[0]) - np.array(comb[1]),2))))
+            self.finger_distances_old.extend(np.array(comb[0]) - np.array(comb[1]))
 
 
-    def get_learning_data(self, type='all_defined'):
+    def get_learning_data(self, type='old_defined'):
         ''' Return Vector of Observation Parameters
         '''
-        if len(self.wrist_angles)==0: self.prepare_learning_data()
+        try: self.finger_distances_old
+        except AttributeError: self.prepare_learning_data()
 
         learning_data = list(self.wrist_angles)
         learning_data.extend(self.bone_angles)
-        learning_data.extend(self.finger_distances)
+        if type == 'old_defined':
+            learning_data.extend(self.finger_distances_old)
+        elif type == 'all_defined':
+            learning_data.extend(self.finger_distances)
         return learning_data
 
     def is_stop(self, threshold=0.02):
@@ -523,6 +531,12 @@ class Hand():
         if self.palm_velocity[0]/1000 < threshold and self.palm_velocity[1]/1000 < threshold and self.palm_velocity[2]/1000 < threshold:
             return True
         return False
+
+    def get_learning_data_static(self, type='old_defined'):
+        return self.get_learning_data(type=type)
+
+    def get_single_learning_data_dynamic(self, type='old_defined'):
+        return self.palm_position()
 
 
 class Vector():

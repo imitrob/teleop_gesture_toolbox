@@ -1,4 +1,5 @@
 import sys, os, yaml, inspect
+import numpy as np
 from collections import OrderedDict
 
 def ros_enabled():
@@ -36,7 +37,6 @@ class GlobalPaths():
         self.ws_folder = THIS_FILE_TMP.split('/')[-1]
 
         MG_PATH = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..'))
-
         self.learn_path = MG_PATH+'/include/data/learning/'
         self.graphics_path = MG_PATH+'/include/graphics/'
         self.plots_path = MG_PATH+'/include/plots/'
@@ -46,7 +46,17 @@ class GlobalPaths():
         TMP2 = os.path.abspath(os.path.join(MG_PATH, '..'))
         self.coppelia_scene_path = TMP2+"/mirracle_sim/include/scenes/"
         if change_working_directory:
+            sys.path.append(MG_PATH+'/src')
             os.chdir(MG_PATH+'/src')
+
+def to_bool(str):
+    if str in ['true', 'True', 't', '1', True, 1]:
+        return True
+    elif str in ['false', 'False', 'f', '0', False, 0]:
+        return False
+    else: raise Exception("[str_to_bool] Wrong input!")
+
+#to_bool('true')
 
 def load_params():
     if ros_enabled():
@@ -58,22 +68,22 @@ def load_params():
         robot = rospy.get_param("/mirracle_config/robot", 'panda')
         simulator = rospy.get_param("/mirracle_config/simulator", 'coppelia')
         gripper = rospy.get_param("/mirracle_config/gripper", 'none')
-        plot = rospy.get_param("/mirracle_config/visualize", 'false')
+        plot = to_bool(rospy.get_param("/mirracle_config/visualize", 'false'))
         inverse_kinematics = rospy.get_param("/mirracle_config/ik_solver", 'relaxed_ik')
         inverse_kinematics_topic = rospy.get_param("/mirracle_config/ik_topic", '')
-        gesture_detection_on = rospy.get_param("/mirracle_config/launch_gesture_detection", 'false')
-        launch_gesture_detection = rospy.get_param("/mirracle_config/launch_gesture_detection", 'false')
-        launch_ui = rospy.get_param("/mirracle_config/launch_ui", 'false')
+        gesture_detection_on = to_bool(rospy.get_param("/mirracle_config/launch_gesture_detection", 'false'))
+        launch_gesture_detection = to_bool(rospy.get_param("/mirracle_config/launch_gesture_detection", 'false'))
+        launch_ui = to_bool(rospy.get_param("/mirracle_config/launch_ui", 'false'))
     else:
         robot = 'panda'
         simulator = 'coppelia'
         gripper = 'none'
-        plot = 'false'
+        plot = False
         inverse_kinematics = 'relaxed_ik'
         inverse_kinematics_topic = ''
-        gesture_detection_on = 'false'
-        launch_gesture_detection = 'false'
-        launch_ui = 'false'
+        gesture_detection_on = False
+        launch_gesture_detection = False
+        launch_ui = False
     return robot, simulator, gripper, plot, inverse_kinematics, inverse_kinematics_topic, gesture_detection_on, launch_gesture_detection, launch_ui
 
 
@@ -93,17 +103,35 @@ def merge_two_dicts(x, y):
     z.update(y)    # modifies z with keys and values of y
     return z
 
-def distancePoses(self, p1, p2):
+def distancePoses(p1, p2):
     ''' Returns distance between two pose objects
     Parameters:
-        pose1 (type Pose() from geometry_msgs.msg)
-        pose2 (type Pose() from geometry_msgs.msg)
+        pose1 (type list,tuple,np.ndarray,Pose() from geometry_msgs.msg)
+        pose2 (type list,tuple,np.ndarray,Pose() from geometry_msgs.msg)
     Returns:
         distance (Float)
     '''
-    p1 = p1.position
-    p2 = p2.position
-    return np.sqrt((p1.x - p2.x)**2 + (p1.y - p2.y)**2 + (p1.z - p2.z)**2)
+    try:
+        p1.position
+        p1 = [p1.position.x, p1.position.y, p1.position.z]
+    except AttributeError:
+        pass
+    try:
+        p2.position
+        p2 = [p2.position.x, p2.position.y, p2.position.z]
+    except AttributeError:
+        pass
+    return np.sqrt((p1[0] - p2[0])**2 + (p1[1] - p2[1])**2 + (p1[2] - p2[2])**2)
 
+
+def get_object_of_closest_distance(objects_in_scenes, pose_in_scene):
+    print(f"Type: objects_in_scenes {objects_in_scenes}, pose_in_scene {pose_in_scene}")
+    min_dist, min_id = float('inf'), None
+    for n, object_in_scenes in enumerate(objects_in_scenes):
+        dist = distancePoses(object_in_scenes, pose_in_scene)
+        if dist < min_dist:
+            min_dist = dist
+            min_id = n
+    return n
 
 #

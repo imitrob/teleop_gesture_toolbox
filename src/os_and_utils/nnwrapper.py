@@ -1,52 +1,9 @@
-#!/usr/bin/env python3
-import os, sys
+import os
 import pickle
-import numpy as np
-from copy import deepcopy
-
-from sklearn.model_selection import train_test_split
-from scipy.spatial.distance import euclidean
-from fastdtw import fastdtw
-from scipy.interpolate import interp1d
-import matplotlib.pyplot as plt
-
-import yaml
-
-sys.path.append('../os_and_utils')
-from utils import ordered_load, GlobalPaths
-from loading import HandDataLoader, DatasetLoader
 
 
-def load_gestures_config(ws_folder):
-    # Set of training gestures is given by 'gesture_recording.yaml' file
-    with open(os.path.expanduser("~/"+ws_folder+"/src/mirracle_gestures/include/custom_settings/gesture_recording.yaml"), 'r') as stream:
-        gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
-
-    Gs = []
-    keys = gestures_data_loaded.keys()
-    Gs_set = gestures_data_loaded['using_set']
-    configRecognition = gestures_data_loaded['Recognition']
-    del gestures_data_loaded['using_set']; del gestures_data_loaded['Recording']; del gestures_data_loaded['configGestures']; del gestures_data_loaded['Recognition']
-
-    # Check if yaml file is setup properly
-    try:
-        gestures_data_loaded[Gs_set]
-    except:
-        raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
-    try:
-        gestures_data_loaded[Gs_set].keys()
-    except:
-        raise Exception("Error in gesture_recording.yaml, used gesture set does not have any item!")
-    # Setup gesture list
-    Gs = gestures_data_loaded[Gs_set].keys()
-
-    if configRecognition['args']:
-        args = configRecognition['args']
-    else:
-        args = {"all_defined":1, "middle":1, 's':1}
-
-    return Gs, args
-
+import os_and_utils.import_data as import_data
+import os_and_utils.import_data
 
 class NNWrapper():
     ''' Object that holds information about neural network
@@ -82,8 +39,8 @@ class NNWrapper():
             accuracy (Float <0.,1.>): Accuracy on test data
         '''
         print("Saving network")
+        n_network = ""
         if name == None:
-            n_network = ""
             for i in range(0,200):
                 if not os.path.isfile(network_path+"network"+str(i)+".pkl"):
                     n_network = str(i)
@@ -109,9 +66,23 @@ class NNWrapper():
             wrapper (NetworkWrapper())
         '''
         wrapper = NNWrapper()
+        import os_and_utils.import_data as import_data
         with open(network_path+name, 'rb') as input:
             wrapper = pickle.load(input, encoding="latin1")
 
         return wrapper
+
+if False:
+    nw = NNWrapper.load_network('/home/pierro/my_ws/src/mirracle_gestures/include/data/Trained_network/', 'network0.pkl')
+    NNWrapper.save_network(nw.X_train, nw.approx, nw.neural_network, '/home/pierro/my_ws/src/mirracle_gestures/include/data/Trained_network/', name='network0', Gs=nw.Gs, args=nw.args, accuracy=nw.accuracy)
+
+
+
+
+
+
+
+
+
 
 #

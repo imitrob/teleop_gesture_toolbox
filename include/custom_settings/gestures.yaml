@@ -12,46 +12,88 @@ set_test_new_version:
   nothing:
     key: n
     filename: gesture45.png
-
+set_1_static_altered_turnons:
+  grab:
+    key: 1
+    filename: gesture56.png
+    turn_on_off: [0.9, 0.9]
+    time_visible_threshold: 2
+    static: true
+  pinch:
+    key: 2
+    filename: gesture33.png
+    turn_on_off: [0.9, 0.9]
+    time_visible_threshold: 2
+    static: true
+  point:
+    key: 3
+    filename: gesture0.png
+    turn_on_off: [0.9, 0.9]
+    time_visible_threshold: 2
+    static: true
+  respectful:
+    key: 4
+    filename: gesture100.png
+    turn_on_off: [0.9, 0.9]
+    time_visible_threshold: 2
+    static: true
+  spock:
+    key: 5
+    filename: gesture101.png
+    turn_on_off: [0.9, 0.9]
+    time_visible_threshold: 2
+    static: true
+  rock:
+    key: 6
+    filename: gesture102.png
+    turn_on_off: [0.9, 0.9]
+    time_visible_threshold: 2
+    static: true
+  victory:
+    key: 7
+    filename: gesture103.png
+    turn_on_off: [0.9, 0.9]
+    static: true
 set_1_static:
   grab:
     key: 1
     filename: gesture56.png
     turn_on_off: [0.3, 0.9]
+    time_visible_threshold: 2
     static: true
   pinch:
     key: 2
     filename: gesture33.png
     turn_on_off: [0.3, 0.9]
+    time_visible_threshold: 2
     static: true
   point:
     key: 3
     filename: gesture0.png
     turn_on_off: [0.3, 0.9]
+    time_visible_threshold: 2
     static: true
   respectful:
     key: 4
     filename: gesture100.png
     turn_on_off: [0.3, 0.9]
+    time_visible_threshold: 2
     static: true
   spock:
     key: 5
     filename: gesture101.png
     turn_on_off: [0.3, 0.9]
+    time_visible_threshold: 2
     static: true
   rock:
     key: 6
     filename: gesture102.png
     turn_on_off: [0.3, 0.9]
+    time_visible_threshold: 2
     static: true
   victory:
     key: 7
     filename: gesture103.png
-    turn_on_off: [0.3, 0.9]
-    static: true
-  italian:
-    key: 8
-    filename: gesture104.png
     turn_on_off: [0.3, 0.9]
     static: true
 set_2_dynamic:

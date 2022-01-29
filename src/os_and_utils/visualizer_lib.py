@@ -75,11 +75,11 @@ class VisualizerLib():
         self.fig = fig
         self.ax = ax
 
-    def visualize_2d(self, data, color='', label="", transform='front', xlabel='X axis', ylabel='Y axis', scatter_pts=False, axvline=False):
+    def visualize_2d(self, data, color='', label="", transform='front', xlabel='X axis', ylabel='Y axis', scatter_pts=False, axvline=False, start_stop_mark=True):
         ''' Add trajectory to current figure for 2D Plot.
 
         Args:
-            data (2D array): [[X1,Y1], [X2,Y2], [X3,Y3], ..] or possible to use zip([X1,X2,X3],[Y1,Y2,Y3])
+            data (2D array): [[X1,Y1], [X2,Y2], [X3,Y3], ..] or possible to use list(zip([X1,X2,X3],[Y1,Y2,Y3]))
             color (str): choose series color ['b', 'g', 'r', 'c', 'm', 'y', 'k']
             label (str): series label (legend)
             transform (str): When data is 3D, it transforms to 2D
@@ -115,8 +115,9 @@ class VisualizerLib():
             color=COLORS[len(self.ax.lines)%7]
 
         self.ax.plot(xt,yt,c=color, label=(label))#+" "+str(len(dparsed))) )
-        self.ax.scatter(xt[0], yt[0], marker='o', color='black', zorder=2)
-        self.ax.scatter(xt[-1], yt[-1], marker='x', color='black', zorder=2)
+        if start_stop_mark:
+            self.ax.scatter(xt[0], yt[0], marker='o', color='black', zorder=2)
+            self.ax.scatter(xt[-1], yt[-1], marker='x', color='black', zorder=2)
         if axvline:
             self.ax.axvline(x=xt[-1], color=color)
         if scatter_pts:
@@ -293,6 +294,43 @@ class VisualizerLib():
             self.visualize_2d(data, axvline=True)
         self.show()
 
+    @staticmethod
+    def cuboid_data(center, size):
+        """
+           Create a data array for cuboid plotting.
+
+
+           ============= ================================================
+           Argument      Description
+           ============= ================================================
+           center        center of the cuboid, triple
+           size          size of the cuboid, triple, (x_length,y_width,z_height)
+           :type size: tuple, numpy.array, list
+           :param size: size of the cuboid, triple, (x_length,y_width,z_height)
+           :type center: tuple, numpy.array, list
+           :param center: center of the cuboid, triple, (x,y,z)
+
+
+          """
+        # suppose axis direction: x: to left; y: to inside; z: to upper
+        # get the (left, outside, bottom) point
+        o = [a - b / 2 for a, b in zip(center, size)]
+        # get the length, width, and height
+        l, w, h = size
+        x = [[o[0], o[0] + l, o[0] + l, o[0], o[0]],  # x coordinate of points in bottom surface
+             [o[0], o[0] + l, o[0] + l, o[0], o[0]],  # x coordinate of points in upper surface
+             [o[0], o[0] + l, o[0] + l, o[0], o[0]],  # x coordinate of points in outside surface
+             [o[0], o[0] + l, o[0] + l, o[0], o[0]]]  # x coordinate of points in inside surface
+        y = [[o[1], o[1], o[1] + w, o[1] + w, o[1]],  # y coordinate of points in bottom surface
+             [o[1], o[1], o[1] + w, o[1] + w, o[1]],  # y coordinate of points in upper surface
+             [o[1], o[1], o[1], o[1], o[1]],          # y coordinate of points in outside surface
+             [o[1] + w, o[1] + w, o[1] + w, o[1] + w, o[1] + w]]    # y coordinate of points in inside surface
+        z = [[o[2], o[2], o[2], o[2], o[2]],                        # z coordinate of points in bottom surface
+             [o[2] + h, o[2] + h, o[2] + h, o[2] + h, o[2] + h],    # z coordinate of points in upper surface
+             [o[2], o[2], o[2] + h, o[2] + h, o[2]],                # z coordinate of points in outside surface
+             [o[2], o[2], o[2] + h, o[2] + h, o[2]]]                # z coordinate of points in inside surface
+        return np.array(x), np.array(y), np.array(z)
+
 def save_trajectory(msg):
     positions = [point.positions for point in msg.trajectory.points]
     velocities = [point.velocities for point in msg.trajectory.points]
@@ -353,12 +391,12 @@ def main(args):
 
         Parameters:
             load_data (bool): Loads the data from:
-                - eef poses: md.goal_pose_array
+                - eef poses: md.eef_pose_array
                 - goal poses: md.goal_pose_array
         '''
 
         if load_data:
-            dataPosePlot = [pt.position for pt in list(md.goal_pose_array)]
+            dataPosePlot = [pt.position for pt in list(md.eef_pose_array)]
             dataPoseGoalsPlot = [pt.position for pt in list(md.goal_pose_array)]
 
         if not settings.dataPosePlot:

@@ -173,12 +173,12 @@ class MarkersPublisher():
         m.color.b = 1.0
         m.id = 1000
         if settings.print_path_trace:
-            for frame in list(md.goal_pose_array):
+            for frame in list(md.eef_pose_array):
                 m.pose = frame
                 m.id += 1
                 markers_array.append(deepcopy(m))
         else:
-            for frame in list(md.goal_pose_array):
+            for frame in list(md.eef_pose_array):
                 m.action = m.DELETE
                 m.id += 1
                 markers_array.append(deepcopy(m))

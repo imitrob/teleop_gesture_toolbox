@@ -1,18 +1,36 @@
 import os, yaml
 import settings
+from os_and_utils.utils_ros import extv
 from os_and_utils.utils import merge_two_dicts, ordered_load
 from os_and_utils.parse_yaml import ParseYAML
 
 from geometry_msgs.msg import Vector3
 import os_and_utils.move_lib as ml
 
+class CustomPoses():
+    @staticmethod
+    def GeneratePosesFromYAML(paths_folder=None, poses_file_catch_phrase='poses'):
+        if not paths_folder:
+            paths_folder = settings.paths.custom_settings_yaml
+        files = os.listdir(paths_folder)
+
+        poses_data_loaded = {}
+        for f in files:
+            if '.yaml' in f and poses_file_catch_phrase in f:
+                with open(paths_folder+f, 'r') as stream:
+                    poses_data_loaded = merge_two_dicts(poses_data_loaded, ordered_load(stream, yaml.SafeLoader))
+        return poses_data_loaded
+
 class CustomPaths():
     def __init__(self):
         self.paths = []
+
     def __getitem__(self, item):
         return self.paths[item]
+
     def append(self, path):
         self.paths.append(path)
+
     def names(self):
         return [path.name for path in self.paths]
 
@@ -119,7 +137,7 @@ class CustomScenes():
                         scenes.append(CustomScene(pickedscene, poses_data_loaded))
         return scenes
 
-    def make_scene(self, new_scene=''):
+    def make_scene(self, interface_handle, new_scene=''):
         ''' Prepare scene, add objects for obstacle or manipulation.
             scene (str):
         '''
@@ -130,7 +148,7 @@ class CustomScenes():
             id = scenes.index(scene.name)
             # remove objects from current scene
             for i in range(0, len(self.scenes[id].object_names)):
-                self.remove_object(name=self.scenes[id].object_names[i])
+                interface_handle.remove_object(name=self.scenes[id].object_names[i])
             if ml.md.attached:
                 self.detach_item_moveit(name=ml.md.attached)
         # get id of new scene
@@ -152,18 +170,19 @@ class CustomScenes():
             file = self.scenes[id].object_file[i]
 
             if shape:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=settings.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+                interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
             elif file:
                 if scale: size = [settings.scenes[id].object_scales[i], 0, 0]
                 else: size = [0,0,0]
-                self.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/mirracle_gestures/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=settings.scenes[id].object_poses[i], frame_id=settings.base_link)
+                interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/mirracle_gestures/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=settings.scenes[id].object_poses[i], frame_id=settings.base_link)
             else:
-                self.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=settings.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+                interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=settings.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
         scene = self.scenes[id]
         if id == 0:
             scene = None
 
         print(f"[Scenes] Scene {new_scene} ready!")
+
 
 class CustomScene():
     ''' Custom scenes with custom names is defined with custom objects with
@@ -196,7 +215,7 @@ class CustomScene():
             return
 
         objects = scene_data['Objects']
-        self.object_names = objects.keys()
+        self.object_names = list(objects.keys())
         self.mesh_trans_origin = [Vector3(0.,0.,0.)] * len(objects.keys())
         for object in self.object_names:
             pose_vec = objects[object]['pose']
@@ -228,11 +247,12 @@ def init():
     ###     - Generated Paths from YAML     ###
     ###     - Current scene info            ###
     ###########################################
-    global paths, scenes, scene
+    global poses, paths, scenes, scene
 
     ## Objects for saved scenes and paths
     #paths
     #scenes
+    poses = CustomPoses.GeneratePosesFromYAML()
     scenes = CustomScenes.GenerateFromYAML()
     paths = CustomPaths.GenerateFromYAML(scenes)
     scene = None # current scene informations

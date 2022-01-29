@@ -1,3 +1,7 @@
+
+'''
+Look at tests/loading_test.py for example
+'''
 import numpy as np
 import pickle
 import sys,os
@@ -17,8 +21,60 @@ class HandDataLoader():
 
         self.dataset_files = dataset_files
 
+    def load_tmp(self, dir):
+        dir = os.path.join(dir, "..")
+        if not os.path.isfile(f"{dir}/tmp{self.get_ext()}"):
+            return False
+        data = np.load(f"{dir}/tmp{self.get_ext()}", allow_pickle=True).item()
+        return data
+
+    def load(self,dir,Gs):
+        X,Y = self.load_directory(dir, Gs)
+        dir_tmp = os.path.abspath(os.path.join(dir,'../tmp'))
+        np.save(dir_tmp, {'X': X, 'Y': Y, 'files':self.dataset_files})
+        return X,Y
+
+    def load_(self, dir, Gs):
+        ''' Main function:
+            1. Checks if tmp file exists
+                - If not, it loads all directory, saves tmp, return X,Y
+            2. If exists, checks the difference
+                - If difference zero, return X,Y from tmp file
+                - If some difference, loads again all directory, save tmp return X,Y
+        '''
+        data = self.load_tmp(dir)
+        if not data:
+            X,Y = self.load_directory(dir, Gs)
+            dir_tmp = os.path.abspath(os.path.join(dir,'../tmp'))
+            np.save(dir_tmp, {'X': X, 'Y': Y, 'files':self.dataset_files})
+            return X,Y
+
+        data_files = data['files']
+        real_files = self.get_files()
+        diff = [item for item in real_files if item not in data_files]
+
+        if diff == []:
+            return data['X'], data['Y']
+        else:
+            X,Y = self.load_directory(dir, Gs)
+            dir_tmp = os.path.abspath(os.path.join(dir,'../tmp'))
+            np.save(dir_tmp, {'X': X, 'Y': Y, 'files':self.dataset_files})
+            return X, Y
+
+    def get_files(self, dir, Gs):
+        dataset_files = []
+        for n, G in enumerate(Gs):
+            i=0
+            while os.path.isfile(f"{dir}/{G}/{str(i)}{self.get_ext()}"):
+                i_file = f"{G}/{str(i)}{self.get_ext()}"
+                with open(f"{dir}/{i_file}", 'rb') as input:
+                    dataset_files.append(i_file)
+                i+=1
+        return dataset_files
+
     def load_directory(self, dir, Gs):
         ## Load data from file (%timeit ~7s)
+        self.dataset_files = []
         X, Y = [], []
         for n, G in enumerate(Gs):
             i=0
@@ -81,6 +137,48 @@ class HandDataLoader():
 class DatasetLoader():
     def __init__(self, args={}):
         self.args = args
+
+        self.hdl = HandDataLoader()
+
+    def load_tmp(self, dir):
+        print(f"[Loading] dir file {dir}/tmp{HandDataLoader().get_ext()}")
+        if not os.path.isfile(f"{dir}/tmp{HandDataLoader().get_ext()}"):
+            return False
+        data = np.load(f"{dir}/tmp{HandDataLoader().get_ext()}", allow_pickle=True).item()
+        return data
+
+    def load_dynamic(self, dir, Gs):
+        ''' Main function:
+            - Get difference
+            -
+        '''
+        data = self.load_tmp(dir)
+        files = self.hdl.get_files(dir,Gs)
+        if not data:
+            print("[Loading] No data, loading all directory")
+            HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
+            X,Y = self.get_dynamic(HandData,HandDataFlags)
+
+            np.save(f"{dir}tmp", {'X': X, 'Y': Y, 'files': files})
+            assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
+            return X,Y
+
+        data_files = data['files']
+        real_files = files
+        diff = [item for item in real_files if item not in data_files]
+
+        if diff == []:
+            print("[Loading] No difference, tmp up to date")
+            return data['X'], data['Y']
+        else:
+            print("[Loading] Difference, loading all directory again")
+            HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
+            X,Y = self.get_dynamic(HandData,HandDataFlags)
+
+            np.save(f"{dir}tmp", {'X': X, 'Y': Y, 'files': files})
+            assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
+            return X,Y
+
 
     def get_static(self, data, flags):
 
@@ -178,8 +276,7 @@ class DatasetLoader():
         Y = np.array(Y)
         return X,Y
 
-    def get_dynamic(self, data, flags):
-        Y = flags
+    def get_Xpalm(self, data):
         ## Pick: samples x time x palm_position
         Xpalm = []
         for sample in data:
@@ -188,6 +285,20 @@ class DatasetLoader():
 
                 l2 = np.linalg.norm(np.array(t.r.palm_position()) - np.array(t.r.index_position()))
                 row.append([*t.r.palm_position(), l2])#,*t.r.index_position])
+            Xpalm.append(row)
+        return Xpalm
+
+
+    def get_dynamic(self, data, flags):
+        Y = flags
+        ## Pick: samples x time x palm_position
+        Xpalm = []
+        for sample in data:
+            row = []
+            for t in sample:
+                if t.r.visible:
+                    l2 = np.linalg.norm(np.array(t.r.palm_position()) - np.array(t.r.index_position()))
+                    row.append([*t.r.palm_position()])#, l2])#,*t.r.index_position])
             Xpalm.append(row)
 
         if 'normalize' in self.args:
@@ -203,21 +314,24 @@ class DatasetLoader():
             Xpalm = Xpalm_
 
         ## Interpolate palm_positions, to 100 time samples
-        Xpalm_interpolated = []
-        invalid_ids = []
-        for n,sample in enumerate(Xpalm):
-            Xpalm_interpolated_sample = []
-            try:
-                for dim in range(0,4):
-                    f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
-                    Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
-                Xpalm_interpolated.append(np.array(Xpalm_interpolated_sample).T)
-            except IndexError:
-                print("Sample with invalid data detected")
-                invalid_ids.append(n)
-        Xpalm_interpolated=np.array(Xpalm_interpolated)
+        if 'interpolate' in self.args:
+            Xpalm_interpolated = []
+            invalid_ids = []
+            for n,sample in enumerate(Xpalm):
+                Xpalm_interpolated_sample = []
+                try:
+                    for dim in range(0,3):
+                        f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
+                        Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
+                    Xpalm_interpolated.append(np.array(Xpalm_interpolated_sample).T)
+                except IndexError:
+                    print("Sample with invalid data detected")
+                    invalid_ids.append(n)
+            Xpalm=Xpalm_interpolated=np.array(Xpalm_interpolated)
+            Y = np.delete(Y,invalid_ids,axis=0)
 
         ## Create derivation to palm_positions
+        '''
         dx = 1/100
         DXpalm_interpolated = []
         for sample in Xpalm_interpolated:
@@ -227,31 +341,33 @@ class DatasetLoader():
                 DXpalm_interpolated_sample.append(np.diff(sampleT[dim]))
             DXpalm_interpolated.append(np.array(DXpalm_interpolated_sample).T)
         DXpalm_interpolated = np.array(DXpalm_interpolated)
-
-        Xpalm = np.array(Xpalm_interpolated)
         DXpalm = np.array(DXpalm_interpolated)
+        '''
 
-        Xpalm_ = []
-        Xpalm = np.swapaxes(Xpalm, 1, 2)
-        for n,dim1 in enumerate(Xpalm):
-            for m,dim2 in enumerate(dim1):
-                if (np.max(dim2) - np.min(dim2)) < 0.0000001:
-                    Xpalm[n,m] = np.inf
-                    continue
-                Xpalm[n,m] = (dim2 - np.min(dim2)) / (np.max(dim2) - np.min(dim2))
-        Xpalm = np.swapaxes(Xpalm, 1, 2)
+        if 'normalize_dim' in self.args:
+            Xpalm_ = []
+            Xpalm = np.swapaxes(Xpalm, 1, 2)
+            for n,dim1 in enumerate(Xpalm):
+                for m,dim2 in enumerate(dim1):
+                    if (np.max(dim2) - np.min(dim2)) < 0.0000001:
+                        Xpalm[n,m] = np.inf
+                        continue
+                    Xpalm[n,m] = (dim2 - np.min(dim2)) / (np.max(dim2) - np.min(dim2))
+            Xpalm = np.swapaxes(Xpalm, 1, 2)
+            Xpalm = np.array(Xpalm)
 
-        discards = self.get_discard_indices(Xpalm,Y)
-        discards.extend(self.get_discard_indices(DXpalm,Y))
+        if 'discards' in self.args:
+            discards = self.get_discard_indices(Xpalm,Y)
+            #discards.extend(self.get_discard_indices(DXpalm,Y))
 
-        Xpalm = np.delete(Xpalm,discards,axis=0)
-        DXpalm = np.delete(DXpalm,discards,axis=0)
-        Y = np.delete(Y,discards,axis=0)
+            Xpalm = np.delete(Xpalm,discards,axis=0)
+            #DXpalm = np.delete(DXpalm,discards,axis=0)
+            Y = np.delete(Y,discards,axis=0)
 
-        print(f"[Loading] Number {len(discards)} recordings discarded! discards {discards}")
+            print(f"[Loading] Number {len(discards)} recordings discarded! discards {discards}")
 
 
-        return Xpalm, DXpalm, Y
+        return Xpalm, Y
 
     #import numpy as np
     #A = np.array([[[1,2],[3,4]],[[5,6],[7,8]]])

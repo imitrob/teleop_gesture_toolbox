@@ -9,7 +9,59 @@ from copy import deepcopy
 
 class Transformations():
     @staticmethod
-    def transformLeapToScene(pose):
+    def transformLeapToScene(data):
+        if isinstance (data, Pose):
+            return Transformations.transformLeapToScenePose(data)
+        elif isinstance(data, (list,tuple, np.ndarray)):
+            return Transformations.transformLeapToSceneList(data)
+        else: raise Exception("Wrong datatype to function transformLeapToScene(), need Pose, List, Tuple or np.ndarray")
+
+
+    @staticmethod
+    def transformPrompToSceneList_3D(paths):
+        ''' paths to scene, might edit later
+        '''
+        for n,path in enumerate(paths):
+            for m,point in enumerate(path):
+                 paths[n][m] = Transformations.transformPrompToSceneList(point)
+        return paths
+
+    @staticmethod
+    def transformPrompToSceneList(xyz):
+        ''' TODO: Orientaiton
+        '''
+        x = xyz[0]; y = xyz[1]; z = xyz[2]
+
+        # ProMP to rViz center point
+        x_ = x/1000
+        y_ = -z/1000
+        z_ = y/1000
+
+        x__ = y_ + 0.5
+        y__ = x_
+        z__ = z_
+        return [x__, y__, z__]
+
+    @staticmethod
+    def transformLeapToSceneList(list):
+        ''' TODO: Orientaiton
+        '''
+        x = list[0]; y = list[1]; z = list[2]
+        if len(list) == 7:
+            rx = list[3]; ry = list[4]; rz = list[5]; rw = list[6]
+            raise Exception("TODO:")
+
+        # Leap to rViz center point
+        x = x/1000
+        y = -z/1000
+        z = y/1000
+        x_ = np.dot([x,y,z], ml.md.ENV['axes'][0])*ml.md.scale + ml.md.ENV['start'].x
+        y_ = np.dot([x,y,z], ml.md.ENV['axes'][1])*ml.md.scale + ml.md.ENV['start'].y
+        z_ = np.dot([x,y,z], ml.md.ENV['axes'][2])*ml.md.scale + ml.md.ENV['start'].z
+        return [x_, y_, z_]
+
+    @staticmethod
+    def transformLeapToScenePose(pose):
         ''' Leap -> rViz -> Scene
         '''
         pose_ = deepcopy(pose)

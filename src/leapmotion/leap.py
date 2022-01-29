@@ -148,6 +148,8 @@ def main():
     parser.add_argument('--recording_length', default=1., type=float, help='(default=%(default)s)')
     parser.add_argument('--directory', default='', type=str, help='(default=%(default)s)')
     parser.add_argument('--save_method', default='numpy', type=str, help='(default=%(default)s)')
+    # TODO:
+    #parser.add_argument("--send_infrared_image", default='false', typ)
 
     try:
         args=parser.parse_args()
