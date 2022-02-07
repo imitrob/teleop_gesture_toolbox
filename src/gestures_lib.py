@@ -31,7 +31,7 @@ if __name__ == '__main__':
 try:
     import rospy
     from mirracle_gestures.msg import DetectionSolution, DetectionObservations
-    from std_msgs.msg import Int8, Float64MultiArray
+    from std_msgs.msg import Int8, Float64MultiArray, MultiArrayDimension
     ROS = True
 except ModuleNotFoundError:
     ROS = False
@@ -58,38 +58,58 @@ def detection_thread(freq=1., args={}):
 
         rate.sleep()
 
-def send_g_data(roscm, hand_mode, args):
+def send_g_data(roscm, hand_mode):
     ''' Sends appropriate gesture data as ROS msg
         Launched node for static/dynamic detection.
     '''
+
     msg = DetectionObservations()
     msg.observations = Float64MultiArray()
     msg.sensor_seq = ml.md.frames[-1].seq
     msg.header.stamp.secs = ml.md.frames[-1].secs
     msg.header.stamp.nsecs = ml.md.frames[-1].nsecs
 
+    mad1 = MultiArrayDimension()
+    mad1.label = 'time'
+    mad2 = MultiArrayDimension()
+    mad2.label = 'xyz'
+
     for key in hand_mode.keys():
+        args = gd.static_network_info
         if 'static' in hand_mode[key]:
             if key == 'l':
                 if ml.md.l_present():
-                    msg.observations.data = ml.md.frames[-1].l.get_learning_data_static(type=args['type'])
+                    msg.observations.data = ml.md.frames[-1].l.get_learning_data_static(definition=args['input_definition_version'])
                     msg.header.frame_id = 'l'
                     roscm.static_detection_observations_pub.publish(msg)
             elif key == 'r':
                 if ml.md.r_present():
-                    msg.observations.data = ml.md.frames[-1].r.get_learning_data_static(type=args['type'])
+                    msg.observations.data = ml.md.frames[-1].r.get_learning_data_static(definition=args['input_definition_version'])
                     msg.header.frame_id = 'r'
                     roscm.static_detection_observations_pub.publish(msg)
 
-        if 'dynamic' in hand_mode[key]:
+
+        time_samples = settings.yaml_config_gestures['misc_network_args']['time_samples']
+        if 'dynamic' in hand_mode[key] and len(ml.md.frames) > time_samples:
+            args = gd.dynamic_network_info
             if key == 'l':
                 if ml.md.l_present():
-                    msg.observations.data = [frame.l.get_single_learning_data_dynamic(type=args['type']) for frame in ml.md.frames.copy()]
+                    data = np.array([frame.l.get_single_learning_data_dynamic(definition=args['input_definition_version']) for frame in ml.md.frames.copy()])
+                    msg.observations.data = data[-time_samples:]
+                    mad1.size = msg.observations.data.shape[0]
+                    mad2.size = msg.observations.data.shape[1]
+                    msg.observations.data = msg.observations.data.flatten()
+                    msg.observations.layout.dim = [mad1, mad2]
                     msg.header.frame_id = 'l'
                     roscm.dynamic_detection_observations_pub.publish(msg)
             elif key == 'r':
                 if ml.md.r_present():
-                    msg.observations.data = [frame.r.get_single_learning_data_dynamic(type=args['type']) for frame in ml.md.frames.copy()]
+                    data = np.array([frame.r.get_single_learning_data_dynamic(definition=args['input_definition_version']) for frame in ml.md.frames.copy()])
+                    msg.observations.data = data[-time_samples:]
+                    mad1.size = msg.observations.data.shape[0]
+                    mad2.size = msg.observations.data.shape[1]
+                    msg.observations.data = msg.observations.data.flatten()
+                    msg.observations.layout.dim = [mad1, mad2]
                     msg.header.frame_id = 'r'
                     roscm.dynamic_detection_observations_pub.publish(msg)
 
@@ -151,6 +171,12 @@ class GestureMorphClass(object):
             return len(self.get_all_attributes())
         elif attr == 'names':
             return self.get_all_attributes()
+        elif attr == 'record_keys':
+            attrs = self.get_all_attributes()
+            filenames = []
+            for attr in attrs:
+                filenames.append(getattr(self,attr).record_key)
+            return filenames
         elif attr == 'filenames':
             attrs = self.get_all_attributes()
             filenames = []
@@ -214,7 +240,7 @@ class GHeader():
 
 class GestureMorphClassStamped(GestureMorphClass):
     def __init__(self, data, Gs):
-        '''
+        ''' New detection record
         Parameters:
             data (DetectionSolutions)
                 stamp (stamp): float64
@@ -235,6 +261,7 @@ class StaticInfo():
         data = ParseYAML.parseStaticGesture(data)
         # info
         self.name = name
+        self.record_key = data['record_key']
         self.filename = data['filename']
         # config
         if data['thresholds']:
@@ -245,41 +272,70 @@ class StaticInfo():
         if data['time_visible_threshold']:
             self.time_visible_threshold = data['time_visible_threshold']
         else: # Default value
-            self.time_visible_threshold = 2.0
+            self.time_visible_threshold = 8.0
 
 class DynamicInfo():
     def __init__(self, name, data=None):
         data = ParseYAML.parseDynamicGesture(data)
         # info
         self.name = name
+        self.record_key = data['record_key']
         self.filename = data['filename']
         # for move_in_axis thresholds
-        self.min_threshold = data['minthre']
-        self.max_threshold = data['maxthre']
+        if data['thresholds']:
+            self.thresholds = data['thresholds']
+        else: # Default thresholds
+            self.thresholds = [0.9,0.9]
+        ## move in x,y,z, Positive/Negative
+        self.move = [False, False, False]
+
+class MotionPrimitiveInfo():
+    def __init__(self, name, data=None):
+        data = ParseYAML.parseDynamicGesture(data)
+        # info
+        self.name = name
+        self.record_key = data['record_key']
+        self.filename = data['filename']
+        # for move_in_axis thresholds
+        if data['thresholds']:
+            self.thresholds = data['thresholds']
+        else: # Default thresholds
+            self.thresholds = [0.9,0.9]
         ## move in x,y,z, Positive/Negative
         self.move = [False, False, False]
 
 class TemplateGs():
-    def __init__(self, type):
+    def __init__(self, type, local_data=None):
         '''
         Get info about gesture: gl.gd.l.static.info.<g1>
         Get data about gesture at time: gl.gd.l.static[<time index>].<g1>.probability
         '''
         self.info = GestureMorphClass()
 
-        # fill the self.info with gesutre in yaml file: self.info.<g1>. ...
-        configGestures = ParseYAML.load_gesture_config_file(settings.paths.custom_settings_yaml)
-        gestures = ParseYAML.load_gestures_file(settings.paths.custom_settings_yaml, ret='obj')
-        GsSet = gestures[configGestures['using_set']]
-        for gesture in GsSet:
-            if type == 'static':
-                if 'static' in GsSet[gesture] and (GsSet[gesture]['static'] == 'true' or GsSet[gesture]['static'] == True):
-                    setattr(self.info, gesture, StaticInfo(name=gesture, data=GsSet[gesture]))
-            elif type =='dynamic':
-                if 'static' in GsSet[gesture] and (GsSet[gesture]['static'] == 'true' or GsSet[gesture]['static'] == True):
-                    pass
-                else:
-                    setattr(self.info, gesture, DynamicInfo(name=gesture, data=GsSet[gesture]))
+        if local_data:
+            if local_data.type == type:
+                if local_data.type == 'static':
+                    for i in range(len(local_data.Gs)):
+                        data = { 'record_key': local_data.record_keys[i], 'filename': local_data.filenames[i] }
+                        setattr(self.info, local_data.Gs[i], StaticInfo(name=local_data.Gs[i], data=data))
+                elif local_data.type == 'dynamic':
+                    for i in range(len(local_data.Gs)):
+                        data = { 'record_key': local_data.record_keys[i], 'filename': local_data.filenames[i] }
+                        setattr(self.info, local_data.Gs[i], DynamicInfo(name=local_data.Gs[i], data=data))
+        else:
+            # fill the self.info with gesutre in yaml file: self.info.<g1>. ...
+            configGestures = ParseYAML.load_gesture_config_file(settings.paths.custom_settings_yaml)
+            gestures = ParseYAML.load_gestures_file(settings.paths.custom_settings_yaml, ret='obj')
+            GsSet = gestures[configGestures['using_set']]
+            for gesture in GsSet:
+                type_ = ParseYAML.parseGestureType(GsSet[gesture])
+                if type == type_:
+                    if type == 'static':
+                        setattr(self.info, gesture, StaticInfo(name=gesture, data=GsSet[gesture]))
+                    elif type == 'dynamic':
+                        setattr(self.info, gesture, DynamicInfo(name=gesture, data=GsSet[gesture]))
+                    elif type == 'mp':
+                        setattr(self.info, gesture, MotionPrimitiveInfo(name=gesture, data=GsSet[gesture]))
 
         self.data_queue = collections.deque(maxlen=100)
 
@@ -333,7 +389,14 @@ class TemplateGs():
                 ret.append(self.data_queue[i])
             return ret
         else:
-            return self.data_queue[index]
+            try:
+                return self.data_queue[index]
+            except IndexError: return
+                #print(f"Index {index} not found from len {len(self.data_queue)}")
+
+    def __getattr__(self, attr):
+        if attr == 'n':
+            return len(self.data_queue)
 
     def relevant(self, last_secs=0.):
         ''' Searches gestures_queue, and returns the last gesture record, None if no records in that time were made
@@ -344,18 +407,17 @@ class TemplateGs():
         abs_time = time.time() - last_secs
         # if happened within last_secs interval
         if self.data_queue and self.data_queue[-1].header.stamp > abs_time:
-            print( self.data_queue[-1].header.stamp, abs_time)
             return self.data_queue[-1]
         else:
             return None
 
 class StaticGs(TemplateGs):
-    def __init__(self, type='static'):
-        super().__init__(type)
+    def __init__(self, type='static', local_data=None):
+        super().__init__(type, local_data=local_data)
 
 class DynamicGs(TemplateGs):
-    def __init__(self, type='dynamic'):
-        super().__init__(type)
+    def __init__(self, type='dynamic', local_data=None):
+        super().__init__(type, local_data=local_data)
 
 class GestureDataHand():
     ''' The 2nd class: gl.gd.l
@@ -364,7 +426,7 @@ class GestureDataHand():
     def __init__(self):
         self.static = StaticGs()
         self.dynamic = DynamicGs()
-        print(f"Gestures are: static: {self.static.info.names}, dynamic {self.dynamic.info.names}")
+
 
 class GestureDataDetection():
     ''' The main class: gl.gd
@@ -372,13 +434,71 @@ class GestureDataDetection():
     def __init__(self):
         self.l = GestureDataHand()
         self.r = GestureDataHand()
+        print(f"Static gestures: {self.l.static.info.names}, \nDynamic gestures {self.l.dynamic.info.names}")
         ## TODO: Additional names for additional gestures computed by comparing left and right hand
         self.combs = None
 
         self.actions_queue = collections.deque(maxlen=30)
 
+        self.static_network_info, self.dynamic_network_info = self.load_netork_info()
         # Auxiliary
         self.last_seq = 0
+
+    def load_netork_info(self):
+        static_network_file = settings.yaml_config_gestures['static_network_file']
+        dynamic_network_file = settings.yaml_config_gestures['dynamic_network_file']
+
+        from os_and_utils.nnwrapper import NNWrapper
+        nw = NNWrapper.load_network(settings.paths.network_path, static_network_file)
+        static_network_info = nw.args
+
+        #nw = NNWrapper.load_network(settings.paths.network_path, dynamic_network_file)
+        #dynamic_network_info = nw.args
+        dynamic_network_info = {'input_definition_version': 0}
+
+        return static_network_info, dynamic_network_info
+
+    def relevant(self, time_now, hand='r', type='static', relevant_time=1.0):
+        ''' Returns solutions based on hand and type if not older than relevant_time
+        '''
+        if ROS: t = rospy.Time.now().to_sec()
+        else: t = time.time()
+
+        self_h = getattr(self, hand)
+        self_h_type = getattr(self_h, type)
+        if self_h_type.n > 0 and (t-self_h_type[-1].stamp) < relevant_time:
+            return self_h_type[-1]
+        else:
+            return None
+
+
+    def gesture_change_srv(self, local_data):
+        if local_data.type == 'static':
+            self.l.static = StaticGs(local_data=local_data)
+            self.r.static = StaticGs(local_data=local_data)
+        elif local_data.type == 'dynamic':
+            self.l.dynamic = DynamicGs(local_data=local_data)
+            self.r.dynamic = DynamicGs(local_data=local_data)
+
+        self.static_network_info, self.dynamic_network_info = self.load_netork_info()
+
+    def __getattr__(self, attr):
+        if attr == 'Gs':
+            Gs = self.l.static.info.names
+            Gs.extend(self.l.dynamic.info.names)
+            return Gs
+        elif attr == 'Gs_static':
+            return self.l.static.info.names
+        elif attr == 'Gs_dynamic':
+            return self.l.dynamic.info.names
+        elif attr == 'Gs_keys':
+            Gs = self.l.static.info.record_keys
+            Gs.extend(self.l.dynamic.info.record_keys)
+            return Gs
+        elif attr == 'Gs_keys_static':
+            return self.l.static.info.record_keys
+        elif attr == 'Gs_keys_dynamic':
+            return self.l.dynamic.info.record_keys
 
     def new_record(self, data, type='static'):
         ''' New gesture data arrived and will be saved
@@ -390,6 +510,9 @@ class GestureDataDetection():
         obj_by_hand = getattr(self, data.header.frame_id)
         # choose static/dynamic with arg: type
         obj_by_type = getattr(obj_by_hand, type)
+
+        assert len(data.probabilities.data) == obj_by_type.info.n, f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}"
+
         obj_by_type.data_queue.append(GestureMorphClassStamped(data, obj_by_type.info.names))
 
         # Add logic
@@ -413,21 +536,18 @@ class GestureDataDetection():
                 g.above_threshold = False
 
             # Right now it is pseudo time
-            if g.above_threshold: g.time_visible = static[self.last_seq][n].time_visible + 1
-            print("sensor seq", sensor_seq)
-            self.last_seq = sensor_seq
+            if g.above_threshold and static.n>1: g.time_visible = static[-2][n].time_visible + 1
 
-            print(f"biggest_probability id {g.biggest_probability}, g.time_visible {g.time_visible}")
-            # 1., 2. Biggest probability of all gestures and 3. gesture is visible for some time
+            # 1., 2. Biggest probability of all gestures and 3. gesture is visible for some times
             if g.above_threshold and g.biggest_probability and g.time_visible > static.info[n].time_visible_threshold:
-                g.activate = True
+                g.activated = True
             elif g.above_threshold == False:
-                g.activate = False
+                g.activated = False
             # If at least 10 gesture records were toggled (occured) and now it is not occuring
-            if np.array([data[n].above_threshold for data in static[-10:]]).all() \
-                and (static[-1].toggle == False):
+            if len(static[-20:-2]) > 15 and np.array([data[n].activated for data in static[-10:-2]]).all() \
+                and (static[-1][n].activated == False):
                 g.first_activated = True
-                self.actions_queue.append((latest_gs.header.stamp, latest_gs[n]))
+                self.actions_queue.append((latest_gs.header.stamp, self.l.static.info.names[n]))
             else:
                 g.first_activated = False
 

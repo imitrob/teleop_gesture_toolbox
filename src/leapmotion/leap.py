@@ -1,14 +1,15 @@
-#!/usr/bin/env python3.8
-import sys, os, Leap, time, argparse, inspect
+#!/usr/bin/env python
+# Standard settings
+import sys, os; sys.path.append("..")
+import settings
+if __name__ == '__main__': settings.init()
 
-THIS_DIR = os.path.dirname(inspect.getabsfile(inspect.currentframe()))
-sys.path.append(os.path.abspath(os.path.join(THIS_DIR, '..')))
+import Leap
+import time, argparse, inspect
+
 from os_and_utils.saving import Recording
 from os_and_utils.utils import ros_enabled
 import frame_lib
-
-import settings
-settings.init()
 
 if ros_enabled():
     import rospy
@@ -51,8 +52,8 @@ class SampleListener(Leap.Listener):
             fros = f.to_ros()
             self.frame_publisher.publish(fros)
 
-        self.record.auto_handle(f)
 
+        self.record.auto_handle(f)
         if self.print_on:
             print(f)
 
@@ -197,7 +198,8 @@ def main():
             spin(listener, record_settings)
     else:
         try:
-            while True: spin(listener, record_settings)
+            while True:
+                spin(listener, record_settings)
         except KeyboardInterrupt:
             pass
     controller.remove_listener(listener)

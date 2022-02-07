@@ -14,7 +14,7 @@ class PyMC3_Sample():
         self._sample_proba = None
 
     def sample(self, data):
-        return self.sample_proba([data],100).mean(0)
+        return self.sample_proba([data.data],100).mean(0)
 
     def init(self, nn):
         self.X_train = nn.X_train
@@ -31,6 +31,8 @@ class PyMC3_Sample():
 
 
 
+if __name__ == '__main__':
+    print("Run main_sample_thread.py with static/dynamic parameter instead!")
 
 
 #

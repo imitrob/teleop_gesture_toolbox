@@ -23,7 +23,7 @@ if True:
     import matplotlib.pyplot as plt
     import numpy as np
     import pymc3 as pm
-    #import seaborn as sns
+    import seaborn as sns
     import sklearn
     import theano
     import theano.tensor as T
@@ -39,8 +39,8 @@ if True:
     from sklearn.metrics import confusion_matrix
     import csv
     from sklearn.metrics import plot_confusion_matrix
-    import os_and_utils.confusion_matrix_pretty_print
-    from fastdtw import fastdtw
+    import os_and_utils.confusion_matrix_pretty_print as confusion_matrix_pretty_print
+    #from fastdtw import fastdtw
     from promps import promp_lib
     from statistics import mode, StatisticsError
     from itertools import combinations, permutations
@@ -68,6 +68,7 @@ if True:
     if __name__ == '__main__': settings.init()
 
     from os_and_utils.loading import HandDataLoader, DatasetLoader
+    from os_and_utils.nnwrapper import NNWrapper
 
     #%matplotlib inline
     import arviz as az
@@ -84,10 +85,13 @@ if True:
     # Initialize random number generator
     np.random.seed(0)
 
+    import gestures_lib as gl
+    gl.init()
+
 class PyMC3Train():
 
-    def __init__(self, Gs=[], args={}):
-        self.Gs, self.args = settings.Gs, {}
+    def __init__(self, Gs=[], args={}, type='static'):
+        self.Gs, self.args = gl.gd.Gs_static, {}
         self.learn_path = GlobalPaths().learn_path
         self.network_path = GlobalPaths().network_path
         if Gs: self.Gs = Gs
@@ -139,27 +143,31 @@ class PyMC3Train():
             DYpalm (ndarray): Palm trajectories velocities
             Ydyn (1darray): (Y solutions flags for palm trajectories)
         '''
-        # X, Y = DatasetLoader(['interpolate', 'discards']).load_dynamic(GlobalPaths().learn_path, Gs)
+        self.X, self.Y = DatasetLoader({'interpolate':1, 'discards':1, 'type':'all_defined'}).load_static(GlobalPaths().learn_path, self.Gs)
 
-        HandData, HandDataFlags = HandDataLoader().load_directory_update(GlobalPaths().learn_path, self.Gs)
-        self.X, self.Y = DatasetLoader().get_static(HandData, HandDataFlags)
+        print(f"$$$$$$$$$$$$$ X {np.array(self.X).shape}")
 
-        self.Xpalm, self.Ydyn = DatasetLoader().get_dynamic(HandData, HandDataFlags)
+        #HandData, HandDataFlags = HandDataLoader().load_directory_update(GlobalPaths().learn_path, self.Gs)
+        #self.X, self.Y = DatasetLoader().get_static(HandData, HandDataFlags)
+
+        #self.Xpalm, self.Ydyn = DatasetLoader().get_dynamic(HandData, HandDataFlags)
 
         self.new_data_arrived = True
-        if HandData == []:
+        if self.Y == []:
             self.new_data_arrived = False
             print("No new data!")
             return
 
-        print("Gestures imported: ", self.Gs)
-        print("Args used: ", self.args)
+        #print("Gestures imported: ", self.Gs)
+        #print("Args used: ", self.args)
         #print("X shape: ", self.X.shape)
         #print("Y shape: ", self.Y.shape)
         #print("Xpalm shape", self.Xpalm.shape)
         assert len(self.X) == len(self.Y), "Lengths not match"
+        g = list(dict.fromkeys(self.Y))
+        print(f"counts = {[list(self.Y).count(g_) for g_ in g]}")
         #assert len(self.Xpalm) == len(self.Ydyn), "Lengths not match"
-        print("Gesture 0 recordings: ", len(self.Y[self.Y==0]))
+        #print("Gesture 0 recordings: ", len(self.Y[self.Y==0]))
 
     def split(self):
         ''' Splits the data
@@ -191,7 +199,7 @@ class PyMC3Train():
             ax.set(xlabel="X", ylabel="Y")
 
 
-    def construct_nn_2l(self, X, Y, n_hidden = [10], out_n=7, update=False):
+    def construct_nn_2l(self, X, Y, n_hidden = [10], out_n=8, update=False):
         ''' Model description
             -> n_hidden - number of hidden layers
             -> number of layers
@@ -205,12 +213,13 @@ class PyMC3Train():
             sigmas = self.approx.std.eval()
             mus1 = mus[0:4350]
             mus2 = mus[4350:]
-            mus1=mus1.T.reshape(87,50)
-            mus2=mus2.T.reshape(50,7)
+            mus1=mus1.T.reshape(X.shape[1],50)
+            mus2=mus2.T.reshape(50,out_n)
+
             sigmas1 = sigmas[0:4350]
             sigmas2 = sigmas[4350:]
-            sigmas1 = sigmas1.T.reshape(87,50)
-            sigmas2 = sigmas2.T.reshape(50,7)
+            sigmas1 = sigmas1.T.reshape(X.shape[1],50)
+            sigmas2 = sigmas2.T.reshape(50,out_n)
 
             mus1.astype(floatX)
             mus2.astype(floatX)
@@ -317,7 +326,7 @@ class PyMC3Train():
         print("Iterations: ", iter[0], " number of hidden layers: ", n_hidden)
         g = list(dict.fromkeys(self.Y_train))
 
-        self.neural_network = self.construct_nn_2l(self.X_train, self.Y_train, n_hidden=n_hidden)
+        self.neural_network = self.construct_nn_2l(self.X_train, self.Y_train, out_n=len(g),n_hidden=n_hidden)
         pm.set_tt_rng(theano.sandbox.rng_mrg.MRG_RandomStream(101)) # Set random seeds
 
         with self.neural_network:
@@ -353,7 +362,7 @@ class PyMC3Train():
         #g = list(dict.fromkeys(Y_update))
         #print("X train shape: ", X_update.shape, "Y train shape: ", Y_update.shape, " X test shape: ", self.X_test.shape, " Y test shape: ", self.Y_test.shape, " counts: ", [list(np.array(Y_update,int)).count(g_) for g_ in g])
 
-        self.neural_network = self.construct_nn_2l(X_update, Y_update, n_hidden=n_hidden, update=True)
+        self.neural_network = self.construct_nn_2l(X_update, Y_update, out_n=len(list(dict.fromkeys(self.Y_train))), n_hidden=n_hidden, update=True)
         pm.set_tt_rng(theano.sandbox.rng_mrg.MRG_RandomStream(101)) # Set random seeds
 
         with self.neural_network:
@@ -435,14 +444,15 @@ class PyMC3Train():
         y_pred = np.array(y_pred).astype(int)
         print("Accuracy = {}%".format((Y_test == y_pred).mean() * 100))
 
+        '''
         pred_t = sample_proba(self.X_train,samples).mean(0)
         y_pred_t = np.argmax(pred_t, axis=1)
 
         #print("y pred t shape: ", y_pred_t.shape)
         print("Accuracy on train = {}%".format((self.Y_train == y_pred_t).mean() * 100))
-
+        '''
         #confusion_matrix_pretty_print.plot_confusion_matrix_from_data(Y_test, y_pred, self.Gs, annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name="")
-        return (Y_test == y_pred).mean() * 100, (self.Y_train == y_pred_t).mean() * 100
+        return (Y_test == y_pred).mean() * 100, 0 #(self.Y_train == y_pred_t).mean() * 100
 
     def save(self, name=None, accuracy=-1.):
         ''' Save the network
@@ -457,9 +467,11 @@ class PyMC3Train():
             Gs (String[]): Array of gestures defined in model & approximation
             args (String{}): Arguments for saving
         '''
-        NNWrapper.save_network(self.X_train, self.approx, self.neural_network, network_path=self.network_path, name=name, Gs=self.Gs, args=self.args, accuracy=accuracy)
-        confusion_matrix_pretty_print.plot_confusion_matrix_from_data(self.Y_test, self.y_pred, self.Gs,
-          annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name=str(name))
+        #X_train, approx, neural_network, network_path, name=None, Gs=[], type='', engine='', args={}, accuracy=-1, record_keys=[], filenames=[]
+
+        NNWrapper.save_network(self.X_train, self.approx, self.neural_network, network_path=self.network_path, name=name, Gs=self.Gs, type='static', engine='PyMC3', args=self.args, accuracy=accuracy, filenames=gl.gd.l.static.info.filenames, record_keys=gl.gd.l.static.info.record_keys)
+        #confusion_matrix_pretty_print.plot_confusion_matrix_from_data(self.Y_test, self.y_pred, self.Gs,
+        #  annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name=str(name))
 
     def from_posterior(self, param, samples, k=100):
         smin, smax = np.min(samples), np.max(samples)
@@ -561,7 +573,7 @@ class PyMC3Train():
         #
         minibatch_x = pm.Minibatch(self.X_train, batch_size=50)
         minibatch_y = pm.Minibatch(self.Y_train, batch_size=50)
-        self.neural_network = self.construct_nn_2l(minibatch_x, minibatch_y,n_hidden=n_hidden)
+        self.neural_network = self.construct_nn_2l(minibatch_x, minibatch_y, out_n=len(X_train[0]), n_hidden=n_hidden)
         tstart = time.time()
 
         with self.neural_network:
@@ -949,7 +961,7 @@ class Experiments():
     def trainWithParameters(self):
         ''' Train/evaluate, use for single training
         '''
-        args = {'all_defined':True, 'split':0.3, 'take_every':10, 'iter':[2000], 'n_hidden':[50] }
+        args = {'all_defined':True, 'split':0.3, 'take_every':4, 'iter':[3000], 'n_hidden':[50] }
 
         accuracies, accuracies_train = [], []
         print("Training With Parameters")
@@ -962,10 +974,31 @@ class Experiments():
         self.train.train()
         accuracy, accuracy_train = self.train.evaluate()
 
+
         self.train.plot_train()
         print("accuracies.append(", accuracies, ")")
         print("accuracies_train.append(", accuracies_train, ")")
+
         return accuracies, accuracies_train
+
+    def trainWithParametersAndSave(self):
+        ''' Train/evaluate + Save
+        '''
+        args = {'all_defined':True, 'split':0.2, 'take_every':4, 'iter':[3000], 'n_hidden':[50] }
+
+        print("Training With Parameters and Save")
+        print("---")
+        self.train = PyMC3Train(args=args)
+
+        self.train.import_records()
+        self.train.split()
+
+        self.train.train()
+        accuracy, _ = self.train.evaluate()
+
+        self.train.save(name='PyMC3-main-set-2', accuracy=accuracy)
+
+
 
     def train90plus10_priors(self):
         ''' Train on 90% data then update on 10% new data, method update with priors
@@ -1238,7 +1271,7 @@ class Experiments():
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(description='')
-    parser.add_argument('--experiment', default="train_with_parameters", type=str, help='(default=%(default)s)')
+    parser.add_argument('--experiment', default="train_with_parameters_and_save", type=str, help='(default=%(default)s)')
     parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default)s)')
     args=parser.parse_args()
 
@@ -1248,6 +1281,8 @@ if __name__ == '__main__':
         experiment = e.loadAndEvaluate
     elif args.experiment == 'train_with_parameters':
         experiment = e.trainWithParameters
+    elif args.experiment == 'train_with_parameters_and_save':
+        experiment = e.trainWithParametersAndSave
     elif args.experiment == 'train90plus10_priors':
         experiment = e.train90plus10_priors
     elif args.experiment == 'train90plus10_minibatch':

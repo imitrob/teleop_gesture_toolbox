@@ -426,7 +426,7 @@ class Hand():
         return oc
 
     def prepare_open_fingers(self):
-        self.OC = self.get_open_fingers()
+        self.oc = self.get_open_fingers()
 
     def get_position_tip_of_fingers(self):
         # shape = 5 (fingers) x 3 (Cartesian position)
@@ -509,7 +509,7 @@ class Hand():
             self.finger_distances_old.extend(np.array(comb[0]) - np.array(comb[1]))
 
 
-    def get_learning_data(self, type='old_defined'):
+    def get_learning_data(self, definition=1):
         ''' Return Vector of Observation Parameters
         '''
         try: self.finger_distances_old
@@ -517,10 +517,11 @@ class Hand():
 
         learning_data = list(self.wrist_angles)
         learning_data.extend(self.bone_angles)
-        if type == 'old_defined':
+        if definition == 0:
             learning_data.extend(self.finger_distances_old)
-        elif type == 'all_defined':
+        elif definition == 1:
             learning_data.extend(self.finger_distances)
+        else: raise Exception("Wrong type!")
         return learning_data
 
     def is_stop(self, threshold=0.02):
@@ -532,10 +533,10 @@ class Hand():
             return True
         return False
 
-    def get_learning_data_static(self, type='old_defined'):
-        return self.get_learning_data(type=type)
+    def get_learning_data_static(self, definition=0):
+        return self.get_learning_data(definition=definition)
 
-    def get_single_learning_data_dynamic(self, type='old_defined'):
+    def get_single_learning_data_dynamic(self, definition=0):
         return self.palm_position()
 
 

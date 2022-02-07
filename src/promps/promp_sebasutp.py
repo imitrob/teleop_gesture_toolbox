@@ -1,9 +1,11 @@
+import sys
+import settings
+sys.path.append(settings.paths.promp_sebasutp_path)
+from matplotlib import pyplot as plt
 
-import sys; sys.path.append("/home/pierro/promp")
 import robpy.full_promp as promp
 import robpy.utils as utils
 import numpy as np
-from matplotlib import pyplot as plt
 
 #1) Take the first 10 striking movements from a file with recorded demonstrations
 '''

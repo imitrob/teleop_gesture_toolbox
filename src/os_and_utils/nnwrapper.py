@@ -1,31 +1,31 @@
-import os
-import pickle
-
-
-import os_and_utils.import_data as import_data
-import os_and_utils.import_data
+import os, pickle
 
 class NNWrapper():
     ''' Object that holds information about neural network
         Methods for load and save the network are static
             - Use: NNWrapper.save_network()
     '''
-    def __init__(self, X_train=None, approx=None, neural_network=None, Gs=[], args={}, accuracy=-1):
+    def __init__(self, X_train=None, approx=None, neural_network=None, Gs=[], type='', engine='', args={}, accuracy=-1, record_keys=[], filenames=[]):
         # Set of Gestures in current network
         self.Gs = Gs
+        self.record_keys = record_keys
+        self.filenames = filenames
+
+        self.type = type
+        self.engine = engine
 
         # Training arguments and import configurations
         self.args = args
         # Accuracy on test data of loaded network <0.,1.>
         self.accuracy = accuracy
 
-        # Training data X
+        # Training data X, (for backup reasons)
         self.X_train = X_train
         # NN data
         self.approx, self.neural_network = approx, neural_network
 
     @staticmethod
-    def save_network(X_train, approx, neural_network, network_path, name=None, Gs=[], args={}, accuracy=-1):
+    def save_network(X_train, approx, neural_network, network_path, name=None, Gs=[], type='', engine='', args={}, accuracy=-1, record_keys=[], filenames=[]):
         '''
         Parameters:
             X_train (ndarray): Your X training data
@@ -47,14 +47,17 @@ class NNWrapper():
                     break
             name = "network"+str(n_network)
         else:
-            if not os.path.isfile(network_path+name+".pkl"):
-                print("Error: file "+name+" exists, network is not saved!")
+            # Get rid of extension if included
+            if name[-4:] == '.pkl':
+                name = name[:-4]
+            if os.path.isfile(network_path+name+".pkl"):
+                print("File "+name+" exists, network is rewritten!")
 
-        wrapper = NNWrapper(X_train, approx, neural_network, Gs=Gs, args=args, accuracy=accuracy)
+        wrapper = NNWrapper(X_train, approx, neural_network, Gs=Gs, type=type, engine=engine, args=args, accuracy=accuracy, record_keys=record_keys, filenames=filenames)
         with open(network_path+name+'.pkl', 'wb') as output:
             pickle.dump(wrapper, output, pickle.HIGHEST_PROTOCOL)
 
-        print("Network: network"+n_network+".pkl saved")
+        print(f"Network: {name}.pkl saved")
 
     @staticmethod
     def load_network(network_path, name=None):
@@ -66,21 +69,20 @@ class NNWrapper():
             wrapper (NetworkWrapper())
         '''
         wrapper = NNWrapper()
-        import os_and_utils.import_data as import_data
         with open(network_path+name, 'rb') as input:
             wrapper = pickle.load(input, encoding="latin1")
 
         return wrapper
 
-if False:
-    nw = NNWrapper.load_network('/home/pierro/my_ws/src/mirracle_gestures/include/data/Trained_network/', 'network0.pkl')
-    NNWrapper.save_network(nw.X_train, nw.approx, nw.neural_network, '/home/pierro/my_ws/src/mirracle_gestures/include/data/Trained_network/', name='network0', Gs=nw.Gs, args=nw.args, accuracy=nw.accuracy)
 
+if __name__ == '__main__':
+    import sys; sys.path.append('..')
+    import settings; settings.init()
+    network_name = 'PyMC3-main-set.pkl'
+    nw = NNWrapper.load_network(settings.paths.network_path, network_name)
+    network_name
 
-
-
-
-
+    NNWrapper.save_network(nw.X_train, nw.approx, nw.neural_network, settings.paths.network_path, name=network_name, Gs=nw.Gs, type=nw.type, engine=nw.engine, args=nw.args, accuracy=nw.accuracy, record_keys=nw.record_keys, filenames=nw.filenames)
 
 
 

@@ -31,18 +31,19 @@ class ClassificationSampler():
 
         self.sem = threading.Semaphore()
 
-        self.detection_approach = settings.configGestures['static_detection_approach']
+        self.detection_approach = settings.yaml_config_gestures[f'{type}_detection_approach']
         if self.detection_approach in ['PyMC3', 'PyMC', 'pymc3', 'pymc']:
             self.detection_approach = 'PyMC3'
             from learning.pymc3_sample import PyMC3_Sample as sample_approach
         elif self.detection_approach in ['PyTorch', 'Torch', 'pytorch', 'torch']:
             self.detection_approach = 'PyTorch'
             from learning.pytorch_sample import PyTorch_Sample as sample_approach
+        else: raise Exception("No detection approach found!")
         self.sample_approach = sample_approach()
 
         rospy.init_node('classification_sampler', anonymous=True)
         rospy.Service('/mirracle_gestures/change_network', ChangeNetwork, self.change_network_callback)
-        self.init(settings.configGestures['network_file'])
+        self.init(settings.yaml_config_gestures[f'{type}_network_file'])
         self.pub = rospy.Publisher(f'/mirracle_gestures/{type}_detection_solutions', DetectionSolution, queue_size=5)
         rospy.Subscriber(f'/mirracle_gestures/{type}_detection_observations', DetectionObservations, self.callback)
         rospy.spin()
@@ -51,7 +52,9 @@ class ClassificationSampler():
         ''' When received configuration, generates/sends output
             - header output the header of detection, therefore it just copies it
         '''
-        pred = self.pymc(data.observations.data)
+        self.sem.acquire()
+        pred = self.sample_approach.sample(data.observations)
+        self.sem.release()
         id = np.argmax(pred[0])
 
         sol = DetectionSolution()
@@ -69,23 +72,19 @@ class ClassificationSampler():
 
         msg = ChangeNetworkResponse()
         msg.Gs = self.Gs
+        msg.filenames = self.filenames
+        msg.record_keys = self.record_keys
         msg.args = self.args
         msg.success = True
         return msg
-
-    def pymc(self, data):
-        ''' Sample from learned network
-        '''
-        self.sem.acquire()
-        pred = self.sample_approach.sample(data)
-        self.sem.release()
-        return pred
 
     def init(self, network):
         if network in os.listdir(settings.paths.network_path):
             nn = NNWrapper.load_network(settings.paths.network_path, name=network)
 
             self.Gs = nn.Gs
+            self.filenames = nn.filenames
+            self.record_keys = nn.record_keys
             self.args = nn.args
 
             self.sem.acquire()
@@ -93,16 +92,27 @@ class ClassificationSampler():
             self.sem.release()
 
             rospy.loginfo(f"[Sample thread] network is: {network}")
+        elif os.path.isdir(settings.paths.UCB_path+'checkpoints/'+network):
+            self.sem.acquire()
+            self.nn = self.sample_approach.init(network)
+            self.sem.release()
         else:
-            rospy.logerr("[Sample thread] file not found")
+            rospy.logerr(f"[Sample thread] file ({network}) not found")
 
 
 if __name__ == '__main__':
-    type = rospy.get_param('/mirracle_config/type', 'static')
-    if type == 'static' and settings.configGestures['static_detection_approach']:
+    if len(sys.argv) > 1 and sys.argv[1] in ['static', 'dynamic']:
+        type = sys.argv[1]
+    else:
+        type = rospy.get_param('/mirracle_config/type', 'static')
+
+
+    if type == 'static' and settings.yaml_config_gestures['static_detection_approach']:
+        print(f"Launching {type} sampling thread!")
         ClassificationSampler(type=type)
 
-    if type == 'dynamic' and settings.configGestures['dynamic_detection_approach']:
+    if type == 'dynamic' and settings.yaml_config_gestures['dynamic_detection_approach']:
+        print(f"Launching {type} sampling thread!")
         ClassificationSampler(type=type)
 
 

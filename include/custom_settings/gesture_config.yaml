@@ -1,5 +1,5 @@
 # Pick loaded set of gestures:
-using_set: set_1_static_altered_turnons
+using_set: main_set
 
 min_confidence: 0.3
 since_frame_time: 0.5
@@ -10,26 +10,48 @@ oc_turn_off_thre: [0.85, 0.6, 0.6, 0.6, 0.6]
 
 # Link to networks in google drive folder
 networks_drive_url: https://drive.google.com/drive/folders/1T8jqeyb10WrwnqQoMA25bRKQQvTacF6Y
-# This is default network loaded from computer, it can be changed later in UI
-network_file: network0.pkl
 
 # PyMC3, PyTorch, DTW
 static_detection_approach: PyMC3
-dynamic_detection_approach: DTW
+dynamic_detection_approach: PyTorch
+# This is default network loaded from computer, it can be changed later in UI
+static_network_file: PyMC3-main-set.pkl #network0.pkl
+dynamic_network_file: gestures_dynamic_ucb
+
+misc_network_args:
+  time_samples: 32
+
+
 
 using_hand_mode_set: set0
 
 hand_mode_sets:
   set0:
     l: static
-    r: static+dynamic
+    r: dynamic
 
-using_mapping_set: set0
+using_mapping_set: main_map
 
 # Mapping gesture ID to MotionPrimitiveID
 # Mapping example:
 # gestureID: MotionPrimitiveID
 mapping_sets:
+  main_map:
+      grab: gripper
+      pinch: gripper
+      point: go_to_home
+      two: speed
+      three: speed
+      four: speed
+      five: nothing
+      thumbsup: rotate_eef
+      swipe_down: touch
+      swipe_front_right: kick
+      swipe_left: go_back
+      swipe_up: go_away
+      round: greet
+      # write about
+      # solve RLBench task, push buttons in an order
   set0:
     grab: touch
     kick: kick

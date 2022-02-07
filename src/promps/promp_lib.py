@@ -75,7 +75,7 @@ def main(id, X=None, vars={}):
     return generate_path(id=id, X=X, vars=vars)
 
 class ProMPGenerator():
-    def __init__(self, promp, Gs=['grab', 'kick', 'nothing']):
+    def __init__(self, promp, Gs=['swipe_left', 'swipe_up', 'swipe_front_right', 'swipe_down']):#, 'round']):#['grab', 'kick', 'nothing']):
         if promp == 'paraschos':
             import promps.promp_paraschos as approach
         elif promp == 'sebasutp':
@@ -84,11 +84,16 @@ class ProMPGenerator():
 
         self.Gs = Gs
 
+
         X, self.Y = DatasetLoader(['interpolate', 'discards']).load_dynamic(GlobalPaths().learn_path, self.Gs)
+        #X, Y = DatasetLoader(['interpolate', 'discards']).load_dynamic(GlobalPaths().learn_path, Gs)
+
+
+        #X, self.Y = DatasetLoader(['interpolate', 'discards']).load_mp_tmp(GlobalPaths().learn_path, self.Gs)
         self.X = tfm.transformPrompToSceneList_3D(X)
 
 
-    def generate_path(id, vars={}):
+    def generate_path(self, id, vars={}):
         ''' Main function
         Parameters:
             id (str): gesture ID (string)
@@ -410,9 +415,13 @@ if __name__ == '__main__':
     It returnes waypoints also, actions are generated
 
     '''
+    CustomPlot.my_plot(prompg.X[prompg.Y==[0]], [])
+    CustomPlot.my_plot(prompg.X[prompg.Y==[1]], [])
+    CustomPlot.my_plot(prompg.X[prompg.Y==[2]], [])
+    CustomPlot.my_plot(prompg.X[prompg.Y==[3]], [])
+    CustomPlot.my_plot(prompg.X[prompg.Y==[4]], [])
 
-
-    vars = {'pinch': 0.0}
+    '''    vars = {'pinch': 0.0}
     promp_paths_waypoints_tuple = prompg.generate_path('pinch', vars=vars)
     execute(promp_paths_waypoints_tuple)
 
@@ -424,7 +433,7 @@ if __name__ == '__main__':
     execute(promp_paths_waypoints_tuple)
 
     print("DDD")
-    exit()
+    exit()'''
 
     promp_paths_waypoints_tuple = []
     vars = {'direction': (0.3,0.0,0.0)}

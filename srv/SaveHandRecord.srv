@@ -1,5 +1,5 @@
 string directory
 string save_method
-int32 recording_length # [s]
+float32 recording_length # [s]
 ---
 bool success

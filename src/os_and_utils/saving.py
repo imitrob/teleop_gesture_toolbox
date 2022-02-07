@@ -63,7 +63,7 @@ class Recording():
         file_abs_path = directory+"/"+str(i)
 
         if save == 'numpy':
-            import numpy as np # importh here due to compatibility issues
+            import numpy as np # import here due to compatibility issues
             np.save(file_abs_path+".npy", object_to_save)
         elif save == 'pickle':
             import pickle

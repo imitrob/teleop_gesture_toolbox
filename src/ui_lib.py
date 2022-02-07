@@ -121,6 +121,10 @@ class Example(QMainWindow):
         self.comboInteractiveSceneChanges.activated[str].connect(self.onInteractiveSceneChanged)
         self.comboInteractiveSceneChanges.setGeometry(LEFT_MARGIN+130+ICON_SIZE*4, START_PANEL_Y-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
+        # Bottom
+        self.btnRecordActivate = QPushButton('Keyboard recording', self)
+        self.btnRecordActivate.clicked.connect(self.record_with_keys)
+        self.btnRecordActivate.setGeometry(LEFT_MARGIN+50, START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
 
         # Move Page
         lbls = ['Pos. X:', 'Pos. Y:', 'Pos. Z:', 'Ori. X:', 'Ori. Y:', 'Ori. Z:', 'Ori. W:']
@@ -210,7 +214,7 @@ class Example(QMainWindow):
         download_networks_action = QAction('Download networks from gdrive', self)
         download_networks_action.triggered.connect(self.download_networks_gdrive)
         self.network_menu = QMenu('Pick detection network', self)
-        self.networks = gl.GestureDetection.get_networks()
+        self.networks = gl.gd.get_networks()
         self.network_actions = []
         for index,network in enumerate(self.networks):
             action = QAction(network, self)
@@ -286,6 +290,8 @@ class Example(QMainWindow):
         self.AllVisibleObjects.append(ObjectQt('comboLiveMode',self.comboLiveMode,0,view_group=['MoveViewState', 'live']))
         self.AllVisibleObjects.append(ObjectQt('comboInteractiveSceneChanges',self.comboInteractiveSceneChanges,0,view_group=['MoveViewState', 'live']))
 
+        self.AllVisibleObjects.append(ObjectQt('btnRecordActivate',self.btnRecordActivate,0,view_group=['MoveViewState']))
+
         for n,obj in enumerate(self.lblConfNamesObj):
             self.AllVisibleObjects.append(ObjectQt('lblConfNamesObj'+str(n),obj,1,view_group=['MoveViewState']))
         for n,obj in enumerate(self.lblConfValuesObj):
@@ -328,14 +334,13 @@ class Example(QMainWindow):
     def keyPressEvent(self, event):
         ''' Callbacky for every keyboard button press
         '''
-        print("Handle only Enter and Tab (?)")
         if settings.record_with_keys:
-            KEYS = [self.mapQtKey(key) for key in settings.GsK]
+            KEYS = [self.mapQtKey(key) for key in gl.gd.Gs_keys]
             if event.key() in KEYS:
                 self.recording = True
                 for n, key in enumerate(KEYS):
                     if event.key() == key:
-                        self.dir_queue.append(settings.Gs[n])
+                        self.dir_queue.append(gl.gd.Gs[n])
                         self.caller = RepeatableTimer(self.REC_TIME, self.save_data, ())
                         self.caller.start()
         else:
@@ -350,16 +355,16 @@ class Example(QMainWindow):
         try:
             change_network = rospy.ServiceProxy('/mirracle_gestures/change_network', ChangeNetwork)
             response = change_network(data=network)
-            settings.Gs = [g.lower() for g in response.Gs]
+            Gs = [g.lower() for g in response.Gs]
             settings.args = response.args
-            print("[UI] Gestures & Network changed, new set of gestures: "+str(", ".join(settings.Gs)))
+            print("[UI] Gestures & Network changed, new set of gestures: "+str(", ".join(Gs)))
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
         settings.paths.gesture_network_file = network
 
         def updateGesturesUI():
-            self.lblGesturesPosesNames = settings.Gs
-            gl.gd = gl.GestureDetection()
+            self.lblGesturesPosesNames = Gs
+            gl.gd.gesture_change_srv(local_data=response)
         updateGesturesUI()
 
 
@@ -398,9 +403,10 @@ class Example(QMainWindow):
         rospy.wait_for_service('save_hand_record')
         try:
             save_hand_record = rospy.ServiceProxy('save_hand_record', SaveHandRecord)
-            resp1 = save_hand_record(directory=self.dir_queue.pop(0), save_method='numpy', recording_length=1.0)
+            resp1 = save_hand_record(directory=settings.paths.learn_path+self.dir_queue.pop(0), save_method='numpy', recording_length=1.0)
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
+        self.recording = False
 
     def play_method(self):
         while True:
@@ -501,6 +507,7 @@ class Example(QMainWindow):
     def print_path_trace(self, state):
         settings.print_path_trace = state
     def record_with_keys(self, state):
+        if not state: state = True
         settings.record_with_keys = state
 
     def goScene(self, index):
@@ -558,7 +565,7 @@ class Example(QMainWindow):
         painter = QPainter(self)
         painter.setPen(QPen(Qt.red, 3))
 
-        if self.cursor_enabled() and 'point' in gl.gd.r.static.names():
+        if gl.gd.r.static[-1]   and self.cursor_enabled() and 'point' in gl.gd.r.static.info.names:
             for n in range(1,10):
                 if ml.md.frames[-n-1].r.visible and ml.md.frames[-n].r.visible:
                     p1 = tfm.transformLeapToUIsimple(ml.md.frames[-n].r.palm_pose())
@@ -569,7 +576,7 @@ class Example(QMainWindow):
             pose_c = tfm.transformLeapToUIsimple(ml.md.frames[-1].r.palm_pose())
             x_c,y_c = pose_c.position.x, pose_c.position.y
 
-            rad = gl.gd.r.static.point.time_visible*80
+            rad = gl.gd.r.static[-1].point.time_visible*80
             if rad > 100:
                 rad = 100
 
@@ -640,20 +647,26 @@ class Example(QMainWindow):
         self.lblInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*5,ICON_SIZE)
         self.lblStatus.setText(textStatus)
 
-        if self.GesturesViewState:
+        if self.GesturesViewState and gl.gd.r.static[-1]:
             self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
             # up late
             if ml.md.frames:
                 # hand fingers
-                for i in range(1,6):
-                    if gl.gd.r.oc[i-1]:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i)+"open.png"))
+                for i in range(0,5):
+                    if ml.md.frames[-1].r.oc[i]: #gl.gd.r.oc[i-1]:
+                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open.png"))
                     else:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i)+"closed.png"))
+                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed.png"))
+                for i in range(0,5):
+                    if ml.md.frames[-1].r.oc[i]: #gl.gd.r.oc[i-1]:
+                        qp.drawPixmap(w-RIGHT_MARGIN-100-ICON_SIZE, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open.png"))
+                    else:
+                        qp.drawPixmap(w-RIGHT_MARGIN-100-ICON_SIZE, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed.png"))
+
                 # arrows
-                if 'move_in_axis' in gl.gd.r.dynamic.names():
+                if 'move_in_axis' in gl.gd.r.dynamic.info.names:
                     g = gl.gd.r.dynamic.move_in_axis
-                    X = w-RIGHT_MARGIN-100-ICON_SIZE
+                    X = w-RIGHT_MARGIN-100-ICON_SIZE*2
                     Y = START_PANEL_Y-20
                     if g.toggle[0] and g.move[0]:
                         qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_right.png"))
@@ -670,13 +683,13 @@ class Example(QMainWindow):
 
             # left lane
 
-            POSE_FILE_IMAGES = gl.gd.r.static.filenames()
-            POSE_NMS = gl.gd.r.static.names()
-            GEST_FILE_IMAGES = gl.gd.r.dynamic.filenames()[0:4]
-            GEST_NMS = gl.gd.r.dynamic.names()[0:4]
+            POSE_FILE_IMAGES = gl.gd.r.static.info.filenames
+            POSE_NMS = gl.gd.r.static.info.names
+            GEST_FILE_IMAGES = gl.gd.r.dynamic.info.filenames[0:4]
+            GEST_NMS = gl.gd.r.dynamic.info.names[0:4]
             for n, i in enumerate(POSE_FILE_IMAGES):
                 qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
-                if gl.gd.r.static[n].toggle:
+                if gl.gd.r.static[-1][n].activated:
                     qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                 qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y+(n+1)*ICON_SIZE-gl.gd.r.static[n].prob*ICON_SIZE))
                 qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+n*ICON_SIZE+10, POSE_NMS[n])
@@ -690,6 +703,8 @@ class Example(QMainWindow):
                 n_ = settings.gs.r.pymcout
                 qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y+(n_)*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
             # circ options
+            ### DEPRECATED
+
             if 'circ' in gl.gd.r.dynamic.names():
                 g = gl.gd.r.dynamic.circ
                 if g.toggle:
@@ -708,8 +723,8 @@ class Example(QMainWindow):
 
         if self.MoveViewState:
             if ml.md.mode == 'play':
-                if hasattr(gl.gd.l.static, 'grab'):
-                    if gl.gd.l.static.grab.toggle:
+                if gl.gd.relevant(time_now=rospy.Time.now(), hand='l', type='static') and hasattr(gl.gd.l.static[-1], 'grab'):
+                    if gl.gd.l.static[-1].grab.activated:
                         qp.drawPixmap(w/2, 50, 20, 20, QPixmap(settings.paths.graphics_path+"hold.png"))
                         if settings.HoldPrevState == False:
                             settings.HoldAnchor = settings.HoldValue - ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
@@ -735,7 +750,7 @@ class Example(QMainWindow):
                 ValuesArr = []
                 ToggleArr = []
                 ValuesArr.append(round(ml.md.frames[-1].r.confidence,2))
-                oc = [round(i,2) for i in ml.md.frames[-1].r.OC]
+                oc = [round(i,2) for i in ml.md.frames[-1].r.oc]
                 ValuesArr.extend(oc)
                 ValuesArr.append(round(ml.md.frames[-1].r.touch12, 2))
                 ValuesArr.append(round(ml.md.frames[-1].r.touch23, 2))
@@ -749,21 +764,17 @@ class Example(QMainWindow):
                 ValuesArr.append(0.0)
                 ValuesArr.append(0.0)
 
-                ToggleArr.append(gl.gd.r.confidence)
-                ToggleArr.extend(gl.gd.r.oc)
-                ToggleArr.append(gl.gd.r.touch12)
-                ToggleArr.append(gl.gd.r.touch23)
-                ToggleArr.append(gl.gd.r.touch34)
-                ToggleArr.append(gl.gd.r.touch45)
-                ToggleArr.append(gl.gd.r.touch13)
-                ToggleArr.append(gl.gd.r.touch14)
-                ToggleArr.append(gl.gd.r.touch15)
-                if 'move_in_axis' in gl.gd.r.dynamic.names():
-                    ToggleArr.extend(gl.gd.r.dynamic.move_in_axis.toggle)
-                else: ToggleArr.extend([False,False,False])
-                if 'rotation_in_axis' in gl.gd.r.dynamic.names():
-                    ToggleArr.extend(gl.gd.r.dynamic.rotation_in_axis.toggle)
-                else: ToggleArr.extend([False,False,False])
+                ToggleArr.append(ml.md.frames[-1].r.confidence)
+                ToggleArr.extend(oc)
+                ToggleArr.append(ml.md.frames[-1].r.touch12)
+                ToggleArr.append(ml.md.frames[-1].r.touch23)
+                ToggleArr.append(ml.md.frames[-1].r.touch34)
+                ToggleArr.append(ml.md.frames[-1].r.touch45)
+                ToggleArr.append(ml.md.frames[-1].r.touch13)
+                ToggleArr.append(ml.md.frames[-1].r.touch14)
+                ToggleArr.append(ml.md.frames[-1].r.touch15)
+                ToggleArr.extend([False,False,False])
+                ToggleArr.extend([False,False,False])
 
                 for n, i in enumerate(self.lblObservationPosesValuesObj):
                     i.move(w-RIGHT_MARGIN, START_PANEL_Y+(n+0.5)*ICON_SIZE/2)
@@ -917,25 +928,27 @@ class Example(QMainWindow):
             self.GesturesViewState = True
             self.comboPlayNLive.addItem("Live hand")
 
-        if ml.md.frames and gl.gd.r.dynamic.names():
+        ''' DEPRECATED
+        if ml.md.frames and gl.gd.r.dynamic.info.names:
             fa = ml.md.frames[-1]
-            for i in gl.gd.r.dynamic[0:4]: # circ, swipe, pin, touch
+            for i in gl.gd.r.dynamic[-1][0:4]: # circ, swipe, pin, touch
                 if i.time_visible > 0:
                     i.time_visible -= 0.1
                 else:
                     i.toggle = False
             if fa.r.visible == False:
-                for i in gl.gd.r.dynamic:
+                for i in gl.gd.r.dynamic[-1]:
                     i.toggle = False if isinstance(i.toggle, bool) else [False] * len(i.toggle)
-                for i in gl.gd.r.static:
+                for i in gl.gd.r.static[-1]:
                     i.toggle = False
             if fa.l.visible == False:
-                for i in gl.gd.l.dynamic:
+                for i in gl.gd.l.dynamic[-1]:
                     i.toggle = False if isinstance(i.toggle, bool) else [False] * len(i.toggle)
-                for i in gl.gd.l.static:
+                for i in gl.gd.l.static[-1]:
                     i.toggle = False
 
             self.step = self.step + 1
+        '''
         self.update()
 
 

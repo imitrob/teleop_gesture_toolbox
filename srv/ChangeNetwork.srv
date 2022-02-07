@@ -2,4 +2,6 @@ string data
 ---
 bool success
 string[] Gs
+string[] record_keys
+string[] filenames
 string[] args

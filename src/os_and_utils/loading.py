@@ -7,8 +7,7 @@ import pickle
 import sys,os
 from copy import deepcopy
 
-sys.path.append('../leapmotion')
-import frame_lib
+from leapmotion import frame_lib
 
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import scale
@@ -21,20 +20,20 @@ class HandDataLoader():
 
         self.dataset_files = dataset_files
 
-    def load_tmp(self, dir):
+    def load_tmp(self, dir, type):
         dir = os.path.join(dir, "..")
-        if not os.path.isfile(f"{dir}/tmp{self.get_ext()}"):
+        if not os.path.isfile(f"{dir}tmp_{type}{self.get_ext()}"):
             return False
-        data = np.load(f"{dir}/tmp{self.get_ext()}", allow_pickle=True).item()
+        data = np.load(f"{dir}tmp_{type}{self.get_ext()}", allow_pickle=True).item()
         return data
 
-    def load(self,dir,Gs):
+    def load(self,dir,Gs,type):
         X,Y = self.load_directory(dir, Gs)
-        dir_tmp = os.path.abspath(os.path.join(dir,'../tmp'))
+        dir_tmp = os.path.abspath(os.path.join(dir,f'../tmp_{type}'))
         np.save(dir_tmp, {'X': X, 'Y': Y, 'files':self.dataset_files})
         return X,Y
 
-    def load_(self, dir, Gs):
+    def load_(self, dir, Gs,type):
         ''' Main function:
             1. Checks if tmp file exists
                 - If not, it loads all directory, saves tmp, return X,Y
@@ -42,10 +41,10 @@ class HandDataLoader():
                 - If difference zero, return X,Y from tmp file
                 - If some difference, loads again all directory, save tmp return X,Y
         '''
-        data = self.load_tmp(dir)
+        data = self.load_tmp(dir,type)
         if not data:
             X,Y = self.load_directory(dir, Gs)
-            dir_tmp = os.path.abspath(os.path.join(dir,'../tmp'))
+            dir_tmp = os.path.abspath(os.path.join(dir,f'../tmp_{type}'))
             np.save(dir_tmp, {'X': X, 'Y': Y, 'files':self.dataset_files})
             return X,Y
 
@@ -57,7 +56,7 @@ class HandDataLoader():
             return data['X'], data['Y']
         else:
             X,Y = self.load_directory(dir, Gs)
-            dir_tmp = os.path.abspath(os.path.join(dir,'../tmp'))
+            dir_tmp = os.path.abspath(os.path.join(dir,f'../tmp_{type}'))
             np.save(dir_tmp, {'X': X, 'Y': Y, 'files':self.dataset_files})
             return X, Y
 
@@ -78,7 +77,7 @@ class HandDataLoader():
         X, Y = [], []
         for n, G in enumerate(Gs):
             i=0
-            print(f"{dir}/{G}/{str(i)}{self.get_ext()}")
+            print(f"{dir}{G}/{str(i)}{self.get_ext()}")
             while os.path.isfile(f"{dir}/{G}/{str(i)}{self.get_ext()}"):
                 i_file = f"{G}/{str(i)}{self.get_ext()}"
                 print(f"i_file {i_file}")
@@ -131,7 +130,7 @@ class HandDataLoader():
         elif self.import_method == 'pickle':
             return pickle.load(input, encoding="latin1")
 
-#X,Y = HandDataLoader().load_directory('/home/pierro/Downloads', ['asd'])
+#X,Y = HandDataLoader().load_directory('/home/<user>/<your dir>', ['asd'])
 
 
 class DatasetLoader():
@@ -140,26 +139,38 @@ class DatasetLoader():
 
         self.hdl = HandDataLoader()
 
-    def load_tmp(self, dir):
-        print(f"[Loading] dir file {dir}/tmp{HandDataLoader().get_ext()}")
-        if not os.path.isfile(f"{dir}/tmp{HandDataLoader().get_ext()}"):
+    def load_tmp(self, dir, type='static'):
+        print(f"[Loading] Dataset tmp directory file is {dir}tmp_{type}{HandDataLoader().get_ext()}")
+        if not os.path.isfile(f"{dir}tmp_{type}{HandDataLoader().get_ext()}"):
             return False
-        data = np.load(f"{dir}/tmp{HandDataLoader().get_ext()}", allow_pickle=True).item()
+        data = np.load(f"{dir}tmp_{type}{HandDataLoader().get_ext()}", allow_pickle=True).item()
         return data
 
-    def load_dynamic(self, dir, Gs):
-        ''' Main function:
+    def load_static(self, dir, Gs):
+        return self.load_dynamic(dir=dir, Gs=Gs, type='static')
+
+    def load_mp_tmp(self,dir,Gs):
+        data = np.load(f"{dir}tmp_mp{HandDataLoader().get_ext()}", allow_pickle=True).item()
+        return data['X'], data['Y']
+
+    def load_dynamic(self, dir, Gs, type = 'dynamic'):
+        ''' Rename this function!
+            Main function:
             - Get difference
             -
         '''
-        data = self.load_tmp(dir)
+
+        data = self.load_tmp(dir, type=type)
         files = self.hdl.get_files(dir,Gs)
         if not data:
             print("[Loading] No data, loading all directory")
             HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
-            X,Y = self.get_dynamic(HandData,HandDataFlags)
+            if type == 'dynamic':
+                X,Y = self.get_dynamic(HandData,HandDataFlags)
+            else:
+                X,Y = self.get_static(HandData,HandDataFlags)
 
-            np.save(f"{dir}tmp", {'X': X, 'Y': Y, 'files': files})
+            np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
             assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
             return X,Y
 
@@ -173,14 +184,19 @@ class DatasetLoader():
         else:
             print("[Loading] Difference, loading all directory again")
             HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
-            X,Y = self.get_dynamic(HandData,HandDataFlags)
+            if type == 'dynamic':
+                X,Y = self.get_dynamic(HandData,HandDataFlags)
+            else:
+                X,Y = self.get_static(HandData,HandDataFlags)
 
-            np.save(f"{dir}tmp", {'X': X, 'Y': Y, 'files': files})
+            np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
             assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
             return X,Y
 
 
     def get_static(self, data, flags):
+
+        print(f"self.args {self.args}")
 
         X = data
         Y = flags
@@ -188,16 +204,29 @@ class DatasetLoader():
         X_, Y_ = [], []
         if True: # 'observations configurations' in self.args:
             for n, X_n in enumerate(X):
+
                 gesture_X = []
                 for m, X_nt in enumerate(X_n):
-                    gesture_X.append(np.array(X_nt.r.get_learning_data()))
+                    if X_nt.r.visible:
+                        gesture_X.append(np.array(X_nt.r.get_learning_data(type=self.args['type'])))
+                    elif X_nt.l.visible:
+                        gesture_X.append(np.array(X_nt.l.get_learning_data(type=self.args['type'])))
+                if not gesture_X: continue
+
                 X_.append(gesture_X)
                 Y_.append(Y[n])
-            print("Defined dataset type: all_defined")
 
+            print("Defined dataset type: all_defined")
 
         X = X_
         Y = Y_
+        a = [1,2]
+        import numpy as np
+        np.array(a)
+        a
+        print(f"{np.array(a).shape}")
+        a
+        print(f"$$$$$$$$$$$$$ X {np.array(X).shape}")
 
         if 'interpolate' in self.args:
             X_interpolated = []
@@ -290,6 +319,9 @@ class DatasetLoader():
 
 
     def get_dynamic(self, data, flags):
+
+        print(f"self.args {self.args}")
+
         Y = flags
         ## Pick: samples x time x palm_position
         Xpalm = []
@@ -297,9 +329,21 @@ class DatasetLoader():
             row = []
             for t in sample:
                 if t.r.visible:
-                    l2 = np.linalg.norm(np.array(t.r.palm_position()) - np.array(t.r.index_position()))
+                    #l2 = np.linalg.norm(np.array(t.r.palm_position()) - np.array(t.r.index_position()))
                     row.append([*t.r.palm_position()])#, l2])#,*t.r.index_position])
             Xpalm.append(row)
+
+        if 'discards' in self.args:
+            discards = []
+
+            Xpalm = np.array(Xpalm, dtype=object)
+            for n,p in enumerate(Xpalm):
+                if len(p) < 5:
+                    discards.append(n)
+            Xpalm = np.delete(Xpalm,discards,axis=0)
+            Y = np.delete(Y,discards,axis=0)
+            print(f"[Loading] Number {len(discards)} recordings discarded! discards {discards}")
+
 
         if 'normalize' in self.args:
             Xpalm = np.array(Xpalm)
@@ -313,8 +357,12 @@ class DatasetLoader():
 
             Xpalm = Xpalm_
 
-        ## Interpolate palm_positions, to 100 time samples
+        ## Interpolate palm_positions, to n time samples
         if 'interpolate' in self.args:
+            if 'n' in self.args:
+                N = self.args['n']
+            else:
+                N = 100
             Xpalm_interpolated = []
             invalid_ids = []
             for n,sample in enumerate(Xpalm):
@@ -322,10 +370,13 @@ class DatasetLoader():
                 try:
                     for dim in range(0,3):
                         f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
-                        Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
+                        Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=N)))
                     Xpalm_interpolated.append(np.array(Xpalm_interpolated_sample).T)
                 except IndexError:
-                    print("Sample with invalid data detected")
+                    print("Sample with invalid data detected, IndexError")
+                    invalid_ids.append(n)
+                except ValueError:
+                    print("Sample with invalid data detected, ValueError")
                     invalid_ids.append(n)
             Xpalm=Xpalm_interpolated=np.array(Xpalm_interpolated)
             Y = np.delete(Y,invalid_ids,axis=0)

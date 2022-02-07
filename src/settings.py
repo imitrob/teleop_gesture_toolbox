@@ -17,18 +17,12 @@ import yaml
 from os_and_utils.utils import ordered_load, GlobalPaths, load_params
 from os_and_utils.parse_yaml import ParseYAML
 
-def init():
+def init(change_working_directory=True):
     ''' Initialize the shared data across threads (Leap, UI, Control)
     '''
-    global Gs, GsK, configGestures, paths
+    global paths
     # 1. Initialize File/Folder Paths
-    paths = GlobalPaths()
-
-    # 2. Loads config. data to gestures
-    # - gesture_recording.yaml
-    configGestures = ParseYAML.load_gesture_config_file(paths.custom_settings_yaml)
-    recordingConfig = ParseYAML.load_recording_file(paths.custom_settings_yaml)
-    Gs, GsK = ParseYAML.load_gestures_file(paths.custom_settings_yaml)
+    paths = GlobalPaths(change_working_directory=change_working_directory)
 
     # 3. Loads config. about robot
     # - ROSparams /mirracle_config/*
@@ -41,7 +35,10 @@ def init():
 
     print("[Settings] Workspace folder is set to: "+paths.ws_folder)
 
-
+    ## YAML files loaded
+    global yaml_config_gestures, yaml_config_recording
+    yaml_config_gestures = ParseYAML.load_gesture_config_file(paths.custom_settings_yaml)
+    yaml_config_recording = ParseYAML.load_recording_file(paths.custom_settings_yaml)
 
     ## Fixed Conditions
     global position_mode, orientation_mode, print_path_trace

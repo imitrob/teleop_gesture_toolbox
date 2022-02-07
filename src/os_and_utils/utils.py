@@ -43,6 +43,9 @@ class GlobalPaths():
         self.network_path = MG_PATH+'/include/data/Trained_network/'
         self.models_path = MG_PATH+'/include/models/'
         self.custom_settings_yaml = MG_PATH+'/include/custom_settings/'
+        self.UCB_path = MG_PATH+'/include/third_party/UCB/'
+        self.promp_sebasutp_path = MG_PATH+'/include/third_party/promp/'
+        self.promp_paraschos_path = MG_PATH+'/include/third_party/promps_python/'
         TMP2 = os.path.abspath(os.path.join(MG_PATH, '..'))
         self.coppelia_scene_path = TMP2+"/mirracle_sim/include/scenes/"
         if change_working_directory:

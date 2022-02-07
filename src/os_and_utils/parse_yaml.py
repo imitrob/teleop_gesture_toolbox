@@ -337,6 +337,24 @@ class ParseYAML():
         else: raise Exception("Wrong option reading from YAML: "+str(position))
 
     @staticmethod
+    def parseGestureType(gesture):
+        '''
+        Parameters:
+            YAML GsSet[gesture]
+        '''
+        if 'type' in gesture:
+            return gesture['type']
+        elif 'static' in gesture and (gesture['static'] == 'true' or gesture['static'] == True):
+            return 'static'
+        elif 'dynamic' in gesture and (gesture['dynamic'] == 'true' or gesture['dynamic'] == True):
+            return 'dynamic'
+        elif 'mp' in gesture and (gesture['mp'] == 'true' or gesture['mp'] == True):
+            return 'mp'
+        else:
+            return 'dynamic'
+
+
+    @staticmethod
     def parseOrientation(pose_vec, poses_data):
         '''
             1. orientation is {'x':0,'y':0,'z':0,'w':0} or [0,0,0,0] (use x,y,z,w notation)
@@ -396,18 +414,35 @@ class ParseYAML():
 
         if 'time_visible_threshold' not in gesture.keys():
             gesture['time_visible_threshold'] = None
+        if 'key' in gesture.keys():
+            gesture['record_key']= gesture['key']
+        elif 'record_key' not in gesture.keys():
+            gesture['record_key']=""
         return gesture
 
     @staticmethod
     def parseDynamicGesture(gesture):
         if 'var_len' not in gesture.keys():
             gesture['var_len']=1
-        if 'minthre' not in gesture.keys():
-            gesture['minthre']=0.9
-        if 'maxthre' not in gesture.keys():
-            gesture['maxthre']=0.4
+
+        if 'thresholds' in gesture.keys():
+            pass # gesture['thresholds'] = gesture['thresholds']
+        elif 'turn_on_off' in gesture.keys():
+            gesture['thresholds'] = gesture['turn_on_off']
+        elif 'turnon' in gesture.keys() and 'turnoff' in gesture.keys():
+            gesture['thresholds'] = [gesture['turnon'], gesture['turnoff']]
+        elif 'threshold' in gesture.keys() and 'off_threshold' in gesture.keys():
+            gesture['thresholds'] = [gesture['threshold'], gesture['off_threshold']]
+        elif 'minthre' in gesture.keys() and 'maxthre' in gesture.keys():
+            gesture['thresholds'] = [gesture['minthre'], gesture['maxthre']]
+        else: gesture['thresholds'] = None
+
         if 'filename' not in gesture.keys():
             gesture['filename']=""
+        if 'key' in gesture.keys():
+            gesture['record_key']= gesture['key']
+        elif 'record_key' not in gesture.keys():
+            gesture['record_key']=""
         return gesture
 
     @staticmethod
@@ -450,6 +485,7 @@ class ParseYAML():
         # Setup gesture list
         for key in gestures_data_loaded[Gs_set].keys():
             g = gestures_data_loaded[Gs_set][key]
+            #if g['static'] == 'true':
             Gs.append(key)
             GsK.append(g['key'])
 
