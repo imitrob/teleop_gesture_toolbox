@@ -1,4 +1,3 @@
-
 '''
 Look at tests/loading_test.py for example
 '''
@@ -7,7 +6,9 @@ import pickle
 import sys,os
 from copy import deepcopy
 
-from leapmotion import frame_lib
+#from leapmotion import frame_lib; frame_lib.__name__ = 'frame_lib'; frame_lib.__spec__.name = 'frame_lib'
+sys.path.append("leapmotion")
+import frame_lib
 
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import scale
@@ -153,6 +154,9 @@ class DatasetLoader():
         data = np.load(f"{dir}tmp_mp{HandDataLoader().get_ext()}", allow_pickle=True).item()
         return data['X'], data['Y']
 
+    def load_mp(self,dir,Gs):
+        return self.load_dynamic(dir=dir, Gs=Gs, type='mp')
+
     def load_dynamic(self, dir, Gs, type = 'dynamic'):
         ''' Rename this function!
             Main function:
@@ -167,8 +171,11 @@ class DatasetLoader():
             HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
             if type == 'dynamic':
                 X,Y = self.get_dynamic(HandData,HandDataFlags)
-            else:
+            elif type == 'static':
                 X,Y = self.get_static(HandData,HandDataFlags)
+            elif type == 'mp':
+                X,Y = self.get_mp(HandData,HandDataFlags)
+            else: raise Exception("Wrong type")
 
             np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
             assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
@@ -186,8 +193,11 @@ class DatasetLoader():
             HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
             if type == 'dynamic':
                 X,Y = self.get_dynamic(HandData,HandDataFlags)
-            else:
+            elif type == 'static':
                 X,Y = self.get_static(HandData,HandDataFlags)
+            elif type == 'mp':
+                X,Y = self.get_mp(HandData,HandDataFlags)
+            else: raise Exception("Wrong type")
 
             np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
             assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
@@ -216,7 +226,7 @@ class DatasetLoader():
                 X_.append(gesture_X)
                 Y_.append(Y[n])
 
-            print("Defined dataset type: all_defined")
+            print("Defined dataset 'input_definition_version'=1")
 
         X = X_
         Y = Y_
@@ -317,6 +327,8 @@ class DatasetLoader():
             Xpalm.append(row)
         return Xpalm
 
+    def get_mp(self, data, flags):
+        return self.get_dynamic(data, flags)
 
     def get_dynamic(self, data, flags):
 

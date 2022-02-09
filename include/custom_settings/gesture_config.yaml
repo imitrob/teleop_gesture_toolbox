@@ -15,11 +15,14 @@ networks_drive_url: https://drive.google.com/drive/folders/1T8jqeyb10WrwnqQoMA25
 static_detection_approach: PyMC3
 dynamic_detection_approach: PyTorch
 # This is default network loaded from computer, it can be changed later in UI
-static_network_file: PyMC3-main-set.pkl #network0.pkl
+static_network_file: PyMC3-main-set-2.pkl #network0.pkl
 dynamic_network_file: gestures_dynamic_ucb
 
 misc_network_args:
   time_samples: 32
+
+misc:
+  relevant_time: 0.5
 
 
 

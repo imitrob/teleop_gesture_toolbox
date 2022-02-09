@@ -46,6 +46,9 @@ class Frame():
         else:
             self.leapgestures = LeapGestures()
 
+    def stamp(self):
+        return self.secs+self.nsecs*1e-9
+
     def import_from_leap(self, frame):
         self.seq = frame.id
         self.fps = frame.current_frames_per_second
@@ -385,7 +388,7 @@ class Hand():
 
     def get_palm_ros_pose(self):
         if not TF_IMPORT: raise Exception("tf library not imported!")
-        q = tf.transformations.quaternion_from_euler(self.palm_normal.roll, self.direction.pitch, self.direction.yaw)
+        q = tf.transformations.quaternion_from_euler(self.palm_normal.roll(), self.direction.pitch(), self.direction.yaw())
         pose = PoseStamped()
         pose.pose.orientation = Quaternion(*q)
         pose.pose.position = Point(self.palm_position[0],self.palm_position[1],self.palm_position[2])
@@ -394,7 +397,7 @@ class Hand():
         return pose
 
     def get_palm_euler(self):
-        return [self.palm_normal.roll, self.direction.pitch, self.direction.yaw]
+        return [self.palm_normal.roll(), self.direction.pitch(), self.direction.yaw()]
     def get_palm_velocity(self):
         ''' Palm velocity in meters
         '''
@@ -407,6 +410,9 @@ class Hand():
 
     def index_position(self):
         return self.fingers[1].bones[3].next_joint()
+
+    def index_direction(self):
+        return self.fingers[1].bones[3].direction()
 
     def get_open_fingers(self):
         ''' Stand of each finger, for deterministic gesture detection

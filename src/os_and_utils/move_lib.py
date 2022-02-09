@@ -117,6 +117,27 @@ class MoveData():
             return True
         return False
 
+    def get_frame_window_of_last_secs(self, stamp, N_secs):
+        ''' Select frames chosen with stamp and last N_secs
+        '''
+        n = 0
+        #     stamp-N_secs       stamp
+        # ----|-------N_secs------|
+        # ---*************************- <-- chosen frames
+        #              <~~~while~~~  |
+        #                           self.frames[-1].stamp()
+        for i in range(-1, -len(self.frames),-1):
+            if stamp-N_secs > self.frames[i].stamp():
+                n=i
+                break
+        print(f"len(self.frames) {len(self.frames)}, n {n}")
+
+        # return frames time window
+        frames = []
+        for i in range(-1, n, -1):
+            frames.append(self.frames[i])
+        return frames
+
     def modes(self):
         return ['play', 'live', 'alternative']
 

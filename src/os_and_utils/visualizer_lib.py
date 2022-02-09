@@ -46,7 +46,7 @@ class VisualizerLib():
         plt.ioff()
         plt.show()
 
-    def visualize_new_fig(self, title=None, dim=3):
+    def visualize_new_fig(self, title=None, dim=3, move_figure=True):
         ''' Creates new figure instance window
             1. Creates new: fig, ax
             2. Moves new figure, position for 6 figures on 1080p monitor
@@ -70,10 +70,14 @@ class VisualizerLib():
         nfigs = len(list(map(plt.figure, plt.get_fignums())))-1 # get number of opened figures after creating new one
         BOXXMOVE = [0, 600, 1200, 0, 600, 1200, 0, 600, 1200, 0, 600, 1200]
         BOXYMOVE = [0, 0, 0, 600, 600, 600, 0, 0, 0, 600, 600, 600]
-        self.move_figure(fig, BOXXMOVE[nfigs], BOXYMOVE[nfigs])
+        if move_figure:
+            self.move_figure(fig, BOXXMOVE[nfigs], BOXYMOVE[nfigs])
 
         self.fig = fig
         self.ax = ax
+
+    def savefig(self, dir):
+        plt.savefig(dir)
 
     def visualize_2d(self, data, color='', label="", transform='front', xlabel='X axis', ylabel='Y axis', scatter_pts=False, axvline=False, start_stop_mark=True):
         ''' Add trajectory to current figure for 2D Plot.

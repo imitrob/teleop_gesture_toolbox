@@ -8,9 +8,15 @@ from PyQt5.QtGui import *
 from PyQt5.QtCore import *
 import sys, random, time, csv, yaml
 import settings
+if __name__ == '__main__': settings.init()
+from os_and_utils.nnwrapper import NNWrapper
 import os_and_utils.move_lib as ml
+if __name__ == '__main__': ml.init()
 import gestures_lib as gl
+if __name__ == '__main__': gl.init()
 import os_and_utils.scenes as sl
+if __name__ == '__main__': sl.init()
+
 import numpy as np
 from threading import Thread, Timer
 from copy import deepcopy
@@ -565,14 +571,20 @@ class Example(QMainWindow):
         painter = QPainter(self)
         painter.setPen(QPen(Qt.red, 3))
 
-        if gl.gd.r.static[-1]   and self.cursor_enabled() and 'point' in gl.gd.r.static.info.names:
-            for n in range(1,10):
-                if ml.md.frames[-n-1].r.visible and ml.md.frames[-n].r.visible:
-                    p1 = tfm.transformLeapToUIsimple(ml.md.frames[-n].r.palm_pose())
-                    p2 = tfm.transformLeapToUIsimple(ml.md.frames[-n-1].r.palm_pose())
-                    painter.setPen(QPen(Qt.red, p1.position.z))
-                    painter.drawLine(p1.position.x, p1.position.y, p2.position.x, p2.position.y)
-
+        for h in ['l', 'r']:
+            if getattr(ml.md, h+'_present')():
+                pts = len(ml.md.frames)
+                if pts > 10: pts = 10
+                for n in range(1,pts):
+                    #if ml.md.frames[-n-1].l.visible and ml.md.frames[-n].l.visible:
+                    if getattr(ml.md.frames[-n-1], h).visible and getattr(ml.md.frames[-n], h).visible:
+                        #p1 = tfm.transformLeapToUIsimple(ml.md.frames[-n].l.palm_pose())
+                        p1 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n], h).palm_pose())
+                        #p2 = tfm.transformLeapToUIsimple(ml.md.frames[-n-1].l.palm_pose())
+                        p2 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n-1], h).palm_pose())
+                        painter.setPen(QPen(Qt.red, p1.position.z))
+                        painter.drawLine(p1.position.x, p1.position.y, p2.position.x, p2.position.y)
+        if gl.gd.r.static[-1] and self.cursor_enabled() and 'point' in gl.gd.r.static.info.names:
             pose_c = tfm.transformLeapToUIsimple(ml.md.frames[-1].r.palm_pose())
             x_c,y_c = pose_c.position.x, pose_c.position.y
 
@@ -590,39 +602,42 @@ class Example(QMainWindow):
         #self.lblStartAxis.setText(str(ml.md.ENV['start']))
 
         ## Paint the bones structure
-        painter.setPen(QPen(Qt.black, 1))
-        if ml.md.r_present():
-            hand = ml.md.frames[-1].r
-            palm = hand.palm_position()
-            wrist = hand.wrist_position()
+        for h in ['l', 'r']:
+            painter.setPen(QPen(Qt.black, 1))
+            #if ml.md.r_present():
+            if getattr(ml.md, h+'_present')():
+                #hand = ml.md.frames[-1].r
+                hand = getattr(ml.md.frames[-1], h)
+                palm = hand.palm_position()
+                wrist = hand.wrist_position()
 
-            elbow = [0.,0.,0.]#hand.arm.elbow_position()
-            pose_palm = Pose()
-            pose_palm.position = Point(palm[0], palm[1], palm[2])
-            pose_wrist = Pose()
-            pose_wrist.position = Point(wrist[0], wrist[1], wrist[2])
-            pose_elbow = Pose()
-            pose_elbow.position = Point(elbow[0], elbow[1], elbow[2])
-            pose_palm_ = tfm.transformLeapToUIsimple(pose_palm)
-            pose_wrist_ = tfm.transformLeapToUIsimple(pose_wrist)
-            x, y = pose_palm_.position.x, pose_palm_.position.y
-            x_, y_ = pose_wrist_.position.x, pose_wrist_.position.y
-            painter.drawLine(x, y, x_, y_)
-            pose_elbow_ = tfm.transformLeapToUIsimple(pose_elbow)
-            x, y = pose_elbow_.position.x, pose_elbow_.position.y
-            painter.drawLine(x, y, x_, y_)
-            for finger in hand.fingers:
-                for b in range(0, 4):
-                    bone = finger.bones[b]
-                    pose_bone_prev = Pose()
-                    pose_bone_prev.position = Point(bone.prev_joint[0], bone.prev_joint[1], bone.prev_joint[2])
-                    pose_bone_next = Pose()
-                    pose_bone_next.position = Point(bone.next_joint[0], bone.next_joint[1], bone.next_joint[2])
-                    pose_bone_prev_ = tfm.transformLeapToUIsimple(pose_bone_prev)
-                    pose_bone_next_ = tfm.transformLeapToUIsimple(pose_bone_next)
-                    x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
-                    x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
-                    painter.drawLine(x, y, x_, y_)
+                elbow = [0.,0.,0.]#hand.arm.elbow_position()
+                pose_palm = Pose()
+                pose_palm.position = Point(palm[0], palm[1], palm[2])
+                pose_wrist = Pose()
+                pose_wrist.position = Point(wrist[0], wrist[1], wrist[2])
+                pose_elbow = Pose()
+                pose_elbow.position = Point(elbow[0], elbow[1], elbow[2])
+                pose_palm_ = tfm.transformLeapToUIsimple(pose_palm)
+                pose_wrist_ = tfm.transformLeapToUIsimple(pose_wrist)
+                x, y = pose_palm_.position.x, pose_palm_.position.y
+                x_, y_ = pose_wrist_.position.x, pose_wrist_.position.y
+                painter.drawLine(x, y, x_, y_)
+                pose_elbow_ = tfm.transformLeapToUIsimple(pose_elbow)
+                x, y = pose_elbow_.position.x, pose_elbow_.position.y
+                painter.drawLine(x, y, x_, y_)
+                for finger in hand.fingers:
+                    for b in range(0, 4):
+                        bone = finger.bones[b]
+                        pose_bone_prev = Pose()
+                        pose_bone_prev.position = Point(bone.prev_joint[0], bone.prev_joint[1], bone.prev_joint[2])
+                        pose_bone_next = Pose()
+                        pose_bone_next.position = Point(bone.next_joint[0], bone.next_joint[1], bone.next_joint[2])
+                        pose_bone_prev_ = tfm.transformLeapToUIsimple(pose_bone_prev)
+                        pose_bone_next_ = tfm.transformLeapToUIsimple(pose_bone_next)
+                        x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
+                        x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
+                        painter.drawLine(x, y, x_, y_)
 
 
     def movePage(self, e):
@@ -1050,10 +1065,6 @@ def ui_thread_launch():
 
 
 if __name__ == '__main__':
-    settings.init()
-    ml.init()
-    gl.init()
-    sl.init()
     try:
         main()
     except KeyboardInterrupt:

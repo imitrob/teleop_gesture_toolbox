@@ -11,7 +11,7 @@ class PyTorch_Sample():
     def __init__(self):
         # Args
         self.seed = 0
-        self.device = 'cuda:0'
+        self.device = 'cpu' #'cuda:0'
         self.experiment = ''
         self.approach = 'ucb'
         self.data_path = settings.paths.UCB_path+'data/'
@@ -60,10 +60,10 @@ class PyTorch_Sample():
         self.experiment = '_'.join(network_name.split("_")[:-1])
 
         # It needs to be imported here, because it depends on settings
-        sys.path.append("..")
-        from include.third_party.UCB.src.dataloaders import gestures_dynamic as dataloader
-        from include.third_party.UCB.src.approaches import ucb as approach
-        from include.third_party.UCB.src.networks import mlp_ucb as network
+        sys.path.append(settings.paths.UCB_path)
+        from src.dataloaders import gestures_dynamic as dataloader
+        from src.approaches import ucb as approach
+        from src.networks import mlp_ucb as network
 
         data,taskcla,inputsize=dataloader.get(data_path=self.data_path, seed=self.seed, args=self)
         print('Input size =',inputsize,'\nTask info =',taskcla)
@@ -72,7 +72,7 @@ class PyTorch_Sample():
 
         self.model=network.Net(self).to(self.device)
 
-        checkpoint = torch.load(os.path.join(self.checkpoint+network_name, 'model_{}.pth.tar'.format(self.sti)))
+        checkpoint = torch.load(os.path.join(self.checkpoint+network_name, 'model_{}.pth.tar'.format(self.sti)), map_location=torch.device('cpu'))
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.model = self.model.to(device=self.device)
 

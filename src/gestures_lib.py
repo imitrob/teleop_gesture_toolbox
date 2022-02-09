@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.8
+#!/usr/bin/env python3
 '''
 import gestures_lib as gl
 gl.init()
@@ -14,17 +14,18 @@ gl.gd.l.static[<stamp> or index].<g1>.probability
 (gestures_lib.GestureDataDetection.GestureDataHand[float or int].static.prob)
 '''
 import os, collections, time
-import gdown
+try: import gdown
+except ModuleNotFoundError: gdown = None
 import numpy as np
 
 import settings
+from os_and_utils.nnwrapper import NNWrapper
 if __name__ == '__main__': settings.init()
 import os_and_utils.move_lib as ml
 if __name__ == '__main__': ml.init()
 from os_and_utils.parse_yaml import ParseYAML
 
 if __name__ == '__main__':
-    from inverse_kinematics.ik_lib import IK_bridge
     from os_and_utils.ros_communication_main import ROSComm
 
 # Keep independency to ROS
@@ -36,83 +37,8 @@ try:
 except ModuleNotFoundError:
     ROS = False
 
-def detection_thread(freq=1., args={}):
-    if not ROS: raise Exception("ROS cannot be imported!")
-
-    rospy.init_node("detection_thread", anonymous=True)
-
-    settings.gesture_detection_on = True
-    settings.launch_gesture_detection = True
-
-    roscm = ROSComm()
-
-    configGestures = ParseYAML.load_gesture_config_file(settings.paths.custom_settings_yaml)
-    hand_mode_set = configGestures['using_hand_mode_set']
-    hand_mode = dict(configGestures['hand_mode_sets'][hand_mode_set])
-
-    rate = rospy.Rate(freq)
-
-    while not rospy.is_shutdown():
-        if ml.md.frames:
-            send_g_data(roscm, hand_mode, args)
-
-        rate.sleep()
-
-def send_g_data(roscm, hand_mode):
-    ''' Sends appropriate gesture data as ROS msg
-        Launched node for static/dynamic detection.
-    '''
-
-    msg = DetectionObservations()
-    msg.observations = Float64MultiArray()
-    msg.sensor_seq = ml.md.frames[-1].seq
-    msg.header.stamp.secs = ml.md.frames[-1].secs
-    msg.header.stamp.nsecs = ml.md.frames[-1].nsecs
-
-    mad1 = MultiArrayDimension()
-    mad1.label = 'time'
-    mad2 = MultiArrayDimension()
-    mad2.label = 'xyz'
-
-    for key in hand_mode.keys():
-        args = gd.static_network_info
-        if 'static' in hand_mode[key]:
-            if key == 'l':
-                if ml.md.l_present():
-                    msg.observations.data = ml.md.frames[-1].l.get_learning_data_static(definition=args['input_definition_version'])
-                    msg.header.frame_id = 'l'
-                    roscm.static_detection_observations_pub.publish(msg)
-            elif key == 'r':
-                if ml.md.r_present():
-                    msg.observations.data = ml.md.frames[-1].r.get_learning_data_static(definition=args['input_definition_version'])
-                    msg.header.frame_id = 'r'
-                    roscm.static_detection_observations_pub.publish(msg)
-
-
-        time_samples = settings.yaml_config_gestures['misc_network_args']['time_samples']
-        if 'dynamic' in hand_mode[key] and len(ml.md.frames) > time_samples:
-            args = gd.dynamic_network_info
-            if key == 'l':
-                if ml.md.l_present():
-                    data = np.array([frame.l.get_single_learning_data_dynamic(definition=args['input_definition_version']) for frame in ml.md.frames.copy()])
-                    msg.observations.data = data[-time_samples:]
-                    mad1.size = msg.observations.data.shape[0]
-                    mad2.size = msg.observations.data.shape[1]
-                    msg.observations.data = msg.observations.data.flatten()
-                    msg.observations.layout.dim = [mad1, mad2]
-                    msg.header.frame_id = 'l'
-                    roscm.dynamic_detection_observations_pub.publish(msg)
-            elif key == 'r':
-                if ml.md.r_present():
-                    data = np.array([frame.r.get_single_learning_data_dynamic(definition=args['input_definition_version']) for frame in ml.md.frames.copy()])
-                    msg.observations.data = data[-time_samples:]
-                    mad1.size = msg.observations.data.shape[0]
-                    mad2.size = msg.observations.data.shape[1]
-                    msg.observations.data = msg.observations.data.flatten()
-                    msg.observations.layout.dim = [mad1, mad2]
-                    msg.header.frame_id = 'r'
-                    roscm.dynamic_detection_observations_pub.publish(msg)
-
+def NormalizeData(data):
+    return (data - np.min(data)) / (np.max(data) - np.min(data))
 
 ## Class definitions
 class GestureDataAtTime():
@@ -195,6 +121,12 @@ class GestureMorphClass(object):
             for attr in attrs:
                 ret.append(getattr(self,attr).probability)
             return ret
+        elif attr == 'probabilities_norm':
+            attrs = self.get_all_attributes()
+            ret = []
+            for attr in attrs:
+                ret.append(getattr(self,attr).probability)
+            return NormalizeData(ret)
         elif attr == 'activates_int':
             attrs = self.get_all_attributes()
             ret = []
@@ -230,6 +162,8 @@ class GestureMorphClass(object):
             return []
         return ret
 
+    def __getstate__(self): return self.__dict__
+    def __setstate__(self, d): self.__dict__.update(d)
 
 class GHeader():
     def __init__(self, stamp, seq, approach):
@@ -249,7 +183,7 @@ class GestureMorphClassStamped(GestureMorphClass):
         '''
         super().__init__()
         assert isinstance(data, DetectionSolution)
-        stamp = data.header.stamp.secs + data.header.stamp.nsecs*10e-9
+        stamp = data.header.stamp.secs + data.header.stamp.nsecs*1e-9
         self.header = GHeader(stamp, data.header.seq, data.approach)
 
         for n,g in enumerate(Gs):
@@ -398,13 +332,16 @@ class TemplateGs():
         if attr == 'n':
             return len(self.data_queue)
 
-    def relevant(self, last_secs=0.):
+    def __getstate__(self): return self.__dict__
+    def __setstate__(self, d): self.__dict__.update(d)
+
+    def relevant(self, last_secs=1.0):
         ''' Searches gestures_queue, and returns the last gesture record, None if no records in that time were made
         '''
         if ROS: abs_time = rospy.Time.now().to_sec() - last_secs
         else: abs_time = time.time() - last_secs
 
-        abs_time = time.time() - last_secs
+        #abs_time = time.time() - last_secs
         # if happened within last_secs interval
         if self.data_queue and self.data_queue[-1].header.stamp > abs_time:
             return self.data_queue[-1]
@@ -419,6 +356,10 @@ class DynamicGs(TemplateGs):
     def __init__(self, type='dynamic', local_data=None):
         super().__init__(type, local_data=local_data)
 
+class MotionPrimitiveGs(TemplateGs):
+    def __init__(self, type='mp', local_data=None):
+        super().__init__(type, local_data=local_data)
+
 class GestureDataHand():
     ''' The 2nd class: gl.gd.l
                        gl.gd.r
@@ -426,7 +367,7 @@ class GestureDataHand():
     def __init__(self):
         self.static = StaticGs()
         self.dynamic = DynamicGs()
-
+        self.mp = MotionPrimitiveGs()
 
 class GestureDataDetection():
     ''' The main class: gl.gd
@@ -434,7 +375,9 @@ class GestureDataDetection():
     def __init__(self):
         self.l = GestureDataHand()
         self.r = GestureDataHand()
-        print(f"Static gestures: {self.l.static.info.names}, \nDynamic gestures {self.l.dynamic.info.names}")
+        print(f"Static gestures: {self.l.static.info.names}, \n\
+Dynamic gestures {self.l.dynamic.info.names}\n\
+MotionPrimitive ids {self.l.mp.info.names}")
         ## TODO: Additional names for additional gestures computed by comparing left and right hand
         self.combs = None
 
@@ -444,6 +387,9 @@ class GestureDataDetection():
         # Auxiliary
         self.last_seq = 0
 
+        # Save of actions
+        self.action_saves = []
+
     def load_netork_info(self):
         static_network_file = settings.yaml_config_gestures['static_network_file']
         dynamic_network_file = settings.yaml_config_gestures['dynamic_network_file']
@@ -451,6 +397,7 @@ class GestureDataDetection():
         from os_and_utils.nnwrapper import NNWrapper
         nw = NNWrapper.load_network(settings.paths.network_path, static_network_file)
         static_network_info = nw.args
+        static_network_info['accuracy'] = nw.accuracy
 
         #nw = NNWrapper.load_network(settings.paths.network_path, dynamic_network_file)
         #dynamic_network_info = nw.args
@@ -500,6 +447,9 @@ class GestureDataDetection():
         elif attr == 'Gs_keys_dynamic':
             return self.l.dynamic.info.record_keys
 
+    def __getstate__(self): return self.__dict__
+    def __setstate__(self, d): self.__dict__.update(d)
+
     def new_record(self, data, type='static'):
         ''' New gesture data arrived and will be saved
         '''
@@ -547,30 +497,116 @@ class GestureDataDetection():
             if len(static[-20:-2]) > 15 and np.array([data[n].activated for data in static[-10:-2]]).all() \
                 and (static[-1][n].activated == False):
                 g.first_activated = True
-                self.actions_queue.append((latest_gs.header.stamp, self.l.static.info.names[n]))
+                self.actions_queue.append((latest_gs.header.stamp, self.l.static.info.names[n], frame_id))
             else:
                 g.first_activated = False
 
     def last(self):
         return self.l.static.relevant(), self.r.static.relevant(), self.l.dynamic.relevant(), self.r.dynamic.relevant()
 
-    def var_generate(self, hand, type, g, time):
-        vars = {}
+    def var_generate(self, hand, stamp):
+        vars = {'velocities':[], 'point_direction':[], 'palm_euler': [], 'grab': [], 'pinch': [], 'holding_sphere_radius': []}
 
-        frames = ml.md.frames.get_window_last(1)
-        # velocity
-        hand_frame = getattr(frames[len(frames)//2], hand)
-        vars['velocity'] = np.linalg.norm(hand_frame.palm_velocity())
+        last_secs = settings.yaml_config_gestures['misc']['relevant_time']
 
-        # TODO: others
+        frames = ml.md.get_frame_window_of_last_secs(stamp, last_secs)
+
+        # go through frames and get vars
+        for frame in frames:
+            hand_frame = getattr(frame, hand)
+            vars['velocities'].append(np.linalg.norm(hand_frame.palm_velocity()))
+            vars['point_direction'].append(hand_frame.index_direction())
+            vars['palm_euler'].append(hand_frame.get_palm_euler())
+            vars['grab'].append(hand_frame.grab_strength)
+            vars['pinch'].append(hand_frame.pinch_strength)
+            vars['holding_sphere_radius'].append(hand_frame.sphere_radius)
 
         return vars
+
+    def export(self, viz):
+        ''' Exports Selected gesture data as new folder, add metadata + plot
+        '''
+        N_ = 0
+        while os.path.isdir(settings.paths.data_export_path+'record_'+str(N_)) == True:
+            N_+=1
+        os.mkdir(settings.paths.data_export_path+'record_'+str(N_))
+
+        viz.savefig(settings.paths.data_export_path+'record_'+str(N_)+"/plot_2")
+
+        # Data composition
+        normalizer = self.l.static[0].header.stamp
+        norm_seq = self.l.static[0].header.seq
+        gesture_data_left_static = np.array([(g.header.stamp-normalizer, g.header.seq-norm_seq, *g.probabilities, *g.activates_int) for g in self.l.static[:]])
+        #gesture_data_left_dynamic = np.array([(g.stamp, g.header.seq, *g.probabilities, *g.probabilities_norm, *g.activates_int) for g in self.l.dynamic[:]])
+        #gesture_data_right_static = np.array([(g.stamp, g.header.seq, *g.probabilities, *g.activates_int) for g in self.r.static[:]])
+        normalizer = self.r.dynamic[0].header.stamp
+        norm_seq = self.r.dynamic[0].header.seq
+        gesture_data_right_dynamic = np.array([(g.header.stamp-normalizer, g.header.seq-norm_seq, *g.probabilities, *g.probabilities_norm, *g.activates_int) for g in self.r.dynamic[:]])
+
+        # Motion Primitives Actions Composition
+        np.save(settings.paths.data_export_path+'record_'+str(N_)+"/executed_MPs.npy", self.action_saves)
+
+        #gesture_data_left_static = gesture_data_left_static[gesture_data_left_static[:, 0].argsort()]
+        #gesture_data_right_dynamic = gesture_data_right_dynamic[gesture_data_right_dynamic[:, 0].argsort()]
+
+        # Data save
+        np.save(settings.paths.data_export_path+'record_'+str(N_)+"/gesture_data_left_static.npy", gesture_data_left_static)
+        np.save(settings.paths.data_export_path+'record_'+str(N_)+"/gesture_data_right_dynamic.npy", gesture_data_right_dynamic)
+
+        file = open(settings.paths.data_export_path+'record_'+str(N_)+"/config.txt","a")
+        file.write(f"[Static] Detection approach: {settings.yaml_config_gestures['static_detection_approach']}, Network file {settings.yaml_config_gestures['static_network_file']}\n")
+        file.write(f"[Dynamic] Detection approach: {settings.yaml_config_gestures['dynamic_detection_approach']}, Network file {settings.yaml_config_gestures['dynamic_network_file']}\n")
+        file.write(f"[Mapping] Left hand: {settings.yaml_config_gestures['hand_mode_sets'][settings.yaml_config_gestures['using_hand_mode_set']]['l']}, Right hand: {settings.yaml_config_gestures['hand_mode_sets'][settings.yaml_config_gestures['using_hand_mode_set']]['r']}\n\n")
+
+        file.write(f"Static network info: {self.static_network_info}\n")
+        file.write(f"Dynamic network info: {self.dynamic_network_info}")
+        file.write(f" {dict(settings.yaml_config_gestures['misc_network_args'])}\n\n")
+
+        file.write(f"{self.l.static.info.n} static gestures: {self.l.static.info.names}\n")
+        file.write(f"{self.l.dynamic.info.n} dynamic gestures: {self.l.dynamic.info.names}\n\n")
+        file.write(f"{self.l.mp.info.n} MPs: {self.l.mp.info.names}\n\n")
+
+        file.write(f"columns static gestures: stamp, seq, probabilities {self.l.static.info.names}, gesture activates {self.l.static.info.names}\n")
+        file.write(f"columns dynamic gestures: probabilities {self.l.dynamic.info.names}, norm. probabilities {self.l.static.info.names}, gesture activates {self.l.static.info.names}\n\n")
+        file.write(f"columns mp activates: id gesture, id_primitive, action_stamp, gesture variables assigned to MP [velocities,point_direction,palm_euler,grab,pinch,holding_sphere_radius], generated path e.g.(3x200) \n\n")
+
+        file.close()
+
+        from os_and_utils.visualizer_lib import VisualizerLib
+        viz = VisualizerLib()
+        viz.visualize_new_fig("Gesture probability through time", dim=2)
+
+        time = gesture_data_right_dynamic[:,1]
+        gesture_data_right_dynamic = np.array(gesture_data_right_dynamic)[:,7:12].T
+        for n in range(2):#gl.gd.r.dynamic.info.n):
+            viz.visualize_2d(list(zip(time, gesture_data_right_dynamic[n])),label=f"{self.r.dynamic.info.names[n]}", xlabel='time, detection seq [-] (~10 seq/sec)', ylabel='Gesture probability', start_stop_mark=False)
+
+        time = gesture_data_left_static[:,1]
+        gesture_data_left_static = np.array(gesture_data_left_static)[:,2:10].T
+        for n in range(2):#gl.gd.r.static.info.n):
+            viz.visualize_2d(list(zip(time, gesture_data_left_static[n])),label=f"{self.r.static.info.names[n]}", xlabel='time, detection seq [-] (~10 seq/sec)', ylabel='Gesture probability', start_stop_mark=False)
+        viz.savefig(settings.paths.data_export_path+'record_'+str(N_)+"/plot")
+
+        viz = VisualizerLib()
+        viz.visualize_new_fig("Executed MPs", dim=3)
+
+        # self.action_saves # id, id_primitive, tmp_action_stamp, vars, path
+        for id, id_primitive, tmp_action_stamp, vars, path in self.action_saves:
+            viz.visualize_3d(path[0],label=f"id: {id}, id_primitive: {id_primitive}, stamp: {tmp_action_stamp}", xlabel='X', ylabel='Y', zlabel='Z')
+        viz.savefig(settings.paths.data_export_path+'record_'+str(N_)+"/plot_mp")
+
+
+        return
+
+
+
 
     '''
     Static manage methods
     '''
     @staticmethod
     def download_networks_gdrive():
+        if not gdown: print("Networks cannot be downloaded! Install gdown: conda install -c conda-forge gdown")
         # get one dir above
         NETWORKS_PATH = '/'.join((settings.paths.network_path).split('/')[:-2])
         gdown.download_folder(settings.configGestures['networks_drive_url'], output=NETWORKS_PATH)
@@ -873,13 +909,11 @@ def init():
     gd = GestureDataDetection()
 
 #### For testing purposes
-
 def main():
     init()
-    detection_thread(freq = 1., args={'type': 'old_defined'})
+
 
 if __name__ == '__main__':
     main()
-
 
 #

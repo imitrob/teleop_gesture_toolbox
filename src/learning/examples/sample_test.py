@@ -36,7 +36,7 @@ def main():
 
         # Send gesture data based on hand mode
         if ml.md.frames and settings.gesture_detection_on:
-            gl.send_g_data(roscm, hand_mode, args={'type': 'old_defined'})
+            gl.send_g_data(roscm, hand_mode, args={'input_definition_version'=1})
         # Need arrived data in gl.gd.l[0.0].static.prob
 
         rate.sleep()

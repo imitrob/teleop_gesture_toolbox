@@ -105,7 +105,7 @@ class PyMC3Train():
         '''
         self.new_data_arrived = False
         self.Gs = ['open', 'close']
-        self.args = {'all_defined':True, 'split':0.6, 'take_every':3, 's':1, 'iter':[2500,1000], 'n_hidden':[50], 'samples':2000}
+        self.args = {'input_definition_version':1, 'split':0.6, 'take_every':3, 's':1, 'iter':[2500,1000], 'n_hidden':[50], 'samples':2000}
 
         self.dataset_files = []
         self.import_records(dataset_files = self.dataset_files)
@@ -143,9 +143,9 @@ class PyMC3Train():
             DYpalm (ndarray): Palm trajectories velocities
             Ydyn (1darray): (Y solutions flags for palm trajectories)
         '''
-        self.X, self.Y = DatasetLoader({'interpolate':1, 'discards':1, 'type':'all_defined'}).load_static(GlobalPaths().learn_path, self.Gs)
+        self.X, self.Y = DatasetLoader({'interpolate':1, 'discards':1, 'input_definition_version':1}).load_static(GlobalPaths().learn_path, self.Gs)
 
-        print(f"$$$$$$$$$$$$$ X {np.array(self.X).shape}")
+        print(f"X shape={np.array(self.X).shape}")
 
         #HandData, HandDataFlags = HandDataLoader().load_directory_update(GlobalPaths().learn_path, self.Gs)
         #self.X, self.Y = DatasetLoader().get_static(HandData, HandDataFlags)
@@ -424,7 +424,7 @@ class PyMC3Train():
             X_test = X_test[Y_test<cutTestTo]
             Y_test = Y_test[Y_test<cutTestTo]
 
-        samples = 10000
+        samples = 100
         if 'samples' in self.args: samples = self.args['samples']
 
         x = T.matrix("X")
@@ -444,13 +444,12 @@ class PyMC3Train():
         y_pred = np.array(y_pred).astype(int)
         print("Accuracy = {}%".format((Y_test == y_pred).mean() * 100))
 
-        '''
         pred_t = sample_proba(self.X_train,samples).mean(0)
         y_pred_t = np.argmax(pred_t, axis=1)
 
         #print("y pred t shape: ", y_pred_t.shape)
         print("Accuracy on train = {}%".format((self.Y_train == y_pred_t).mean() * 100))
-        '''
+
         #confusion_matrix_pretty_print.plot_confusion_matrix_from_data(Y_test, y_pred, self.Gs, annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name="")
         return (Y_test == y_pred).mean() * 100, 0 #(self.Y_train == y_pred_t).mean() * 100
 
@@ -961,7 +960,7 @@ class Experiments():
     def trainWithParameters(self):
         ''' Train/evaluate, use for single training
         '''
-        args = {'all_defined':True, 'split':0.3, 'take_every':4, 'iter':[3000], 'n_hidden':[50] }
+        args = {'input_definition_version':1, 'split':0.3, 'take_every':4, 'iter':[3000], 'n_hidden':[50] }
 
         accuracies, accuracies_train = [], []
         print("Training With Parameters")
@@ -984,7 +983,7 @@ class Experiments():
     def trainWithParametersAndSave(self):
         ''' Train/evaluate + Save
         '''
-        args = {'all_defined':True, 'split':0.2, 'take_every':4, 'iter':[3000], 'n_hidden':[50] }
+        args = {'input_definition_version':1, 'split':0.2, 'take_every':4, 'iter':[3000], 'n_hidden':[50],  }
 
         print("Training With Parameters and Save")
         print("---")
@@ -996,7 +995,7 @@ class Experiments():
         self.train.train()
         accuracy, _ = self.train.evaluate()
 
-        self.train.save(name='PyMC3-main-set-2', accuracy=accuracy)
+        self.train.save(name='PyMC3-main-set-3', accuracy=accuracy)
 
 
 
@@ -1004,7 +1003,7 @@ class Experiments():
         ''' Train on 90% data then update on 10% new data, method update with priors
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = {'all_defined':True, 'split':0.25, 'take_every':10, 's':1, 'iter':[2500,1000], 'n_hidden':[50], 'samples':2000}
+        args = {'input_definition_version':1, 'split':0.25, 'take_every':10, 's':1, 'iter':[2500,1000], 'n_hidden':[50], 'samples':2000}
 
         accuracies, accuracies_train = [], []
         print("Train on 90% data then update on 10% new data, method update with priors")
@@ -1032,7 +1031,7 @@ class Experiments():
         ''' Train first on 4 gestures, then update on 3 new gestures dataset, method independent dataset generalization
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = {'all_defined':True, 'split':0.25, 'take_every':10, 's':1, 'iter':[1000,1000], 'n_hidden':[50], 'samples':2000}
+        args = {'input_definition_version':1, 'split':0.25, 'take_every':10, 's':1, 'iter':[1000,1000], 'n_hidden':[50], 'samples':2000}
 
         accuracies, accuracies_train = [], []
         print("Train first on 4 gestures, then update on 3 new gestures dataset, method independent dataset generalization")
@@ -1060,7 +1059,7 @@ class Experiments():
         ''' Train first on 4 gestures, then update on 3 new gestures dataset, update method and dataset generalization
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = {'all_defined':True, 'split':0.25, 'take_every':10, 's':1, 'iter':[2500,2500], 'n_hidden':[50], 'samples':2000}
+        args = {'input_definition_version':1, 'split':0.25, 'take_every':10, 's':1, 'iter':[2500,2500], 'n_hidden':[50], 'samples':2000}
 
         accuracies, accuracies_train = [], []
         print("Train first on 4 gestures, then update 3 new gestures dataset, update method and dataset generalization")
@@ -1087,7 +1086,7 @@ class Experiments():
         ''' Train first on 3 gestures, then update on 2+2 new gesture dataset, method independent dataset generalization
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = {'all_defined':True, 'split':0.25, 'take_every':10, 's':1, 'iter':[1000,1000,1000], 'n_hidden':[50], 'samples':2000}
+        args = {'input_definition_version':1, 'split':0.25, 'take_every':10, 's':1, 'iter':[1000,1000,1000], 'n_hidden':[50], 'samples':2000}
 
         accuracies, accuracies_train = [], []
         print("Train first on 3 gestures, then update on 2+2 new gesture dataset, method independent dataset generalization")
@@ -1121,7 +1120,7 @@ class Experiments():
         ''' Grid search for parameter: proportion of train data (still tested with 30% test data each time), method independent chunks of train
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = {'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000]}
+        args = {'input_definition_version':1, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000]}
 
         accuracies, accuracies_train = [], []
         print("Grid search for parameter: proportion of train data (still tested with 30% test data each time), method independent chunks of train")
@@ -1145,7 +1144,7 @@ class Experiments():
         ''' Grid search for parameter: iterations, method independent chunks of train
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = {'all_defined':True, 'take_every':3, 's':1, 'interpolate':True, 'split':0.25, 'samples':10000 }
+        args = {'input_definition_version':1, 'take_every':3, 's':1, 'interpolate':True, 'split':0.25, 'samples':10000 }
 
         accuracies, accuracies_train = [], []
         print("Grid search with parameter: iterations, method independent chunks of train")
@@ -1168,7 +1167,7 @@ class Experiments():
         ''' Grid search with parameter: n recordings for each learning (MAIN_ARG_N_RECORDINGS_FOR_EACH_LEARNING), method update with priors
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = { 'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
+        args = { 'input_definition_version':1, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
 
         accuracies, accuracies_train = [], []
         print("Grid search with parameter: n recordings for each learning (MAIN_ARG_N_RECORDINGS_FOR_EACH_LEARNING), method update with priors")
@@ -1195,7 +1194,7 @@ class Experiments():
         ''' Train first on 25% train data and then three times update on 25% train data (tested on previously splited 30% test data), method update with priors
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = {'all_defined':True, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
+        args = {'input_definition_version':1, 'take_every':10, 's':1, 'interpolate':True, 'iter':[3000,3000], 'split':0.3, 'n_hidden':[50] }
 
         accuracies, accuracies_train = [], []
         print("Train first on 25% train data and then three times update on 25% train data (tested on previously splited 30% test data) with priors")
@@ -1223,7 +1222,7 @@ class Experiments():
         ''' Train first on 90% data and then update on 10% (tested on previously splited 30% test data), method update with minibatch
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = { 'all_defined':True, 'take_every':10, 's':1, 'iter':[2000,2000], 'n_hidden':[50], 'samples':1000}
+        args = { 'input_definition_version':1, 'take_every':10, 's':1, 'iter':[2000,2000], 'n_hidden':[50], 'samples':1000}
 
         accuracies, accuracies_train = [], []
         print("Train first on 90% data and then update on 10% (tested on previously splited 30% test data), method update with minibatch")
@@ -1252,7 +1251,7 @@ class Experiments():
         State: Not working, Need to update
         '''
         Gs = ['grab', 'pinch', 'point', 'respectful', 'spock', 'rock', 'victory']
-        args = { 'all_defined':True, 'take_every':10 }
+        args = { 'input_definition_version':1, 'take_every':10 }
 
         accuracies, accuracies_train = [], []
         print("Training 17.5% + 3 x 17.5% with priors")

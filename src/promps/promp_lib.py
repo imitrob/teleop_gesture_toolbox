@@ -18,7 +18,7 @@ NOTES:
 
 
 '''
-import sys, os, argparse
+import sys, os, argparse, time
 import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
@@ -26,13 +26,10 @@ import rospy
 from itertools import combinations, product
 
 if __name__ == '__main__':
-    # append utils library relative to this file
-    sys.path.append('../os_and_utils')
-    # create GlobalPaths() which changes directory path to package src folder
-    from utils import GlobalPaths
-    GlobalPaths()
+    sys.path.append('..')
+    import settings; settings.init()
 else:
-    from os_and_utils.utils import GlobalPaths
+    import settings
 
 sys.path.append('leapmotion') # .../src/leapmotion
 #from loading import HandDataLoader, DatasetLoader
@@ -43,15 +40,18 @@ from os_and_utils.transformations import Transformations as tfm
 from os_and_utils.utils_ros import extv
 from os_and_utils.visualizer_lib import VisualizerLib
 
+import gestures_lib as gl
+if __name__ == '__main__':
+    from os_and_utils.nnwrapper import NNWrapper
+    gl.init()
+
 if __name__ == '__main__':
     ## init Coppelia
     from geometry_msgs.msg import Pose, Point, Quaternion
 
     # Import utils.py from src folder
 
-    import time
-    sys.path.append(GlobalPaths().home+"/"+GlobalPaths().ws_folder+'/src/mirracle_sim/src')
-
+    sys.path.append(settings.paths.mirracle_sim_path)
     from utils import *
     from utils_ros import samePoses
     from mirracle_sim.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
@@ -75,25 +75,35 @@ def main(id, X=None, vars={}):
     return generate_path(id=id, X=X, vars=vars)
 
 class ProMPGenerator():
-    def __init__(self, promp, Gs=['swipe_left', 'swipe_up', 'swipe_front_right', 'swipe_down']):#, 'round']):#['grab', 'kick', 'nothing']):
+    def __init__(self, promp):
         if promp == 'paraschos':
             import promps.promp_paraschos as approach
         elif promp == 'sebasutp':
             import promps.promp_sebasutp as approach
         else: raise Exception("Wrong ProMP approach")
+        self.approach = approach
 
-        self.Gs = Gs
+        self.Gs = gl.gd.l.mp.info.names
 
-
-        X, self.Y = DatasetLoader(['interpolate', 'discards']).load_dynamic(GlobalPaths().learn_path, self.Gs)
-        #X, Y = DatasetLoader(['interpolate', 'discards']).load_dynamic(GlobalPaths().learn_path, Gs)
-
-
-        #X, self.Y = DatasetLoader(['interpolate', 'discards']).load_mp_tmp(GlobalPaths().learn_path, self.Gs)
+        X, self.Y = DatasetLoader(['interpolate', 'discards']).load_mp(settings.paths.learn_path, self.Gs)
         self.X = tfm.transformPrompToSceneList_3D(X)
 
+    def handle_action_queue(self, action):
+        action_stamp, action_name, action_hand = action
+        vars = gl.gd.var_generate(action_hand, action_stamp)
+        print(vars)
+        print(len(vars['grab']))
+        path = self.generate_path(action_name, vars=vars, tmp_action_stamp=action_stamp)
 
-    def generate_path(self, id, vars={}):
+        ## TODO: Execute path
+
+        #execute_path(path)
+        #CustomPlot.my_plot([], [path])
+
+        print(f"Executing gesture id: {action[1]}, time diff perform to actiovation: {rospy.Time.now().to_sec()-action[0]}")
+
+
+    def generate_path(self, id, vars={}, tmp_action_stamp=None):
         ''' Main function
         Parameters:
             id (str): gesture ID (string)
@@ -108,9 +118,11 @@ class ProMPGenerator():
         # Based on defined MPs in classes below
         _, mp_type = get_id_motionprimitive_type(id_primitive)
 
-        Xg = self.X[Y==self.Gs.index(id)]
+        Xg = self.X[self.Y==self.Gs.index(id_primitive)]
 
-        return mp_type().by_id(Xg, id_primitive)
+        path = mp_type().by_id(Xg, id_primitive, self.approach, vars)
+        gl.gd.action_saves.append((id, id_primitive, tmp_action_stamp, vars, path))
+        return path
 
 def combine_promp_paths(promp_paths):
     ''' TODO
@@ -120,7 +132,7 @@ def combine_promp_paths(promp_paths):
 def map_to_primitive_gesture(id_gesture):
     ''' Mapping hand gesture ID to robot primitive gesture ID
     '''
-    gesture_config_file = ParseYAML.load_gesture_config_file(GlobalPaths().custom_settings_yaml)
+    gesture_config_file = ParseYAML.load_gesture_config_file(settings.paths.custom_settings_yaml)
     mapping_set = gesture_config_file['using_mapping_set']
     mapping = dict(gesture_config_file['mapping_sets'][mapping_set])
 
@@ -167,14 +179,15 @@ def get_id_motionprimitive_type(id):
     else: raise Exception("[ProMP lib] Motion Primitive Type is not defined in any class!")
 
 class Waypoint():
-    def __init__(self, p=None, v=None, gripper=None, eef_rot=None):
+    def __init__(self, p=None, v=None, unc=None, gripper=None, eef_rot=None):
         self.p = p # position [x,y,z]
         self.v = v # velocity [x,y,z]
+        self.unc = unc # uncertainty [x,y,z]
         self.gripper = gripper # open to close (0. to 1.) [-]
         self.eef_rot = eef_rot # last joint position (-2.8973 to 2.8973) [rad]
 
 class ProbabilisticMotionPrimitiveGenerator():
-    def by_id(self, X, id_primitive):
+    def by_id(self, X, id_primitive, approach, vars):
         # get waypoints based on gesture, uses chosen class function
         construct_waypoints = getattr(self,id_primitive)
         waypoints = construct_waypoints(vars)
@@ -219,7 +232,7 @@ class ProbabilisticMotionPrimitiveGenerator():
 
 
 class StaticMotionPrimitiveGenerator():
-    def by_id(self, X, id_primitive):
+    def by_id(self, X, id_primitive, approach, vars):
         # get waypoints based on gesture, uses chosen class function
         construct_waypoints = getattr(self,id_primitive)
         waypoints = construct_waypoints(vars)
@@ -243,7 +256,7 @@ class StaticMotionPrimitiveGenerator():
         return waypoints
 
 class CombinedMotionPrimitiveGenerator():
-    def by_id(self, X, id_primitive):
+    def by_id(self, X, id_primitive, approach, vars):
         # get waypoints based on gesture, uses chosen class function
         construct_waypoints = getattr(self,id_primitive)
         waypoint_lists = construct_waypoints(vars)
@@ -310,11 +323,12 @@ class CustomPlot:
         ax.plot_surface(X, Y, Z, color='grey', rstride=1, cstride=1, alpha=0.5)
         ax.text(0.475, 0.0, 0.0, 'Leap Motion')
 
-        for n in range(len(sl.scene.object_poses)):
-            pos = sl.scene.object_poses[n].position
-            size = sl.scene.object_sizes[n]
-            X,Y,Z = VisualizerLib.cuboid_data([pos.x, pos.y, pos.z], (size.x, size.y, size.z))
-            ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
+        if sl.scene:
+            for n in range(len(sl.scene.object_poses)):
+                pos = sl.scene.object_poses[n].position
+                size = sl.scene.object_sizes[n]
+                X,Y,Z = VisualizerLib.cuboid_data([pos.x, pos.y, pos.z], (size.x, size.y, size.z))
+                ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
 
         # Create cubic bounding box to simulate equal aspect ratio
         X = np.array([0.3,0.7]); Y = np.array([-0.2, 0.2]); Z = np.array([0.0, 0.5])

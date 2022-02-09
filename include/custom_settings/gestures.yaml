@@ -60,6 +60,18 @@ main_set:
   round:
     record_key: r
     filename: gesture34.png
+  nothing:
+    mp: true
+  kick:
+    mp: true
+  touch:
+    mp: true
+  go_back:
+    mp: true
+  go_away:
+    mp: true
+  greet:
+    mp: true
 
 set_1_static:
   grab:
