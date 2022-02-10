@@ -24,6 +24,9 @@ try:
 except ImportError:
     ROS_IMPORT = False
 
+try: import settings
+except ModuleNotFoundError: settings = None
+
 class Frame():
     ''' Advanced variables derived from frame object
     '''
@@ -432,7 +435,12 @@ class Hand():
         return oc
 
     def prepare_open_fingers(self):
+        if settings:
+            oc_turn_on_thre = settings.yaml_config_gestures['oc_turn_on_thre']
+        else:
+            oc_turn_on_thre = [0.8] * 5
         self.oc = self.get_open_fingers()
+        self.oc_activates = [self.oc[i]>oc_turn_on_thre[i] for i in range(5)]
 
     def get_position_tip_of_fingers(self):
         # shape = 5 (fingers) x 3 (Cartesian position)

@@ -2,6 +2,7 @@ string data
 ---
 bool success
 string[] Gs
+string type
 string[] record_keys
 string[] filenames
 string[] args

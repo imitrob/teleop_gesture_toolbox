@@ -49,8 +49,11 @@ class Example(QMainWindow):
         START_PANEL_Y = app_data_loaded['START_PANEL_Y']
         BarMargin = app_data_loaded['BarMargin']
 
+        LeftPanelMaxIterms = app_data_loaded['LeftPanelMaxIterms']
+        RightPanelMaxIterms = app_data_loaded['RightPanelMaxIterms']
+
         self.setMinimumSize(QSize(500, 400)) # Minimum window size
-        self.lbl1 = QLabel('Poses & Gestures', self)
+        self.lbl1 = QLabel('Gestures', self)
         self.lbl1.setGeometry(20, 36, 150, 50)
         self.lbl2 = QLabel('Observations', self)
         self.lbl2.setGeometry(self.size().width()-140, 36, 100, 50)
@@ -73,15 +76,13 @@ class Example(QMainWindow):
             self.lblConfNamesObj.append(QLabel(self.lblConfNames[i], self))
             self.lblConfValuesObj.append(QLabel(self.lblConfValues[i], self))
 
-        ## Label Observation Poses
-        self.lblObservationPosesNames = ['conf.', 'oc1', 'oc2', 'oc3', 'oc4', 'oc5', 'touch12', 'touch23', 'touch34', 'touch45', 'touch13', 'touch14', 'touch15', 'x_vel', 'y_vel', 'z_vel', 'x_rot', 'y_rot', 'z_rot']
-        self.lblObservationPosesValues = ['0.0' , '0.0', '0.0', '0.0', '0.0', '0.0', '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',   '0.0',  '0.0', '0.0']
-        self.lblObservationPosesNamesObj = []
-        self.lblObservationPosesValuesObj = []
-        for i in range(0, len(self.lblObservationPosesNames)):
-            self.lblObservationPosesValuesObj.append(QLabel(self.lblObservationPosesValues[i], self))
-            self.lblObservationPosesNamesObj.append(QLabel(self.lblObservationPosesNames[i], self))
-        for i in self.lblObservationPosesValuesObj:
+        ## Right panel initialization (Observations)
+        self.lblRightPanelNamesObj = []
+        self.lblRightPanelValuesObj = []
+        for i in range(0, RightPanelMaxIterms):
+            self.lblRightPanelValuesObj.append(QLabel("", self))
+            self.lblRightPanelNamesObj.append(QLabel("", self))
+        for i in self.lblRightPanelValuesObj:
             i.setVisible(False)
 
         self.comboPlayNLive = QComboBox(self)
@@ -130,7 +131,7 @@ class Example(QMainWindow):
         # Bottom
         self.btnRecordActivate = QPushButton('Keyboard recording', self)
         self.btnRecordActivate.clicked.connect(self.record_with_keys)
-        self.btnRecordActivate.setGeometry(LEFT_MARGIN+50, START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
+        self.btnRecordActivate.setGeometry(LEFT_MARGIN+130, START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
 
         # Move Page
         lbls = ['Pos. X:', 'Pos. Y:', 'Pos. Z:', 'Ori. X:', 'Ori. Y:', 'Ori. Z:', 'Ori. W:']
@@ -281,8 +282,8 @@ class Example(QMainWindow):
         ## Initialize Visible Objects Array
         self.AllVisibleObjects = []
         self.AllVisibleObjects.append(ObjectQt('lblStatus',self.lblStatus,0,view_group=['MoveViewState']))
-        for n,obj in enumerate(self.lblObservationPosesNamesObj):
-            self.AllVisibleObjects.append(ObjectQt('lblObservationPosesNamesObj'+str(n),obj,0,view_group=['GesturesViewState']))
+        for n,obj in enumerate(self.lblRightPanelNamesObj):
+            self.AllVisibleObjects.append(ObjectQt('lblRightPanelNamesObj'+str(n),obj,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lbl1',self.lbl1,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lbl2',self.lbl2,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lblInfo',self.lbl2,0,view_group=['GesturesViewState']))
@@ -315,7 +316,34 @@ class Example(QMainWindow):
 
         self.setMouseTracking(True)
         self.mousex, self.mousey = 0.,0.
+        self.updateLeftRightPanel(rightPanelNames=['r conf.', 'l conf.'])
         print("[Interface] Done")
+
+    def updateLeftRightPanel(self, leftPanelNames=None, rightPanelNames=None):
+        ''' Update names on left or right panel
+        '''
+        if rightPanelNames:
+            for i in range(len(rightPanelNames)):
+                obj = self.lblRightPanelNamesObj[i]
+                obj.setText(rightPanelNames[i])
+        if leftPanelNames:
+            for i in range(len(leftPanelNames)):
+                obj = self.lblLeftPanelNamesObj[i]
+                obj.setText(leftPanelNames[i])
+
+    def getRightPanelValues(self):
+        ''' Get values for Right panel values
+        '''
+        values = []
+        values.append(round(ml.md.frames[-1].r.confidence,2))
+        values.append(round(ml.md.frames[-1].l.confidence,2))
+        return values
+
+    def getRightPanelActivates(self):
+        activates = []
+        activates.append(ml.md.frames[-1].r.confidence > settings.yaml_config_gestures['min_confidence'])
+        activates.append(ml.md.frames[-1].l.confidence > settings.yaml_config_gestures['min_confidence'])
+        return activates
 
     def mouseMoveEvent(self, event):
         self.mousex, self.mousey = event.x(), event.y()
@@ -354,12 +382,13 @@ class Example(QMainWindow):
         event.accept()
 
 
-    def changeNetwork(self, network):
+    def changeNetwork(self, network, type='static'):
         ''' ROS service send request about network change
         '''
-        rospy.wait_for_service('/mirracle_gestures/change_network')
+
+        rospy.wait_for_service(f'/mirracle_gestures/change_{type}_network')
         try:
-            change_network = rospy.ServiceProxy('/mirracle_gestures/change_network', ChangeNetwork)
+            change_network = rospy.ServiceProxy(f'/mirracle_gestures/change_{type}_network', ChangeNetwork)
             response = change_network(data=network)
             Gs = [g.lower() for g in response.Gs]
             settings.args = response.args
@@ -368,11 +397,7 @@ class Example(QMainWindow):
             print("Service call failed: %s"%e)
         settings.paths.gesture_network_file = network
 
-        def updateGesturesUI():
-            self.lblGesturesPosesNames = Gs
-            gl.gd.gesture_change_srv(local_data=response)
-        updateGesturesUI()
-
+        gl.gd.gesture_change_srv(local_data=response)
 
     def download_networks_gdrive(self):
         ''' Downloads all networks from google drive
@@ -662,25 +687,41 @@ class Example(QMainWindow):
         self.lblInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*5,ICON_SIZE)
         self.lblStatus.setText(textStatus)
 
-        if self.GesturesViewState and gl.gd.r.static[-1]:
+        # left
+        if 'static' in settings.get_hand_mode()['l']:
+            gl_gd_static = getattr(gl.gd,'l').static
+        elif 'dynamic' in settings.get_hand_mode()['l']:
+            gl_gd_static = getattr(gl.gd,'l').static
+        else:
+            gl_gd_static = None
+
+        # right
+        if 'static' in settings.get_hand_mode()['r']:
+            gl_gd_dynamic = getattr(gl.gd,'r').dynamic
+        elif 'dynamic' in settings.get_hand_mode()['r']:
+            gl_gd_dynamic = getattr(gl.gd,'r').dynamic
+        else:
+            gl_gd_dynamic = None
+
+        if self.GesturesViewState and (gl_gd_static[-1] or gl_gd_dynamic[-1]):
             self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
             # up late
             if ml.md.frames:
                 # hand fingers
                 for i in range(0,5):
-                    if ml.md.frames[-1].r.oc[i]: #gl.gd.r.oc[i-1]:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open.png"))
-                    else:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed.png"))
-                for i in range(0,5):
-                    if ml.md.frames[-1].r.oc[i]: #gl.gd.r.oc[i-1]:
+                    if ml.md.frames[-1].l.oc_activates[i]: #gl.gd.r.oc[i-1]:
                         qp.drawPixmap(w-RIGHT_MARGIN-100-ICON_SIZE, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open.png"))
                     else:
                         qp.drawPixmap(w-RIGHT_MARGIN-100-ICON_SIZE, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed.png"))
+                for i in range(0,5):
+                    if ml.md.frames[-1].r.oc_activates[i]: #gl.gd.r.oc[i-1]:
+                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open.png"))
+                    else:
+                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed.png"))
 
                 # arrows
-                if 'move_in_axis' in gl.gd.r.dynamic.info.names:
-                    g = gl.gd.r.dynamic.move_in_axis
+                if 'move_in_axis' in gl_gd_dynamic.info.names:
+                    g = gl_gd_dynamic.move_in_axis
                     X = w-RIGHT_MARGIN-100-ICON_SIZE*2
                     Y = START_PANEL_Y-20
                     if g.toggle[0] and g.move[0]:
@@ -697,32 +738,42 @@ class Example(QMainWindow):
                         qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_back.png"))
 
             # left lane
+            POSE_FILE_IMAGES = gl.gd.static_info().filenames
+            POSE_NMS = gl.gd.static_info().names
+            GEST_FILE_IMAGES = gl.gd.dynamic_info().filenames
+            GEST_NMS = gl.gd.dynamic_info().names
+            if gl_gd_static.relevant():
+                for n, i in enumerate(POSE_FILE_IMAGES):
+                    qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
 
-            POSE_FILE_IMAGES = gl.gd.r.static.info.filenames
-            POSE_NMS = gl.gd.r.static.info.names
-            GEST_FILE_IMAGES = gl.gd.r.dynamic.info.filenames[0:4]
-            GEST_NMS = gl.gd.r.dynamic.info.names[0:4]
-            for n, i in enumerate(POSE_FILE_IMAGES):
-                qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
-                if gl.gd.r.static[-1][n].activated:
-                    qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
-                qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y+(n+1)*ICON_SIZE-gl.gd.r.static[n].prob*ICON_SIZE))
-                qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+n*ICON_SIZE+10, POSE_NMS[n])
-            for n, i in enumerate(GEST_FILE_IMAGES):
-                qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
-                if gl.gd.r.dynamic[n].toggle:
-                    qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE)
-                qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE-gl.gd.r.dynamic[n].prob*ICON_SIZE)
-                qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE+10, GEST_NMS[n])
-            if gl.gd.r.pymcout is not None:
-                n_ = settings.gs.r.pymcout
+                    if gl_gd_static[-1][n].activated:
+                        qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
+                    qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y+(n+1)*ICON_SIZE-gl_gd_static[-1][n].probability*ICON_SIZE))
+                    qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+n*ICON_SIZE+10, POSE_NMS[n])
+
+            if gl_gd_dynamic.relevant():
+                probabilities = gl_gd_dynamic[-1].probabilities_norm
+                for n, i in enumerate(GEST_FILE_IMAGES):
+                    qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
+
+                    if gl_gd_dynamic[-1][n].activated:
+                        qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE)
+                    qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE-probabilities[n]*ICON_SIZE)
+                    qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE+10, GEST_NMS[n])
+
+            if gl_gd_static.relevant():
+                n_ = gl_gd_static.relevant().biggest_probability_id
                 qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y+(n_)*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
+            if gl_gd_dynamic.relevant():
+                n_ = gl_gd_dynamic.relevant().biggest_probability_id
+                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y+(n_+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
+
+
             # circ options
             ### DEPRECATED
-
-            if 'circ' in gl.gd.r.dynamic.names():
+            if 'circ' in gl.gd.r.dynamic.info.names:
                 g = gl.gd.r.dynamic.circ
-                if g.toggle:
+                if g.activate:
                     X = LEFT_MARGIN+130
                     Y = START_PANEL_Y+len(POSE_FILE_IMAGES)*ICON_SIZE
                     ARRL = 10  # Arrow length
@@ -758,44 +809,17 @@ class Example(QMainWindow):
 
         if self.GesturesViewState:
             # right lane
-            for n, i in enumerate(self.lblObservationPosesNamesObj):
+            for n, i in enumerate(self.lblRightPanelNamesObj):
                 i.setVisible(True)
                 i.move(w-RIGHT_MARGIN, int(START_PANEL_Y+n*ICON_SIZE/2))
-            if ml.md.r_present():
-                ValuesArr = []
-                ToggleArr = []
-                ValuesArr.append(round(ml.md.frames[-1].r.confidence,2))
-                oc = [round(i,2) for i in ml.md.frames[-1].r.oc]
-                ValuesArr.extend(oc)
-                ValuesArr.append(round(ml.md.frames[-1].r.touch12, 2))
-                ValuesArr.append(round(ml.md.frames[-1].r.touch23, 2))
-                ValuesArr.append(round(ml.md.frames[-1].r.touch34, 2))
-                ValuesArr.append(round(ml.md.frames[-1].r.touch45, 2))
-                ValuesArr.append(round(ml.md.frames[-1].r.touch13, 2))
-                ValuesArr.append(round(ml.md.frames[-1].r.touch14, 2))
-                ValuesArr.append(round(ml.md.frames[-1].r.touch15, 2))
-                ValuesArr.extend([round(i,2) for i in ml.md.frames[-1].r.palm_velocity()])
-                ValuesArr.append(0.0)
-                ValuesArr.append(0.0)
-                ValuesArr.append(0.0)
-
-                ToggleArr.append(ml.md.frames[-1].r.confidence)
-                ToggleArr.extend(oc)
-                ToggleArr.append(ml.md.frames[-1].r.touch12)
-                ToggleArr.append(ml.md.frames[-1].r.touch23)
-                ToggleArr.append(ml.md.frames[-1].r.touch34)
-                ToggleArr.append(ml.md.frames[-1].r.touch45)
-                ToggleArr.append(ml.md.frames[-1].r.touch13)
-                ToggleArr.append(ml.md.frames[-1].r.touch14)
-                ToggleArr.append(ml.md.frames[-1].r.touch15)
-                ToggleArr.extend([False,False,False])
-                ToggleArr.extend([False,False,False])
-
-                for n, i in enumerate(self.lblObservationPosesValuesObj):
-                    i.move(w-RIGHT_MARGIN, START_PANEL_Y+(n+0.5)*ICON_SIZE/2)
-                    i.setText(str(ValuesArr[n]))
-                    qp.drawLine(w-RIGHT_MARGIN-5+ValuesArr[n]*ICON_SIZE, START_PANEL_Y+(n+1)*ICON_SIZE/2, w-RIGHT_MARGIN-5, START_PANEL_Y+(n+1)*ICON_SIZE/2)
-                    if ToggleArr[n]:
+            if ml.md.present():
+                values, activates = self.getRightPanelValues(), self.getRightPanelActivates()
+                for n in range(len(values)):
+                    obj = self.lblRightPanelValuesObj[n]
+                    obj.move(w-RIGHT_MARGIN, START_PANEL_Y+(n+0.5)*ICON_SIZE/2)
+                    obj.setText(str(values[n]))
+                    qp.drawLine(w-RIGHT_MARGIN-5+values[n]*ICON_SIZE, START_PANEL_Y+(n+1)*ICON_SIZE/2, w-RIGHT_MARGIN-5, START_PANEL_Y+(n+1)*ICON_SIZE/2)
+                    if activates[n]:
                         qp.drawRect(w-RIGHT_MARGIN-5, START_PANEL_Y+(n)*ICON_SIZE/2+5, ICON_SIZE, ICON_SIZE/2-10)
             # orientation
             if self.cursor_enabled():

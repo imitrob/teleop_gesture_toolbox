@@ -3,7 +3,7 @@
 import gestures_lib as gl
 gl.init()
 Get info:
-gl.gd.l.static.info.<g1>.threshold
+gl.gd.static_info().<g1>.thresholds
 
 Get latest data:
 gl.gd.l.static[-1].<g1>.probability
@@ -52,7 +52,7 @@ class GestureDataAtTime():
         self.time_visible = 0.0  # [sec]
 
         self.activated = False
-        self.first_activated = False
+        self.action_activated = False
 
 class GestureMorphClass(object):
     ''' Super cool class
@@ -67,7 +67,7 @@ class GestureMorphClass(object):
         Iterate over gestures: for g in gmc: # g1, g2
                                    g # g1, g2 in a loop
 
-        Used placeholder for: 1. Info about gestures: gl.gd.l.static.info.<g1>.threshold
+        Used placeholder for: 1. Info about gestures: gl.gd.static_info().<g1>.threshold
                                 - StaticInfo(), DynamicInfo() classes
                               2. Get real data: gl.gd.l.static[<time>].<g1>.probability
                                 - GestureDataAtTime() class
@@ -115,6 +115,12 @@ class GestureMorphClass(object):
                 if getattr(self,attr).biggest_probability == True:
                     return attr
             return 'Does not have biggest_probability set to True'
+        elif attr == 'biggest_probability_id':
+            attrs = self.get_all_attributes()
+            for n,attr in enumerate(attrs):
+                if getattr(self,attr).biggest_probability == True:
+                    return n
+            return 'Does not have biggest_probability set to True'
         elif attr == 'probabilities':
             attrs = self.get_all_attributes()
             ret = []
@@ -127,17 +133,17 @@ class GestureMorphClass(object):
             for attr in attrs:
                 ret.append(getattr(self,attr).probability)
             return NormalizeData(ret)
-        elif attr == 'activates_int':
+        elif attr == 'activates':
             attrs = self.get_all_attributes()
             ret = []
             for attr in attrs:
-                ret.append(int(getattr(self,attr).activated))
+                ret.append(getattr(self,attr).activated)
             return ret
-        elif attr == 'above_threshold_int':
+        elif attr == 'above_threshold':
             attrs = self.get_all_attributes()
             ret = []
             for attr in attrs:
-                ret.append(int(getattr(self,attr).above_threshold))
+                ret.append(getattr(self,attr).above_threshold)
             return ret
         elif attr == 'thresholds':
             attrs = self.get_all_attributes()
@@ -223,6 +229,11 @@ class DynamicInfo():
         ## move in x,y,z, Positive/Negative
         self.move = [False, False, False]
 
+        if data['time_visible_threshold']:
+            self.time_visible_threshold = data['time_visible_threshold']
+        else: # Default value
+            self.time_visible_threshold = 8.0
+
 class MotionPrimitiveInfo():
     def __init__(self, name, data=None):
         data = ParseYAML.parseDynamicGesture(data)
@@ -241,7 +252,7 @@ class MotionPrimitiveInfo():
 class TemplateGs():
     def __init__(self, type, local_data=None):
         '''
-        Get info about gesture: gl.gd.l.static.info.<g1>
+        Get info about gesture: gl.gd.static_info().<g1>
         Get data about gesture at time: gl.gd.l.static[<time index>].<g1>.probability
         '''
         self.info = GestureMorphClass()
@@ -375,20 +386,30 @@ class GestureDataDetection():
     def __init__(self):
         self.l = GestureDataHand()
         self.r = GestureDataHand()
-        print(f"Static gestures: {self.l.static.info.names}, \n\
-Dynamic gestures {self.l.dynamic.info.names}\n\
-MotionPrimitive ids {self.l.mp.info.names}")
+        print(f"Static gestures: {self.static_info().names}, \nDynamic gestures {self.dynamic_info().names}\nMotionPrimitive ids {self.l.mp.info.names}")
         ## TODO: Additional names for additional gestures computed by comparing left and right hand
         self.combs = None
 
-        self.actions_queue = collections.deque(maxlen=30)
+        self.actions_queue = collections.deque(maxlen=50)
 
         self.static_network_info, self.dynamic_network_info = self.load_netork_info()
         # Auxiliary
         self.last_seq = 0
+        self.rate = settings.yaml_config_gestures['misc']['rate']
+        self.activate_length=None # for export only
+        self.distance_length=None # for export only
 
         # Save of actions
         self.action_saves = []
+
+    def static_info(self):
+        ''' Note: info is saved both in self.l and self.r as the same
+        '''
+        return self.l.static.info
+    def dynamic_info(self):
+        return self.l.dynamic.info
+    def mp_info(self):
+        return self.l.mp.info
 
     def load_netork_info(self):
         static_network_file = settings.yaml_config_gestures['static_network_file']
@@ -466,40 +487,55 @@ MotionPrimitive ids {self.l.mp.info.names}")
         obj_by_type.data_queue.append(GestureMorphClassStamped(data, obj_by_type.info.names))
 
         # Add logic
-        self.prepare_postprocessing(obj_by_type[-1], type, data.header.frame_id, data.sensor_seq)
+        self.prepare_postprocessing(data.header.frame_id, type, data.sensor_seq)
     '''
     LOGIC
     '''
-    def prepare_postprocessing(self, g_stamped, type, frame_id, sensor_seq):
+    def prepare_postprocessing(self, hand_tag, type, sensor_seq, activate_length=1.0, distance_length=3.0):
         ''' High-level logic
-
+        Parameters:
+            activate_length (Int): [seconds] Time length when gesture is activated in order to make action
+            distance_length (Int): [seconds] Length between the activate_action
         '''
-        hand = getattr(self, frame_id)
-        static = getattr(hand, type)
-        latest_gs = static[-1]
+        self.distance_length = distance_length
+        self.activate_length = activate_length
+        distance_length = int(self.rate * distance_length) # seconds -> seqs
+        activate_length = int(self.rate * activate_length) # seconds -> seqs
 
+        hand = getattr(self, hand_tag)
+        gs = getattr(hand, type)
+        latest_gs = gs[-1]
+        probabilities = latest_gs.probabilities_norm
+        print(probabilities)
         for n,g in enumerate(latest_gs):
+            probability = probabilities[n]
             # 1. Probability over threshold
-            if g.probability > static.info[n].thresholds[0]:
+            if probability > gs.info[n].thresholds[0]:
                 g.above_threshold = True
             else:
                 g.above_threshold = False
 
             # Right now it is pseudo time
-            if g.above_threshold and static.n>1: g.time_visible = static[-2][n].time_visible + 1
+            if g.above_threshold and gs.n>1: g.time_visible = gs[-2][n].time_visible + 1
 
+            # Activate should refer to evaluation within one time sample
             # 1., 2. Biggest probability of all gestures and 3. gesture is visible for some times
-            if g.above_threshold and g.biggest_probability and g.time_visible > static.info[n].time_visible_threshold:
+            if g.above_threshold and g.biggest_probability and g.time_visible > gs.info[n].time_visible_threshold:
                 g.activated = True
             elif g.above_threshold == False:
                 g.activated = False
+
+            # Activate first is higher layer that evaluates more frames and add action to queue
             # If at least 10 gesture records were toggled (occured) and now it is not occuring
-            if len(static[-20:-2]) > 15 and np.array([data[n].activated for data in static[-10:-2]]).all() \
-                and (static[-1][n].activated == False):
-                g.first_activated = True
-                self.actions_queue.append((latest_gs.header.stamp, self.l.static.info.names[n], frame_id))
-            else:
-                g.first_activated = False
+            g.action_activated = False
+            if gs.n > activate_length:
+                if np.array([data[n].activated for data in gs[-activate_length-2:-1]]).all(): # gesture was shown with no interruption
+                    if gs[-1][n].activated == False: # now it ended -> action can happen
+                        print("3")
+                        if not np.array([data[n].action_activated for data in gs[-distance_length-2:-2]]).any():
+                            g.action_activated = True
+                            self.actions_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag))
+
 
     def last(self):
         return self.l.static.relevant(), self.r.static.relevant(), self.l.dynamic.relevant(), self.r.dynamic.relevant()
@@ -523,7 +559,7 @@ MotionPrimitive ids {self.l.mp.info.names}")
 
         return vars
 
-    def export(self, viz):
+    def export(self):
         ''' Exports Selected gesture data as new folder, add metadata + plot
         '''
         N_ = 0
@@ -531,27 +567,34 @@ MotionPrimitive ids {self.l.mp.info.names}")
             N_+=1
         os.mkdir(settings.paths.data_export_path+'record_'+str(N_))
 
-        viz.savefig(settings.paths.data_export_path+'record_'+str(N_)+"/plot_2")
-
         # Data composition
-        normalizer = self.l.static[0].header.stamp
-        norm_seq = self.l.static[0].header.seq
-        gesture_data_left_static = np.array([(g.header.stamp-normalizer, g.header.seq-norm_seq, *g.probabilities, *g.activates_int) for g in self.l.static[:]])
-        #gesture_data_left_dynamic = np.array([(g.stamp, g.header.seq, *g.probabilities, *g.probabilities_norm, *g.activates_int) for g in self.l.dynamic[:]])
-        #gesture_data_right_static = np.array([(g.stamp, g.header.seq, *g.probabilities, *g.activates_int) for g in self.r.static[:]])
-        normalizer = self.r.dynamic[0].header.stamp
-        norm_seq = self.r.dynamic[0].header.seq
-        gesture_data_right_dynamic = np.array([(g.header.stamp-normalizer, g.header.seq-norm_seq, *g.probabilities, *g.probabilities_norm, *g.activates_int) for g in self.r.dynamic[:]])
+        normalizer = None
+        if self.l.static[0] and self.r.dynamic[0]:
+            id = np.argmin((self.l.static[0].header.stamp, self.r.dynamic[0].header.stamp))
+            normalizer = (self.l.static[0].header.stamp, self.r.dynamic[0].header.stamp)[id]
+        if self.l.static[0]:
+            if not normalizer: normalizer = self.l.static[0].header.stamp
+            norm_seq = self.l.static[0].header.seq
+            gesture_data_left_static = np.array([(g.header.stamp-normalizer, g.header.seq-norm_seq, *g.probabilities, *g.activates) for g in self.l.static[:]])
+            #gesture_data_left_dynamic = np.array([(g.stamp, g.header.seq, *g.probabilities, *g.probabilities_norm, *g.activates) for g in self.l.dynamic[:]])
+            #gesture_data_right_static = np.array([(g.stamp, g.header.seq, *g.probabilities, *g.activates) for g in self.r.static[:]])
+        if self.r.dynamic[0]:
+            if not normalizer: normalizer = self.r.dynamic[0].header.stamp
+            norm_seq = self.r.dynamic[0].header.seq
+            gesture_data_right_dynamic = np.array([(g.header.stamp-normalizer, g.header.seq-norm_seq, *g.probabilities, *g.probabilities_norm, *g.activates) for g in self.r.dynamic[:]])
 
         # Motion Primitives Actions Composition
-        np.save(settings.paths.data_export_path+'record_'+str(N_)+"/executed_MPs.npy", self.action_saves)
+        if self.action_saves:
+            np.save(settings.paths.data_export_path+'record_'+str(N_)+"/executed_MPs.npy", self.action_saves)
 
         #gesture_data_left_static = gesture_data_left_static[gesture_data_left_static[:, 0].argsort()]
         #gesture_data_right_dynamic = gesture_data_right_dynamic[gesture_data_right_dynamic[:, 0].argsort()]
 
         # Data save
-        np.save(settings.paths.data_export_path+'record_'+str(N_)+"/gesture_data_left_static.npy", gesture_data_left_static)
-        np.save(settings.paths.data_export_path+'record_'+str(N_)+"/gesture_data_right_dynamic.npy", gesture_data_right_dynamic)
+        if self.l.static[0]:
+            np.save(settings.paths.data_export_path+'record_'+str(N_)+"/gesture_data_left_static.npy", gesture_data_left_static)
+        if self.r.dynamic[0]:
+            np.save(settings.paths.data_export_path+'record_'+str(N_)+"/gesture_data_right_dynamic.npy", gesture_data_right_dynamic)
 
         file = open(settings.paths.data_export_path+'record_'+str(N_)+"/config.txt","a")
         file.write(f"[Static] Detection approach: {settings.yaml_config_gestures['static_detection_approach']}, Network file {settings.yaml_config_gestures['static_network_file']}\n")
@@ -562,13 +605,15 @@ MotionPrimitive ids {self.l.mp.info.names}")
         file.write(f"Dynamic network info: {self.dynamic_network_info}")
         file.write(f" {dict(settings.yaml_config_gestures['misc_network_args'])}\n\n")
 
-        file.write(f"{self.l.static.info.n} static gestures: {self.l.static.info.names}\n")
-        file.write(f"{self.l.dynamic.info.n} dynamic gestures: {self.l.dynamic.info.names}\n\n")
-        file.write(f"{self.l.mp.info.n} MPs: {self.l.mp.info.names}\n\n")
+        file.write(f"{self.static_info().n} static gestures: {self.static_info().names}\n")
+        file.write(f"{self.dynamic_info().n} dynamic gestures: {self.dynamic_info().names}\n")
+        file.write(f"{self.mp_info().n} MPs: {self.mp_info().names}\n\n")
 
-        file.write(f"columns static gestures: stamp, seq, probabilities {self.l.static.info.names}, gesture activates {self.l.static.info.names}\n")
-        file.write(f"columns dynamic gestures: probabilities {self.l.dynamic.info.names}, norm. probabilities {self.l.static.info.names}, gesture activates {self.l.static.info.names}\n\n")
+        file.write(f"columns static gestures: stamp, seq, probabilities {self.static_info().names}, gesture activates {self.static_info().names}\n")
+        file.write(f"columns dynamic gestures: probabilities {self.dynamic_info().names}, norm. probabilities {self.static_info().names}, gesture activates {self.static_info().names}\n\n")
         file.write(f"columns mp activates: id gesture, id_primitive, action_stamp, gesture variables assigned to MP [velocities,point_direction,palm_euler,grab,pinch,holding_sphere_radius], generated path e.g.(3x200) \n\n")
+
+        file.write(f"Logic parameters: activate_length={self.activate_length}s (Time length when gesture is activated in order to make action distance_length={self.distance_length}s Length between the activate_actiondistance_length)\n\n")
 
         file.close()
 
@@ -576,24 +621,28 @@ MotionPrimitive ids {self.l.mp.info.names}")
         viz = VisualizerLib()
         viz.visualize_new_fig("Gesture probability through time", dim=2)
 
-        time = gesture_data_right_dynamic[:,1]
-        gesture_data_right_dynamic = np.array(gesture_data_right_dynamic)[:,7:12].T
-        for n in range(2):#gl.gd.r.dynamic.info.n):
-            viz.visualize_2d(list(zip(time, gesture_data_right_dynamic[n])),label=f"{self.r.dynamic.info.names[n]}", xlabel='time, detection seq [-] (~10 seq/sec)', ylabel='Gesture probability', start_stop_mark=False)
 
-        time = gesture_data_left_static[:,1]
-        gesture_data_left_static = np.array(gesture_data_left_static)[:,2:10].T
-        for n in range(2):#gl.gd.r.static.info.n):
-            viz.visualize_2d(list(zip(time, gesture_data_left_static[n])),label=f"{self.r.static.info.names[n]}", xlabel='time, detection seq [-] (~10 seq/sec)', ylabel='Gesture probability', start_stop_mark=False)
+        if self.r.dynamic[0]:
+            time = gesture_data_right_dynamic[:,0]
+            gesture_data_right_dynamic = np.array(gesture_data_right_dynamic)[:,7:12].T
+            for n in range(2):#gl.gd.r.dynamic.info.n):
+                viz.visualize_2d(list(zip(time, gesture_data_right_dynamic[n])),label=f"{self.r.dynamic.info.names[n]}", xlabel='time [s]', ylabel='Gesture probability', start_stop_mark=False)
+
+        if self.l.static[0]:
+            time = gesture_data_left_static[:,0]
+            gesture_data_left_static = np.array(gesture_data_left_static)[:,2:10].T
+            for n in range(2):#gl.gd.r.static.info.n):
+                viz.visualize_2d(list(zip(time, gesture_data_left_static[n])),label=f"{self.r.static.info.names[n]}", xlabel='time [s]', ylabel='Gesture probability', start_stop_mark=False)
         viz.savefig(settings.paths.data_export_path+'record_'+str(N_)+"/plot")
 
-        viz = VisualizerLib()
-        viz.visualize_new_fig("Executed MPs", dim=3)
+        if self.action_saves:
+            viz = VisualizerLib()
+            viz.visualize_new_fig("Executed MPs", dim=3)
 
-        # self.action_saves # id, id_primitive, tmp_action_stamp, vars, path
-        for id, id_primitive, tmp_action_stamp, vars, path in self.action_saves:
-            viz.visualize_3d(path[0],label=f"id: {id}, id_primitive: {id_primitive}, stamp: {tmp_action_stamp}", xlabel='X', ylabel='Y', zlabel='Z')
-        viz.savefig(settings.paths.data_export_path+'record_'+str(N_)+"/plot_mp")
+            # self.action_saves # id, id_primitive, tmp_action_stamp, vars, path
+            for id, id_primitive, tmp_action_stamp, vars, path, waypoints in self.action_saves:
+                viz.visualize_3d(path,label=f"id: {id}, id_primitive: {id_primitive}, stamp: {tmp_action_stamp}", xlabel='X', ylabel='Y', zlabel='Z')
+            viz.savefig(settings.paths.data_export_path+'record_'+str(N_)+"/plot_mp")
 
 
         return

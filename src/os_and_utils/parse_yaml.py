@@ -439,6 +439,8 @@ class ParseYAML():
 
         if 'filename' not in gesture.keys():
             gesture['filename']=""
+        if 'time_visible_threshold' not in gesture.keys():
+            gesture['time_visible_threshold'] = None
         if 'key' in gesture.keys():
             gesture['record_key']= gesture['key']
         elif 'record_key' not in gesture.keys():

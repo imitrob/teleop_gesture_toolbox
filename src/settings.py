@@ -76,3 +76,6 @@ def init(change_working_directory=True):
 
     record_with_keys = False # Bool, Enables recording with keys in UI
     print("[Settings] done")
+
+def get_hand_mode():
+    return yaml_config_gestures['hand_mode_sets'][yaml_config_gestures['using_hand_mode_set']]

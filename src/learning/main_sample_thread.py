@@ -42,11 +42,12 @@ class ClassificationSampler():
         self.sample_approach = sample_approach()
 
         rospy.init_node('classification_sampler', anonymous=True)
-        rospy.Service('/mirracle_gestures/change_network', ChangeNetwork, self.change_network_callback)
+        rospy.Service(f'/mirracle_gestures/change_{type}_network', ChangeNetwork, self.change_network_callback)
         self.init(settings.yaml_config_gestures[f'{type}_network_file'])
         self.pub = rospy.Publisher(f'/mirracle_gestures/{type}_detection_solutions', DetectionSolution, queue_size=5)
         rospy.Subscriber(f'/mirracle_gestures/{type}_detection_observations', DetectionObservations, self.callback)
         rospy.spin()
+        self.type = type
 
     def callback(self, data):
         ''' When received configuration, generates/sends output
@@ -68,10 +69,12 @@ class ClassificationSampler():
     def change_network_callback(self, msg):
         ''' Receives service callback of network change
         '''
+        print("$$$",msg)
         self.init(msg.data)
 
         msg = ChangeNetworkResponse()
         msg.Gs = self.Gs
+        msg.type = self.type
         msg.filenames = self.filenames
         msg.record_keys = self.record_keys
         msg.args = self.args

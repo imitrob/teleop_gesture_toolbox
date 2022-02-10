@@ -92,7 +92,6 @@ class ProMPGenerator():
         action_stamp, action_name, action_hand = action
         vars = gl.gd.var_generate(action_hand, action_stamp)
         print(vars)
-        print(len(vars['grab']))
         path = self.generate_path(action_name, vars=vars, tmp_action_stamp=action_stamp)
 
         ## TODO: Execute path
@@ -101,7 +100,7 @@ class ProMPGenerator():
         #CustomPlot.my_plot([], [path])
 
         print(f"Executing gesture id: {action[1]}, time diff perform to actiovation: {rospy.Time.now().to_sec()-action[0]}")
-
+        return path
 
     def generate_path(self, id, vars={}, tmp_action_stamp=None):
         ''' Main function
@@ -115,13 +114,16 @@ class ProMPGenerator():
         '''
         # Uses gesture_config.yaml
         id_primitive = map_to_primitive_gesture(id)
+        print(f"Generating path for id {id} to {id_primitive}")
         # Based on defined MPs in classes below
         _, mp_type = get_id_motionprimitive_type(id_primitive)
 
         Xg = self.X[self.Y==self.Gs.index(id_primitive)]
 
         path = mp_type().by_id(Xg, id_primitive, self.approach, vars)
-        gl.gd.action_saves.append((id, id_primitive, tmp_action_stamp, vars, path))
+        for key in path[1].keys():
+            path[1][key] = path[1][key].export()
+        gl.gd.action_saves.append((id, id_primitive, tmp_action_stamp, vars, path[0], path[1]))
         return path
 
 def combine_promp_paths(promp_paths):
@@ -176,15 +178,16 @@ def get_id_motionprimitive_type(id):
     elif id in get_class_functions(CombinedMotionPrimitiveGenerator):
         print("ID is combined MP")
         return 2, CombinedMotionPrimitiveGenerator
-    else: raise Exception("[ProMP lib] Motion Primitive Type is not defined in any class!")
+    else: raise Exception(f"[ProMP lib] Motion Primitive Type ({id}) is not defined in any class!")
 
 class Waypoint():
-    def __init__(self, p=None, v=None, unc=None, gripper=None, eef_rot=None):
+    def __init__(self, p=None, v=None, gripper=None, eef_rot=None):
         self.p = p # position [x,y,z]
         self.v = v # velocity [x,y,z]
-        self.unc = unc # uncertainty [x,y,z]
         self.gripper = gripper # open to close (0. to 1.) [-]
         self.eef_rot = eef_rot # last joint position (-2.8973 to 2.8973) [rad]
+    def export(self):
+        return (self.p, self.v, self.gripper, self.eef_rot)
 
 class ProbabilisticMotionPrimitiveGenerator():
     def by_id(self, X, id_primitive, approach, vars):
@@ -251,6 +254,27 @@ class StaticMotionPrimitiveGenerator():
         return waypoints
 
     def go_to_home(self, vars):
+        waypoints = {}
+        waypoints[1.0] = Waypoint(p = extv(sl.poses['home']['pose']['position']))
+        return waypoints
+
+    def greet(self, vars):
+        ''' TODO
+        '''
+        waypoints = {}
+        waypoints[0.6] = Waypoint(p = extv(sl.poses['home']['pose']['position']))
+        return waypoints
+
+    def go_away(self, vars):
+        ''' TODO
+        '''
+        waypoints = {}
+        waypoints[1.0] = Waypoint(p = extv(sl.poses['home']['pose']['position']))
+        return waypoints
+
+    def go_back(self, vars):
+        ''' TODO
+        '''
         waypoints = {}
         waypoints[1.0] = Waypoint(p = extv(sl.poses['home']['pose']['position']))
         return waypoints

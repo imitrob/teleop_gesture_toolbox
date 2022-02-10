@@ -137,20 +137,22 @@ class CustomScenes():
                         scenes.append(CustomScene(pickedscene, poses_data_loaded))
         return scenes
 
-    def make_scene(self, interface_handle, new_scene=''):
+    def make_scene(self, interface_handle=None, new_scene=''):
         ''' Prepare scene, add objects for obstacle or manipulation.
             scene (str):
         '''
+        if not interface_handle: print("[Scenes] No interface handle added!")
         global scene
         scenes = self.names()
         if scene: # When scene is initialized
             # get id of current scene
             id = scenes.index(scene.name)
             # remove objects from current scene
-            for i in range(0, len(self.scenes[id].object_names)):
-                interface_handle.remove_object(name=self.scenes[id].object_names[i])
-            if ml.md.attached:
-                self.detach_item_moveit(name=ml.md.attached)
+            if interface_handle:
+                for i in range(0, len(self.scenes[id].object_names)):
+                    interface_handle.remove_object(name=self.scenes[id].object_names[i])
+                if ml.md.attached:
+                    self.detach_item_moveit(name=ml.md.attached)
         # get id of new scene
         id = self.names().index(new_scene)
 
@@ -169,14 +171,15 @@ class CustomScenes():
             texture_file = self.scenes[id].object_texture_file[i]
             file = self.scenes[id].object_file[i]
 
-            if shape:
-                interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
-            elif file:
-                if scale: size = [settings.scenes[id].object_scales[i], 0, 0]
-                else: size = [0,0,0]
-                interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/mirracle_gestures/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=settings.scenes[id].object_poses[i], frame_id=settings.base_link)
-            else:
-                interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=settings.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+            if interface_handle:
+                if shape:
+                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+                elif file:
+                    if scale: size = [settings.scenes[id].object_scales[i], 0, 0]
+                    else: size = [0,0,0]
+                    interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/mirracle_gestures/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=settings.scenes[id].object_poses[i], frame_id=settings.base_link)
+                else:
+                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=settings.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
         scene = self.scenes[id]
         if id == 0:
             scene = None
