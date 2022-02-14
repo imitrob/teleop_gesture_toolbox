@@ -6,4 +6,6 @@ include/data/export
 include/data/netw
 include/graphics/middle.png
 checkpoints/
-include/third_party
+include/third_party/UCB/data
+include/third_party/promp/examples/strike*
+include/third_party/promps_python/data/
