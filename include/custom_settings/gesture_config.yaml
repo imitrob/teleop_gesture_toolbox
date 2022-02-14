@@ -22,6 +22,7 @@ misc_network_args:
   time_samples: 32
 
 misc:
+  rate: 10
   relevant_time: 0.5
 
 

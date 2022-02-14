@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
 import sys, os, threading
+if os.getcwd()[-4:] == '.ros': # if running from roslaunch
+    import rospkg; rospack = rospkg.RosPack(); rospack.list()
+    sys.path.append(rospack.get_path('mirracle_gestures')+'/src/')
 sys.path.append("..")
 import settings; settings.init()
 

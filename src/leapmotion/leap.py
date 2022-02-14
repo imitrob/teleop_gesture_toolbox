@@ -1,6 +1,8 @@
 #!/usr/bin/env python
-# Standard settings
 import sys, os; sys.path.append("..")
+if os.getcwd()[-4:] == '.ros': # if running from roslaunch
+    import rospkg; rospack = rospkg.RosPack(); rospack.list()
+    sys.path.append(rospack.get_path('mirracle_gestures')+'/src/')
 import settings
 if __name__ == '__main__': settings.init()
 

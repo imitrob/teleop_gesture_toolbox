@@ -6,9 +6,11 @@ ICON_SIZE: 60
 START_PANEL_Y: 70
 
 BarMargin: 40
+LeftPanelMaxIterms: 15
+RightPanelMaxIterms: 15
 
 #WindowSize: [1000, 800] # Big window
-WindowSize: [700, 400] # Small window
+WindowSize: [1000, 800] # Small window
 WindowXY: [0, 2000] # 0 - X left, 2000 - Y down
 Scale: 2000
 

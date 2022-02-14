@@ -15,7 +15,7 @@ set_test_new_version:
 main_set:
   grab:
     record_key: g
-    filename: gesture56.png
+    filename: grab.png
     static: true
   pinch: # grip between finger and thumb, while last three fingers are open
     record_key: p
@@ -23,43 +23,43 @@ main_set:
     static: true
   point: # one finger
     record_key: 1
-    filename: gesture0.png
+    filename: point.png
     static: true
   two: # point and middle finger up
     record_key: 2
-    filename: gesture100.png
+    filename: two.png
     static: true
   three: # thumb, point and middle finger up
     record_key: 3
-    filename: gesture101.png
+    filename: three.png
     static: true
   four: # only thumb down
     record_key: 4
-    filename: gesture102.png
+    filename: four.png
     static: true
   five: # all fingers up
     record_key: 5
-    filename: gesture103.png
+    filename: five.png
     static: true
   thumbsup: # only thumb is up
     record_key: t
-    filename: gesture103.png
+    filename: thumbsup.png
     static: true
   swipe_down:
     record_key: s
-    filename: gesture56.png
+    filename: arrow_down.png
   swipe_front_right:
     record_key: d
-    filename: gesture57.png
+    filename: arrow_right.png
   swipe_left:
     record_key: a
-    filename: gesture45.png
+    filename: arrow_left.png
   swipe_up:
     record_key: w
-    filename: gesture45.png
+    filename: arrow_up.png
   round:
     record_key: r
-    filename: gesture34.png
+    filename: round.png
   nothing:
     mp: true
   kick:
