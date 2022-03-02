@@ -148,4 +148,10 @@ def get_object_of_closest_distance(objects_in_scenes, pose_in_scene):
             min_id = n
     return n
 
+
+def point_by_ratio(p1, p2, ratio):
+    x1, y1 = p1
+    x2, y2 = p2
+    return (x2 - x1) * ratio, (y2 - y1) * ratio
+
 #

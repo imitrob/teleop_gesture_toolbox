@@ -1,5 +1,12 @@
 '''
 Look at tests/loading_test.py for example
+
+Example to load MPs:
+from os_and_utils.loading import HandDataLoader, DatasetLoader
+self.X, self.Y, self.robot_promps = DatasetLoader(['interpolate']).load_mp(settings.paths.learn_path, self.Gs, approach)
+Load dynamic:
+dataloader_args = {'interpolate':1, 'discards':1, 'normalize':1, 'normalize_dim':1, 'n':0}
+self.X, self.Y = DatasetLoader(dataloader_args).load_dynamic(settings.paths.learn_path, self.Gs)
 '''
 import numpy as np
 import pickle
@@ -12,6 +19,8 @@ import frame_lib
 
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import scale
+
+from os_and_utils.transformations import Transformations as tfm
 
 class HandDataLoader():
     def __init__(self, import_method='numpy', dataset_files=[]):
@@ -154,10 +163,31 @@ class DatasetLoader():
         data = np.load(f"{dir}tmp_mp{HandDataLoader().get_ext()}", allow_pickle=True).item()
         return data['X'], data['Y']
 
-    def load_mp(self,dir,Gs):
-        return self.load_dynamic(dir=dir, Gs=Gs, type='mp')
+    def load_mp(self,dir,Gs, approach):
+        ## Load movements same as dynamic
+        X, Y, diff = self.load_dynamic(dir=dir, Gs=Gs, type='mp', out='diff')
+        X = tfm.transformPrompToSceneList_3D(X)
+        ## Check trained MPs
+        robot_promps = []
+        '''
+        if diff:
+        '''
+        for i in range(len(list(set(Y)))):
+            robot_promps.append(approach.construct_promp_trajectory(X[Y==i]))
+        #print("saving")
+        #np.save(f"{dir}tmp_trained_promps.pkl", robot_promps)
+        #with open(f"{dir}tmp_trained_promps.pkl", 'wb') as file:
+        #    pickle.dump(robot_promps, file)
 
-    def load_dynamic(self, dir, Gs, type = 'dynamic'):
+        '''
+        else:
+            #robot_promps = np.load(f"{dir}tmp_trained_promps.pkl", allow_pickle=True).item()
+            with open(f"{dir}tmp_trained_promps.pkl", 'rb') as file:
+                robot_promps = pickle.load(file)
+        '''
+        return X,Y,robot_promps
+
+    def load_dynamic(self, dir, Gs, type = 'dynamic', out=''):
         ''' Rename this function!
             Main function:
             - Get difference
@@ -179,6 +209,8 @@ class DatasetLoader():
 
             np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
             assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
+            if out=='diff':
+                return X,Y,True
             return X,Y
 
         data_files = data['files']
@@ -187,6 +219,8 @@ class DatasetLoader():
 
         if diff == []:
             print("[Loading] No difference, tmp up to date")
+            if out=='diff':
+                return data['X'], data['Y'],False
             return data['X'], data['Y']
         else:
             print("[Loading] Difference, loading all directory again")
@@ -201,42 +235,33 @@ class DatasetLoader():
 
             np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
             assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
+            if out=='diff':
+                return X,Y,True
             return X,Y
 
 
     def get_static(self, data, flags):
-
-        print(f"self.args {self.args}")
-
         X = data
         Y = flags
 
         X_, Y_ = [], []
-        if True: # 'observations configurations' in self.args:
-            for n, X_n in enumerate(X):
+        for n, X_n in enumerate(X):
 
-                gesture_X = []
-                for m, X_nt in enumerate(X_n):
-                    if X_nt.r.visible:
-                        gesture_X.append(np.array(X_nt.r.get_learning_data(type=self.args['type'])))
-                    elif X_nt.l.visible:
-                        gesture_X.append(np.array(X_nt.l.get_learning_data(type=self.args['type'])))
-                if not gesture_X: continue
+            gesture_X = []
+            for m, X_nt in enumerate(X_n):
+                # Recording is done always only with one hand
+                # right hand has priority
+                if X_nt.r.visible:
+                    gesture_X.append(np.array(X_nt.r.get_learning_data(definition=self.args['input_definition_version'])))
+                elif X_nt.l.visible:
+                    gesture_X.append(np.array(X_nt.l.get_learning_data(definition=self.args['input_definition_version'])))
+            if not gesture_X: continue
 
-                X_.append(gesture_X)
-                Y_.append(Y[n])
-
-            print("Defined dataset 'input_definition_version'=1")
+            X_.append(gesture_X)
+            Y_.append(Y[n])
 
         X = X_
         Y = Y_
-        a = [1,2]
-        import numpy as np
-        np.array(a)
-        a
-        print(f"{np.array(a).shape}")
-        a
-        print(f"$$$$$$$$$$$$$ X {np.array(X).shape}")
 
         if 'interpolate' in self.args:
             X_interpolated = []
@@ -269,14 +294,13 @@ class DatasetLoader():
 
         X = np.array(X)
         Y = np.array(Y)
-
+        print(f"shape 1 {np.array(X).shape} y {np.array(Y).shape}")
         X,Y = self.to_2D(X,Y)
-        print(f"shape {np.array(X).shape} y {np.array(Y).shape}")
+        print(f"shape 2 {np.array(X).shape} y {np.array(Y).shape}")
         X,Y = self.postprocessing(X,Y)
-        print(f"shape {X.shape} y {Y.shape}")
+        print(f"shape 3 {X.shape} y {Y.shape}")
         X,Y = self.discard(X,Y)
-        print(f"shape {X.shape} y {Y.shape}")
-
+        print(f"shape 4 {X.shape} y {Y.shape}")
 
         return X, Y
 
@@ -298,6 +322,7 @@ class DatasetLoader():
     #np.delete(A,B)
 
     def postprocessing(self, X, Y):
+
         try:
             X = scale(X)
         except:
@@ -331,81 +356,102 @@ class DatasetLoader():
         return self.get_dynamic(data, flags)
 
     def get_dynamic(self, data, flags):
-
-        print(f"self.args {self.args}")
-
         Y = flags
         ## Pick: samples x time x palm_position
         Xpalm = []
         for sample in data:
             row = []
+            rowvel = []
             for t in sample:
                 if t.r.visible:
                     #l2 = np.linalg.norm(np.array(t.r.palm_position()) - np.array(t.r.index_position()))
-                    row.append([*t.r.palm_position()])#, l2])#,*t.r.index_position])
+                    row.append([*t.r.palm_position()])#, np.linalg.norm(t.r.palm_velocity())])#, l2])#,*t.r.index_position])
             Xpalm.append(row)
 
-        if 'discards' in self.args:
-            discards = []
-
-            Xpalm = np.array(Xpalm, dtype=object)
-            for n,p in enumerate(Xpalm):
-                if len(p) < 5:
-                    discards.append(n)
-            Xpalm = np.delete(Xpalm,discards,axis=0)
-            Y = np.delete(Y,discards,axis=0)
-            print(f"[Loading] Number {len(discards)} recordings discarded! discards {discards}")
-
+        ''' Discard when trajectory points count < 5
+        '''
+        discards = []
+        Xpalm = np.array(Xpalm, dtype=object)
+        for n,p in enumerate(Xpalm):
+            if len(p) < 5:
+                discards.append(n)
+        Xpalm = np.delete(Xpalm,discards,axis=0)
+        Y = np.delete(Y,discards,axis=0)
+        print(f"[Loading] Number {len(discards)} recordings discarded! discards {discards}")
 
         if 'normalize' in self.args:
             Xpalm = np.array(Xpalm)
             Xpalm_ = []
             for p in Xpalm:
                 p_ = []
-                p0 = deepcopy(p[0])
+                p0 = deepcopy(p[len(p)//2])
                 for n in range(0, len(p)):
                     p_.append(np.subtract(p[n], p0))
                 Xpalm_.append(p_)
 
             Xpalm = Xpalm_
 
-        ## Interpolate palm_positions, to n time samples
-        if 'interpolate' in self.args:
-            if 'n' in self.args:
-                N = self.args['n']
-            else:
-                N = 100
-            Xpalm_interpolated = []
-            invalid_ids = []
-            for n,sample in enumerate(Xpalm):
-                Xpalm_interpolated_sample = []
-                try:
-                    for dim in range(0,3):
-                        f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
-                        Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=N)))
-                    Xpalm_interpolated.append(np.array(Xpalm_interpolated_sample).T)
-                except IndexError:
-                    print("Sample with invalid data detected, IndexError")
-                    invalid_ids.append(n)
-                except ValueError:
-                    print("Sample with invalid data detected, ValueError")
-                    invalid_ids.append(n)
-            Xpalm=Xpalm_interpolated=np.array(Xpalm_interpolated)
-            Y = np.delete(Y,invalid_ids,axis=0)
+        ''' Interpolate palm_positions, to n time samples
+        '''
+        N = 100 if not 'n' in self.args else self.args['n']
+        N_observations = 3 if not 'n_observations' in self.args else self.args['n_observations']
+        Xpalm_interpolated = []
+        invalid_ids = []
+        for n,sample in enumerate(Xpalm):
+            Xpalm_interpolated_sample = []
+            try:
+                for dim in range(0,N_observations):
+                    f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
+                    Xpalm_interpolated_sample.append(f2(np.linspace(0,1, num=N)))
+                Xpalm_interpolated.append(np.array(Xpalm_interpolated_sample).T)
+            except IndexError:
+                print("Sample with invalid data detected, IndexError")
+                invalid_ids.append(n)
+            except ValueError:
+                print("Sample with invalid data detected, ValueError")
+                invalid_ids.append(n)
+        Xpalm=Xpalm_interpolated=np.array(Xpalm_interpolated)
+        Y = np.delete(Y,invalid_ids,axis=0)
 
-        ## Create derivation to palm_positions
         '''
         dx = 1/100
         DXpalm_interpolated = []
         for sample in Xpalm_interpolated:
             DXpalm_interpolated_sample = []
             sampleT = sample.T
-            for dim in range(0,4):
+            for dim in range(0,3):
                 DXpalm_interpolated_sample.append(np.diff(sampleT[dim]))
             DXpalm_interpolated.append(np.array(DXpalm_interpolated_sample).T)
         DXpalm_interpolated = np.array(DXpalm_interpolated)
         DXpalm = np.array(DXpalm_interpolated)
         '''
+
+        # get direction vectors
+        # Xpalm n x 32 x 3
+        '''
+        Xpalm_ = []
+        for path in Xpalm:
+            row = []
+            for i in range(len(path)-1):
+                point_ = path[i+1,0:3] - path[i,0:3]
+                row.append([*point_])#, path[i,3]])
+            row.append([0.,0.,0.])
+            Xpalm_.append(row)
+        Xpalm = np.array(Xpalm_)
+        '''
+        '''
+        Xpalm_ = []
+        for xpalm, xvel in zip(Xpalm, Xvel):
+            xpalm_= []
+            for obspalm, obsvel in zip(xpalm, xvel):
+                xpalm_.append([*obspalm, *obsvel])
+            Xpalm_.append(xpalm_)
+        Xpalm = np.array(Xpalm_)
+        '''
+
+        #np.save('/home/petr/Documents/tmp.npy', Xpalm)
+        #Xpalm = np.load('/home/petr/Documents/tmp.npy', allow_pickle=True)
+        #Xpalm.shape
 
         if 'normalize_dim' in self.args:
             Xpalm_ = []
@@ -415,39 +461,55 @@ class DatasetLoader():
                     if (np.max(dim2) - np.min(dim2)) < 0.0000001:
                         Xpalm[n,m] = np.inf
                         continue
-                    Xpalm[n,m] = (dim2 - np.min(dim2)) / (np.max(dim2) - np.min(dim2))
+                    Xpalm[n,m] = (dim2 - np.min(dim1)) / (np.max(dim1) - np.min(dim1))
             Xpalm = np.swapaxes(Xpalm, 1, 2)
             Xpalm = np.array(Xpalm)
 
-        if 'discards' in self.args:
-            discards = self.get_discard_indices(Xpalm,Y)
-            #discards.extend(self.get_discard_indices(DXpalm,Y))
+        ''' Discard nan and inf
+        '''
+        discards = self.get_discard_indices(Xpalm,Y)
+        #discards.extend(self.get_discard_indices(DXpalm,Y))
 
-            Xpalm = np.delete(Xpalm,discards,axis=0)
-            #DXpalm = np.delete(DXpalm,discards,axis=0)
-            Y = np.delete(Y,discards,axis=0)
-
-            print(f"[Loading] Number {len(discards)} recordings discarded! discards {discards}")
-
+        Xpalm = np.delete(Xpalm,discards,axis=0)
+        #DXpalm = np.delete(DXpalm,discards,axis=0)
+        Y = np.delete(Y,discards,axis=0)
+        print(f"[Loading] Number {len(discards)} recordings discarded! discards {discards}")
 
         return Xpalm, Y
 
-    #import numpy as np
-    #A = np.array([[[1,2],[3,4]],[[5,6],[7,8]]])
-    #to_2D(0,A)
+    ''' e.g.: 2 gestures, 2 recordings for each gesture, 2 observations
+    import numpy as np
+    data = np.array([[[1,2],[3,4]],[[5,6],[7,8]]])
+    flags = [0,1]
+    data, flags = to_2D(None,data,flags)
+    data # array([[1, 2], [3, 4], [5, 6], [7, 8]])
+    flags # array([0, 0, 1, 1])
+    '''
     def to_2D(self, data, flags):
+        '''
+        Parameters:
+            data (3D): [g, recording, observation]
+            flags (1D): [g] (e.g. [0,1,2])
+        Returns:
+            data (2D): [recording, observation]
+            flags (1D): [g*recordings] (e.g. [])
+        '''
         data_, flags_ = [], []
         for n,gesture in enumerate(data):
             data_.extend(gesture)
             flags_.extend([flags[n]] * len(gesture))
-        return data_, flags_
+        return np.array(data_), np.array(flags_)
 
-    #import numpy as np
-    #A = np.array([[[np.nan],[np.inf]],[[3],[4]]])
-    #np.delete(A,[1], axis=0)
-    #a = np.inf
-    #a == np.inf
-    #X,Y = discard_d(None, A, [0,0])
+    '''
+    import numpy as np
+    A = np.array([[[np.nan],[np.inf]],[[3],[4]]])
+    np.delete(A,[1], axis=0)
+    a = np.inf
+    a == np.inf
+    X = get_discard_indices(None, A, [0,0])
+    X
+    '''
+
     def get_discard_indices(self,X,Y):
         discards = []
         for n,rec in enumerate(X):

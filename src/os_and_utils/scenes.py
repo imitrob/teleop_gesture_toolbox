@@ -141,6 +141,7 @@ class CustomScenes():
         ''' Prepare scene, add objects for obstacle or manipulation.
             scene (str):
         '''
+        refresh()
         if not interface_handle: print("[Scenes] No interface handle added!")
         global scene
         scenes = self.names()
@@ -151,8 +152,8 @@ class CustomScenes():
             if interface_handle:
                 for i in range(0, len(self.scenes[id].object_names)):
                     interface_handle.remove_object(name=self.scenes[id].object_names[i])
-                if ml.md.attached:
-                    self.detach_item_moveit(name=ml.md.attached)
+                #if ml.md.attached:
+                #    self.detach_item_moveit(name=ml.md.attached)
         # get id of new scene
         id = self.names().index(new_scene)
 
@@ -175,15 +176,17 @@ class CustomScenes():
                 if shape:
                     interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
                 elif file:
-                    if scale: size = [settings.scenes[id].object_scales[i], 0, 0]
+                    if scale: size = [self.scenes[id].object_scales[i], 0, 0]
                     else: size = [0,0,0]
-                    interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/mirracle_gestures/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=settings.scenes[id].object_poses[i], frame_id=settings.base_link)
+                    interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/mirracle_gestures/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=self.scenes[id].object_poses[i], frame_id=settings.base_link)
                 else:
-                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=settings.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
         scene = self.scenes[id]
+        ml.md.structures = []
+        ml.md.attached = False
         if id == 0:
             scene = None
-
+        ml.md.object_focus_id = 0
         print(f"[Scenes] Scene {new_scene} ready!")
 
 
@@ -242,6 +245,7 @@ class CustomScene():
                 else:
                     self.mesh_trans_origin = scene_data['mesh_trans_origin']
 
+        self.n = len(self.object_names)
 
 
 def init():
@@ -260,36 +264,44 @@ def init():
     paths = CustomPaths.GenerateFromYAML(scenes)
     scene = None # current scene informations
 
+def refresh():
+    ''' Generate new random vars
+    '''
+    global poses, paths, scenes
+    poses = CustomPoses.GeneratePosesFromYAML()
+    scenes = CustomScenes.GenerateFromYAML()
+    paths = CustomPaths.GenerateFromYAML(scenes)
+
 def inSceneObj(self, point):
     ''' in the zone of a box with length l
         Compatible for: Pose, Point, [x,y,z]
         Cannot be in two zones at once, return id of first zone
     '''
     collisionObjs = []
-    if not settings.scene:
+    if not scene:
         return False
-    z = [False] * len(settings.scene.object_poses)
-    assert settings.scene, "Scene not published yet"
+    z = [False] * len(scene.object_poses)
+    assert scene, "Scene not published yet"
     if isinstance(point, Pose):
         point = point.position
     if isinstance(point, Point):
         point = [point.x, point.y, point.z]
-    for n, pose in enumerate(settings.scene.object_poses):
+    for n, pose in enumerate(scene.object_poses):
         zone_point = pose.position
 
-        zone_point = self.PointAdd(zone_point, settings.scene.mesh_trans_origin[n])
-        #print(n, ": \n",zone_point.z, "\n" ,settings.scene.object_sizes[n].z, "\n", point[2])
-        if settings.scene.object_sizes[n].y > 0.0:
-            if zone_point.x <= point[0] <= zone_point.x+settings.scene.object_sizes[n].x:
-              if zone_point.y <= point[1] <= zone_point.y+settings.scene.object_sizes[n].y:
-                if zone_point.z <= point[2] <= zone_point.z+settings.scene.object_sizes[n].z:
-                    collisionObjs.append(settings.scene.object_names[n])
+        zone_point = self.PointAdd(zone_point, scene.mesh_trans_origin[n])
+        #print(n, ": \n",zone_point.z, "\n" ,scene.object_sizes[n].z, "\n", point[2])
+        if scene.object_sizes[n].y > 0.0:
+            if zone_point.x <= point[0] <= zone_point.x+scene.object_sizes[n].x:
+              if zone_point.y <= point[1] <= zone_point.y+scene.object_sizes[n].y:
+                if zone_point.z <= point[2] <= zone_point.z+scene.object_sizes[n].z:
+                    collisionObjs.append(scene.object_names[n])
 
         else:
-            if zone_point.x <= point[0] <= zone_point.x+settings.scene.object_sizes[n].x:
-              if zone_point.y >= point[1] >= zone_point.y+settings.scene.object_sizes[n].y:
-                if zone_point.z <= point[2] <= zone_point.z+settings.scene.object_sizes[n].z:
-                    collisionObjs.append(settings.scene.object_names[n])
+            if zone_point.x <= point[0] <= zone_point.x+scene.object_sizes[n].x:
+              if zone_point.y >= point[1] >= zone_point.y+scene.object_sizes[n].y:
+                if zone_point.z <= point[2] <= zone_point.z+scene.object_sizes[n].z:
+                    collisionObjs.append(scene.object_names[n])
         '''
                 else:
                     print("z")

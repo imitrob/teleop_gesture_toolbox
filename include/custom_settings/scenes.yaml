@@ -178,21 +178,33 @@ drawer2:
     axes: [[0.,1.,0.], [-1.,0.,0.],[0.,0.,1.]] # transformation to workspace
     drawer_sockets_open: 0.0
 
-pickplace2:
+pickplace3:
   Objects:
     box:
       pose:
-        position: {'x': 0.5, 'y': 0.0, 'z': 0.04}
+        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.0, 1.0]}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+      size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+      color: red
+      pub_info: true
     box2:
       pose:
-        position: {'x': 0.6, 'y': -0.2, 'z': 0.04}
+        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.0, 1.0]}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
+      size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
-
+      color: green
+      pub_info: true
+    box3:
+      pose:
+        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.0, 1.0]}
+        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+      size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
+      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
+      color: blue
+      pub_info: true
+      
 pushbutton2:
   Objects:
     button:

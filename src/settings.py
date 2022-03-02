@@ -77,5 +77,37 @@ def init(change_working_directory=True):
     record_with_keys = False # Bool, Enables recording with keys in UI
     print("[Settings] done")
 
+def get_network_file(type='static'):
+    main_set_name = yaml_config_gestures['using_set']
+    chosen_set = yaml_config_gestures['sets'][main_set_name]
+    chosen_set['gestures']
+    chosen_set['hand_mode_sets']
+    chosen_set['mapping_sets']
+    network_set_name = chosen_set['network_set']
+
+    return yaml_config_gestures['network_sets'][network_set_name][f'{type}_network_file']
+
+def get_detection_approach(type='static'):
+    main_set_name = yaml_config_gestures['using_set']
+    chosen_set = yaml_config_gestures['sets'][main_set_name]
+    chosen_set['gestures']
+    chosen_set['hand_mode_sets']
+    chosen_set['mapping_sets']
+    network_set_name = chosen_set['network_set']
+
+    try:
+        return yaml_config_gestures['network_sets'][network_set_name][f'{type}_detection_approach']
+    except KeyError:
+        return None
+
 def get_hand_mode():
-    return yaml_config_gestures['hand_mode_sets'][yaml_config_gestures['using_hand_mode_set']]
+    main_set_name = yaml_config_gestures['using_set']
+    chosen_set = yaml_config_gestures['sets'][main_set_name]
+    hand_mode_set_name = chosen_set['hand_mode_sets']
+    return dict(yaml_config_gestures['hand_mode_sets'][hand_mode_set_name])
+
+def get_gesture_mapping():
+    main_set_name = yaml_config_gestures['using_set']
+    chosen_set = yaml_config_gestures['sets'][main_set_name]
+    mapping_set_name = chosen_set['mapping_sets']
+    return dict(yaml_config_gestures['mapping_sets'][mapping_set_name])

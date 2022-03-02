@@ -31,19 +31,25 @@ class ClassificationSampler():
 
         self.sem = threading.Semaphore()
 
-        self.detection_approach = settings.yaml_config_gestures[f'{type}_detection_approach']
+        self.detection_approach = settings.get_detection_approach(type)
         if self.detection_approach in ['PyMC3', 'PyMC', 'pymc3', 'pymc']:
             self.detection_approach = 'PyMC3'
             from learning.pymc3_sample import PyMC3_Sample as sample_approach
         elif self.detection_approach in ['PyTorch', 'Torch', 'pytorch', 'torch']:
             self.detection_approach = 'PyTorch'
             from learning.pytorch_sample import PyTorch_Sample as sample_approach
+        elif self.detection_approach in ['DTW', 'dtw', 'fastdtw', 'fastDTW', 'dynamictimewarp']:
+            self.detection_approach = 'DTW'
+            from learning.timewarp_lib import fastdtw_ as sample_approach
         else: raise Exception("No detection approach found!")
         self.sample_approach = sample_approach()
 
         rospy.init_node('classification_sampler', anonymous=True)
         rospy.Service(f'/mirracle_gestures/change_{type}_network', ChangeNetwork, self.change_network_callback)
-        self.init(settings.yaml_config_gestures[f'{type}_network_file'])
+
+        if settings.get_network_file(type) == None:
+            return
+        self.init(settings.get_network_file(type))
         self.pub = rospy.Publisher(f'/mirracle_gestures/{type}_detection_solutions', DetectionSolution, queue_size=5)
         rospy.Subscriber(f'/mirracle_gestures/{type}_detection_observations', DetectionObservations, self.callback)
         rospy.spin()
@@ -69,7 +75,7 @@ class ClassificationSampler():
     def change_network_callback(self, msg):
         ''' Receives service callback of network change
         '''
-        print("$$$",msg)
+
         self.init(msg.data)
 
         msg = ChangeNetworkResponse()
@@ -87,8 +93,9 @@ class ClassificationSampler():
 
             self.Gs = nn.Gs
             self.filenames = nn.filenames
-            self.record_keys = nn.record_keys
+            self.record_keys = [str(i) for i in nn.record_keys]
             self.args = nn.args
+            self.type = nn.type
 
             self.sem.acquire()
             self.nn = self.sample_approach.init(nn)
@@ -110,11 +117,11 @@ if __name__ == '__main__':
         type = rospy.get_param('/mirracle_config/type', 'static')
 
 
-    if type == 'static' and settings.yaml_config_gestures['static_detection_approach']:
+    if type == 'static' and settings.get_detection_approach(type='static'):
         print(f"Launching {type} sampling thread!")
         ClassificationSampler(type=type)
 
-    if type == 'dynamic' and settings.yaml_config_gestures['dynamic_detection_approach']:
+    if type == 'dynamic' and settings.get_detection_approach(type='dynamic') and settings.get_network_file(type='dynamic')!=None:
         print(f"Launching {type} sampling thread!")
         ClassificationSampler(type=type)
 

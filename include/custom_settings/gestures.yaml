@@ -57,20 +57,11 @@ main_set:
   swipe_up:
     record_key: w
     filename: arrow_up.png
-  round:
-    record_key: r
-    filename: round.png
-  nothing:
-    mp: true
+  nothing_dyn:
+    record_key: n
   kick:
     mp: true
   touch:
-    mp: true
-  go_back:
-    mp: true
-  go_away:
-    mp: true
-  greet:
     mp: true
 
 set_1_static:
@@ -115,6 +106,18 @@ set_1_static:
     filename: gesture103.png
     turn_on_off: [0.3, 0.9]
     static: true
+  nothing:
+    mp: true
+  kick:
+    mp: true
+  touch:
+    mp: true
+  go_back:
+    mp: true
+  go_away:
+    mp: true
+  greet:
+    mp: true
 set_2_dynamic:
   circ: #rotate
     record_key: q
@@ -139,3 +142,49 @@ set_2_dynamic:
     var_len: 3
     minthre: 0.4
     maxthre: 0.1
+
+main_set_static:
+  grab:
+    record_key: g
+    filename: grab.png
+    static: true
+  pinch: # grip between finger and thumb, while last three fingers are open
+    record_key: p
+    filename: gesture33.png
+    static: true
+  point: # one finger
+    record_key: 1
+    filename: point.png
+    static: true
+  two: # point and middle finger up
+    record_key: 2
+    filename: two.png
+    static: true
+  three: # thumb, point and middle finger up
+    record_key: 3
+    filename: three.png
+    static: true
+  four: # only thumb down
+    record_key: 4
+    filename: four.png
+    static: true
+  five: # all fingers up
+    record_key: 5
+    filename: five.png
+    static: true
+  thumbsup: # only thumb is up
+    record_key: t
+    filename: thumbsup.png
+    static: true
+  nothing:
+    mp: true
+  kick:
+    mp: true
+  touch:
+    mp: true
+  go_back:
+    mp: true
+  go_away:
+    mp: true
+  greet:
+    mp: true

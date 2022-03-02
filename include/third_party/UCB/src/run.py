@@ -9,9 +9,9 @@ tstart=time.time()
 # Arguments
 parser=argparse.ArgumentParser(description='xxx')
 parser.add_argument('--seed',               default=0,              type=int,   help='(default=%(default)d)')
-parser.add_argument('--device',             default='cuda:0',       type=str,   help='gpu id')
+parser.add_argument('--device',             default='cpu',       type=str,   help='gpu id') #'cuda:0'
 parser.add_argument('--experiment',         default='gestures_dynamic',       type=str,   #required=True,
-                                            choices=['mnist2','mnist5','pmnist','cifar','mixture', 'gestures', 'gestures43','gestures322', 'gestures2221', 'gestures_dynamic', 'gestures2221_dynamic'])
+                                            choices=['mnist2','mnist5','pmnist','cifar','mixture', 'gestures_dynamic'])
 parser.add_argument('--approach',           default='ucb',            type=str,   help='acl')
 parser.add_argument('--data_path',          default='../data/',            type=str,   help='gpu id')
 
@@ -19,20 +19,23 @@ parser.add_argument('--data_path',          default='../data/',            type=
 parser.add_argument('--output',             default='',                     type=str,   help='')
 parser.add_argument('--checkpoint_dir',     default='../checkpoints/',    type=str,   help='')
 parser.add_argument('--nepochs',            default=200,            type=int,   help='')
-parser.add_argument('--sbatch',             default=4,             type=int,   help='')
-parser.add_argument('--lr',                 default=0.3,           type=float, help='')  # use 0.3 for non-mnist datasets
+parser.add_argument('--sbatch',             default=8,             type=int,   help='')
+parser.add_argument('--lr',                 default=0.1,           type=float, help='')  # use 0.3 for non-mnist datasets
 parser.add_argument('--nlayers',            default=1,              type=int,   help='')
-parser.add_argument('--nhid',               default=1200,           type=int, help='')
+parser.add_argument('--nhid',               default=30,           type=int, help='')
 parser.add_argument('--parameter',          default='',             type=str,   help='')
 
 # Dataset parameters
-parser.add_argument('--dataset_n_time_samples',          default=32,           type=int, help='')
-parser.add_argument('--dataset_n_observations',          default=3,            type=int,   help='')
+parser.add_argument('--dataset_n_time_samples',          default=4,           type=int, help='number points in path sequence')
+parser.add_argument('--dataset_n_observations',          default=3,            type=int,   help='number of observations (XYZ)')
+parser.add_argument('--normalize',          default='no',            type=str,   help='path seq is zeroes based on first/middle point')
+parser.add_argument('--normalize_dim',          default='no',            type=str,   help='path min/max values is set to its min/max of all XYZ')
+## If dataset parameters changed, you may want to update include/data/learning/tmp_dynamic.npy file (delete it, new one will be automatically created)
 
 # UCB HYPER-PARAMETERS
 parser.add_argument('--samples',            default='10',           type=int,     help='Number of Monte Carlo samples')
 parser.add_argument('--rho',                default='-3',           type=float,   help='Initial rho')
-parser.add_argument('--sig1',               default='6.0',          type=float,   help='STD foor the 1st prior pdf in scaled mixture Gaussian')
+parser.add_argument('--sig1',               default='0.0',          type=float,   help='STD foor the 1st prior pdf in scaled mixture Gaussian')
 parser.add_argument('--sig2',               default='6.0',          type=float,   help='STD foor the 2nd prior pdf in scaled mixture Gaussian')
 parser.add_argument('--pi',                 default='0.25',         type=float,   help='weighting factor for prior')
 parser.add_argument('--arch',               default='mlp',          type=str,     help='Bayesian Neural Network architecture')
@@ -61,11 +64,12 @@ print('Using device:', args.device)
 checkpoint = utils.make_directories(args)
 args.checkpoint = checkpoint
 print()
-
+'''
 args.accuracy = 43
 np.save(os.path.join(args.checkpoint,'args'), args)
 print("doe", args.checkpoint)
 exit()
+'''
 # Args -- Experiment
 if args.experiment=='mnist2':
     from dataloaders import mnist2 as dataloader

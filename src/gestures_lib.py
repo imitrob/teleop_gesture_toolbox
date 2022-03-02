@@ -139,6 +139,18 @@ class GestureMorphClass(object):
             for attr in attrs:
                 ret.append(getattr(self,attr).activated)
             return ret
+        elif attr == 'activate_id':
+            attrs = self.get_all_attributes()
+            for n,attr in enumerate(attrs):
+                if getattr(self,attr).activated:
+                    return n
+            return None
+        elif attr == 'activate_name':
+            attrs = self.get_all_attributes()
+            for attr in attrs:
+                if getattr(self,attr).activated:
+                    return attr
+            return None
         elif attr == 'above_threshold':
             attrs = self.get_all_attributes()
             ret = []
@@ -282,7 +294,7 @@ class TemplateGs():
                     elif type == 'mp':
                         setattr(self.info, gesture, MotionPrimitiveInfo(name=gesture, data=GsSet[gesture]))
 
-        self.data_queue = collections.deque(maxlen=100)
+        self.data_queue = collections.deque(maxlen=300)
 
     def get_times(self):
         return [g.stamp for g in self.data_queue]
@@ -399,6 +411,8 @@ class GestureDataDetection():
         self.activate_length=None # for export only
         self.distance_length=None # for export only
 
+        self.print_error_once_1 = True
+
         # Save of actions
         self.action_saves = []
 
@@ -412,8 +426,8 @@ class GestureDataDetection():
         return self.l.mp.info
 
     def load_netork_info(self):
-        static_network_file = settings.yaml_config_gestures['static_network_file']
-        dynamic_network_file = settings.yaml_config_gestures['dynamic_network_file']
+        static_network_file = settings.get_network_file(type='static')
+        dynamic_network_file = settings.get_network_file(type='dynamic')
 
         from os_and_utils.nnwrapper import NNWrapper
         nw = NNWrapper.load_network(settings.paths.network_path, static_network_file)
@@ -434,9 +448,12 @@ class GestureDataDetection():
 
         self_h = getattr(self, hand)
         self_h_type = getattr(self_h, type)
-        if self_h_type.n > 0 and (t-self_h_type[-1].stamp) < relevant_time:
-            return self_h_type[-1]
-        else:
+        try:
+            if self_h_type.n > 0 and (t-self_h_type[-1].stamp) < relevant_time:
+                return self_h_type[-1]
+            else:
+                return None
+        except:
             return None
 
 
@@ -475,15 +492,20 @@ class GestureDataDetection():
         ''' New gesture data arrived and will be saved
         '''
         if ml.md.frames[-1].seq-data.sensor_seq > 100:
-            print(f"[Warning] Program cannot compute gs in time, probably rate is too big!")
+            print(f"[Warning] Program cannot compute gs in time, probably rate is too big! (or fake data are used)")
 
         # choose hand with data.header.frame_id
         obj_by_hand = getattr(self, data.header.frame_id)
         # choose static/dynamic with arg: type
         obj_by_type = getattr(obj_by_hand, type)
 
-        assert len(data.probabilities.data) == obj_by_type.info.n, f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}"
-
+        if len(data.probabilities.data) != obj_by_type.info.n:
+            if self.print_error_once_1:
+                print(f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}")
+                print(f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}")
+                print(f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}")
+                self.print_error_once_1 = False
+            return
         obj_by_type.data_queue.append(GestureMorphClassStamped(data, obj_by_type.info.names))
 
         # Add logic
@@ -506,7 +528,7 @@ class GestureDataDetection():
         gs = getattr(hand, type)
         latest_gs = gs[-1]
         probabilities = latest_gs.probabilities_norm
-        print(probabilities)
+
         for n,g in enumerate(latest_gs):
             probability = probabilities[n]
             # 1. Probability over threshold
@@ -531,7 +553,7 @@ class GestureDataDetection():
             if gs.n > activate_length:
                 if np.array([data[n].activated for data in gs[-activate_length-2:-1]]).all(): # gesture was shown with no interruption
                     if gs[-1][n].activated == False: # now it ended -> action can happen
-                        print("3")
+
                         if not np.array([data[n].action_activated for data in gs[-distance_length-2:-2]]).any():
                             g.action_activated = True
                             self.actions_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag))
@@ -597,9 +619,9 @@ class GestureDataDetection():
             np.save(settings.paths.data_export_path+'record_'+str(N_)+"/gesture_data_right_dynamic.npy", gesture_data_right_dynamic)
 
         file = open(settings.paths.data_export_path+'record_'+str(N_)+"/config.txt","a")
-        file.write(f"[Static] Detection approach: {settings.yaml_config_gestures['static_detection_approach']}, Network file {settings.yaml_config_gestures['static_network_file']}\n")
-        file.write(f"[Dynamic] Detection approach: {settings.yaml_config_gestures['dynamic_detection_approach']}, Network file {settings.yaml_config_gestures['dynamic_network_file']}\n")
-        file.write(f"[Mapping] Left hand: {settings.yaml_config_gestures['hand_mode_sets'][settings.yaml_config_gestures['using_hand_mode_set']]['l']}, Right hand: {settings.yaml_config_gestures['hand_mode_sets'][settings.yaml_config_gestures['using_hand_mode_set']]['r']}\n\n")
+        file.write(f"[Static] Detection approach: {settings.get_detection_approach(type='static')}, Network file {settings.get_network_file(type='static')}\n")
+        file.write(f"[Dynamic] Detection approach: {settings.get_detection_approach(type='dynamic')}, Network file {settings.get_network_file(type='dynamic')}\n")
+        file.write(f"[Mapping] Left hand: {settings.get_hand_mode()['l']}, Right hand: {settings.get_hand_mode()['r']}\n\n")
 
         file.write(f"Static network info: {self.static_network_info}\n")
         file.write(f"Dynamic network info: {self.dynamic_network_info}")

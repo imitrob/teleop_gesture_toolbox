@@ -1,5 +1,23 @@
-# Pick loaded set of gestures:
+# Picks set from sets:
+# Each set chooses the suitable hand set, gesture set, network set and mapping set
 using_set: main_set
+
+sets:
+  main_set:
+    gestures: main_set
+    hand_mode_sets: setl
+    mapping_sets: main_map
+    network_set: main_set
+  set_1_static:
+    gestures: set_1_static
+    hand_mode_sets: set0
+    mapping_sets: set_1_static
+    network_set: set_1_static
+  main_set_static:
+    gestures: main_set_static
+    hand_mode_sets: setl
+    mapping_sets: main_set_static
+    network_set: main_set
 
 min_confidence: 0.3
 since_frame_time: 0.5
@@ -11,12 +29,20 @@ oc_turn_off_thre: [0.85, 0.6, 0.6, 0.6, 0.6]
 # Link to networks in google drive folder
 networks_drive_url: https://drive.google.com/drive/folders/1T8jqeyb10WrwnqQoMA25bRKQQvTacF6Y
 
-# PyMC3, PyTorch, DTW
-static_detection_approach: PyMC3
-dynamic_detection_approach: PyTorch
+
 # This is default network loaded from computer, it can be changed later in UI
-static_network_file: PyMC3-main-set-2.pkl #network0.pkl
-dynamic_network_file: gestures_dynamic_ucb
+network_sets:
+  main_set:
+    # PyMC3, PyTorch, DTW
+    static_detection_approach: PyMC3
+    dynamic_detection_approach: DTW
+    static_network_file: PyMC3-main-set-3.pkl #
+    dynamic_network_file: promp
+  set_1_static:
+    static_detection_approach: PyMC3
+    dynamic_detection_approach: PyTorch
+    static_network_file: network0.pkl
+    dynamic_network_file:
 
 misc_network_args:
   time_samples: 32
@@ -25,40 +51,63 @@ misc:
   rate: 10
   relevant_time: 0.5
 
-
-
-using_hand_mode_set: set0
-
 hand_mode_sets:
   set0:
     l: static
     r: dynamic
-
-using_mapping_set: main_map
+  setl:
+    l: static
+    r: none
+  setbothstatic:
+    l: static
+    r: static
 
 # Mapping gesture ID to MotionPrimitiveID
 # Mapping example:
 # gestureID: MotionPrimitiveID
 mapping_sets:
   main_map:
-      grab: gripper
-      pinch: gripper
-      point: go_to_home
-      two: speed
-      three: speed
-      four: speed
-      five: nothing
-      thumbsup: rotate_eef
-      swipe_down: touch
-      swipe_front_right: kick
-      swipe_left: go_back
-      swipe_up: go_away
-      round: greet
-      # write about
-      # solve RLBench task, push buttons in an order
+    grab: gripper
+    pinch: gripper
+    point: touch
+    two: kick
+    three: build_switch
+    four: nothing
+    five: focus
+    thumbsup: go_to_home
+    swipe_down: touch
+    swipe_front_right: nothing
+    swipe_left: nothing
+    swipe_up: touch
+    round: touch
+    # write about
+    # solve RLBench task, push buttons in an order
   set0:
     grab: touch
     kick: kick
     nothing: nothing
     pinch: gripper
     victory: go_to_home
+  set_1_static:
+    grab: nothing
+    pinch: nothing
+    point: nothing
+    respectful: nothing
+    victory: nothing
+    spock: nothing
+    rock: nothing
+  main_set_static:
+    grab: nothing
+    pinch: gripper
+    point: nothing
+    two: direction_move
+    three: nothing
+    four: nothing
+    five: nothing
+    thumbsup: nothing
+
+
+
+
+
+#

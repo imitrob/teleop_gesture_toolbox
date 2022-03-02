@@ -246,7 +246,15 @@ class Frame():
             hand.sphere_radius = h.sphere_radius
             hand.stabilized_palm_position = h.stabilized_palm_position()
             hand.time_visible = h.time_visible
+
             hand.wrist_position = h.wrist_position()
+            hand.elbow_position = h.elbow_position()
+
+            hand.arm_valid = h.arm_valid
+            hand.arm_width = h.arm_width
+            hand.arm_direction = h.arm_direction()
+            basis = h.arm_basis[0](), h.arm_basis[1](), h.arm_basis[2]()
+            hand.arm_basis = [item for sublist in basis for item in sublist]
 
         return frame
 
@@ -283,6 +291,12 @@ class Hand():
             self.stabilized_palm_position = Vector()
             self.time_visible = 0.
             self.wrist_position = Vector()
+            self.elbow_position = Vector()
+
+            self.arm_valid = False
+            self.arm_width = 0.
+            self.arm_direction = Vector()
+            self.arm_basis = [Vector(),Vector(),Vector()]
 
         # Data processed for learning
         self.wrist_angles = []
@@ -411,10 +425,16 @@ class Hand():
         self.prepare_finger_distance_combinations()
         self.prepare_learning_data()
 
+    def point_position(self):
+        return self.index_position()
+
     def index_position(self):
         return self.fingers[1].bones[3].next_joint()
 
     def index_direction(self):
+        return self.fingers[1].bones[3].direction()
+
+    def point_direction(self):
         return self.fingers[1].bones[3].direction()
 
     def get_open_fingers(self):

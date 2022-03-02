@@ -22,6 +22,7 @@ from threading import Thread, Timer
 from copy import deepcopy
 from os.path import expanduser, isfile, isdir
 from os_and_utils.transformations import Transformations as tfm
+from os_and_utils.utils import point_by_ratio
 try:
     from sklearn.metrics import confusion_matrix
 except ModuleNotFoundError:
@@ -41,22 +42,27 @@ class Example(QMainWindow):
             recording_data_loaded = yaml.safe_load(stream)
         with open(settings.paths.custom_settings_yaml+"application.yaml", 'r') as stream:
             app_data_loaded = yaml.safe_load(stream)
-        global LEFT_MARGIN, RIGHT_MARGIN, BOTTOM_MARGIN, ICON_SIZE, START_PANEL_Y, BarMargin
+        global LEFT_MARGIN, RIGHT_MARGIN, BOTTOM_MARGIN, ICON_SIZE, START_PANEL_Y, START_PANEL_Y_GESTURES, BarMargin
         LEFT_MARGIN = app_data_loaded['LEFT_MARGIN']
         RIGHT_MARGIN = app_data_loaded['RIGHT_MARGIN']
         BOTTOM_MARGIN = app_data_loaded['BOTTOM_MARGIN']
         ICON_SIZE = app_data_loaded['ICON_SIZE']
         START_PANEL_Y = app_data_loaded['START_PANEL_Y']
+        START_PANEL_Y_GESTURES = START_PANEL_Y + 80
         BarMargin = app_data_loaded['BarMargin']
 
         LeftPanelMaxIterms = app_data_loaded['LeftPanelMaxIterms']
         RightPanelMaxIterms = app_data_loaded['RightPanelMaxIterms']
 
         self.setMinimumSize(QSize(500, 400)) # Minimum window size
-        self.lbl1 = QLabel('Gestures', self)
+        self.lbl1 = QLabel('Left Hand', self)
         self.lbl1.setGeometry(20, 36, 150, 50)
-        self.lbl2 = QLabel('Observations', self)
+        self.lbl2 = QLabel('Right Hand', self)
         self.lbl2.setGeometry(self.size().width()-140, 36, 100, 50)
+        self.lbl3 = QLabel('Gestures', self)
+        self.lbl3.setGeometry(20, START_PANEL_Y_GESTURES-30, 150, 50)
+        self.lbl4 = QLabel('Gestures', self)
+        self.lbl4.setGeometry(self.size().width()-140, START_PANEL_Y_GESTURES-30, 100, 50)
 
         ## View Configuration App
         settings.WindowState = 0
@@ -118,7 +124,7 @@ class Example(QMainWindow):
         self.dir_queue = []
 
         self.lblStatus = QLabel('Status bar', self)
-        self.lblStatus.setGeometry(LEFT_MARGIN+130, START_PANEL_Y, 200, 100)
+        self.lblStatus.setGeometry(LEFT_MARGIN+130, START_PANEL_Y+32, 200, 100)
 
         self.comboInteractiveSceneChanges = QComboBox(self)
         self.comboInteractiveSceneChanges.addItem("Scene 1 Drawer")
@@ -134,8 +140,8 @@ class Example(QMainWindow):
         self.btnRecordActivate.setGeometry(LEFT_MARGIN+130, START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
 
         # Move Page
-        lbls = ['Pos. X:', 'Pos. Y:', 'Pos. Z:', 'Ori. X:', 'Ori. Y:', 'Ori. Z:', 'Ori. W:']
-        lblsVals = ['0.0', '0.0', '1.0', '0.0', '0.0', '0.0', '1.0']
+        lbls = ['Pos. X:', 'Pos. Y:', 'Pos. Z:', 'Ori. X:', 'Ori. Y:', 'Ori. Z:', 'Ori. W:', 'Gripper:']
+        lblsVals = ['0.0', '0.0', '1.0', '0.0', '0.0', '0.0', '1.0', '0.0']
         self.movePageGoPoseLabels = []
         self.movePageGoPoseEdits = []
         for i in range(0,7):
@@ -149,6 +155,27 @@ class Example(QMainWindow):
         self.movePageGoPoseButton = QPushButton("Go To Pose", self)
         self.movePageGoPoseButton.clicked.connect(self.go_to_pose_button)
         self.movePageGoPoseButton.move(LEFT_MARGIN+80, START_PANEL_Y+7*32)
+        ''' Gripper control '''
+        i = 7
+        self.movePageGoPoseLabels.append(QLabel(self))
+        self.movePageGoPoseLabels[-1].setText(lbls[i])
+        self.movePageGoPoseLabels[-1].move(LEFT_MARGIN+20, START_PANEL_Y+(i+1)*32)
+        self.movePageGoPoseEdits.append(QLineEdit(self))
+        self.movePageGoPoseEdits[-1].move(LEFT_MARGIN+80, START_PANEL_Y+(i+1)*32)
+        self.movePageGoPoseEdits[-1].resize(200, 32)
+        self.movePageGoPoseEdits[-1].setText(lblsVals[i])
+        self.movePageGoGripperButton = QPushButton("Actuate gripper", self)
+        self.movePageGoGripperButton.clicked.connect(self.actuate_gripper_button)
+        self.movePageGoGripperButton.move(LEFT_MARGIN+80, START_PANEL_Y+9*32)
+
+        self.movePageOpenGripperButton = QPushButton("Open gripper", self)
+        self.movePageOpenGripperButton.clicked.connect(self.open_gripper_button)
+        self.movePageOpenGripperButton.move(LEFT_MARGIN+80, START_PANEL_Y+10*32)
+        self.movePageCloseGripperButton = QPushButton("Close gripper", self)
+        self.movePageCloseGripperButton.clicked.connect(self.close_gripper_button)
+        self.movePageCloseGripperButton.move(LEFT_MARGIN+80+100, START_PANEL_Y+10*32)
+
+
 
         self.movePageUseEnvAboveButton = QPushButton('Above env.', self)
         self.movePageUseEnvAboveButton.clicked.connect(self.movePageUseEnvAboveButtonFun)
@@ -279,13 +306,18 @@ class Example(QMainWindow):
         self.setWindowTitle('Interface')
         self.show()
 
-        ## Initialize Visible Objects Array
+        ''' Initialize Visible Objects Array
+            - AllVisibleObjects array specifies each object a specific view_group
+            - Object visibility management across application
+        '''
         self.AllVisibleObjects = []
         self.AllVisibleObjects.append(ObjectQt('lblStatus',self.lblStatus,0,view_group=['MoveViewState']))
         for n,obj in enumerate(self.lblRightPanelNamesObj):
             self.AllVisibleObjects.append(ObjectQt('lblRightPanelNamesObj'+str(n),obj,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lbl1',self.lbl1,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lbl2',self.lbl2,0,view_group=['GesturesViewState']))
+        self.AllVisibleObjects.append(ObjectQt('lbl3',self.lbl3,0,view_group=['GesturesViewState']))
+        self.AllVisibleObjects.append(ObjectQt('lbl4',self.lbl4,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lblInfo',self.lbl2,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('comboPlayNLive',self.comboPlayNLive,0,view_group=['MoveViewState']))
 
@@ -308,6 +340,9 @@ class Example(QMainWindow):
         for n,obj in enumerate(self.movePageGoPoseEdits):
             self.AllVisibleObjects.append(ObjectQt('movePageGoPoseEdits'+str(n),obj,2,view_group=['MoveViewState']))
         self.AllVisibleObjects.append(ObjectQt('movePageGoPoseButton',self.movePageGoPoseButton,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageGoGripperButton',self.movePageGoGripperButton,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageOpenGripperButton',self.movePageOpenGripperButton,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageCloseGripperButton',self.movePageCloseGripperButton,2,view_group=['MoveViewState']))
 
         self.AllVisibleObjects.append(ObjectQt('movePageUseEnvAboveButton',self.movePageUseEnvAboveButton,2,view_group=['MoveViewState']))
         self.AllVisibleObjects.append(ObjectQt('movePageUseEnvWallButton',self.movePageUseEnvWallButton,2,view_group=['MoveViewState']))
@@ -352,7 +387,7 @@ class Example(QMainWindow):
         ''' Takes the text inputs given by user and change robot goal_pose
         '''
         vals = []
-        for obj in self.movePageGoPoseEdits:
+        for obj in self.movePageGoPoseEdits[0:7]:
             val = None
             try:
                 val = float(obj.text())
@@ -364,6 +399,24 @@ class Example(QMainWindow):
         pose.position = Point(*vals[0:3])
         pose.orientation = Quaternion(*vals[3:7])
         ml.md.goal_pose = pose
+        ml.md.m.go_to_pose(pose)
+
+    def actuate_gripper_button(self):
+        ''' Takes text input float and control gripper position
+        '''
+        val = None
+        try:
+            val = float(self.movePageGoPoseEdits[7].text())
+        except:
+            print("[ERROR*] Value Error!")
+            val = 0.0
+        ml.md.m.set_gripper(val, effort=0.04, eef_rot=-1, action="", object="")
+
+    def open_gripper_button(self):
+        ml.md.m.set_gripper(1.0, action="release")
+
+    def close_gripper_button(self):
+        ml.md.m.set_gripper(0.0)
 
     def keyPressEvent(self, event):
         ''' Callbacky for every keyboard button press
@@ -543,7 +596,7 @@ class Example(QMainWindow):
 
     def goScene(self, index):
         scenes = sl.scenes.names()
-        sl.scenes.make_scene(scenes[index])
+        sl.scenes.make_scene(ml.md.m, scenes[index])
 
     def onComboPlayNLiveChanged(self, text):
         if text=="Live hand":
@@ -626,17 +679,18 @@ class Example(QMainWindow):
         #self.lblStartAxis.setGeometry(self.w/2+5, self.h-70, 100, 50)
         #self.lblStartAxis.setText(str(ml.md.ENV['start']))
 
-        ## Paint the bones structure
+
+
+        ''' Draw the bone structure '''
         for h in ['l', 'r']:
             painter.setPen(QPen(Qt.black, 1))
             #if ml.md.r_present():
             if getattr(ml.md, h+'_present')():
-                #hand = ml.md.frames[-1].r
                 hand = getattr(ml.md.frames[-1], h)
                 palm = hand.palm_position()
                 wrist = hand.wrist_position()
 
-                elbow = [0.,0.,0.]#hand.arm.elbow_position()
+                elbow = hand.elbow_position()
                 pose_palm = Pose()
                 pose_palm.position = Point(palm[0], palm[1], palm[2])
                 pose_wrist = Pose()
@@ -651,6 +705,23 @@ class Example(QMainWindow):
                 pose_elbow_ = tfm.transformLeapToUIsimple(pose_elbow)
                 x, y = pose_elbow_.position.x, pose_elbow_.position.y
                 painter.drawLine(x, y, x_, y_)
+
+                if h == 'l':
+                    ''' Set builder mode '''
+                    nBuild_modes = len(ml.md.build_modes)
+                    id_build_mode = ml.md.build_modes.index(ml.md.build_mode)
+                    painter.setPen(QPen(Qt.blue, 4))
+                    for n, i in enumerate(ml.md.build_modes):
+                        x_bm, y_bm = point_by_ratio((x, y),(x_, y_), 0.5+0.5*(n/nBuild_modes))
+
+                        if n == id_build_mode:
+                            painter.setBrush(QBrush(Qt.blue, Qt.SolidPattern))
+                        else:
+                            painter.setBrush(QBrush(Qt.blue, Qt.NoBrush))
+                        painter.drawEllipse(x+x_bm-5, y+y_bm-5, 10, 10)
+
+                    painter.setPen(QPen(Qt.black, 1))
+
                 for finger in hand.fingers:
                     for b in range(0, 4):
                         bone = finger.bones[b]
@@ -675,10 +746,8 @@ class Example(QMainWindow):
         qp.begin(self)
         textStatus = ""
         if ml.md.goal_pose and ml.md.goal_joints:
-            textStatus += "eef: "+str(round(ml.md.eef_pose.position.x,2))+" "+str(round(ml.md.eef_pose.position.y,2))+" "+str(round(ml.md.eef_pose.position.z,2))
-            textStatus += '\ng p:'+str(round(ml.md.goal_pose.position.x,2))+" "+str(round(ml.md.goal_pose.position.y,2))+" "+str(round(ml.md.goal_pose.position.z,2))
-            textStatus += '\ng q:'+str(round(ml.md.goal_pose.orientation.x,2))+" "+str(round(ml.md.goal_pose.orientation.y,2))+" "+str(round(ml.md.goal_pose.orientation.z,2))+" "+str(round(ml.md.goal_pose.orientation.w,2))
-
+            structures_str = [structure.object_stack for structure in ml.md.structures]
+            textStatus += f"eef: {str(round(ml.md.eef_pose.position.x,2))} {str(round(ml.md.eef_pose.position.y,2))} {str(round(ml.md.eef_pose.position.z,2))}\ng p: {str(round(ml.md.goal_pose.position.x,2))} {str(round(ml.md.goal_pose.position.y,2))} {str(round(ml.md.goal_pose.position.z,2))}\ng q:{str(round(ml.md.goal_pose.orientation.x,2))} {str(round(ml.md.goal_pose.orientation.y,2))} {str(round(ml.md.goal_pose.orientation.z,2))} {str(round(ml.md.goal_pose.orientation.w,2))}\nAttached: {ml.md.attached}\nbuild_mode {ml.md.build_mode}\nobject_touch and focus_id {ml.md.object_focus_id} {ml.md.object_focus_id}\nStructures: {str(structures_str)}"
 
         if self.recording:
             qp.setBrush(QBrush(Qt.red, Qt.SolidPattern))
@@ -687,86 +756,89 @@ class Example(QMainWindow):
         self.lblInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*5,ICON_SIZE)
         self.lblStatus.setText(textStatus)
 
-        # left
-        if 'static' in settings.get_hand_mode()['l']:
-            gl_gd_static = getattr(gl.gd,'l').static
-        elif 'dynamic' in settings.get_hand_mode()['l']:
-            gl_gd_static = getattr(gl.gd,'l').static
-        else:
-            gl_gd_static = None
+        self.lbl3.setText(settings.get_hand_mode()['l'])
+        self.lbl4.setText(settings.get_hand_mode()['r'])
 
-        # right
-        if 'static' in settings.get_hand_mode()['r']:
-            gl_gd_dynamic = getattr(gl.gd,'r').dynamic
-        elif 'dynamic' in settings.get_hand_mode()['r']:
-            gl_gd_dynamic = getattr(gl.gd,'r').dynamic
-        else:
-            gl_gd_dynamic = None
+        self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
+        self.lbl4.move(self.size().width()-RIGHT_MARGIN-40, START_PANEL_Y_GESTURES-30)
 
-        if self.GesturesViewState and (gl_gd_static[-1] or gl_gd_dynamic[-1]):
-            self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
+        if self.GesturesViewState:
             # up late
             if ml.md.frames:
                 # hand fingers
+                n = 0
+                if ml.md.frames[-1].l.confidence > settings.yaml_config_gestures['min_confidence']:
+                    qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
+                qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y+(n+1)*ICON_SIZE-round(ml.md.frames[-1].l.confidence,2)*ICON_SIZE))
                 for i in range(0,5):
-                    if ml.md.frames[-1].l.oc_activates[i]: #gl.gd.r.oc[i-1]:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100-ICON_SIZE, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open.png"))
+                    if ml.md.frames[-1].l.oc_activates[i]:
+                        qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open_left.png"))
                     else:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100-ICON_SIZE, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed.png"))
+                        qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed_left.png"))
+
+                if ml.md.frames[-1].r.confidence > settings.yaml_config_gestures['min_confidence']:
+                    qp.drawRect(w-RIGHT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
+                qp.drawLine(w-RIGHT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, w-RIGHT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y+(n+1)*ICON_SIZE-round(ml.md.frames[-1].r.confidence,2)*ICON_SIZE))
                 for i in range(0,5):
-                    if ml.md.frames[-1].r.oc_activates[i]: #gl.gd.r.oc[i-1]:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open.png"))
+                    if ml.md.frames[-1].r.oc_activates[i]:
+                        qp.drawPixmap(w-RIGHT_MARGIN, START_PANEL_Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open.png"))
                     else:
-                        qp.drawPixmap(w-RIGHT_MARGIN-100, START_PANEL_Y-20, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed.png"))
+                        qp.drawPixmap(w-RIGHT_MARGIN, START_PANEL_Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed.png"))
 
-                # arrows
-                if 'move_in_axis' in gl_gd_dynamic.info.names:
-                    g = gl_gd_dynamic.move_in_axis
-                    X = w-RIGHT_MARGIN-100-ICON_SIZE*2
-                    Y = START_PANEL_Y-20
-                    if g.toggle[0] and g.move[0]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_right.png"))
-                    if g.toggle[0] and not g.move[0]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
-                    if g.toggle[1] and g.move[1]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_up.png"))
-                    if g.toggle[1] and not g.move[1]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_down.png"))
-                    if g.toggle[2] and g.move[2]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_front.png"))
-                    if g.toggle[2] and not g.move[2]:
-                        qp.drawPixmap(X, Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_back.png"))
+                ''' Direction of hand '''
+                for h, X in [('l', LEFT_MARGIN+ICON_SIZE), ('r', w-RIGHT_MARGIN-ICON_SIZE)]:
+                    point_direction = getattr(ml.md.frames[-1], h).point_direction()
+                    if point_direction[0] < 0.0:
+                        qp.drawPixmap(X, START_PANEL_Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_right.png"))
+                    if point_direction[0] > 0.0:
+                        qp.drawPixmap(X, START_PANEL_Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
+                    if point_direction[1] < 0.0:
+                        qp.drawPixmap(X, START_PANEL_Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_up.png"))
+                    if point_direction[1] > 0.0:
+                        qp.drawPixmap(X, START_PANEL_Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_down.png"))
 
-            # left lane
-            POSE_FILE_IMAGES = gl.gd.static_info().filenames
-            POSE_NMS = gl.gd.static_info().names
-            GEST_FILE_IMAGES = gl.gd.dynamic_info().filenames
-            GEST_NMS = gl.gd.dynamic_info().names
-            if gl_gd_static.relevant():
-                for n, i in enumerate(POSE_FILE_IMAGES):
-                    qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
+            ''' Left side lane - Gestures '''
+            static_gs_file_images = gl.gd.static_info().filenames
+            static_gs_names = gl.gd.static_info().names
+            dynamic_gs_file_images = gl.gd.dynamic_info().filenames
+            dynamic_gs_names = gl.gd.dynamic_info().names
+            if gl.gd.l.static.relevant():
+                for n, i in enumerate(static_gs_file_images):
+                    image_filename = settings.paths.graphics_path+i
+                    image_filename = f"{image_filename[:-4]}_left{image_filename[-4:]}"
+                    qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y_GESTURES+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(image_filename))
 
-                    if gl_gd_static[-1][n].activated:
-                        qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
-                    qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y+(n+1)*ICON_SIZE-gl_gd_static[-1][n].probability*ICON_SIZE))
-                    qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+n*ICON_SIZE+10, POSE_NMS[n])
+                    if gl.gd.l.static[-1][n].activated:
+                        qp.drawRect(LEFT_MARGIN,START_PANEL_Y_GESTURES+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
+                    qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE-gl.gd.l.static[-1][n].probability*ICON_SIZE))
+                    qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y_GESTURES+n*ICON_SIZE+10, static_gs_names[n])
+            if gl.gd.r.static.relevant():
+                for n, i in enumerate(static_gs_file_images):
+                    image_filename = settings.paths.graphics_path+i
+                    qp.drawPixmap(w-RIGHT_MARGIN, START_PANEL_Y_GESTURES+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(image_filename))
 
-            if gl_gd_dynamic.relevant():
-                probabilities = gl_gd_dynamic[-1].probabilities_norm
-                for n, i in enumerate(GEST_FILE_IMAGES):
-                    qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
+                    if gl.gd.r.static[-1][n].activated:
+                        qp.drawRect(w-RIGHT_MARGIN,START_PANEL_Y_GESTURES+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
+                    qp.drawLine(w-RIGHT_MARGIN+ICON_SIZE+2, START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE, w-RIGHT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE-gl.gd.r.static[-1][n].probability*ICON_SIZE))
+                    qp.drawText(w-RIGHT_MARGIN+ICON_SIZE+5, START_PANEL_Y_GESTURES+n*ICON_SIZE+10, static_gs_names[n])
 
-                    if gl_gd_dynamic[-1][n].activated:
-                        qp.drawRect(LEFT_MARGIN,START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE)
-                    qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1+len(POSE_FILE_IMAGES))*ICON_SIZE-probabilities[n]*ICON_SIZE)
-                    qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y+(n+len(POSE_FILE_IMAGES))*ICON_SIZE+10, GEST_NMS[n])
 
-            if gl_gd_static.relevant():
-                n_ = gl_gd_static.relevant().biggest_probability_id
-                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y+(n_)*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
-            if gl_gd_dynamic.relevant():
-                n_ = gl_gd_dynamic.relevant().biggest_probability_id
-                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y+(n_+len(POSE_FILE_IMAGES))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
+            if gl.gd.r.dynamic and gl.gd.r.dynamic.relevant():
+                probabilities = gl.gd.r.dynamic[-1].probabilities_norm
+                for n, i in enumerate(dynamic_gs_file_images):
+                    qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y_GESTURES+(n+len(static_gs_file_images))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
+
+                    if gl.gd.r.dynamic[-1][n].activated:
+                        qp.drawRect(LEFT_MARGIN,START_PANEL_Y_GESTURES+(n+len(static_gs_file_images))*ICON_SIZE, ICON_SIZE, ICON_SIZE)
+                    qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y_GESTURES+(n+1+len(static_gs_file_images))*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y_GESTURES+(n+1+len(static_gs_file_images))*ICON_SIZE-probabilities[n]*ICON_SIZE)
+                    qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y_GESTURES+(n+len(static_gs_file_images))*ICON_SIZE+10, dynamic_gs_names[n])
+
+            if gl.gd.l.static and gl.gd.l.static.relevant():
+                n_ = gl.gd.l.static.relevant().biggest_probability_id
+                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y_GESTURES+(n_)*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
+            if gl.gd.r.dynamic and gl.gd.r.dynamic.relevant():
+                n_ = gl.gd.r.dynamic.relevant().biggest_probability_id
+                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y_GESTURES+(n_+len(static_gs_file_images))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
 
 
             # circ options
@@ -775,7 +847,7 @@ class Example(QMainWindow):
                 g = gl.gd.r.dynamic.circ
                 if g.activate:
                     X = LEFT_MARGIN+130
-                    Y = START_PANEL_Y+len(POSE_FILE_IMAGES)*ICON_SIZE
+                    Y = START_PANEL_Y+len(static_gs_file_images)*ICON_SIZE
                     ARRL = 10  # Arrow length
                     radius_2mm = g.radius/2
                     qp.drawEllipse(X,Y, radius_2mm, radius_2mm)
@@ -808,6 +880,7 @@ class Example(QMainWindow):
                 qp.fillRect(LEFT_MARGIN+settings.HoldValue*((w-40.0)/100.0), 30, 10, 20, Qt.black)
 
         if self.GesturesViewState:
+            '''
             # right lane
             for n, i in enumerate(self.lblRightPanelNamesObj):
                 i.setVisible(True)
@@ -821,7 +894,9 @@ class Example(QMainWindow):
                     qp.drawLine(w-RIGHT_MARGIN-5+values[n]*ICON_SIZE, START_PANEL_Y+(n+1)*ICON_SIZE/2, w-RIGHT_MARGIN-5, START_PANEL_Y+(n+1)*ICON_SIZE/2)
                     if activates[n]:
                         qp.drawRect(w-RIGHT_MARGIN-5, START_PANEL_Y+(n)*ICON_SIZE/2+5, ICON_SIZE, ICON_SIZE/2-10)
+            '''
             # orientation
+            '''
             if self.cursor_enabled():
                 roll, pitch, yaw = ml.md.frames[-1].r.palm_euler()
                 x = np.cos(yaw)*np.cos(pitch)
@@ -832,7 +907,7 @@ class Example(QMainWindow):
                 x_c,y_c = last_pose_.position.x, last_pose_.position.y
                 qp.setPen(QPen(Qt.blue, 4))
                 qp.drawLine(x_c, y_c, x_c+y*2*ICON_SIZE, y_c-z*2*ICON_SIZE)
-
+            '''
 
         qp.end()
 

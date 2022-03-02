@@ -21,8 +21,7 @@ time.shape
 len(time[0])
 '''
 # We want: Recordings x Timesamples x DoF
-
-def construct_promp_trajectory_waypoints(Xpalm, waypoints={}):
+def construct_promp_trajectory(Xpalm):
     Q = Xpalm
     time = []
     for q in Q:
@@ -56,6 +55,8 @@ def construct_promp_trajectory_waypoints(Xpalm, waypoints={}):
     plot_dof = 3 # Degree of freedom to plot
     sample_time = [np.linspace(0,1,200) for i in range(n_samples)]
 
+
+
     #4.1) Make some samples from the unconditioned ProMP
     promp_samples = robot_promp.sample(sample_time)
 
@@ -80,6 +81,32 @@ def construct_promp_trajectory_waypoints(Xpalm, waypoints={}):
             robot_promp.condition(t=t,    T=T,         q=q,         ignore_Sy=ignore_Sy)
             robot_promp.condition(t=t+dt, T=int(T+dt), q=(q+dt*qd), ignore_Sy=ignore_Sy)
 
+
+    return robot_promp
+
+def sample_promp_trajectory_waypoints(robot_promp, waypoints):
+    n_samples = 1 # Number of samples to draw
+    plot_dof = 3 # Degree of freedom to plot
+    sample_time = [np.linspace(0,1,200) for i in range(n_samples)]
+
+    for wp_t in list(waypoints.keys()):
+        if waypoints[wp_t].v is not None: # condition also velocity
+            condition(t=wp_t, T=1, q=waypoints[wp_t].p, qd=waypoints[wp_t].v)
+        elif waypoints[wp_t].p is not None:
+            robot_promp.condition(t=wp_t, T=1, q=waypoints[wp_t].p, ignore_Sy=False)
+        else:
+            print("[ProMP] Waypoint with no position")
+
+    cond_samples = robot_promp.sample(sample_time)
+
+
+    cond_sample = cond_samples[0]
+    # cond sample shape: time x DoF
+    return cond_sample
+
+
+def construct_promp_trajectory_waypoints(Xpalm, waypoints={}):
+    robot_promp = construct_promp_trajectory(Xpalm)
 
     #robot_promp.condition(t=0.5, T=1, q=[0.5, 0.15, 0.04], Sigma_q=[[0.3, 0.3, 0.3], [0.3, 0.3, 0.3], [0.3, 0.3, 0.3]], ignore_Sy=False)
     #robot_promp.condition(t=0.6, T=1, q=[0.5, 0.3, 0.04], ignore_Sy=False)

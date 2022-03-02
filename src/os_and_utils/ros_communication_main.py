@@ -7,6 +7,8 @@ from os_and_utils.parse_yaml import ParseYAML
 from inverse_kinematics.ik_lib import IK_bridge
 import gestures_lib as gl
 if __name__ == '__main__': gl.init()
+import os_and_utils.scenes as sl
+if __name__ == '__main__': sl.init()
 
 from std_msgs.msg import Int8, Float64MultiArray, Int32, Bool, MultiArrayDimension
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, Vector3
@@ -20,6 +22,7 @@ from sensor_msgs.msg import JointState
 from leapmotion.frame_lib import Frame
 import mirracle_gestures.msg as rosm
 from mirracle_gestures.msg import DetectionSolution, DetectionObservations
+from mirracle_sim.msg import ObjectInfo
 
 class ROSComm():
     ''' ROS communication of main thread: Subscribers (init & callbacks) and Publishers
@@ -31,6 +34,7 @@ class ROSComm():
 
             rospy.Subscriber('/pose_eef', Pose, self.coppelia_eef)
             rospy.Subscriber('/coppelia/camera_angle', Vector3, self.camera_angle)
+            rospy.Subscriber('/coppelia/object_info', ObjectInfo, self.object_info_callback)
         else:
             rospy.Subscriber("joint_states", JointState, self.joint_states)
 
@@ -50,10 +54,9 @@ class ROSComm():
 
         self.controller = rospy.Publisher('/mirracle_gestures/target', Float64MultiArray, queue_size=5)
         self.ik_bridge = IK_bridge()
+        self.hand_mode = settings.get_hand_mode()
 
-        configGestures = ParseYAML.load_gesture_config_file(settings.paths.custom_settings_yaml)
-        hand_mode_set = configGestures['using_hand_mode_set']
-        self.hand_mode = dict(configGestures['hand_mode_sets'][hand_mode_set])
+
 
     def publish_eef_goal_pose(self, goal_pose):
         ''' Publish goal_pose /relaxed_ik/ee_pose_goals to relaxedIK with its transform
@@ -61,6 +64,14 @@ class ROSComm():
         '''
         self.ee_pose_goals_pub.publish(goal_pose)
         self.ik_bridge.relaxedik.ik_node_publish(pose_r = self.ik_bridge.relaxedik.relaxik_t(goal_pose))
+
+    def object_info_callback(self, data):
+        ''' Only handles pose
+        '''
+        if sl.scene:
+            object_names = sl.scene.object_names
+            object_id = object_names.index(data.name)
+            sl.scene.object_poses[object_id] = data.pose
 
     @staticmethod
     def ik(data):

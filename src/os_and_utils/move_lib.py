@@ -20,8 +20,9 @@ class MoveData():
         '''
 
         bfr_len = 300 #settings.configRecording['BufferLen']
+        ''' Leap Controller data saved as circullar buffer '''
         self.frames = collections.deque(maxlen=bfr_len)
-
+        ''' '''
         self.goal_pose_array = collections.deque(maxlen=bfr_len)
         self.eef_pose_array = collections.deque(maxlen=bfr_len)
 
@@ -72,14 +73,23 @@ class MoveData():
         self.camera_orientation = Vector3(0.,0.,0.)
 
         self.mode = 'live' # 'play'/'live'/'alternative'
-        self.scale = 2 # scaling factor for Leap
+        ''' Scaling factor: if self.mode=='live' '''
+        self.scale = 2
         ## interactive
         self.action = False
         self.strict_mode = False
-        # if play path
+        ''' Path ID: if self.mode=='play' '''
         self.picked_path = 0
+        ''' Gripper object attached bool '''
         self.attached = False
+        ''' Mode about scene interaction - Deprecated '''
         self.live_mode = 'default'
+
+        ''' Builder mode: ['stack', 'wall', 'replace'] '''
+        self.build_modes = ['stack', 'wall', 'replace']
+        self.build_mode = 'stack'
+
+        self.structures = [] # Structure()
 
         self.gripper = 0.
         self.speed = 5
@@ -94,15 +104,23 @@ class MoveData():
         # The copy of goal_pose in form of active trajectory
         self._goal = None
 
+        ''' Constant for updating trajectories for real manipulator '''
         self.traj_update_horizon = 0.6
 
-        #tmp
+        ''' mouse3d_position: Not fully integrated '''
         self.mouse3d_position = [0.3, 0.0, 0.5]
+
+        self.current_threshold_to_flip_id = 0
+        self.object_focus_id = 0
+        self.object_touch_id = 0
 
         if init_goal_pose:
             self.goal_pose = Pose()
             self.goal_pose.orientation = self.ENV_DAT['above']['ori']
             self.goal_pose.position = Point(0.4,0.,1.0)
+
+        # Handle to access simulator
+        self.m = None
 
     def present(self):
         return self.r_present() or self.l_present()
@@ -205,6 +223,102 @@ class MoveData():
         elif text == "Interactive":
             self.live_mode = 'interactive'
 
+class Structure():
+    '''
+    stack order:
+    ||| <- id=2
+    ||| <- id=1
+    ||| <- id=0
+    wall order: (right direction from id=0 which is base obj)
+    (space between blocks is not representative)
+        ||| <- id=6
+      ||| ||| <- id=3,5
+    ||| ||| ||| <- id=1,2,4
+
+    Example building stack with base object with id=0:
+    id_0_position = structure = Structure(type='wall', id=0, size=0.04) # [0.,0.,0.]
+    id_1_position = structure.add(id=10) # [0.,0.,0.04]
+    id_2_position = structure.add(id=30) # [0.,0.,0.08]
+    id_3_position = structure.add(id=20) # [0.,0.,0.12]
+    print(f"Number of blocks: {structure.n}") # "Number of blocks: 4"
+    print(f"Object IDs within structure: {structure.object_stack}") # "Object IDs within structure: [0,10,30,20]"
+    id_3_position = structure.remove() # [0.,0.,0.12]
+    id_2_position = structure.remove() # [0.,0.,0.8]
+    id_1_position = structure.remove() # [0.,0.,0.4]
+    print(f"Number of blocks: {structure.n}") # "Number of blocks: 1"
+    print(f"Object IDs within structure: {structure.object_stack}") # "Object IDs within structure: [0]"
+    id_0_position = structure.remove() # [0.,0.,0.]
+
+    '''
+    def __init__(self, type, id=None, size=0.04, base_position=[0.,0.,0.]):
+        self.type = type
+        self.object_stack = []
+        self.object_size = 0.04 # box size [m]
+        self.base_position = base_position
+
+        if id is not None: self.add(id)
+
+    def __getattr__(self, attr):
+        if attr == 'n':
+            return len(self.object_stack)
+        elif attr == 'base_id':
+            if self.object_stack:
+                return self.object_stack[0]
+            else:
+                return None
+
+    def add(self, id):
+        self.object_stack.append(id)
+        return self.get_position(id)
+
+    def remove(self):
+        position_remove = self.get_position(self.object_stack[-1])
+        self.object_stack.pop(-1)
+        return position_remove
+
+    def get_n_block_based_on_object_id(self, id):
+        for n,obj in enumerate(self.object_stack):
+            if obj == id:
+                return n
+        raise Exception(f"ID '{id}' of object is not present in given structure, which has IDs '{self.object_stack}'")
+
+    def get_position(self, id):
+        if self.type == 'stack': return list(np.array(self.get_relative_position_stack(id=id)) + np.array(self.base_position))
+        elif self.type == 'wall': return list(np.array(self.get_relative_position_wall(id=id)) + np.array(self.base_position))
+        else: raise Exception(f"Structure type '{self.type}' not found !")
+
+    def get_relative_position_stack(self, id):
+        ''' new relative (to id=0) position is on top of all stacked objects '''
+        n_block = self.get_n_block_based_on_object_id(id)
+        return [0.,0., n_block * self.object_size]
+
+    def get_relative_position_wall(self, id):
+        ''' new wall position '''
+        n_block = self.get_n_block_based_on_object_id(id)
+
+        space_between_blocks = self.object_size / 4
+        z_step = self.object_size
+        x_step = self.object_size + space_between_blocks
+        x_odd = x_step/2
+
+        if n_block == 0:
+            return [0.,0.,0.]
+        elif n_block == 1:
+            return [x_step, 0., 0.]
+        elif n_block == 2:
+            return [x_odd, 0., z_step]
+        elif n_block == 3:
+            return [2*x_step, 0., 0.]
+        elif n_block == 4:
+            return [x_odd+x_step, 0., z_step]
+        elif n_block == 5:
+            return [x_odd*2, 0., 2*z_step]
+        elif n_block == 6:
+            return [3*x_step, 0., 0.]
+        elif n_block == 7:
+            return [x_odd+2*x_step, 0., z_step]
+        elif n_block == 8:
+            return [x_odd*2, 0., 2*z_step]
 
 
 def init():

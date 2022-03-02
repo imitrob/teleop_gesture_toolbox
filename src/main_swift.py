@@ -18,16 +18,23 @@ from os_and_utils.ros_communication_main import ROSComm
 from os_and_utils.parse_yaml import ParseYAML
 from os_and_utils.swift_interface import Swift
 
+from os_and_utils.path_def import Waypoint
+
 from promps.promp_lib import ProMPGenerator
+
+# TEMP:
+from geometry_msgs.msg import Point
 
 def main():
     # If gesture detection not enabled in ROSparam -> enable it manually
     settings.gesture_detection_on = True
     settings.launch_gesture_detection = True
+    ml.md.eef_pose.position = Point(0.3, 0.0, 0.3)
 
     roscm = ROSComm()
+    swft = Swift()
     prompg = ProMPGenerator(promp='sebasutp')
-    sl.scenes.make_scene(None, 'pickplace')
+    sl.scenes.make_scene(swft, 'pickplace')
     rate = rospy.Rate(settings.yaml_config_gestures['misc']['rate']) # Hz
     try:
         while not rospy.is_shutdown():
@@ -39,19 +46,22 @@ def main():
                 # 2. Info + Save plot data
                 print(f"fps {ml.md.frames[-1].fps}, id {ml.md.frames[-1].seq}")
                 print(f"actions queue {[act[1] for act in gl.gd.actions_queue]}")
-
+                print(f"point diretoin {ml.md.frames[-1].l.point_direction()}")
                 # Printing presented here represent current mapping
                 if gl.gd.r.dynamic.relevant():
                     print(f"Right Dynamic relevant info: Biggest prob. gesture: {gl.gd.r.dynamic.relevant().biggest_probability}")
+                    #print(ml.md.frames[-1].r.get_learning_data(definition=1))
+
                 if gl.gd.l.static.relevant():
                     print(f"Left Static relevant info: Biggest prob. gesture: {gl.gd.l.static.relevant().biggest_probability}")
 
+                    #print(ml.md.frames[-1].l.get_learning_data(definition=1))
             # 3. Handle gesture activation
-            if False: #len(gl.gd.actions_queue) > 0:
-                path = prompg.handle_action_queue(gl.gd.actions_queue.pop())
-                print(f"path {path[0]}")
-                swft = Swift()
-                swft.trajectory(path[0])
+            if len(gl.gd.actions_queue) > 0:
+                path, waypoints = prompg.handle_action_queue(gl.gd.actions_queue.pop())
+                execute_path(swft, path, waypoints)
+            #prompg.handle_action_residuum()
+            swft.step()
 
             rate.sleep()
     except KeyboardInterrupt:
@@ -60,6 +70,15 @@ def main():
     gl.gd.export()
     print("[Main] Ended")
 
+def execute_path(swft, path, waypoints):
+    print(f"path {path}")
+    swft.add_trajectory(path)
+    print(waypoints)
+    for key in waypoints.keys():
+        waypoint = waypoints[key]
+        if waypoint.gripper != None:
+            print("Actuaiotng gripper to : ", waypoint.gripper)
+            swft.set_gripper(waypoint.gripper)
 
 if __name__ == '__main__':
     if len(sys.argv)>1 and sys.argv[1] == 'ui':

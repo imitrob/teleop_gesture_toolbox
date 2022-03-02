@@ -49,14 +49,14 @@ class SampleListener(Leap.Listener):
         frame1 = controller.frame(1) # Last frame
         leapgestures = LeapMotionGestures.extract(frame.gestures(), frame1)
         f = frame_lib.Frame(frame, leapgestures)
-
+        
         if ros_enabled():
             fros = f.to_ros()
             self.frame_publisher.publish(fros)
 
-
         self.record.auto_handle(f)
         if self.print_on:
+            #print(f.r.get_learning_data(definition=1))
             print(f)
 
     def save_hand_record_callback(self, msg):

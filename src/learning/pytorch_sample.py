@@ -21,8 +21,10 @@ class PyTorch_Sample():
         self.sbatch = 64
         self.lr = 0.01
         self.nlayers = 1
-        self.nhid = 1200
+        self.nhid = 30
         self.parameter = ''
+        self.normalize = 'yes'
+        self.normalize_dim = 'yes'
 
         self.samples = 10
         self.rho = -3
@@ -33,7 +35,7 @@ class PyTorch_Sample():
         self.resume = 'no'
         self.sti = 0
 
-        self.dataset_n_time_samples = 32
+        self.dataset_n_time_samples = 4
         self.dataset_n_observations = 3
 
         self.checkpoint = settings.paths.UCB_path+'checkpoints/'

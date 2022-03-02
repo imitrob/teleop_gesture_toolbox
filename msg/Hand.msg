@@ -23,7 +23,7 @@ float64 time_visible
 float64[3] wrist_position
 float64[3] elbow_position
 
-float64[3] arm_valid
+bool arm_valid
 float64 arm_width
 float64[3] arm_direction
 float64[9] arm_basis

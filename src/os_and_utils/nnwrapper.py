@@ -78,9 +78,15 @@ class NNWrapper():
 if __name__ == '__main__':
     import sys; sys.path.append('..')
     import settings; settings.init()
-    network_name = 'PyMC3-main-set.pkl'
+    network_name = 'PyMC3-main-set-3.pkl'
+    network_name = 'network0.pkl'
     nw = NNWrapper.load_network(settings.paths.network_path, network_name)
+    nw.accuracy
+    nw.args
+    nw.type
+    nw.record_keys
     network_name
+    nw.X_train[0]
 
     NNWrapper.save_network(nw.X_train, nw.approx, nw.neural_network, settings.paths.network_path, name=network_name, Gs=nw.Gs, type=nw.type, engine=nw.engine, args=nw.args, accuracy=nw.accuracy, record_keys=nw.record_keys, filenames=nw.filenames)
 

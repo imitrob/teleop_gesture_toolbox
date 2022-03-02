@@ -20,20 +20,20 @@ def get_n_testtrain(Ylen, ratio=0.3):
     return n_train, n_test
 
 def get(data_path,seed,fixed_order=False,pc_valid=0,args=None):
+    ''' For one time training only
+        # COMBAK: Update _map to work also for updates
+    '''
+    #map[<id>] = <number of update>
+    _map = {}
+    for i in range(gl.gd.l.dynamic.info.n):
+        _map[i] = 0
 
-
-    # id: n update
-    _map = {
-    0: 0,
-    1: 0,
-    2: 0,
-    3: 0,
-    4: 0
-    }
     Gs = gl.gd.l.dynamic.info.names
-    dataloader_args = {'interpolate':1, 'discards':1, 'normalize':1, 'normalize_dim':1, 'n':0}
+    dataloader_args = {}
+    if args.normalize == 'yes': dataloader_args['normalize'] = 1
+    if args.normalize_dim == 'yes': dataloader_args['normalize_dim'] = 1
     dataloader_args['n'] = args.dataset_n_time_samples
-
+    dataloader_args['n_observations'] = args.dataset_n_observations
     ###########################################################################################
 
     data={}
@@ -48,12 +48,6 @@ def get(data_path,seed,fixed_order=False,pc_valid=0,args=None):
         X, Y = DatasetLoader(dataloader_args).load_dynamic(GlobalPaths(change_working_directory=False).learn_path, Gs=Gs)
     uniqY = list(set(Y))
     size = list(X[0:1].shape)
-
-    #my_plot(X[Y==0], [])
-    #my_plot(X[Y==1], [])
-    #my_plot(X[Y==2], [])
-    #my_plot(X[Y==3], [])
-    #my_plot(X[Y==4], [])
 
     n_train, n_test = get_n_testtrain(len(Y))
 

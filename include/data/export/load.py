@@ -7,7 +7,8 @@ gesture_columns_dynamic = ['stamp[s]', 'seq', 'swipe_down', 'swipe_front_right',
 column_mp = ['id', 'id_primitive', 'tmp_action_stamp', 'vars', 'path', 'waypoints']
 
 
-record_n = 'record_7'
+record_n = 'record_8/'
+
 gesture_data_static = np.load(f"{record_n}/gesture_data_left_static.npy")
 gesture_data_static.shape
 gesture_data_dynamic = np.load(f"{record_n}/gesture_data_right_dynamic.npy")
@@ -21,7 +22,7 @@ gesture_data_mp[0][4].shape
 def plot_static():
     viz = VisualizerLib()
     viz.visualize_new_fig('xx', dim=2, move_figure=False)
-    for i in range(4,9):
+    for i in range(2,9):
         viz.visualize_2d(list(zip(gesture_data_static[:,1], gesture_data_static[:,i])), label=f"{gesture_columns_static[i]}", xlabel='time, leap seq [-] (~10 seq/sec)', ylabel='Gesture probability', start_stop_mark=False)
     viz.savefig(f"./{record_n}/plot_3")
     viz.show()
@@ -34,8 +35,11 @@ df
 df = pd.DataFrame(columns=gesture_columns_dynamic, data=gesture_data_dynamic)
 df
 
+gesture_data_mp[0]
 df = pd.DataFrame(columns=column_mp, data=gesture_data_mp)
 df
+
+gesture_data_mp[0][3].keys()
 
 def plot_mp():
     viz = VisualizerLib()

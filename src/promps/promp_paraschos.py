@@ -6,7 +6,8 @@ import matplotlib.pyplot as plt
 from itertools import permutations, combinations
 
 #os.chdir(os.path.expanduser("~/promps_python"))
-sys.path.insert(1, os.path.expanduser("~/promps_python"))
+import settings
+sys.path.insert(1, os.path.expanduser(settings.paths.promp_paraschos_path))
 
 from promp.discrete_promp import DiscretePROMP
 from promp.linear_sys_dyn import LinearSysDyn

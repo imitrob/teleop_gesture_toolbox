@@ -18,7 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.collections import QuadMesh
-#import seaborn as sn
+import seaborn as sn
 import os
 
 def get_new_fig(fn, figsize=[9,9]):
@@ -157,8 +157,8 @@ def pretty_plot_confusion_matrix(df_cm, annot=True, cmap="Oranges", fmt='.2f', f
     fig, ax1 = get_new_fig('Conf matrix default', figsize)
 
     #thanks for seaborn
-    #ax = sn.heatmap(df_cm, annot=annot, annot_kws={"size": fz}, linewidths=lw, ax=ax1,
-    #                cbar=cbar, cmap=cmap, linecolor='w', fmt=fmt)
+    ax = sn.heatmap(df_cm, annot=annot, annot_kws={"size": fz}, linewidths=lw, ax=ax1,
+                    cbar=cbar, cmap=cmap, linecolor='w', fmt=fmt)
 
     #set ticklabels rotation
     ax.set_xticklabels(ax.get_xticklabels(), rotation = 45, fontsize = 10)

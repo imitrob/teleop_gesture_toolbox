@@ -39,11 +39,15 @@ from os_and_utils.loading import HandDataLoader, DatasetLoader
 from os_and_utils.transformations import Transformations as tfm
 from os_and_utils.utils_ros import extv
 from os_and_utils.visualizer_lib import VisualizerLib
+from os_and_utils.path_def import Waypoint
 
 import gestures_lib as gl
 if __name__ == '__main__':
     from os_and_utils.nnwrapper import NNWrapper
     gl.init()
+
+# TEMP:
+from geometry_msgs.msg import Pose, Point, Quaternion
 
 if __name__ == '__main__':
     ## init Coppelia
@@ -53,7 +57,7 @@ if __name__ == '__main__':
 
     sys.path.append(settings.paths.mirracle_sim_path)
     from utils import *
-    from utils_ros import samePoses
+
     from mirracle_sim.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
     from mirracle_sim.msg import ObjectInfo
     from sensor_msgs.msg import JointState, Image
@@ -70,6 +74,8 @@ if __name__ == '__main__':
     from os_and_utils.ros_communication_main import ROSComm
 
 from os_and_utils.parse_yaml import ParseYAML
+from os_and_utils.utils import get_object_of_closest_distance
+from os_and_utils.utils_ros import samePoses, extv
 
 def main(id, X=None, vars={}):
     return generate_path(id=id, X=X, vars=vars)
@@ -84,21 +90,36 @@ class ProMPGenerator():
         self.approach = approach
 
         self.Gs = gl.gd.l.mp.info.names
+        print("MP gestures", self.Gs)
 
-        X, self.Y = DatasetLoader(['interpolate', 'discards']).load_mp(settings.paths.learn_path, self.Gs)
-        self.X = tfm.transformPrompToSceneList_3D(X)
+        self.X, self.Y, self.robot_promps = DatasetLoader(['interpolate', 'discards']).load_mp(settings.paths.learn_path, self.Gs, approach)
+        print("Xlen", self.X.shape, self.robot_promps)
+
 
     def handle_action_queue(self, action):
         action_stamp, action_name, action_hand = action
         vars = gl.gd.var_generate(action_hand, action_stamp)
-        print(vars)
+
         path = self.generate_path(action_name, vars=vars, tmp_action_stamp=action_stamp)
 
-        ## TODO: Execute path
+        '''
+        def NormalizeData(data):
+            return (data - np.min(data)) / (np.max(data) - np.min(data))
 
-        #execute_path(path)
-        #CustomPlot.my_plot([], [path])
-
+        ## Visualize and analyze Variables attached
+        from os_and_utils.visualizer_lib import VisualizerLib
+        viz = VisualizerLib()
+        viz.visualize_new_fig("Gesture attached variables", dim=2)
+        for key in ['velocities', 'grab', 'pinch', 'holding_sphere_radius']:
+            var = vars[key]
+            viz.visualize_2d(list(zip(np.linspace(0, 1, len(var)), NormalizeData(var))),label=f"{key}", xlabel='0-1', ylabel='var values', start_stop_mark=False)
+        viz.savefig('1Dvarvalues')
+        viz.visualize_new_fig("Gesture attached variables", dim=3)
+        for key in ['point_direction', 'palm_euler']:
+            var = vars[key]
+            viz.visualize_3d(var,label=f"{key}", xlabel='X', ylabel='Y', zlabel='Z')
+        viz.savefig('3Dvarvalues')
+        '''
         print(f"Executing gesture id: {action[1]}, time diff perform to actiovation: {rospy.Time.now().to_sec()-action[0]}")
         return path
 
@@ -118,13 +139,17 @@ class ProMPGenerator():
         # Based on defined MPs in classes below
         _, mp_type = get_id_motionprimitive_type(id_primitive)
 
-        Xg = self.X[self.Y==self.Gs.index(id_primitive)]
+        try:
+            robot_promps = self.robot_promps[self.Gs.index(id_primitive)]
+        except ValueError:
+            robot_promps = None # It is static gesture
 
-        path = mp_type().by_id(Xg, id_primitive, self.approach, vars)
+        path = mp_type().by_id(robot_promps, id_primitive, self.approach, vars)
+        path_ = deepcopy(path)
         for key in path[1].keys():
             path[1][key] = path[1][key].export()
         gl.gd.action_saves.append((id, id_primitive, tmp_action_stamp, vars, path[0], path[1]))
-        return path
+        return path_
 
 def combine_promp_paths(promp_paths):
     ''' TODO
@@ -134,14 +159,13 @@ def combine_promp_paths(promp_paths):
 def map_to_primitive_gesture(id_gesture):
     ''' Mapping hand gesture ID to robot primitive gesture ID
     '''
-    gesture_config_file = ParseYAML.load_gesture_config_file(settings.paths.custom_settings_yaml)
-    mapping_set = gesture_config_file['using_mapping_set']
-    mapping = dict(gesture_config_file['mapping_sets'][mapping_set])
-
+    mapping = settings.get_gesture_mapping()
     return mapping[id_gesture]
 
 def check_waypoints_accuracy(promp_path, waypoints):
+    achieved_all = True
     for wp_t in list(waypoints.keys()):
+        if not waypoints[wp_t].p: continue
         achieved = False
         for point in promp_path:
             if samePoses(point, waypoints[wp_t].p):
@@ -149,15 +173,66 @@ def check_waypoints_accuracy(promp_path, waypoints):
 
         if achieved == False:
             print(f"[ProMP lib] Waypoint at time {wp_t} and coordinates {waypoints[wp_t]} not achieved!")
+            achieved_all = False
+    return achieved_all
 
 def choose_the_object():
     ''' Probably will move
     '''
-    pose_in_scene = ml.md.mouse3d_position #tfm.transformLeapToScene([0.,0.,100.])#[leap_3d_mouse])
-    objects_in_scenes = sl.scene.object_poses
-    object_id = get_object_of_closest_distance(objects_in_scenes, pose_in_scene)
+    #pose_in_scene = ml.md.mouse3d_position #tfm.transformLeapToScene([0.,0.,100.])#[leap_3d_mouse])
+    #objects_in_scenes = sl.scene.object_poses[ml.md.object_focus_id]
+    #object_id = get_object_of_closest_distance(objects_in_scenes, pose_in_scene)
+    object_id = ml.md.object_focus_id
     position = extv(sl.scene.object_poses[object_id].position)
     return object_id, position
+
+def handle_build_structure():
+    '''
+    # movement touch is applied
+    Returns:
+        position
+    '''
+    def get_structure_id(touch_id):
+        for n,structure in enumerate(ml.md.structures):
+            if structure.base_id == touch_id:
+                return n
+        return None
+
+    gripper = None
+    position = [0.,0.,0.]
+    if ml.md.attached: # Item must be attached to build
+        if ml.md.object_focus_id != ml.md.object_touch_id: # Focused object cannot be the object currently visiting
+            id = get_structure_id(ml.md.object_focus_id)
+            if id is not None:
+                ''' Attached object, target is struct -> add block to structure '''
+                position = ml.md.structures[id].add(ml.md.object_touch_id)
+                print(f"------------------\nAdding block to a structure\nItem is attached;; focused and touched DIFFERENT;; touched ID is member of struct;; structure id {id}, touched id {ml.md.object_touch_id}, focused id {ml.md.object_focus_id}, position {position}, structures[id].n {ml.md.structures[id].n}")
+                gripper = 1.0
+            else:
+                ''' Attached object and target object will create new structure '''
+                ml.md.structures.append(ml.Structure(type=ml.md.build_mode, id=ml.md.object_focus_id, base_position=extv(sl.scene.object_poses[ml.md.object_focus_id].position)))
+                position = ml.md.structures[0].add(ml.md.object_touch_id)
+                print(f"------------------\nCreating new structure\n Item is attached;; focused and touched DIFFERENT;; touched ID is NOT member of struct;; structure id {id}, touched id {ml.md.object_touch_id}, focused id {ml.md.object_focus_id}, position {position}, structures {ml.md.structures}")
+                gripper = 1.0
+        else:
+            ''' Pointing target is same as focused -> do nothing '''
+            print(f"------------------\nDo nothing\n Item is attached;; focused and touched are SAME;; touched ID is member of struct;; touched id {ml.md.object_touch_id}, focused id {ml.md.object_focus_id}, structures {ml.md.structures}")
+            return None, None
+    else:
+        id = get_structure_id(ml.md.object_focus_id)
+        if id is not None: # member of structure
+            ''' No item is attached, touch the latest object of the structure '''
+            position = ml.md.structures[id].get_position(ml.md.object_focus_id)
+            print(f"------------------\nTouch the latest object of the structure\n Item is NOT attached;; touched ID is member of struct;; structure id {id}, touched id {ml.md.object_touch_id}, focused id {ml.md.object_focus_id}, position {position}, structures.n {ml.md.structures[id].n}")
+            gripper = 0.0
+        else:
+            ''' No item is attached, touch simple object '''
+            _, position = choose_the_object()
+            print(f"------------------\nTouch simple object\n Item is NOT attached;; touched ID is NOT member of struct;; structure id {id}, touched id {ml.md.object_touch_id}, focused id {ml.md.object_focus_id}, position {position}, structures {ml.md.structures}")
+            gripper = 0.0
+    return position, gripper
+
+
 
 def get_id_motionprimitive_type(id):
     '''
@@ -180,22 +255,27 @@ def get_id_motionprimitive_type(id):
         return 2, CombinedMotionPrimitiveGenerator
     else: raise Exception(f"[ProMP lib] Motion Primitive Type ({id}) is not defined in any class!")
 
-class Waypoint():
-    def __init__(self, p=None, v=None, gripper=None, eef_rot=None):
-        self.p = p # position [x,y,z]
-        self.v = v # velocity [x,y,z]
-        self.gripper = gripper # open to close (0. to 1.) [-]
-        self.eef_rot = eef_rot # last joint position (-2.8973 to 2.8973) [rad]
-    def export(self):
-        return (self.p, self.v, self.gripper, self.eef_rot)
-
 class ProbabilisticMotionPrimitiveGenerator():
-    def by_id(self, X, id_primitive, approach, vars):
+    def by_id(self, robot_promps, id_primitive, approach, vars):
         # get waypoints based on gesture, uses chosen class function
         construct_waypoints = getattr(self,id_primitive)
         waypoints = construct_waypoints(vars)
+        print("waypoints ", [waypoints[wp].export() for wp in waypoints])
+        promp_path = approach.sample_promp_trajectory_waypoints(robot_promps, waypoints)
+        if not check_waypoints_accuracy(promp_path, waypoints):
+            print("Waypoints not accurate, assigning default waypoints!")
+            promp_path = []
+            for wpkey in waypoints:
+                wp = waypoints[wpkey]
+                promp_path.append(wp.p)
+        return promp_path, waypoints
 
-        promp_path = approach.construct_promp_trajectory_waypoints(X, waypoints)
+    def update_by_id(self, robot_promps, id_primitive, approach, vars):
+        # get waypoints based on gesture, uses chosen class function
+        construct_waypoints = getattr(self,f"{id_primitive}_update")
+        waypoints = construct_waypoints(vars)
+
+        promp_path = approach.sample_promp_trajectory_waypoints(robot_promps, waypoints)
         check_waypoints_accuracy(promp_path, waypoints)
         return promp_path, waypoints
 
@@ -204,38 +284,43 @@ class ProbabilisticMotionPrimitiveGenerator():
         # Assign starting point to robot eef
         waypoints[0.0] = Waypoint(p=extv(ml.md.eef_pose.position))
         # Assign target point of the motion to obj. position
-        _, object_position = choose_the_object()
-        waypoints[1.0] = Waypoint(p=object_position)
+        object_id, object_position = choose_the_object()
+
+        # # TODO: apply real object len
+        #over_object_position = (object_position[0], object_position[1], object_position[2]+0.1)
+        #waypoints[0.7] = Waypoint(p=over_object_position)
+
+        object_position, gripper = handle_build_structure()
+
+        # TODO: Assigning should not be here
+        ml.md.object_touch_id = object_id
+        waypoints[1.0] = Waypoint(p=object_position, gripper=gripper)
 
         return waypoints
-
+    '''
     def bump(self, vars = {}):
         waypoints = {}
         # Assign starting point to robot eef
         waypoints[0.0] = Waypoint(p=extv(ml.md.eef_pose.position))
         # Assign bump point of the motion to obj. position
         _, object_position = choose_the_object()
-        waypoints[0.8] = Waypoint(p=object_position)
+        waypoints[1.0] = Waypoint(p=object_position)
 
         return waypoints
-
+    '''
     def kick(self, vars = {}):
         waypoints = {}
         # Assign starting point to robot eef
         waypoints[0.0] = Waypoint(p=extv(ml.md.eef_pose.position))
         # Assign kick point of the motion to obj. position
         _, object_position = choose_the_object()
-        waypoints[0.7] = Waypoint(p=object_position, v=vars['direction'])
+        waypoints[0.8] = Waypoint(p=object_position)
 
-        return waypoints
-
-    def nothing(self, vars = {}):
-        waypoints = {}
         return waypoints
 
 
 class StaticMotionPrimitiveGenerator():
-    def by_id(self, X, id_primitive, approach, vars):
+    def by_id(self, robot_promps, id_primitive, approach, vars):
         # get waypoints based on gesture, uses chosen class function
         construct_waypoints = getattr(self,id_primitive)
         waypoints = construct_waypoints(vars)
@@ -243,9 +328,31 @@ class StaticMotionPrimitiveGenerator():
         path = construct_dummy_trajectory_waypoints(waypoints)
         return path, waypoints
 
+    def update_by_id(self, robot_promps, id_primitive, approach, vars):
+        # get waypoints based on gesture, uses chosen class function
+        construct_waypoints = getattr(self,f"{id_primitive}_update")
+        waypoints = construct_waypoints(vars)
+
+        path = construct_dummy_trajectory_waypoints(waypoints)
+        return path, waypoints
+
+    def build_switch(self, vars):
+        return {}
+
     def gripper(self, vars):
         waypoints = {}
-        waypoints[1.0] = Waypoint(gripper = vars['pinch'])
+
+        # choose the average from second half
+        #pinch = vars['pinch']
+        #gripper_value = 1-np.mean(pinch[-1])
+        #waypoints[1.0] = Waypoint(gripper = gripper_value)
+        return waypoints
+
+    def gripper_update(self, vars):
+        pass
+
+    def focus(self, vars):
+        waypoints = {}
         return waypoints
 
     def rotate_eef(self, vars):
@@ -279,15 +386,40 @@ class StaticMotionPrimitiveGenerator():
         waypoints[1.0] = Waypoint(p = extv(sl.poses['home']['pose']['position']))
         return waypoints
 
+    def nothing(self, vars = {}):
+        waypoints = {}
+        return waypoints
+
+    def direction_move(self, vars = {}):
+        waypoints = {}
+
+        point_direction = vars['point_direction']
+        last_point_direction = point_direction[-1]
+        if last_point_direction[0] < 0: # observarion
+            print("%%% GOING RIGHT")
+        else:
+            print("%%% GOING LEFT")
+
+        # Assign starting point to robot eef
+        px, py, pz = extv(ml.md.eef_pose.position)
+        waypoints[0.0] = Waypoint(p=[px,py,pz])
+        # Assign kick point of the motion to obj. position
+        #_, object_position = choose_the_object()
+        px += 0.1
+        ml.md.eef_pose.position = Point(px, py, pz)
+        waypoints[1.0] = Waypoint(p=[px,py,pz])
+
+        return waypoints
+
 class CombinedMotionPrimitiveGenerator():
-    def by_id(self, X, id_primitive, approach, vars):
+    def by_id(self, robot_promps, id_primitive, approach, vars):
         # get waypoints based on gesture, uses chosen class function
         construct_waypoints = getattr(self,id_primitive)
         waypoint_lists = construct_waypoints(vars)
 
         promp_paths = []
         for waypoints in waypoint_lists:
-            promp_path = approach.construct_promp_trajectory_waypoints(X, waypoints)
+            promp_path = approach.sample_promp_trajectory_waypoints(robot_promps, waypoints)
             check_waypoints_accuracy(promp_path, waypoints)
             promp_paths.append(promp_path)
         return promp_paths_combine(promp_path), waypoint_lists
