@@ -9,6 +9,7 @@ import gestures_lib as gl
 if __name__ == '__main__': gl.init()
 import os_and_utils.scenes as sl
 if __name__ == '__main__': sl.init()
+from os_and_utils.transformations import Transformations as tfm
 
 from std_msgs.msg import Int8, Float64MultiArray, Int32, Bool, MultiArrayDimension
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, Vector3
@@ -23,6 +24,8 @@ from leapmotion.frame_lib import Frame
 import mirracle_gestures.msg as rosm
 from mirracle_gestures.msg import DetectionSolution, DetectionObservations
 from mirracle_sim.msg import ObjectInfo
+
+from copy import deepcopy
 
 class ROSComm():
     ''' ROS communication of main thread: Subscribers (init & callbacks) and Publishers
@@ -169,26 +172,51 @@ class ROSComm():
             time_samples = settings.yaml_config_gestures['misc_network_args']['time_samples']
             if 'dynamic' in hand_mode[key] and len(ml.md.frames) > time_samples:
                 args = gl.gd.dynamic_network_info
-                if key == 'l':
-                    if ml.md.l_present():
-                        data = np.array([frame.l.get_single_learning_data_dynamic(definition=args['input_definition_version']) for frame in ml.md.frames.copy()])
-                        msg.observations.data = data[-time_samples:]
+                if getattr(ml.md, key+'_present')():
+                    try:
+                        ''' Warn when low FPS '''
+                        n = ml.md.frames[-1].fps
+                        if n < 5: print("Warning: FPS =", n)
+
+                        ''' Creates timestamp indexes starting with [-1, -x, ...] '''
+                        time_samples_series = [-1]
+                        time_samples_series.extend((n * np.array(range(-1, -time_samples, -1))  / time_samples).astype(int))
+
+                        ''' Compose data '''
+                        data_composition = []
+                        for time_sample in time_samples_series:
+                            data_composition.append(getattr(ml.md.frames[time_sample], key).get_single_learning_data_dynamic(definition=args['input_definition_version']))
+
+                        ''' Transform to Leap frame id '''
+                        data_composition_ = []
+                        for point in data_composition:
+                            data_composition_.append(tfm.transformLeapToBase(point, out='position'))
+                        data_composition = data_composition_
+
+                        ''' Check if the length of composed data is aorund 1sec '''
+                        if 0.7 >= ml.md.frames[-1].stamp() - ml.md.frames[int(-n)].stamp() >= 1.3:
+                            print("WARNING: data frame composed is not 1sec long")
+
+                        ''' Subtract middle path point from all path points '''
+                        if 'normalize' in args:
+                            data_composition_ = []
+                            data_composition0 = deepcopy(data_composition[len(data_composition)//2])
+                            for n in range(0, len(data_composition)):
+                                data_composition_.append(np.subtract(data_composition[n], data_composition0))
+                            data_composition = data_composition_
+
+                        ''' Fill the ROS msg '''
+                        msg.observations.data = np.array(data_composition)
+
                         mad1.size = msg.observations.data.shape[0]
                         mad2.size = msg.observations.data.shape[1]
                         msg.observations.data = msg.observations.data.flatten()
                         msg.observations.layout.dim = [mad1, mad2]
-                        msg.header.frame_id = 'l'
+                        msg.header.frame_id = key
                         self.dynamic_detection_observations_pub.publish(msg)
-                elif key == 'r':
-                    if ml.md.r_present():
-                        data = np.array([frame.r.get_single_learning_data_dynamic(definition=args['input_definition_version']) for frame in ml.md.frames.copy()])
-                        msg.observations.data = data[-time_samples:]
-                        mad1.size = msg.observations.data.shape[0]
-                        mad2.size = msg.observations.data.shape[1]
-                        msg.observations.data = msg.observations.data.flatten()
-                        msg.observations.layout.dim = [mad1, mad2]
-                        msg.header.frame_id = 'r'
-                        self.dynamic_detection_observations_pub.publish(msg)
+                    except IndexError:
+                        pass
+
 
     def detection_thread(self, freq=1., args={}):
         if not ROS: raise Exception("ROS cannot be imported!")
