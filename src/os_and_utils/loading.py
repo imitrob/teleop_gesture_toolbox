@@ -163,10 +163,9 @@ class DatasetLoader():
         data = np.load(f"{dir}tmp_mp{HandDataLoader().get_ext()}", allow_pickle=True).item()
         return data['X'], data['Y']
 
-    def load_mp(self,dir,Gs, approach):
+    def load_mp(self,dir,Gs, approach, new=False):
         ## Load movements same as dynamic
-        X, Y, diff = self.load_dynamic(dir=dir, Gs=Gs, type='mp', out='diff')
-        X = tfm.transformPrompToSceneList_3D(X)
+        X, Y, diff = self.load_dynamic(dir=dir, Gs=Gs, type='mp', out='diff', new=new)
         ## Check trained MPs
         robot_promps = []
         '''
@@ -187,7 +186,7 @@ class DatasetLoader():
         '''
         return X,Y,robot_promps
 
-    def load_dynamic(self, dir, Gs, type = 'dynamic', out=''):
+    def load_dynamic(self, dir, Gs, type = 'dynamic', out='', new=False):
         ''' Rename this function!
             Main function:
             - Get difference
@@ -196,7 +195,7 @@ class DatasetLoader():
 
         data = self.load_tmp(dir, type=type)
         files = self.hdl.get_files(dir,Gs)
-        if not data:
+        if not data or new:
             print("[Loading] No data, loading all directory")
             HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
             if type == 'dynamic':
@@ -464,6 +463,23 @@ class DatasetLoader():
                     Xpalm[n,m] = (dim2 - np.min(dim1)) / (np.max(dim1) - np.min(dim1))
             Xpalm = np.swapaxes(Xpalm, 1, 2)
             Xpalm = np.array(Xpalm)
+
+        ''' Inverse path: Start is end
+            - How data are saved, it saves as inverted
+        '''
+        if 'inverse' in self.args:
+            Xpalm = np.array(Xpalm)
+            Xpalm_ = []
+            for p in Xpalm:
+                p_ = []
+                for n in range(0, len(p)):
+                    p_.append(p[-n-1])
+                Xpalm_.append(p_)
+
+            Xpalm = np.array(Xpalm_)
+
+        if 'scene_frame' in self.args:
+            Xpath = tfm.transformLeapToBase_3D(Xpalm)
 
         ''' Discard nan and inf
         '''
