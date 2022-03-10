@@ -6,7 +6,12 @@
 from PyQt5.QtWidgets import *
 from PyQt5.QtGui import *
 from PyQt5.QtCore import *
-import sys, random, time, csv, yaml
+import sys, random, time, csv, yaml, matplotlib
+matplotlib.use('Qt5Agg')
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
+from collections import deque
+
 import settings
 if __name__ == '__main__': settings.init()
 from os_and_utils.nnwrapper import NNWrapper
@@ -23,6 +28,8 @@ from copy import deepcopy
 from os.path import expanduser, isfile, isdir
 from os_and_utils.transformations import Transformations as tfm
 from os_and_utils.utils import point_by_ratio
+from os_and_utils.transformations_utils import is_hand_inside_ball
+
 try:
     from sklearn.metrics import confusion_matrix
 except ModuleNotFoundError:
@@ -32,6 +39,182 @@ import rospy
 # ros msg classes
 from geometry_msgs.msg import Quaternion, Pose, Point
 from mirracle_gestures.srv import ChangeNetwork, SaveHandRecord
+
+import matplotlib
+matplotlib.use('Qt5Agg')
+from PyQt5 import QtCore, QtWidgets
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.figure import Figure
+
+class MplCanvas(FigureCanvasQTAgg):
+    ''' Paint with matplotlib on window '''
+    def __init__(self, parent=None, width=5, height=8, dpi=100):
+        ''' Creates two vertical plots
+        '''
+        fig = Figure(figsize=(width, height), dpi=dpi)
+        self.axes = fig.add_subplot(211)
+        self.axes2 = fig.add_subplot(212)
+        #axes2 = fig.add_subplot(122, xlabel='time [s]', ylabel='Total timewarp distance [mm]')
+        super(MplCanvas, self).__init__(fig)
+
+class AnotherWindowPlot(QWidget):
+
+    def __init__(self, *args, **kwargs):
+        super(QWidget, self).__init__(*args, **kwargs)
+
+        self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
+        layout = QVBoxLayout()
+        layout.addWidget(self.canvas)
+        self.setLayout(layout)
+
+        max_len = 50
+        self.xdata = deque(maxlen=max_len)
+        self.ydata = deque(maxlen=max_len)
+
+        self.show()
+
+    def set_n_series(self, n_series):
+        self.n_series = n_series
+
+    def update_plot(self, stamps, values, hand='r', type='dynamic', options='log'):
+        ''' Might be little messy when constructing plot data
+            Takes data from ml.md and gl.gd
+        Parameters:
+            stamps (float[]): stamps in [s]
+            values (float[][]): likelihoods shape=(time x gs)
+            hand (str): 'l', 'r'
+            type (str): 'static', 'dynamic'
+            options (str): - log (function)
+        '''
+        if 'log' in options:
+            values = np.log(np.array(values))
+
+        ''' Creates the list of markers with highest likelihood
+            shape=(markers x 2), where marker is [n, id]
+        '''
+        list_of_markers = []
+        id_last = 999
+        for n,values_ in enumerate(values):
+            id_max = np.argmax(values_)
+            if id_max != id_last:
+                list_of_markers.append([n, id_max])
+            id_last = id_max
+
+        ''' Upper plot '''
+        self.canvas.axes.cla()  # clear the axes content
+        self.canvas.axes.plot(stamps, values)
+        self.canvas.axes.set_xlabel('time [s]')
+        self.canvas.axes.set_ylabel(f'DTW {options}(1/(DTW_dist)) [mm^-1]')
+        self.canvas.axes.legend(gl.gd.dynamic_info().names)
+        for n,id in list_of_markers:
+            self.canvas.axes.annotate(gl.gd.dynamic_info().names[id], xy=(stamps[n], values[n][0]), color='black',
+                        fontsize="small", weight='light',
+                        horizontalalignment='center',
+                        verticalalignment='center')
+
+        ''' Bottom plot '''
+        #self.canvas.axes2.cla()
+
+        # 1
+        list_of_actions_hand_inside_ball = []
+        prev_on = False
+        on_stamp = None
+
+        # 2
+        list_of_actions_hand_visible = []
+        prev_on_hand_visible = False
+        on_stamp_hand_visible = None
+
+        lenframes = len(ml.md.frames)
+        for n,frm in enumerate(ml.md.frames.copy()):
+            # 1
+            if is_hand_inside_ball(getattr(frm, hand)):
+                if prev_on == False:
+                    prev_on = True
+                    on_stamp = frm.stamp()
+                elif n == lenframes-1 and np.array(on_stamp).any():
+                    list_of_actions_hand_inside_ball.append((on_stamp, frm.stamp()-on_stamp))
+            else:
+                if prev_on == True:
+                    prev_on = False
+
+                    list_of_actions_hand_inside_ball.append((on_stamp, frm.stamp()-on_stamp))
+
+                    on_stamp = None
+            # 2
+            if getattr(frm, hand).visible:
+                if prev_on_hand_visible == False:
+                    prev_on_hand_visible = True
+                    on_stamp_hand_visible = frm.stamp()
+                elif n == lenframes-1 and np.array(on_stamp_hand_visible).any():
+                    list_of_actions_hand_visible.append((on_stamp_hand_visible, frm.stamp()-on_stamp_hand_visible))
+            else:
+                if prev_on_hand_visible == True:
+                    prev_on_hand_visible = False
+
+                    list_of_actions_hand_visible.append((on_stamp_hand_visible, frm.stamp()-on_stamp_hand_visible))
+
+                    on_stamp_hand_visible = None
+
+        # 3
+        list_of_actions_activates = []
+        list_of_actions_activates_colors = []
+        list_of_actions_ids = []
+        prev_id_activates = False
+        on_stamp_activates = None
+        gl_gd_h_t = getattr(getattr(gl.gd, hand), type)
+        lenframes = len(gl_gd_h_t[:])
+
+        def id_to_color(id):
+            map = {
+                0: 'tab:blue',
+                1: 'tab:green',
+                2: 'tab:red',
+                3: 'tab:orange',
+                4: 'tab:gray'
+            }
+            return map[id]
+
+        list_of_action_activates = []
+        for n, frm in enumerate(gl_gd_h_t[:].copy()):
+            if np.array(frm.action_activate_id).any():
+                list_of_action_activates.append(frm.header.stamp)
+
+            if np.array(frm.activate_id).any():
+                if prev_id_activates == False:
+                    prev_id_activates = frm.activate_id
+                    on_stamp_activates = frm.header.stamp
+                elif n == lenframes-1 and np.array(on_stamp_activates).any():
+                    list_of_actions_activates.append((on_stamp_activates, frm.header.stamp-on_stamp_activates))
+                    list_of_actions_activates_colors.append(id_to_color(prev_id_activates))
+                    list_of_actions_ids.append(prev_id_activates)
+            else:
+                if prev_id_activates != False:
+                    list_of_actions_activates.append((on_stamp_activates, frm.header.stamp-on_stamp_activates))
+                    list_of_actions_activates_colors.append(id_to_color(prev_id_activates))
+                    list_of_actions_ids.append(prev_id_activates)
+                    prev_id_activates = False
+                    on_stamp_activates = None
+
+        self.canvas.axes2.plot(stamps, [0.0]*len(stamps))
+        for id, stamp in zip(list_of_actions_ids, list_of_actions_activates):
+            self.canvas.axes2.annotate(gl.gd.dynamic_info().names[id],  xy=(stamp[0], id), color='black',
+            fontsize="small", weight='light',
+            horizontalalignment='center',
+            verticalalignment='center')
+        self.canvas.axes2.broken_barh(list_of_actions_hand_inside_ball, (4, 4), facecolors='tab:green')
+        self.canvas.axes2.broken_barh(list_of_actions_hand_visible, (8, 4), facecolors='tab:blue')
+        self.canvas.axes2.broken_barh(list_of_actions_activates, (0, 4), facecolors=list_of_actions_activates_colors)
+
+        self.canvas.axes2.set_ylim(0, 12)
+        self.canvas.axes2.set_xlabel('time [s]')
+        self.canvas.axes2.set_yticks([2, 6, 10], labels=['Activated|Action', 'Base area', 'Hand visible'])
+        self.canvas.axes2.grid(True)
+
+        self.canvas.axes2.vlines(x=list_of_action_activates, ymin=0, ymax=12, color='k')
+
+        self.canvas.draw_idle()
+
 
 class Example(QMainWindow):
 
@@ -139,6 +322,18 @@ class Example(QMainWindow):
         self.btnRecordActivate.clicked.connect(self.record_with_keys)
         self.btnRecordActivate.setGeometry(LEFT_MARGIN+130, START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
 
+        self.btnPlotActivate = QPushButton('Update plot', self)
+        self.btnPlotActivate.clicked.connect(self.update_plot_with_vars)
+        self.btnPlotActivate.setGeometry(LEFT_MARGIN+130+int(ICON_SIZE*2), START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.btnExportDataActivate = QPushButton('Export data', self)
+        self.btnExportDataActivate.clicked.connect(self.export_plot_data)
+        self.btnExportDataActivate.setGeometry(LEFT_MARGIN+130+int(ICON_SIZE*4), START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.btnDeletePlotActivate = QPushButton('Delete data', self)
+        self.btnDeletePlotActivate.clicked.connect(self.delete_plot_data)
+        self.btnDeletePlotActivate.setGeometry(LEFT_MARGIN+130+int(ICON_SIZE*6), START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
+
         # Move Page
         lbls = ['Pos. X:', 'Pos. Y:', 'Pos. Z:', 'Ori. X:', 'Ori. Y:', 'Ori. Z:', 'Ori. W:', 'Gripper:']
         lblsVals = ['0.0', '0.0', '1.0', '0.0', '0.0', '0.0', '1.0', '0.0']
@@ -213,6 +408,12 @@ class Example(QMainWindow):
         viewMoveOptionsAction.setStatusTip('View move data')
         viewMoveOptionsAction.setChecked(True)
         viewMoveOptionsAction.triggered.connect(self.toggleViewMoveMenu)
+        viewPlotWindowAction = QAction('View plot window', self, checkable=True)
+        viewPlotWindowAction.setStatusTip('View plot window')
+        viewPlotWindowAction.setChecked(False)
+        viewPlotWindowAction.triggered.connect(self.togglePlotWindow)
+
+
         ## Menu items -> Go to page
         viewGoToInfoAction = QAction('Info page', self)
         viewGoToInfoAction.setStatusTip('Info page')
@@ -283,6 +484,7 @@ class Example(QMainWindow):
         ## Add actions to the menu
         viewMenu.addAction(viewOptionsAction)
         viewMenu.addAction(viewMoveOptionsAction)
+        viewMenu.addAction(viewPlotWindowAction)
         pageMenu.addAction(viewGoToInfoAction)
         pageMenu.addAction(viewGoToControlAction)
         pageMenu.addAction(viewGoToMoveAction)
@@ -330,6 +532,9 @@ class Example(QMainWindow):
         self.AllVisibleObjects.append(ObjectQt('comboInteractiveSceneChanges',self.comboInteractiveSceneChanges,0,view_group=['MoveViewState', 'live']))
 
         self.AllVisibleObjects.append(ObjectQt('btnRecordActivate',self.btnRecordActivate,0,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('btnPlotActivate',self.btnPlotActivate,0,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('btnExportDataActivate',self.btnExportDataActivate,0,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('btnDeletePlotActivate',self.btnDeletePlotActivate,0,view_group=['MoveViewState']))
 
         for n,obj in enumerate(self.lblConfNamesObj):
             self.AllVisibleObjects.append(ObjectQt('lblConfNamesObj'+str(n),obj,1,view_group=['MoveViewState']))
@@ -353,6 +558,19 @@ class Example(QMainWindow):
         self.mousex, self.mousey = 0.,0.
         self.updateLeftRightPanel(rightPanelNames=['r conf.', 'l conf.'])
         print("[Interface] Done")
+
+        self.plot_window = None
+
+        # Various
+        self.paint_sequence = 0
+
+    def togglePlotWindow(self, state):
+        if state:
+            self.plot_window = AnotherWindowPlot()
+            self.plot_window.show()
+            self.plot_window.set_n_series(gl.gd.l.dynamic.info.n)
+        else:
+            self.plot_window = None
 
     def updateLeftRightPanel(self, leftPanelNames=None, rightPanelNames=None):
         ''' Update names on left or right panel
@@ -594,6 +812,23 @@ class Example(QMainWindow):
         if not state: state = True
         settings.record_with_keys = state
 
+    def update_plot_with_vars(self):
+        if gl.gd.r.dynamic and gl.gd.r.dynamic[-1]:
+            self.plot_window.update_plot([d.header.stamp for d in gl.gd.r.dynamic[:].copy()], [d.probabilities for d in gl.gd.r.dynamic[:].copy()])
+
+    def export_plot_data(self):
+        gl.gd.export()
+        print("[UI] Plot data exported!")
+
+    def delete_plot_data(self):
+        ml.md.frames.clear()
+        gl.gd.l.dynamic.data_queue.clear()
+        gl.gd.r.dynamic.data_queue.clear()
+        gl.gd.l.static.data_queue.clear()
+        gl.gd.r.static.data_queue.clear()
+        self.plot_window.canvas.axes2.cla()
+        print("[UI] All data deleted!")
+
     def goScene(self, index):
         scenes = sl.scenes.names()
         sl.scenes.make_scene(ml.md.m, scenes[index])
@@ -628,6 +863,11 @@ class Example(QMainWindow):
         self.w = settings.w = self.size().width()
         self.h = settings.h = self.size().height()
 
+        '''
+        if self.paint_sequence % 50 == 0:
+            self.update_plot_with_vars()
+        self.paint_sequence += 1
+        '''
         ## Set all objects on page visible (the rest set invisible)
         for obj in self.AllVisibleObjects:
             # Every object that belongs to that group are conditioned by that group
@@ -660,8 +900,14 @@ class Example(QMainWindow):
                         p1 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n], h).palm_pose())
                         #p2 = tfm.transformLeapToUIsimple(ml.md.frames[-n-1].l.palm_pose())
                         p2 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n-1], h).palm_pose())
-                        painter.setPen(QPen(Qt.red, p1.position.z))
-                        painter.drawLine(p1.position.x, p1.position.y, p2.position.x, p2.position.y)
+                        if is_hand_inside_ball(getattr(ml.md.frames[-n], h)):
+                            painter.setPen(QPen(Qt.green, p1.position.z))
+                            painter.drawLine(p1.position.x, p1.position.y, p2.position.x, p2.position.y)
+                        else:
+                            painter.setPen(QPen(Qt.red, 1))
+                            painter.drawLine(p1.position.x-10, p1.position.y-10, p2.position.x+10, p2.position.y+10)
+                            painter.drawLine(p1.position.x-10, p1.position.y+10, p2.position.x+10, p2.position.y-10)
+
         if gl.gd.r.static[-1] and self.cursor_enabled() and 'point' in gl.gd.r.static.info.names:
             pose_c = tfm.transformLeapToUIsimple(ml.md.frames[-1].r.palm_pose())
             x_c,y_c = pose_c.position.x, pose_c.position.y
