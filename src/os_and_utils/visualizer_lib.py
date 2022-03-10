@@ -25,6 +25,13 @@ import numpy as np
 import time as t
 import argparse
 
+## Mirracle gestures includes
+try:
+    import settings; settings.init()
+    from os_and_utils import scenes as sl; sl.init()
+except ModuleNotFoundError:
+    pass
+
 # Ensure package independency to ROS
 try:
     from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped, Vector3Stamped, QuaternionStamped, Vector3
@@ -128,7 +135,7 @@ class VisualizerLib():
             self.ax.scatter(xt, yt, marker='|', color='black', zorder=2, alpha=0.3)
 
         if label != "":
-            plt.legend(loc="upper left", bbox_to_anchor=(-0.15, 1.0))
+            self.ax.legend(loc="upper left", bbox_to_anchor=(-0.15, 1.0))
 
         #plt.annotate("Num points:", xy=(-0.15, 1.0), xycoords='axes fraction')
         self.fig.canvas.draw()
@@ -482,7 +489,75 @@ def main(args):
         if plotToppraPlan:
             self.plot_plan(plan=settings.toppraPlan)
 
+class ScenePlot:
+    '''
+    promp_paths = approach.construct_promp_trajectories2(X, Y, start='mean')
+    promp_paths_0_0 = approach.construct_promp_trajectories2(X, Y, start='0')
+    promp_paths_0_1 = approach.construct_promp_trajectories2(X, Y, start='')
+    promp_paths_test1 = approach.construct_promp_trajectories2(X, Y, start='test')
 
+    promp_paths_grab_mean = [promp_paths[0], promp_paths_0_0[0], promp_paths_0_1[0]]
+    my_plot(X[Y==0], promp_paths_grab_mean)
+
+    promp_paths_kick_mean = [promp_paths[1], promp_paths_0_0[1], promp_paths_0_1[1]]
+    my_plot(X[Y==1], promp_paths_kick_mean)
+
+    promp_paths_nothing_mean = [promp_paths[2], promp_paths_0_0[2], promp_paths_0_1[2]]
+    my_plot(X[Y==2], promp_paths_nothing_mean)
+    '''
+    @staticmethod
+    def my_plot(data, promp_path_waypoints_tuple):
+
+        plt.rcParams["figure.figsize"] = (20,20)
+        ax = plt.axes(projection='3d')
+        for path in data:
+            ax.plot3D(path[:,0], path[:,1], path[:,2], 'blue', alpha=0.2)
+            ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
+            ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
+        colors = ['blue','black', 'yellow', 'red', 'cyan', 'green']
+        for n,path_waypoints_tuple in enumerate(promp_path_waypoints_tuple):
+            path, waypoints = path_waypoints_tuple
+            ax.plot3D(path[:,0], path[:,1], path[:,2], colors[n], label=f"Series {str(n)}", alpha=1.0)
+            ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
+            ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
+            npoints = 5
+            p = int(len(path[:,0])/npoints)
+            for n in range(npoints):
+                ax.text(path[:,0][n*p], path[:,1][n*p], path[:,2][n*p], str(100*n*p/len(path[:,0]))+"%")
+            for n, waypoint_key in enumerate(list(waypoints.keys())):
+                waypoint = waypoints[waypoint_key]
+                s = f"wp {n} "
+                if waypoint.gripper is not None: s += f'(gripper {waypoint.gripper})'
+                if waypoint.eef_rot is not None: s += f'(eef_rot {waypoint.eef_rot})'
+                ax.text(waypoint.p[0], waypoint.p[1], waypoint.p[2], s)
+        ax.legend()
+        # Leap Motion
+        X,Y,Z = VisualizerLib.cuboid_data([0.475, 0.0, 0.0], (0.004, 0.010, 0.001))
+        ax.plot_surface(X, Y, Z, color='grey', rstride=1, cstride=1, alpha=0.5)
+        ax.text(0.475, 0.0, 0.0, 'Leap Motion')
+
+        if sl.scene:
+            for n in range(len(sl.scene.object_poses)):
+                pos = sl.scene.object_poses[n].position
+                size = sl.scene.object_sizes[n]
+                X,Y,Z = VisualizerLib.cuboid_data([pos.x, pos.y, pos.z], (size.x, size.y, size.z))
+                ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
+
+        # Create cubic bounding box to simulate equal aspect ratio
+        X = np.array([0.3,0.7]); Y = np.array([-0.2, 0.2]); Z = np.array([0.0, 0.5])
+        max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
+        Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
+        Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
+        Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
+        # Comment or uncomment following both lines to test the fake bounding box:
+        for xb, yb, zb in zip(Xb, Yb, Zb):
+           ax.plot([xb], [yb], [zb], 'w')
+
+        ax.set_xlabel('X [m]')
+        ax.set_ylabel('Y [m]')
+        ax.set_zlabel('Z [m]')
+        #plt.savefig('/home/pierro/Documents/test_promp_nothing_4_differentstarts.png', format='png')
+        plt.show()
 
 if __name__ == "__main__":
     parser=argparse.ArgumentParser(description='')

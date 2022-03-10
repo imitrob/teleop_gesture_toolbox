@@ -22,7 +22,7 @@ from os_and_utils.parse_yaml import ParseYAML
 sys.path.append(settings.paths.mirracle_sim_path)
 from coppelia_sim_ros_lib import CoppeliaROSInterface
 
-from promps.promp_lib import ProMPGenerator, CustomPlot
+from promps.promp_lib import ProMPGenerator
 
 def main():
     # If gesture detection not enabled in ROSparam -> enable it manually

@@ -23,7 +23,7 @@ if False:
 demos_list = []
 Ddemos_list = []
 
-def construct_promp_trajectories(Xpalm, Y):
+def construct_promp_trajectories(Xpalm, Y, condition=False):
     ''' Main function for generating trajectories
 
     '''
@@ -41,10 +41,11 @@ def construct_promp_trajectories(Xpalm, Y):
             d_promp = DiscretePROMP(data=demos_list)
             d_promp.train()
 
-            meanstart = np.mean([i[0] for i in demos_list])
-            meangoal = np.mean([i[-1] for i in demos_list])
-            d_promp.set_start(meanstart) #demos_list[0][0])
-            d_promp.set_goal(meangoal) #demos_list[0][-1])
+            if condition:
+                meanstart = np.mean([i[0] for i in demos_list])
+                meangoal = np.mean([i[-1] for i in demos_list])
+                d_promp.set_start(meanstart) #demos_list[0][0])
+                d_promp.set_goal(meangoal) #demos_list[0][-1])
             pos_2, vel_2, acc_2 = d_promp.generate_trajectory(phase_speed=1.,   randomness=0.)
 
             row.append(pos_2.T[0])

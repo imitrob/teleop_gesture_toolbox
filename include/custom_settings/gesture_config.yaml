@@ -45,7 +45,7 @@ network_sets:
     dynamic_network_file:
 
 misc_network_args:
-  time_samples: 32
+  time_samples: 5
 
 misc:
   rate: 10
@@ -61,6 +61,9 @@ hand_mode_sets:
   setbothstatic:
     l: static
     r: static
+  setnone:
+    l: none
+    r: none
 
 # Mapping gesture ID to MotionPrimitiveID
 # Mapping example:
@@ -69,17 +72,18 @@ mapping_sets:
   main_map:
     grab: gripper
     pinch: gripper
-    point: touch
-    two: kick
-    three: build_switch
+    point: focus
+    two: focus
+    three: focus
     four: nothing
-    five: focus
-    thumbsup: go_to_home
+    five: nothing
+    thumbsup: gripper
     swipe_down: touch
     swipe_front_right: nothing
     swipe_left: nothing
-    swipe_up: touch
+    swipe_up: go_to_home
     round: touch
+    nothing_dyn: nothing
     # write about
     # solve RLBench task, push buttons in an order
   set0:

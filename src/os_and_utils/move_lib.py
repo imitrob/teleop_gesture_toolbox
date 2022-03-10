@@ -19,7 +19,7 @@ class MoveData():
         - States (joints, velocity, eff, ... )
         '''
 
-        bfr_len = 300 #settings.configRecording['BufferLen']
+        bfr_len = 1000 #settings.configRecording['BufferLen']
         ''' Leap Controller data saved as circullar buffer '''
         self.frames = collections.deque(maxlen=bfr_len)
         ''' '''

@@ -48,15 +48,18 @@ main_set:
   swipe_down:
     record_key: s
     filename: arrow_down.png
+    time_visible_threshold: 3
   swipe_front_right:
     record_key: d
     filename: arrow_right.png
+    time_visible_threshold: 3
   swipe_left:
     record_key: a
     filename: arrow_left.png
   swipe_up:
     record_key: w
     filename: arrow_up.png
+    time_visible_threshold: 4
   nothing_dyn:
     record_key: n
   kick:

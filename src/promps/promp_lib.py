@@ -38,7 +38,7 @@ from os_and_utils.loading import HandDataLoader, DatasetLoader
 
 from os_and_utils.transformations import Transformations as tfm
 from os_and_utils.utils_ros import extv
-from os_and_utils.visualizer_lib import VisualizerLib
+from os_and_utils.visualizer_lib import VisualizerLib, ScenePlot
 from os_and_utils.path_def import Waypoint
 
 import gestures_lib as gl
@@ -432,76 +432,6 @@ class CombinedMotionPrimitiveGenerator():
         waypoint_lists.append(StaticMotionPrimitiveGenerator().gripper({'gripper': 1.0}))
         return waypoint_lists
 
-class CustomPlot:
-    '''
-    promp_paths = approach.construct_promp_trajectories2(X, Y, start='mean')
-    promp_paths_0_0 = approach.construct_promp_trajectories2(X, Y, start='0')
-    promp_paths_0_1 = approach.construct_promp_trajectories2(X, Y, start='')
-    promp_paths_test1 = approach.construct_promp_trajectories2(X, Y, start='test')
-
-    promp_paths_grab_mean = [promp_paths[0], promp_paths_0_0[0], promp_paths_0_1[0]]
-    my_plot(X[Y==0], promp_paths_grab_mean)
-
-    promp_paths_kick_mean = [promp_paths[1], promp_paths_0_0[1], promp_paths_0_1[1]]
-    my_plot(X[Y==1], promp_paths_kick_mean)
-
-    promp_paths_nothing_mean = [promp_paths[2], promp_paths_0_0[2], promp_paths_0_1[2]]
-    my_plot(X[Y==2], promp_paths_nothing_mean)
-    '''
-    @staticmethod
-    def my_plot(data, promp_path_waypoints_tuple):
-
-        plt.rcParams["figure.figsize"] = (20,20)
-        ax = plt.axes(projection='3d')
-        for path in data:
-            ax.plot3D(path[:,0], path[:,1], path[:,2], 'blue', alpha=0.2)
-            ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
-            ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
-        colors = ['blue','black', 'yellow', 'red', 'cyan', 'green']
-        for n,path_waypoints_tuple in enumerate(promp_path_waypoints_tuple):
-            path, waypoints = path_waypoints_tuple
-            ax.plot3D(path[:,0], path[:,1], path[:,2], colors[n], label=f"Series {str(n)}", alpha=1.0)
-            ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
-            ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
-            npoints = 5
-            p = int(len(path[:,0])/npoints)
-            for n in range(npoints):
-                ax.text(path[:,0][n*p], path[:,1][n*p], path[:,2][n*p], str(100*n*p/len(path[:,0]))+"%")
-            for n, waypoint_key in enumerate(list(waypoints.keys())):
-                waypoint = waypoints[waypoint_key]
-                s = f"wp {n} "
-                if waypoint.gripper is not None: s += f'(gripper {waypoint.gripper})'
-                if waypoint.eef_rot is not None: s += f'(eef_rot {waypoint.eef_rot})'
-                ax.text(waypoint.p[0], waypoint.p[1], waypoint.p[2], s)
-        ax.legend()
-        # Leap Motion
-        X,Y,Z = VisualizerLib.cuboid_data([0.475, 0.0, 0.0], (0.004, 0.010, 0.001))
-        ax.plot_surface(X, Y, Z, color='grey', rstride=1, cstride=1, alpha=0.5)
-        ax.text(0.475, 0.0, 0.0, 'Leap Motion')
-
-        if sl.scene:
-            for n in range(len(sl.scene.object_poses)):
-                pos = sl.scene.object_poses[n].position
-                size = sl.scene.object_sizes[n]
-                X,Y,Z = VisualizerLib.cuboid_data([pos.x, pos.y, pos.z], (size.x, size.y, size.z))
-                ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
-
-        # Create cubic bounding box to simulate equal aspect ratio
-        X = np.array([0.3,0.7]); Y = np.array([-0.2, 0.2]); Z = np.array([0.0, 0.5])
-        max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
-        Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
-        Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
-        Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
-        # Comment or uncomment following both lines to test the fake bounding box:
-        for xb, yb, zb in zip(Xb, Yb, Zb):
-           ax.plot([xb], [yb], [zb], 'w')
-
-        ax.set_xlabel('X [m]')
-        ax.set_ylabel('Y [m]')
-        ax.set_zlabel('Z [m]')
-        #plt.savefig('/home/pierro/Documents/test_promp_nothing_4_differentstarts.png', format='png')
-        plt.show()
-
 #sgd = ProbabilisticMotionPrimitiveGenerator()
 #sgd.generate_path('kick')
 
@@ -585,11 +515,11 @@ if __name__ == '__main__':
     It returnes waypoints also, actions are generated
 
     '''
-    CustomPlot.my_plot(prompg.X[prompg.Y==[0]], [])
-    CustomPlot.my_plot(prompg.X[prompg.Y==[1]], [])
-    CustomPlot.my_plot(prompg.X[prompg.Y==[2]], [])
-    CustomPlot.my_plot(prompg.X[prompg.Y==[3]], [])
-    CustomPlot.my_plot(prompg.X[prompg.Y==[4]], [])
+    ScenePlot.my_plot(prompg.X[prompg.Y==[0]], [])
+    ScenePlot.my_plot(prompg.X[prompg.Y==[1]], [])
+    ScenePlot.my_plot(prompg.X[prompg.Y==[2]], [])
+    ScenePlot.my_plot(prompg.X[prompg.Y==[3]], [])
+    ScenePlot.my_plot(prompg.X[prompg.Y==[4]], [])
 
     '''    vars = {'pinch': 0.0}
     promp_paths_waypoints_tuple = prompg.generate_path('pinch', vars=vars)
@@ -609,7 +539,7 @@ if __name__ == '__main__':
     vars = {'direction': (0.3,0.0,0.0)}
     ### TODO: PLOT UNCERTAINTY !
     promp_paths_waypoints_tuple.append(prompg.generate_path('nothing', vars))
-    CustomPlot.my_plot(Xnothing, promp_paths_waypoints_tuple)
+    ScenePlot.my_plot(Xnothing, promp_paths_waypoints_tuple)
 
     for promp_path_waypoints_tuple in promp_paths_waypoints_tuple:
         execute(promp_path_waypoints_tuple)
@@ -617,7 +547,7 @@ if __name__ == '__main__':
     promp_paths_waypoints_tuple = []
     vars = {'direction': (0.3,0.0,0.0)}
     promp_paths_waypoints_tuple.append(prompg.generate_path('grab', vars))
-    CustomPlot.my_plot(Xgrab, promp_paths_waypoints_tuple)
+    ScenePlot.my_plot(Xgrab, promp_paths_waypoints_tuple)
 
     for promp_path_waypoints_tuple in promp_paths_waypoints_tuple:
         execute(promp_path_waypoints_tuple)
@@ -630,7 +560,7 @@ if __name__ == '__main__':
     vars = {'direction': (0.0,0.0,0.3)}
     promp_path_waypoints_tuple.append(prompg.generate_path('kick', vars))
 
-    CustomPlot.my_plot(Xkick, promp_path_waypoints_tuple)
+    ScenePlot.my_plot(Xkick, promp_path_waypoints_tuple)
 
     for promp_path_waypoints_tuple in promp_paths_waypoints_tuple:
         execute(promp_path_waypoints_tuple)
@@ -639,10 +569,10 @@ if __name__ == '__main__':
     #print(f"X {X.shape}, promp_paths {promp_paths.shape}")
 
     #promp_path2 = ProbabilisticMotionPrimitiveGenerator().prompg.generate_path('kick')
-    #CustomPlot.my_plot(X[Y==1], [promp_path2])
+    #ScenePlot.my_plot(X[Y==1], [promp_path2])
 
     #promp_path3 = ProbabilisticMotionPrimitiveGenerator().prompg.generate_path('nothing')
-    #CustomPlot.my_plot(X[Y==2], [promp_path3])
+    #ScenePlot.my_plot(X[Y==2], [promp_path3])
 
 
 

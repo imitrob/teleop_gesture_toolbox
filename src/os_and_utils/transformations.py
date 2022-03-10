@@ -61,9 +61,58 @@ class Transformations():
         return [x_, y_, z_]
 
     @staticmethod
-    def transformLeapToScenePose(pose):
+    def transformLeapToBase_3D(paths):
+        ''' paths to scene, might edit later
+        '''
+        for n,path in enumerate(paths):
+            for m,point in enumerate(path):
+                 paths[n][m] = Transformations.transformLeapToBase(point)
+        return paths
+
+    @staticmethod
+    def transformLeapToBase(pose, out=''):
+        ''' # REVIEW:
+        '''
+        if isinstance(pose, (list,np.ndarray, tuple)):
+            if len(pose) == 3:
+                return [pose[0]/1000, -pose[2]/1000, pose[1]/1000]
+            else:
+                return [pose[0]/1000, -pose[2]/1000, pose[1]/1000] + pose[3:]
+
+        if isinstance(pose, Point):
+            x = pose.x/1000
+            y = -pose.z/1000
+            z = pose.y/1000
+            pose.x = x
+            pose.y = y
+            pose.z = z
+            return pose
+
+        x = pose.position.x/1000
+        y = -pose.position.z/1000
+        z = pose.position.y/1000
+        pose.position.x = x
+        pose.position.y = y
+        pose.position.z = z
+        return pose
+
+    @staticmethod
+    def transformLeapToScenePose(pose, out='pose'):
         ''' Leap -> rViz -> Scene
         '''
+        if isinstance(pose, list):
+            lenposelist = len(pose)
+            x, y, z = pose[0], pose[1], pose[2]
+            pose = Pose()
+            pose.position.x = x
+            pose.position.y = y
+            pose.position.z = z
+            if lenposelist == 7:
+                pose.orientation.x = pose[3]
+                pose.orientation.y = pose[4]
+                pose.orientation.z = pose[5]
+                pose.orientation.w = pose[6]
+
         pose_ = deepcopy(pose)
         pose_.position.x = 0.0
         pose_.position.y = 0.0
@@ -113,6 +162,10 @@ class Transformations():
         if settings.orientation_mode == 'fixed':
             pose_.orientation = ml.md.ENV['ori']
 
+        if out == 'position':
+            return [pose_.position.x, pose_.position.y, pose_.position.z]
+        if out == 'list':
+            return [pose_.position.x, pose_.position.y, pose_.position.z, pose_.orientation.x, pose_.orientation.y, pose_.orientation.z, pose_.orientation.w]
         # only for this situtaiton
         return pose_
 
