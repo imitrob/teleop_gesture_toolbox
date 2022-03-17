@@ -5,7 +5,7 @@ using_set: main_set
 sets:
   main_set:
     gestures: main_set
-    hand_mode_sets: setl
+    hand_mode_sets: set0
     mapping_sets: main_map
     network_set: main_set
   set_1_static:
@@ -33,7 +33,7 @@ networks_drive_url: https://drive.google.com/drive/folders/1T8jqeyb10WrwnqQoMA25
 # This is default network loaded from computer, it can be changed later in UI
 network_sets:
   main_set:
-    # PyMC3, PyTorch, DTW
+    # PyMC3, PyTorch, DTW, deterministic
     static_detection_approach: PyMC3
     dynamic_detection_approach: DTW
     static_network_file: PyMC3-main-set-3.pkl #

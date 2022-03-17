@@ -70,6 +70,14 @@ class Transformations():
         return paths
 
     @staticmethod
+    def transformLeapToBase_2D(path):
+        ''' paths to scene, might edit later
+        '''
+        for m,point in enumerate(path):
+             path[m] = Transformations.transformLeapToBase(point)
+        return path
+
+    @staticmethod
     def transformLeapToBase(pose, out=''):
         ''' # REVIEW:
         '''

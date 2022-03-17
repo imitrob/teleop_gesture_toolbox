@@ -360,7 +360,6 @@ class DatasetLoader():
         Xpalm = []
         for sample in data:
             row = []
-            rowvel = []
             for t in sample:
                 if t.r.visible:
                     #l2 = np.linalg.norm(np.array(t.r.palm_position()) - np.array(t.r.index_position()))
@@ -451,7 +450,7 @@ class DatasetLoader():
         #np.save('/home/petr/Documents/tmp.npy', Xpalm)
         #Xpalm = np.load('/home/petr/Documents/tmp.npy', allow_pickle=True)
         #Xpalm.shape
-
+        '''
         if 'normalize_dim' in self.args:
             Xpalm_ = []
             Xpalm = np.swapaxes(Xpalm, 1, 2)
@@ -463,23 +462,41 @@ class DatasetLoader():
                     Xpalm[n,m] = (dim2 - np.min(dim1)) / (np.max(dim1) - np.min(dim1))
             Xpalm = np.swapaxes(Xpalm, 1, 2)
             Xpalm = np.array(Xpalm)
-
+        '''
         ''' Inverse path: Start is end
             - How data are saved, it saves as inverted
         '''
-        if 'inverse' in self.args:
-            Xpalm = np.array(Xpalm)
-            Xpalm_ = []
-            for p in Xpalm:
-                p_ = []
-                for n in range(0, len(p)):
-                    p_.append(p[-n-1])
-                Xpalm_.append(p_)
+        Xpalm = np.array(Xpalm)
+        Xpalm_ = []
+        for p in Xpalm:
+            p_ = []
+            for n in range(0, len(p)):
+                p_.append(p[-n-1])
+            Xpalm_.append(p_)
 
-            Xpalm = np.array(Xpalm_)
-
+        Xpalm = np.array(Xpalm_)
+        '''
         if 'scene_frame' in self.args:
-            Xpath = tfm.transformLeapToBase_3D(Xpalm)
+        '''
+        Xpath = tfm.transformLeapToBase_3D(Xpalm)
+
+        ''' scale limit
+        '''
+        limit_distance = 0.1
+        data_ = []
+        for path in Xpath:
+            path_ = []
+            path = np.swapaxes(path, 0, 1)
+            for dim in range(3):
+                _1d = path[dim]
+                if (_1d.max() - _1d.min()) > limit_distance:
+                    path_.append(_1d/(_1d.max() - _1d.min())*limit_distance)
+                else:
+                    path_.append(_1d)
+            path_ = np.swapaxes(path_, 0, 1)
+            data_.append(path_)
+        Xpath = data_
+        print("ADDED SCALE LIMIT")
 
         ''' Discard nan and inf
         '''

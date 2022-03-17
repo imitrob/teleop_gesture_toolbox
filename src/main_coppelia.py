@@ -37,12 +37,12 @@ def main():
 
     roscm = ROSComm()
     prompg = ProMPGenerator(promp='sebasutp')
+    print("[Main] Waiting for Coppelia to be initialized")
+
     ml.md.m = cop = CoppeliaROSInterface()
-    pose = Pose()
-    pose.position = Point(0.0, 0.0, 0.0)
-    pose.orientation = Quaternion(0.0, 0.0, 0.0, 1.0)
+    print("[Main] Coppelia initialized!")
     sl.scenes.make_scene(cop, 'pickplace3')
-    CoppeliaROSInterface.add_or_edit_object(name="Focus_target", pose=pose)
+    CoppeliaROSInterface.add_or_edit_object(name="Focus_target", pose=Pose(Point(0.0,0.0,0.0),Quaternion(0.0,0.0,0.0,1.0)))
 
     rate = rospy.Rate(settings.yaml_config_gestures['misc']['rate']) # Hz
     seq = 0
@@ -66,16 +66,22 @@ def main():
                 #    print(f"Left Static relevant info: Biggest prob. gesture: {gl.gd.l.static.relevant().biggest_probability}")
 
                 #    #print(ml.md.frames[-1].l.get_learning_data(definition=1))
+
+
             # 3. Handle gesture activation
             if len(gl.gd.actions_queue) > 0:
-                print("===================== ACTION ==========================")
-                path, waypoints = prompg.handle_action_queue(gl.gd.actions_queue.pop())
-                print("$$ The last waypoints", waypoints)
-                cop.execute_trajectory_with_waypoints(path, waypoints)
+
+                action = gl.gd.actions_queue.pop()
+                if action[1] == 'nothing_dyn':
+                    print(f"===================== ACTION {action[1]} ========================")
+                else:
+                    print(f"===================== ACTION {action[1]} ========================")
+                    path, waypoints = prompg.handle_action_queue(action)
+                    cop.execute_trajectory_with_waypoints(path, waypoints)
             if ml.md.frames:
                 handle_action_update(cop)
 
-            if seq % settings.yaml_config_gestures['misc']['rate']: # every sec
+            if seq % settings.yaml_config_gestures['misc']['rate'] == 0: # every sec
                 cop.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[ml.md.object_focus_id])
             rate.sleep()
     except KeyboardInterrupt:
@@ -92,12 +98,18 @@ def handle_action_update(cop):
             action_name = getattr(gl.gd, h).static.relevant().activate_name
             if action_name:
                 id_primitive = map_to_primitive_gesture(action_name)
-                if id_primitive == 'gripper' and getattr(ml.md.frames[-1], 'r').visible:
+                if id_primitive == 'gripper':# and getattr(ml.md.frames[-1], 'r').visible:
                     wps = {1.0: Waypoint()}
                     #grr = 0.0 # float(input("Write gripper posiiton: "))
                     #wps[1.0].gripper = grr #1-getattr(ml.md.frames[-1], 'r').pinch_strength #h).pinch_strength
-                    wps[1.0].gripper = 1-getattr(ml.md.frames[-1], 'r').pinch_strength #h).pinch_strength
+                    if action_name == 'grab':
+                        wps[1.0].gripper = 0.0 #h).pinch_strength
+                    elif action_name == 'thumbsup':
+                        wps[1.0].gripper = 1.0 #h).pinch_strength
+
+                    #wps[1.0].gripper = 1-getattr(ml.md.frames[-1], 'l').grab_strength #h).pinch_strength
                     cop.execute_trajectory_with_waypoints(None, wps)
+
                 if id_primitive == 'build_switch' and getattr(ml.md.frames[-1], 'r').visible:
                     xe,ye,_ = tfm.transformLeapToUIsimple(ml.md.frames[-1].l.elbow_position(), out='list')
                     xw,yw,_ = tfm.transformLeapToUIsimple(ml.md.frames[-1].l.wrist_position(), out='list')
@@ -117,7 +129,15 @@ def handle_action_update(cop):
                     if min_id != -1:
                         ml.md.build_mode = ml.md.build_modes[min_id]
 
-                if id_primitive == 'focus' and getattr(ml.md.frames[-1], 'r').visible:
+                if id_primitive == 'focus':# and getattr(ml.md.frames[-1], 'r').visible:
+                    if action_name == 'point':
+                        ml.md.object_focus_id = 0
+                    elif action_name == 'two':
+                        ml.md.object_focus_id = 1
+                    elif action_name == 'three':
+                        ml.md.object_focus_id = 2
+
+                    '''
                     direction = getattr(ml.md.frames[-1], 'r').point_direction() #h).pinch_strength
                     if direction[0] < 0: # user wants to move to next item
                         # check if previously direction was left, if so, ml.md.current_threshold_to_flip_id will be zeroed
@@ -133,14 +153,15 @@ def handle_action_update(cop):
                         ml.md.current_threshold_to_flip_id = 0
                         ml.md.object_focus_id += 1
                         if ml.md.object_focus_id == sl.scene.n: ml.md.object_focus_id = 0
-                        cop.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[ml.md.object_focus_id])
+                        #cop.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[ml.md.object_focus_id])
                     elif ml.md.current_threshold_to_flip_id < -settings.yaml_config_gestures['misc']['rate']:
                         # move prev
                         ml.md.current_threshold_to_flip_id = 0
                         ml.md.object_focus_id -= 1
                         if ml.md.object_focus_id == -1: ml.md.object_focus_id = sl.scene.n-1
-                        cop.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[ml.md.object_focus_id])
-                    print("ml.md.current_threshold_to_flip_id", ml.md.current_threshold_to_flip_id, "ml.md.object_focus_id", ml.md.object_focus_id)
+                        #cop.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[ml.md.object_focus_id])
+                    #print("ml.md.current_threshold_to_flip_id", ml.md.current_threshold_to_flip_id, "ml.md.object_focus_id", ml.md.object_focus_id)
+                    '''
                 '''
                 _, mp_type = get_id_motionprimitive_type(id_primitive)
                 try:
@@ -149,6 +170,14 @@ def handle_action_update(cop):
                     robot_promps = None # It is static gesture
                 '''
                 #path = mp_type().update_by_id(robot_promps, id_primitive, self.approach, vars)
+
+    for h in ['r']:
+        if settings.get_detection_approach(type='dynamic') == 'deterministic':
+            if getattr(ml.md.frames[-1], h).visible:
+                ## TEMP: Experimental
+                move = gl.gd.processGest_move_in_axis()
+                if move:
+                    gl.gd.actions_queue.append((rospy.Time.now().to_sec(),move,h))
 
 
 

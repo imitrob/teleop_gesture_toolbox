@@ -17,6 +17,7 @@ import os, collections, time
 try: import gdown
 except ModuleNotFoundError: gdown = None
 import numpy as np
+from copy import deepcopy
 
 import settings
 from os_and_utils.nnwrapper import NNWrapper
@@ -143,6 +144,12 @@ class GestureMorphClass(object):
             attrs = self.get_all_attributes()
             for n,attr in enumerate(attrs):
                 if getattr(self,attr).activated:
+                    return n
+            return None
+        elif attr == 'action_activate_id':
+            attrs = self.get_all_attributes()
+            for n,attr in enumerate(attrs):
+                if getattr(self,attr).action_activated:
                     return n
             return None
         elif attr == 'activate_name':
@@ -402,6 +409,9 @@ class GestureDataDetection():
         ## TODO: Additional names for additional gestures computed by comparing left and right hand
         self.combs = None
 
+        # TEMP g data:
+        self.experimental_move_in_axis_toggle = [False, False, False]
+
         self.actions_queue = collections.deque(maxlen=50)
 
         self.static_network_info, self.dynamic_network_info = self.load_netork_info()
@@ -436,7 +446,8 @@ class GestureDataDetection():
 
         #nw = NNWrapper.load_network(settings.paths.network_path, dynamic_network_file)
         #dynamic_network_info = nw.args
-        dynamic_network_info = {'input_definition_version': 0}
+        dynamic_network_info = {'input_definition_version': 0, 'scene_frame':1}
+
 
         return static_network_info, dynamic_network_info
 
@@ -513,22 +524,25 @@ class GestureDataDetection():
     '''
     LOGIC
     '''
-    def prepare_postprocessing(self, hand_tag, type, sensor_seq, activate_length=1.0, distance_length=3.0):
+    def prepare_postprocessing(self, hand_tag, type, sensor_seq, activate_length=1.0, activate_length_dynamic=0.2, distance_length=3.0):
         ''' High-level logic
         Parameters:
             activate_length (Int): [seconds] Time length when gesture is activated in order to make action
+            activate_length_dynamic (Float): [seconds] -||- but dynamic gestures
             distance_length (Int): [seconds] Length between the activate_action
         '''
         self.distance_length = distance_length
-        self.activate_length = activate_length
-        distance_length = int(self.rate * distance_length) # seconds -> seqs
-        activate_length = int(self.rate * activate_length) # seconds -> seqs
+        if type == 'static':
+            self.activate_length = activate_length
+        else:
+            self.activate_length = activate_length_dynamic
+        distance_length = int(self.rate * self.distance_length) # seconds -> seqs
+        activate_length = int(self.rate * self.activate_length) # seconds -> seqs
 
         hand = getattr(self, hand_tag)
         gs = getattr(hand, type)
         latest_gs = gs[-1]
         probabilities = latest_gs.probabilities_norm
-
         for n,g in enumerate(latest_gs):
             probability = probabilities[n]
             # 1. Probability over threshold
@@ -542,7 +556,12 @@ class GestureDataDetection():
 
             # Activate should refer to evaluation within one time sample
             # 1., 2. Biggest probability of all gestures and 3. gesture is visible for some times
+
+
+            #print("g.above_threshold", g.above_threshold, "g.biggest_probability", g.biggest_probability, "time_visible > time_visible_threshold", g.time_visible > gs.info[n].time_visible_threshold, "time_visible", g.time_visible, "gs.info[n].time_visible_threshold", gs.info[n].time_visible_threshold)
+
             if g.above_threshold and g.biggest_probability and g.time_visible > gs.info[n].time_visible_threshold:
+                #print("1")
                 g.activated = True
             elif g.above_threshold == False:
                 g.activated = False
@@ -551,9 +570,12 @@ class GestureDataDetection():
             # If at least 10 gesture records were toggled (occured) and now it is not occuring
             g.action_activated = False
             if gs.n > activate_length:
+                #if g.activated:
+                #    print("2")
                 if np.array([data[n].activated for data in gs[-activate_length-2:-1]]).all(): # gesture was shown with no interruption
+                    #print("3")
                     if gs[-1][n].activated == False: # now it ended -> action can happen
-
+                        #print("4")
                         if not np.array([data[n].action_activated for data in gs[-distance_length-2:-2]]).any():
                             g.action_activated = True
                             self.actions_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag))
@@ -905,40 +927,39 @@ class GestureDataDetection():
                 settings.WindowState = 0
 
 
-    @staticmethod
-    def processGest_move_in_axis():
+    def processGest_move_in_axis(self):
         '''
         '''
-        fa = md.frames[-1]
+        minthre = 400
+        maxthre = 100
+        gg_toggle_tmp = deepcopy(self.experimental_move_in_axis_toggle)
+        fa = ml.md.frames[-1]
         if fa.r.visible:
-            gd = settings.gd.r
-            g = gd.gests[gd.GESTS["move_in_axis"]]
-            g_tmp = deepcopy(g.toggle)
-            if abs(fa.r.vel[0]) > g.MIN_THRE and fa.r.vel[1] < g.MAX_THRE and fa.r.vel[2] < g.MAX_THRE:
-                g.toggle[0] = True
-                g.time_visible = 1
-                g.move[0] = True if fa.r.vel[0] > g.MIN_THRE else False
-                if g_tmp[0] == False:
-                    settings.mo.gestureGoalPoseUpdate(0, g.move[0])
+            if abs(fa.r.palm_velocity()[0]) > minthre and fa.r.palm_velocity()[1] < maxthre and fa.r.palm_velocity()[2] < maxthre:
+                self.experimental_move_in_axis_toggle[0] = True
+                move = 'swipe_front_right' if fa.r.palm_velocity()[0] > minthre else 'swipe_left'
+                if gg_toggle_tmp[0] == False:
+                    return move
             else:
-                g.toggle[0] = False
-            if abs(fa.r.vel[1]) > g.MIN_THRE and fa.r.vel[0] < g.MAX_THRE and fa.r.vel[2] < g.MAX_THRE:
-                g.time_visible = 1
-                g.toggle[1] = True
-                g.move[1] = True if fa.r.vel[1] > g.MIN_THRE else False
-                if g_tmp[1] == False:
-                    settings.mo.gestureGoalPoseUpdate(1, g.move[1])
-            else:
-                g.toggle[1] = False
-            if abs(fa.r.vel[2]) > g.MIN_THRE and fa.r.vel[0] < g.MAX_THRE and fa.r.vel[1] < g.MAX_THRE:
-                g.time_visible = 1
-                g.toggle[2] = True
-                g.move[2] = True if fa.r.vel[2] > g.MIN_THRE else False
-                if g_tmp[2] == False:
-                    settings.mo.gestureGoalPoseUpdate(2, g.move[2])
-            else:
-                g.toggle[2] = False
+                self.experimental_move_in_axis_toggle[0] = False
 
+            if abs(fa.r.palm_velocity()[1]) > minthre and fa.r.palm_velocity()[0] < maxthre and fa.r.palm_velocity()[2] < maxthre:
+                self.experimental_move_in_axis_toggle[1] = True
+                move = 'swipe_up' if fa.r.palm_velocity()[1] > minthre else 'swipe_down'
+                if gg_toggle_tmp[1] == False:
+                    return move
+            else:
+                self.experimental_move_in_axis_toggle[1] = False
+            '''
+            if abs(fa.r.palm_velocity()[2]) > minthre and fa.r.palm_velocity()[0] < maxthre and fa.r.palm_velocity()[1] < maxthre:
+                self.experimental_move_in_axis_toggle[2] = True
+                move = 'right' if fa.r.palm_velocity()[2] > minthre else 'left'
+                if gg_toggle_tmp[2] == False:
+                    return 'z', move
+            else:
+                self.experimental_move_in_axis_toggle[2] = False
+            '''
+        return None
 
     @staticmethod
     def processGest_rotation_in_axis():

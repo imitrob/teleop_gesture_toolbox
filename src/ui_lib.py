@@ -45,6 +45,7 @@ matplotlib.use('Qt5Agg')
 from PyQt5 import QtCore, QtWidgets
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
+import matplotlib.image as mpimg
 
 class MplCanvas(FigureCanvasQTAgg):
     ''' Paint with matplotlib on window '''
@@ -76,112 +77,208 @@ class AnotherWindowPlot(QWidget):
     def set_n_series(self, n_series):
         self.n_series = n_series
 
-    def update_plot(self, stamps, values, hand='r', type='dynamic', options='log'):
+    def update_plot(self, l_hand_type='static', r_hand_type='dynamic', gs_filter=['grab', 'point', 'two', 'three', 'five', 'swipe_up','swipe_down', 'nothing_dyn'], options='log'):
         ''' Might be little messy when constructing plot data
             Takes data from ml.md and gl.gd
         Parameters:
-            stamps (float[]): stamps in [s]
-            values (float[][]): likelihoods shape=(time x gs)
-            hand (str): 'l', 'r'
-            type (str): 'static', 'dynamic'
+            l_hand_type (str): 'static', 'dynamic', ''
+            r_hand_type (str): 'static', 'dynamic', ''
+            gs_filter (str[]): if not empty -> checks if printed gesture string id is in the list
             options (str): - log (function)
         '''
+
+        ''' Compose the data
+        '''
+        left_gs = []
+        if l_hand_type:
+            left_stamps = [d.header.stamp for d in getattr(gl.gd.l, l_hand_type)[:].copy()]
+            left_values = [d.probabilities for d in getattr(gl.gd.l, l_hand_type)[:].copy()]
+            left_values_ = []
+            gs = getattr(gl.gd, 'Gs_'+l_hand_type)
+            left_gs_ids = []
+            for n,g in enumerate(gs):
+                if g in gs_filter:
+                    left_gs_ids.append(n)
+            left_gs = np.array(getattr(gl.gd,l_hand_type+'_info')().names)[left_gs_ids]
+            for value in left_values:
+                left_values_.append(np.array(value)[left_gs_ids])
+            left_values = left_values_
+        right_gs = []
+        if r_hand_type:
+            right_stamps = [d.header.stamp for d in getattr(gl.gd.r, r_hand_type)[:].copy()]
+            right_values = [d.probabilities for d in getattr(gl.gd.r, r_hand_type)[:].copy()]
+            right_values_ = []
+            gs = getattr(gl.gd, 'Gs_'+r_hand_type)
+            right_gs_ids = []
+            for n,g in enumerate(gs):
+                if g in gs_filter:
+                    right_gs_ids.append(n)
+            right_gs = np.array(getattr(gl.gd,r_hand_type+'_info')().names)[right_gs_ids]
+            for value in right_values:
+                right_values_.append(np.array(value)[right_gs_ids])
+            right_values = right_values_
+        # TEMP:
         if 'log' in options:
-            values = np.log(np.array(values))
+            right_values = np.array(right_values)
+            right_values = (np.log(right_values)-right_values.min())/(right_values.max()-right_values.min())
 
         ''' Creates the list of markers with highest likelihood
             shape=(markers x 2), where marker is [n, id]
         '''
-        list_of_markers = []
+        left_markers = []
         id_last = 999
-        for n,values_ in enumerate(values):
+        for n,values_ in enumerate(left_values):
             id_max = np.argmax(values_)
             if id_max != id_last:
-                list_of_markers.append([n, id_max])
+                left_markers.append([n, id_max])
+            id_last = id_max
+
+        right_markers = []
+        id_last = 999
+        for n,values_ in enumerate(right_values):
+            id_max = np.argmax(values_)
+            if id_max != id_last:
+                right_markers.append([n, id_max])
             id_last = id_max
 
         ''' Upper plot '''
         self.canvas.axes.cla()  # clear the axes content
-        self.canvas.axes.plot(stamps, values)
+        self.canvas.twinxaxes = self.canvas.axes.twinx()
+        self.canvas.axes.plot(left_stamps, left_values)
+        self.canvas.twinxaxes.plot(right_stamps, right_values)
         self.canvas.axes.set_xlabel('time [s]')
-        self.canvas.axes.set_ylabel(f'DTW {options}(1/(DTW_dist)) [mm^-1]')
-        self.canvas.axes.legend(gl.gd.dynamic_info().names)
-        for n,id in list_of_markers:
-            self.canvas.axes.annotate(gl.gd.dynamic_info().names[id], xy=(stamps[n], values[n][0]), color='black',
+        self.canvas.axes.set_ylabel(f'Static gestures probability [-]')
+        self.canvas.twinxaxes.set_ylabel(f'Dynamic gestures likelihood (DTW distance) [log(mm^-1)]')
+        tmp_gs = []
+        if np.array(left_values).any(): tmp_gs.extend(left_gs)
+        if np.array(right_values).any(): tmp_gs.extend(right_gs)
+        self.canvas.axes.legend(tmp_gs)
+        for n,id in left_markers:
+            np.array(getattr(gl.gd,l_hand_type+'_info')().names)[left_gs_ids][id]
+            self.canvas.axes.annotate(left_gs[id], xy=(left_stamps[n], left_values[n][0]), color='black',
                         fontsize="small", weight='light',
                         horizontalalignment='center',
                         verticalalignment='center')
-
+        for n,id in right_markers:
+            self.canvas.axes.annotate(right_gs[id], xy=(right_stamps[n], right_values[n][0]), color='black',
+                        fontsize="small", weight='light',
+                        horizontalalignment='center',
+                        verticalalignment='center')
+        if gs_filter:
+            self.canvas.axes.text(0.0, 0.0, "Only filtered gestures plotted", color='black',
+                        fontsize="small", weight='light',
+                        horizontalalignment='center',
+                        verticalalignment='top', transform = self.canvas.axes.transAxes)
+        self.canvas.axes.grid(True)
         ''' Bottom plot '''
         #self.canvas.axes2.cla()
 
         # 1
-        list_of_actions_hand_inside_ball = []
+        list_of_actions_hand_inside_ball_left = []
         prev_on = False
         on_stamp = None
+        list_of_actions_hand_inside_ball_right = []
+        prev_on_right = False
+        on_stamp_right = None
 
         # 2
-        list_of_actions_hand_visible = []
+        list_of_actions_hand_visible_left = []
         prev_on_hand_visible = False
         on_stamp_hand_visible = None
+        list_of_actions_hand_visible_right = []
+        prev_on_hand_visible_right = False
+        on_stamp_hand_visible_right = None
 
         lenframes = len(ml.md.frames)
         for n,frm in enumerate(ml.md.frames.copy()):
-            # 1
-            if is_hand_inside_ball(getattr(frm, hand)):
+            # 1 inside ball left
+            if is_hand_inside_ball(getattr(frm, 'l')):
                 if prev_on == False:
                     prev_on = True
                     on_stamp = frm.stamp()
                 elif n == lenframes-1 and np.array(on_stamp).any():
-                    list_of_actions_hand_inside_ball.append((on_stamp, frm.stamp()-on_stamp))
+                    list_of_actions_hand_inside_ball_left.append((on_stamp, frm.stamp()-on_stamp))
             else:
                 if prev_on == True:
                     prev_on = False
 
-                    list_of_actions_hand_inside_ball.append((on_stamp, frm.stamp()-on_stamp))
+                    list_of_actions_hand_inside_ball_left.append((on_stamp, frm.stamp()-on_stamp))
 
                     on_stamp = None
-            # 2
-            if getattr(frm, hand).visible:
+            # 1 inside ball right
+            if is_hand_inside_ball(getattr(frm, 'r')):
+                if prev_on_right == False:
+                    prev_on_right = True
+                    on_stamp_right = frm.stamp()
+                elif n == lenframes-1 and np.array(on_stamp_right).any():
+                    list_of_actions_hand_inside_ball_right.append((on_stamp_right, frm.stamp()-on_stamp_right))
+            else:
+                if prev_on_right == True:
+                    prev_on_right = False
+
+                    list_of_actions_hand_inside_ball_right.append((on_stamp_right, frm.stamp()-on_stamp_right))
+
+                    on_stamp_right = None
+            # 2 visible left
+            if getattr(frm, 'l').visible:
                 if prev_on_hand_visible == False:
                     prev_on_hand_visible = True
                     on_stamp_hand_visible = frm.stamp()
                 elif n == lenframes-1 and np.array(on_stamp_hand_visible).any():
-                    list_of_actions_hand_visible.append((on_stamp_hand_visible, frm.stamp()-on_stamp_hand_visible))
+                    list_of_actions_hand_visible_left.append((on_stamp_hand_visible, frm.stamp()-on_stamp_hand_visible))
             else:
                 if prev_on_hand_visible == True:
                     prev_on_hand_visible = False
 
-                    list_of_actions_hand_visible.append((on_stamp_hand_visible, frm.stamp()-on_stamp_hand_visible))
+                    list_of_actions_hand_visible_left.append((on_stamp_hand_visible, frm.stamp()-on_stamp_hand_visible))
 
                     on_stamp_hand_visible = None
+            # 2 visible right
+            if getattr(frm, 'r').visible:
+                if prev_on_hand_visible_right == False:
+                    prev_on_hand_visible_right = True
+                    on_stamp_hand_visible_right = frm.stamp()
+                elif n == lenframes-1 and np.array(on_stamp_hand_visible_right).any():
+                    list_of_actions_hand_visible_right.append((on_stamp_hand_visible_right, frm.stamp()-on_stamp_hand_visible_right))
+            else:
+                if prev_on_hand_visible_right == True:
+                    prev_on_hand_visible_right = False
 
-        # 3
+                    list_of_actions_hand_visible_right.append((on_stamp_hand_visible_right, frm.stamp()-on_stamp_hand_visible_right))
+
+                    on_stamp_hand_visible_right = None
+
+        # 3 activates left
         list_of_actions_activates = []
         list_of_actions_activates_colors = []
         list_of_actions_ids = []
-        prev_id_activates = False
+        prev_id_activates = None
         on_stamp_activates = None
-        gl_gd_h_t = getattr(getattr(gl.gd, hand), type)
+        gl_gd_h_t = getattr(getattr(gl.gd, 'l'), l_hand_type)
         lenframes = len(gl_gd_h_t[:])
 
         def id_to_color(id):
             map = {
                 0: 'tab:blue',
-                1: 'tab:green',
-                2: 'tab:red',
-                3: 'tab:orange',
-                4: 'tab:gray'
+                1: 'tab:orange',
+                2: 'tab:green',
+                3: 'tab:red',
+                4: 'tab:purple',
+                5: 'tab:brown',
+                6: 'tab:pink',
+                7: 'tab:gray',
+                8: 'tab:olive',
+                9: 'tab:cyan'
             }
             return map[id]
 
         list_of_action_activates = []
         for n, frm in enumerate(gl_gd_h_t[:].copy()):
-            if np.array(frm.action_activate_id).any():
+            if not np.isnan(np.array(frm.action_activate_id, dtype=float)).any():
                 list_of_action_activates.append(frm.header.stamp)
 
-            if np.array(frm.activate_id).any():
-                if prev_id_activates == False:
+            if not np.isnan(np.array(frm.activate_id, dtype=float)).any():
+                if prev_id_activates == None:
                     prev_id_activates = frm.activate_id
                     on_stamp_activates = frm.header.stamp
                 elif n == lenframes-1 and np.array(on_stamp_activates).any():
@@ -189,31 +286,73 @@ class AnotherWindowPlot(QWidget):
                     list_of_actions_activates_colors.append(id_to_color(prev_id_activates))
                     list_of_actions_ids.append(prev_id_activates)
             else:
-                if prev_id_activates != False:
+                if prev_id_activates != None:
                     list_of_actions_activates.append((on_stamp_activates, frm.header.stamp-on_stamp_activates))
                     list_of_actions_activates_colors.append(id_to_color(prev_id_activates))
                     list_of_actions_ids.append(prev_id_activates)
-                    prev_id_activates = False
+                    prev_id_activates = None
                     on_stamp_activates = None
 
-        self.canvas.axes2.plot(stamps, [0.0]*len(stamps))
+        # 3 activates right
+        list_of_actions_activates_right = []
+        list_of_actions_activates_colors_right = []
+        list_of_actions_ids_right = []
+        prev_id_activates = None
+        on_stamp_activates = None
+        gl_gd_h_t = getattr(getattr(gl.gd, 'r'), r_hand_type)
+        lenframes = len(gl_gd_h_t[:])
+
+        list_of_action_activates_right = []
+        for n, frm in enumerate(gl_gd_h_t[:].copy()):
+            if not np.isnan(np.array(frm.action_activate_id, dtype=float)).any():
+                list_of_action_activates_right.append(frm.header.stamp)
+
+            if not np.isnan(np.array(frm.activate_id, dtype=float)).any():
+                if prev_id_activates == None:
+                    prev_id_activates = frm.activate_id
+                    on_stamp_activates = frm.header.stamp
+                elif n == lenframes-1 and np.array(on_stamp_activates).any():
+                    list_of_actions_activates_right.append((on_stamp_activates, frm.header.stamp-on_stamp_activates))
+                    list_of_actions_activates_colors_right.append(id_to_color(prev_id_activates))
+                    list_of_actions_ids_right.append(prev_id_activates)
+            else:
+                if prev_id_activates != None:
+                    list_of_actions_activates_right.append((on_stamp_activates, frm.header.stamp-on_stamp_activates))
+                    list_of_actions_activates_colors_right.append(id_to_color(prev_id_activates))
+                    list_of_actions_ids_right.append(prev_id_activates)
+                    prev_id_activates = None
+                    on_stamp_activates = None
+
+        self.canvas.axes2.plot(left_stamps, [0.0]*len(left_stamps))
+        self.canvas.axes2.plot(right_stamps, [0.0]*len(right_stamps))
+
         for id, stamp in zip(list_of_actions_ids, list_of_actions_activates):
-            self.canvas.axes2.annotate(gl.gd.dynamic_info().names[id],  xy=(stamp[0], id), color='black',
+            self.canvas.axes2.annotate(np.array(getattr(gl.gd,l_hand_type+'_info')().names)[id],  xy=(stamp[0], 6+(id+0.5)/3), color='black',
             fontsize="small", weight='light',
             horizontalalignment='center',
             verticalalignment='center')
-        self.canvas.axes2.broken_barh(list_of_actions_hand_inside_ball, (4, 4), facecolors='tab:green')
-        self.canvas.axes2.broken_barh(list_of_actions_hand_visible, (8, 4), facecolors='tab:blue')
-        self.canvas.axes2.broken_barh(list_of_actions_activates, (0, 4), facecolors=list_of_actions_activates_colors)
+        for id, stamp in zip(list_of_actions_ids_right, list_of_actions_activates_right):
+            self.canvas.axes2.annotate(np.array(getattr(gl.gd,r_hand_type+'_info')().names)[id],  xy=(stamp[0], (id+0.5)/3), color='black',
+            fontsize="small", weight='light',
+            horizontalalignment='center',
+            verticalalignment='center')
+        self.canvas.axes2.broken_barh(list_of_actions_hand_visible_left, (10, 2), facecolors='tab:green')
+        self.canvas.axes2.broken_barh(list_of_actions_hand_inside_ball_left, (8, 2), facecolors='tab:green')
+        self.canvas.axes2.broken_barh(list_of_actions_activates, (6, 2), facecolors=list_of_actions_activates_colors)
+        self.canvas.axes2.broken_barh(list_of_actions_hand_visible_right, (4, 2), facecolors='tab:blue')
+        self.canvas.axes2.broken_barh(list_of_actions_hand_inside_ball_right, (2, 2), facecolors='tab:blue')
+        self.canvas.axes2.broken_barh(list_of_actions_activates_right, (0, 2), facecolors=list_of_actions_activates_colors_right)
 
         self.canvas.axes2.set_ylim(0, 12)
         self.canvas.axes2.set_xlabel('time [s]')
-        self.canvas.axes2.set_yticks([2, 6, 10], labels=['Activated|Action', 'Base area', 'Hand visible'])
+        self.canvas.axes2.set_yticks([1, 3, 5, 7, 9, 11], labels=['r activated', 'r base', 'r visible', 'l activated', 'l base', 'l visible'])
         self.canvas.axes2.grid(True)
 
-        self.canvas.axes2.vlines(x=list_of_action_activates, ymin=0, ymax=12, color='k')
+        self.canvas.axes2.vlines(x=list_of_action_activates, ymin=6, ymax=12, color='k')
+        self.canvas.axes2.vlines(x=list_of_action_activates_right, ymin=0, ymax=6, color='k')
 
         self.canvas.draw_idle()
+
 
 
 class Example(QMainWindow):
@@ -250,6 +389,7 @@ class Example(QMainWindow):
         ## View Configuration App
         settings.WindowState = 0
         self.GesturesViewState = False
+        self.PlotterWindow = False
         self.MoveViewState = True
         self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn = True
 
@@ -532,9 +672,9 @@ class Example(QMainWindow):
         self.AllVisibleObjects.append(ObjectQt('comboInteractiveSceneChanges',self.comboInteractiveSceneChanges,0,view_group=['MoveViewState', 'live']))
 
         self.AllVisibleObjects.append(ObjectQt('btnRecordActivate',self.btnRecordActivate,0,view_group=['MoveViewState']))
-        self.AllVisibleObjects.append(ObjectQt('btnPlotActivate',self.btnPlotActivate,0,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('btnPlotActivate',self.btnPlotActivate,0,view_group=['MoveViewState', 'PlotterWindow']))
         self.AllVisibleObjects.append(ObjectQt('btnExportDataActivate',self.btnExportDataActivate,0,view_group=['MoveViewState']))
-        self.AllVisibleObjects.append(ObjectQt('btnDeletePlotActivate',self.btnDeletePlotActivate,0,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('btnDeletePlotActivate',self.btnDeletePlotActivate,0,view_group=['MoveViewState', 'PlotterWindow']))
 
         for n,obj in enumerate(self.lblConfNamesObj):
             self.AllVisibleObjects.append(ObjectQt('lblConfNamesObj'+str(n),obj,1,view_group=['MoveViewState']))
@@ -566,10 +706,12 @@ class Example(QMainWindow):
 
     def togglePlotWindow(self, state):
         if state:
+            self.PlotterWindow = True
             self.plot_window = AnotherWindowPlot()
             self.plot_window.show()
             self.plot_window.set_n_series(gl.gd.l.dynamic.info.n)
         else:
+            self.PlotterWindow = False
             self.plot_window = None
 
     def updateLeftRightPanel(self, leftPanelNames=None, rightPanelNames=None):
@@ -813,8 +955,7 @@ class Example(QMainWindow):
         settings.record_with_keys = state
 
     def update_plot_with_vars(self):
-        if gl.gd.r.dynamic and gl.gd.r.dynamic[-1]:
-            self.plot_window.update_plot([d.header.stamp for d in gl.gd.r.dynamic[:].copy()], [d.probabilities for d in gl.gd.r.dynamic[:].copy()])
+        self.plot_window.update_plot()
 
     def export_plot_data(self):
         gl.gd.export()
@@ -871,7 +1012,7 @@ class Example(QMainWindow):
         ## Set all objects on page visible (the rest set invisible)
         for obj in self.AllVisibleObjects:
             # Every object that belongs to that group are conditioned by that group
-            if obj.page == settings.WindowState and (self.GesturesViewState if 'GesturesViewState' in obj.view_group else True) and  (self.MoveViewState if 'MoveViewState' in obj.view_group else True) and ((ml.md.mode=='live') if 'live' in obj.view_group else True) and ((ml.md.mode=='play') if 'play' in obj.view_group else True):
+            if obj.page == settings.WindowState and (self.GesturesViewState if 'GesturesViewState' in obj.view_group else True) and  (self.MoveViewState if 'MoveViewState' in obj.view_group else True) and (self.PlotterWindow if 'PlotterWindow' in obj.view_group else True) and ((ml.md.mode=='live') if 'live' in obj.view_group else True) and ((ml.md.mode=='play') if 'play' in obj.view_group else True):
                 obj.qt.setVisible(True)
             else:
                 obj.qt.setVisible(False)

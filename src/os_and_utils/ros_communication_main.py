@@ -181,6 +181,7 @@ class ROSComm():
                         ''' Creates timestamp indexes starting with [-1, -x, ...] '''
                         time_samples_series = [-1]
                         time_samples_series.extend((n * np.array(range(-1, -time_samples, -1))  / time_samples).astype(int))
+                        time_samples_series.sort()
 
                         ''' Compose data '''
                         data_composition = []
@@ -198,12 +199,13 @@ class ROSComm():
                             print("WARNING: data frame composed is not 1sec long")
 
                         ''' Subtract middle path point from all path points '''
-                        if 'normalize' in args:
-                            data_composition_ = []
-                            data_composition0 = deepcopy(data_composition[len(data_composition)//2])
-                            for n in range(0, len(data_composition)):
-                                data_composition_.append(np.subtract(data_composition[n], data_composition0))
-                            data_composition = data_composition_
+
+                        #if 'normalize' in args:
+                        data_composition_ = []
+                        data_composition0 = deepcopy(data_composition[len(data_composition)//2])
+                        for n in range(0, len(data_composition)):
+                            data_composition_.append(np.subtract(data_composition[n], data_composition0))
+                        data_composition = data_composition_
 
                         ''' Fill the ROS msg '''
                         msg.observations.data = np.array(data_composition)

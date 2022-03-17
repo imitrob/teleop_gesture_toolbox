@@ -506,35 +506,43 @@ class ScenePlot:
     my_plot(X[Y==2], promp_paths_nothing_mean)
     '''
     @staticmethod
-    def my_plot(data, promp_path_waypoints_tuple):
+    def my_plot(data, promp_path_waypoints_tuple, leap=True, boundbox=True, filename='', size=(8,8), legend=[], series_marking='d'):
 
-        plt.rcParams["figure.figsize"] = (20,20)
+        plt.rcParams["figure.figsize"] = size
         ax = plt.axes(projection='3d')
         for path in data:
             ax.plot3D(path[:,0], path[:,1], path[:,2], 'blue', alpha=0.2)
             ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
             ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
         colors = ['blue','black', 'yellow', 'red', 'cyan', 'green']
+        annotations = [('left','top'), ('left','top'), ('right','bottom'), ('right','bottom'),('left','bottom')]
         for n,path_waypoints_tuple in enumerate(promp_path_waypoints_tuple):
             path, waypoints = path_waypoints_tuple
-            ax.plot3D(path[:,0], path[:,1], path[:,2], colors[n], label=f"Series {str(n)}", alpha=1.0)
+            ax.plot3D(path[:,0], path[:,1], path[:,2], colors[n], label=f"{legend[n]}", alpha=1.0)
             ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
             ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
             npoints = 5
             p = int(len(path[:,0])/npoints)
-            for n in range(npoints):
-                ax.text(path[:,0][n*p], path[:,1][n*p], path[:,2][n*p], str(100*n*p/len(path[:,0]))+"%")
-            for n, waypoint_key in enumerate(list(waypoints.keys())):
+            if series_marking == '%':
+                for m in range(npoints):
+                    ax.text(path[:,0][m*p], path[:,1][m*p], path[:,2][m*p], str(100*m*p/len(path[:,0]))+"%", color='black',
+                                fontsize="small", weight='light',
+                                horizontalalignment=annotations[m][0],
+                                verticalalignment=annotations[m][1])
+            elif series_marking == 'd':
+                ax.scatter(path[:,0][1:-1], path[:,1][1:-1], path[:,2][1:-1], marker='d', color='black', zorder=2)
+            for m, waypoint_key in enumerate(list(waypoints.keys())):
                 waypoint = waypoints[waypoint_key]
-                s = f"wp {n} "
+                s = f"wp {m} "
                 if waypoint.gripper is not None: s += f'(gripper {waypoint.gripper})'
                 if waypoint.eef_rot is not None: s += f'(eef_rot {waypoint.eef_rot})'
                 ax.text(waypoint.p[0], waypoint.p[1], waypoint.p[2], s)
         ax.legend()
         # Leap Motion
-        X,Y,Z = VisualizerLib.cuboid_data([0.475, 0.0, 0.0], (0.004, 0.010, 0.001))
-        ax.plot_surface(X, Y, Z, color='grey', rstride=1, cstride=1, alpha=0.5)
-        ax.text(0.475, 0.0, 0.0, 'Leap Motion')
+        if leap:
+            X,Y,Z = VisualizerLib.cuboid_data([0.475, 0.0, 0.0], (0.004, 0.010, 0.001))
+            ax.plot_surface(X, Y, Z, color='grey', rstride=1, cstride=1, alpha=0.5)
+            ax.text(0.475, 0.0, 0.0, 'Leap Motion')
 
         if sl.scene:
             for n in range(len(sl.scene.object_poses)):
@@ -543,20 +551,23 @@ class ScenePlot:
                 X,Y,Z = VisualizerLib.cuboid_data([pos.x, pos.y, pos.z], (size.x, size.y, size.z))
                 ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
 
-        # Create cubic bounding box to simulate equal aspect ratio
-        X = np.array([0.3,0.7]); Y = np.array([-0.2, 0.2]); Z = np.array([0.0, 0.5])
-        max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
-        Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
-        Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
-        Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
-        # Comment or uncomment following both lines to test the fake bounding box:
-        for xb, yb, zb in zip(Xb, Yb, Zb):
-           ax.plot([xb], [yb], [zb], 'w')
+        if boundbox:
+            # Create cubic bounding box to simulate equal aspect ratio
+            X = np.array([-0.1,0.1]); Y = np.array([-0.1, 0.1]); Z = np.array([0.0, 0.2])
+            max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
+            Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
+            Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
+            Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
+            # Comment or uncomment following both lines to test the fake bounding box:
+            for xb, yb, zb in zip(Xb, Yb, Zb):
+               ax.plot([xb], [yb], [zb], 'w')
 
         ax.set_xlabel('X [m]')
         ax.set_ylabel('Y [m]')
         ax.set_zlabel('Z [m]')
-        #plt.savefig('/home/pierro/Documents/test_promp_nothing_4_differentstarts.png', format='png')
+
+        if filename:
+            plt.savefig(f'/home/petr/Documents/{filename}.png', format='png')
         plt.show()
 
 if __name__ == "__main__":

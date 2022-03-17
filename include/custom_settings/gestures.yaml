@@ -56,10 +56,11 @@ main_set:
   swipe_left:
     record_key: a
     filename: arrow_left.png
+    time_visible_threshold: 3
   swipe_up:
     record_key: w
     filename: arrow_up.png
-    time_visible_threshold: 4
+    time_visible_threshold: 3
   nothing_dyn:
     record_key: n
   kick:

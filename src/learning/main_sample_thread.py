@@ -15,6 +15,7 @@ settings.init()
 
 import numpy as np
 import rospy
+import time
 
 from mirracle_gestures.msg import DetectionSolution, DetectionObservations
 from mirracle_gestures.srv import ChangeNetwork, ChangeNetworkResponse
@@ -59,14 +60,17 @@ class ClassificationSampler():
         ''' When received configuration, generates/sends output
             - header output the header of detection, therefore it just copies it
         '''
+        t1 = time.perf_counter()
         self.sem.acquire()
         pred = self.sample_approach.sample(data.observations)
         self.sem.release()
+
         id = np.argmax(pred[0])
+        pred = pred[0]
 
         sol = DetectionSolution()
         sol.id = id
-        sol.probabilities.data = pred[0]
+        sol.probabilities.data = pred
         sol.header = data.header
         sol.sensor_seq = data.sensor_seq
         sol.approach = self.detection_approach
@@ -88,6 +92,7 @@ class ClassificationSampler():
         return msg
 
     def init(self, network):
+        ''' network parameter is classic file name for PyMC3 '''
         if network in os.listdir(settings.paths.network_path):
             nn = NNWrapper.load_network(settings.paths.network_path, name=network)
 
@@ -102,7 +107,13 @@ class ClassificationSampler():
             self.sem.release()
 
             rospy.loginfo(f"[Sample thread] network is: {network}")
+            ''' network parameter is folder name for PyTorch network folder '''
         elif os.path.isdir(settings.paths.UCB_path+'checkpoints/'+network):
+            self.sem.acquire()
+            self.nn = self.sample_approach.init(network)
+            self.sem.release()
+            ''' DTW has as netowork parameter a method name'''
+        elif self.detection_approach == 'DTW':
             self.sem.acquire()
             self.nn = self.sample_approach.init(network)
             self.sem.release()
