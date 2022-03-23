@@ -54,6 +54,7 @@ class MplCanvas(FigureCanvasQTAgg):
         '''
         fig = Figure(figsize=(width, height), dpi=dpi)
         self.axes = fig.add_subplot(211)
+        self.twinxaxes = self.axes.twinx()
         self.axes2 = fig.add_subplot(212)
         #axes2 = fig.add_subplot(122, xlabel='time [s]', ylabel='Total timewarp distance [mm]')
         super(MplCanvas, self).__init__(fig)
@@ -143,7 +144,7 @@ class AnotherWindowPlot(QWidget):
 
         ''' Upper plot '''
         self.canvas.axes.cla()  # clear the axes content
-        self.canvas.twinxaxes = self.canvas.axes.twinx()
+        self.canvas.twinxaxes.cla()
         self.canvas.axes.plot(left_stamps, left_values)
         self.canvas.twinxaxes.plot(right_stamps, right_values)
         self.canvas.axes.set_xlabel('time [s]')
@@ -152,7 +153,8 @@ class AnotherWindowPlot(QWidget):
         tmp_gs = []
         if np.array(left_values).any(): tmp_gs.extend(left_gs)
         if np.array(right_values).any(): tmp_gs.extend(right_gs)
-        self.canvas.axes.legend(tmp_gs)
+        self.canvas.axes.legend(tmp_gs, loc='upper right')
+        self.canvas.twinxaxes.legend(right_gs, loc='upper left')
         for n,id in left_markers:
             np.array(getattr(gl.gd,l_hand_type+'_info')().names)[left_gs_ids][id]
             self.canvas.axes.annotate(left_gs[id], xy=(left_stamps[n], left_values[n][0]), color='black',
@@ -464,11 +466,11 @@ class Example(QMainWindow):
 
         self.btnPlotActivate = QPushButton('Update plot', self)
         self.btnPlotActivate.clicked.connect(self.update_plot_with_vars)
-        self.btnPlotActivate.setGeometry(LEFT_MARGIN+130+int(ICON_SIZE*2), START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
+        self.btnPlotActivate.setGeometry(LEFT_MARGIN+130+int(ICON_SIZE*4), START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
 
         self.btnExportDataActivate = QPushButton('Export data', self)
         self.btnExportDataActivate.clicked.connect(self.export_plot_data)
-        self.btnExportDataActivate.setGeometry(LEFT_MARGIN+130+int(ICON_SIZE*4), START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
+        self.btnExportDataActivate.setGeometry(LEFT_MARGIN+130+int(ICON_SIZE*2), START_PANEL_Y+30,ICON_SIZE*2,int(ICON_SIZE/2))
 
         self.btnDeletePlotActivate = QPushButton('Delete data', self)
         self.btnDeletePlotActivate.clicked.connect(self.delete_plot_data)
