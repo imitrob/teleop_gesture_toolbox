@@ -506,18 +506,20 @@ class ScenePlot:
     my_plot(X[Y==2], promp_paths_nothing_mean)
     '''
     @staticmethod
-    def my_plot(data, promp_path_waypoints_tuple, leap=True, boundbox=True, filename='', size=(8,8), legend=[], series_marking='d'):
-
+    def my_plot(data, promp_paths, waypoints=None, leap=True, boundbox=True, filename='', size=(8,8), legend=[], series_marking='d'):
+        if legend == []: legend = [f'Series {n}' for n in range(len(promp_paths))]
         plt.rcParams["figure.figsize"] = size
         ax = plt.axes(projection='3d')
         for path in data:
             ax.plot3D(path[:,0], path[:,1], path[:,2], 'blue', alpha=0.2)
             ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
             ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
-        colors = ['blue','black', 'yellow', 'red', 'cyan', 'green']
+        colors = ['blue','black', 'yellow', 'red', 'cyan', 'green', 'blue','black', 'yellow', 'red', 'cyan', 'green']
         annotations = [('left','top'), ('left','top'), ('right','bottom'), ('right','bottom'),('left','bottom')]
-        for n,path_waypoints_tuple in enumerate(promp_path_waypoints_tuple):
-            path, waypoints = path_waypoints_tuple
+        for n in range(len(promp_paths)):
+            path = promp_paths[n]
+            if waypoints is not None: waypoints_ = waypoints[n]
+            else: waypoints_ = {}
             ax.plot3D(path[:,0], path[:,1], path[:,2], colors[n], label=f"{legend[n]}", alpha=1.0)
             ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
             ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
@@ -531,8 +533,8 @@ class ScenePlot:
                                 verticalalignment=annotations[m][1])
             elif series_marking == 'd':
                 ax.scatter(path[:,0][1:-1], path[:,1][1:-1], path[:,2][1:-1], marker='d', color='black', zorder=2)
-            for m, waypoint_key in enumerate(list(waypoints.keys())):
-                waypoint = waypoints[waypoint_key]
+            for m, waypoint_key in enumerate(list(waypoints_.keys())):
+                waypoint = waypoints_[waypoint_key]
                 s = f"wp {m} "
                 if waypoint.gripper is not None: s += f'(gripper {waypoint.gripper})'
                 if waypoint.eef_rot is not None: s += f'(eef_rot {waypoint.eef_rot})'
