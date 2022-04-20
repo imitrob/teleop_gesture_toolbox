@@ -47,22 +47,23 @@ main_set:
     static: true
   swipe_down:
     record_key: s
-    filename: arrow_down.png
+    filename: swipe_down.png
     time_visible_threshold: 3
   swipe_front_right:
     record_key: d
-    filename: arrow_right.png
+    filename: swipe_right.png
     time_visible_threshold: 3
   swipe_left:
     record_key: a
-    filename: arrow_left.png
+    filename: swipe_left.png
     time_visible_threshold: 3
   swipe_up:
     record_key: w
-    filename: arrow_up.png
+    filename: swipe_up.png
     time_visible_threshold: 3
-  nothing_dyn:
+  no_gesture:
     record_key: n
+    filename: no_gesture.png
   kick:
     mp: true
   touch:
