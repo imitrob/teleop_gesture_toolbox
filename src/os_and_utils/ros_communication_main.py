@@ -156,7 +156,7 @@ class ROSComm():
 
         for key in hand_mode.keys():
             args = gl.gd.static_network_info
-            if 'static' in hand_mode[key]:
+            if hand_mode is not None and 'static' in hand_mode[key]:
                 if key == 'l':
                     if ml.md.l_present():
                         msg.observations.data = ml.md.frames[-1].l.get_learning_data_static(definition=args['input_definition_version'])
@@ -170,7 +170,7 @@ class ROSComm():
 
 
             time_samples = settings.yaml_config_gestures['misc_network_args']['time_samples']
-            if 'dynamic' in hand_mode[key] and len(ml.md.frames) > time_samples:
+            if hand_mode is not None and 'dynamic' in hand_mode[key] and len(ml.md.frames) > time_samples:
                 args = gl.gd.dynamic_network_info
                 if getattr(ml.md, key+'_present')():
                     try:

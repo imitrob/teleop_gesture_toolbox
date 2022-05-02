@@ -3,17 +3,18 @@ import tf
 from os_and_utils.utils_ros import extq
 ## ROS dependent lib
 from geometry_msgs.msg import Quaternion, Point, Pose
-import os_and_utils.move_lib as ml
 import settings
 from copy import deepcopy
 
 class Transformations():
     @staticmethod
-    def transformLeapToScene(data):
+    def transformLeapToScene(data, env, scale, camera_orientation):
+        '''
+        '''
         if isinstance (data, Pose):
-            return Transformations.transformLeapToScenePose(data)
+            return Transformations.transformLeapToScenePose(data, env, scale, camera_orientation)
         elif isinstance(data, (list,tuple, np.ndarray)):
-            return Transformations.transformLeapToSceneList(data)
+            return Transformations.transformLeapToSceneList(data, env, scale)
         else: raise Exception("Wrong datatype to function transformLeapToScene(), need Pose, List, Tuple or np.ndarray")
 
 
@@ -43,8 +44,11 @@ class Transformations():
         return [x__, y__, z__]
 
     @staticmethod
-    def transformLeapToSceneList(list):
+    def transformLeapToSceneList(list, env, scale):
         ''' TODO: Orientaiton
+        Parameters:
+            env (): ml.md.ENV
+            scale (Float): ml.md.scale
         '''
         x = list[0]; y = list[1]; z = list[2]
         if len(list) == 7:
@@ -55,9 +59,9 @@ class Transformations():
         x = x/1000
         y = -z/1000
         z = y/1000
-        x_ = np.dot([x,y,z], ml.md.ENV['axes'][0])*ml.md.scale + ml.md.ENV['start'].x
-        y_ = np.dot([x,y,z], ml.md.ENV['axes'][1])*ml.md.scale + ml.md.ENV['start'].y
-        z_ = np.dot([x,y,z], ml.md.ENV['axes'][2])*ml.md.scale + ml.md.ENV['start'].z
+        x_ = np.dot([x,y,z], env['axes'][0])*scale + env['start'].x
+        y_ = np.dot([x,y,z], env['axes'][1])*scale + env['start'].y
+        z_ = np.dot([x,y,z], env['axes'][2])*scale + env['start'].z
         return [x_, y_, z_]
 
     @staticmethod
@@ -105,7 +109,7 @@ class Transformations():
         return pose
 
     @staticmethod
-    def transformLeapToScenePose(pose, out='pose'):
+    def transformLeapToScenePose(pose, env, scale, camera_orientation, out='pose'):
         ''' Leap -> rViz -> Scene
         '''
         if isinstance(pose, list):
@@ -136,7 +140,7 @@ class Transformations():
             x = -pose.position.x/1000
             y = pose.position.y/1000
             z = -pose.position.z/1000
-            camera = ml.md.camera_orientation
+            camera = camera_orientation
             camera_matrix = tf.transformations.euler_matrix(camera.x, camera.y, camera.z, 'rxyz')
             camera_matrix = np.array(camera_matrix)[0:3,0:3]
             x_cop = np.dot([x,y,z], camera_matrix[0])
@@ -146,29 +150,29 @@ class Transformations():
 
         # Linear transformation to point with rotation
         # How the Leap position will affect system
-        pose_.position.x = np.dot([x,y,z], ml.md.ENV['axes'][0])*ml.md.scale + ml.md.ENV['start'].x
-        pose_.position.y = np.dot([x,y,z], ml.md.ENV['axes'][1])*ml.md.scale + ml.md.ENV['start'].y
-        pose_.position.z = np.dot([x,y,z], ml.md.ENV['axes'][2])*ml.md.scale + ml.md.ENV['start'].z
+        pose_.position.x = np.dot([x,y,z], env['axes'][0])*scale + env['start'].x
+        pose_.position.y = np.dot([x,y,z], env['axes'][1])*scale + env['start'].y
+        pose_.position.z = np.dot([x,y,z], env['axes'][2])*scale + env['start'].z
 
         # apply rotation
         alpha, beta, gamma = tf.transformations.euler_from_quaternion([pose.orientation.x,pose.orientation.y,pose.orientation.z,pose.orientation.w])
-        Rx = tf.transformations.rotation_matrix(alpha, ml.md.ENV['ori_live'][0])
-        Ry = tf.transformations.rotation_matrix(beta,  ml.md.ENV['ori_live'][1])
-        Rz = tf.transformations.rotation_matrix(gamma, ml.md.ENV['ori_live'][2])
+        Rx = tf.transformations.rotation_matrix(alpha, env['ori_live'][0])
+        Ry = tf.transformations.rotation_matrix(beta,  env['ori_live'][1])
+        Rz = tf.transformations.rotation_matrix(gamma, env['ori_live'][2])
         R = tf.transformations.concatenate_matrices(Rx, Ry, Rz)
         euler = tf.transformations.euler_from_matrix(R, 'rxyz')
 
         [alpha, beta, gamma] = euler
-        Rx = tf.transformations.rotation_matrix(alpha, [1,0,0]) #ml.md.ENV['axes'][0])
-        Ry = tf.transformations.rotation_matrix(beta,  [0,1,0]) #ml.md.ENV['axes'][1])
-        Rz = tf.transformations.rotation_matrix(gamma, [0,0,1]) #ml.md.ENV['axes'][2])
+        Rx = tf.transformations.rotation_matrix(alpha, [1,0,0]) #env['axes'][0])
+        Ry = tf.transformations.rotation_matrix(beta,  [0,1,0]) #env['axes'][1])
+        Rz = tf.transformations.rotation_matrix(gamma, [0,0,1]) #env['axes'][2])
         R = tf.transformations.concatenate_matrices(Rx, Ry, Rz)
         euler = tf.transformations.euler_from_matrix(R, 'rxyz')
 
-        pose_.orientation = Quaternion(*tf.transformations.quaternion_multiply(tf.transformations.quaternion_from_euler(*euler), extq(ml.md.ENV['ori'])))
+        pose_.orientation = Quaternion(*tf.transformations.quaternion_multiply(tf.transformations.quaternion_from_euler(*euler), extq(env['ori'])))
 
         if settings.orientation_mode == 'fixed':
-            pose_.orientation = ml.md.ENV['ori']
+            pose_.orientation = env['ori']
 
         if out == 'position':
             return [pose_.position.x, pose_.position.y, pose_.position.z]
@@ -178,16 +182,16 @@ class Transformations():
         return pose_
 
     @staticmethod
-    def transformSceneToUI(pose, view='view'):
+    def transformSceneToUI(pose, env, view='view'):
         ''' Scene -> rViz -> UI
         '''
         pose_ = Pose()
         pose_.orientation = pose.orientation
-        p = Point(pose.position.x-ml.md.ENV['start'].x, pose.position.y-ml.md.ENV['start'].y, pose.position.z-ml.md.ENV['start'].z)
+        p = Point(pose.position.x-env['start'].x, pose.position.y-env['start'].y, pose.position.z-env['start'].z)
         # View transformation
-        x = (np.dot([p.x,p.y,p.z], ml.md.ENV[view][0]) )*settings.ui_scale
-        y = (np.dot([p.x,p.y,p.z], ml.md.ENV[view][1]) )*settings.ui_scale
-        z = (np.dot([p.x,p.y,p.z], ml.md.ENV[view][2]) )*settings.ui_scale
+        x = (np.dot([p.x,p.y,p.z], env[view][0]) )*settings.ui_scale
+        y = (np.dot([p.x,p.y,p.z], env[view][1]) )*settings.ui_scale
+        z = (np.dot([p.x,p.y,p.z], env[view][2]) )*settings.ui_scale
         # Window to center, y is inverted
         pose_.position.x = x + settings.w/2
         pose_.position.y = -y + settings.h
@@ -221,11 +225,11 @@ class Transformations():
         return pose_
 
     @staticmethod
-    def transformLeapToUI(self, pose):
+    def transformLeapToUI(pose, env, scale):
         ''' Leap -> UI
         '''
-        pose_ = Transformations.transformLeapToScene(pose)
-        pose__ = Transformations.transformSceneToUI(pose_)
+        pose_ = Transformations.transformLeapToScene(pose, env, scale)
+        pose__ = Transformations.transformSceneToUI(pose_, env)
         return pose__
 
     @staticmethod
@@ -239,10 +243,10 @@ class Transformations():
         return x,y,z
 
     @staticmethod
-    def pointToScene(point):
+    def pointToScene(point, env, scale):
         x,y,z = point.x, point.y, point.z
         point_ = Point()
-        point_.x = np.dot([x,y,z], ml.md.ENV['axes'][0])*ml.md.SCALE + ml.md.ENV['start'].x
-        point_.y = np.dot([x,y,z], ml.md.ENV['axes'][1])*ml.md.SCALE + ml.md.ENV['start'].y
-        point_.z = np.dot([x,y,z], ml.md.ENV['axes'][2])*ml.md.SCALE + ml.md.ENV['start'].z
+        point_.x = np.dot([x,y,z], env['axes'][0])*scale + env['start'].x
+        point_.y = np.dot([x,y,z], env['axes'][1])*scale + env['start'].y
+        point_.z = np.dot([x,y,z], env['axes'][2])*scale + env['start'].z
         return point_

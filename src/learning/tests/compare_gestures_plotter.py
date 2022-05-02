@@ -1,4 +1,9 @@
 #!/usr/bin/env python3.8
+'''
+1. Reads data from ROS msgs
+2. Loads data from saved files
+3. Can compare data via plot
+'''
 from importlib import reload
 import numpy as np
 import sys; sys.path.append('../..')

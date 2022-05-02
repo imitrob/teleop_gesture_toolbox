@@ -101,7 +101,9 @@ class ProMPGenerator():
         vars = gl.gd.var_generate(action_hand, action_stamp)
 
         path = self.generate_path(action_name, vars=vars, tmp_action_stamp=action_stamp)
-
+        if path is None:
+            print("Mapping not found!")
+            return None
         '''
         def NormalizeData(data):
             return (data - np.min(data)) / (np.max(data) - np.min(data))
@@ -135,6 +137,7 @@ class ProMPGenerator():
         '''
         # Uses gesture_config.yaml
         id_primitive = map_to_primitive_gesture(id)
+        if id_primitive is None: return None
         print(f"Generating path for id {id} to {id_primitive}")
         # Based on defined MPs in classes below
         _, mp_type = get_id_motionprimitive_type(id_primitive)
@@ -160,6 +163,11 @@ def map_to_primitive_gesture(id_gesture):
     ''' Mapping hand gesture ID to robot primitive gesture ID
     '''
     mapping = settings.get_gesture_mapping()
+    try:
+        mapping[id_gesture]
+    except KeyError:
+        return None
+
     return mapping[id_gesture]
 
 def check_waypoints_accuracy(promp_path, waypoints):
@@ -179,7 +187,7 @@ def check_waypoints_accuracy(promp_path, waypoints):
 def choose_the_object():
     ''' Probably will move
     '''
-    #pose_in_scene = ml.md.mouse3d_position #tfm.transformLeapToScene([0.,0.,100.])#[leap_3d_mouse])
+    #pose_in_scene = ml.md.mouse3d_position #tfm.transformLeapToScene([0.,0.,100.])#[leap_3d_mouse], ml.md.ENV, ml.md.scale)
     #objects_in_scenes = sl.scene.object_poses[ml.md.object_focus_id]
     #object_id = get_object_of_closest_distance(objects_in_scenes, pose_in_scene)
     object_id = ml.md.object_focus_id
@@ -287,8 +295,8 @@ class ProbabilisticMotionPrimitiveGenerator():
         object_id, object_position = choose_the_object()
 
         # # TODO: apply real object len
-        #over_object_position = (object_position[0], object_position[1], object_position[2]+0.1)
-        #waypoints[0.7] = Waypoint(p=over_object_position)
+        over_object_position = (object_position[0], object_position[1], object_position[2]+0.1)
+        waypoints[0.7] = Waypoint(p=over_object_position)
 
         object_position, gripper = handle_build_structure()
 

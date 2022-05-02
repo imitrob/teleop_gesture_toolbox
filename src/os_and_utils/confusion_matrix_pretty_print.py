@@ -19,7 +19,9 @@ import matplotlib.pyplot as plt
 import matplotlib.font_manager as fm
 from matplotlib.collections import QuadMesh
 import seaborn as sn
+#sn.color_palette("colorblind")
 import os
+import datetime
 
 def get_new_fig(fn, figsize=[9,9]):
     """ Init graphics """
@@ -68,13 +70,22 @@ def configcell_text_and_colors(array_df, lin, col, oText, facecolors, posi, fz, 
 
         #text to ADD
         font_prop = fm.FontProperties(weight='bold', size=fz)
-        text_kwargs = dict(color='w', ha="center", va="center", gid='sum', fontproperties=font_prop)
+        text_kwargs = dict(color='black', ha="center", va="center", gid='sum', fontproperties=font_prop)
         lis_txt = ['%d'%(cell_val), per_ok_s, '%.2f%%'%(per_err)]
         lis_kwa = [text_kwargs]
-        dic = text_kwargs.copy(); dic['color'] = 'g'; lis_kwa.append(dic);
-        dic = text_kwargs.copy(); dic['color'] = 'r'; lis_kwa.append(dic);
+        dic = text_kwargs.copy(); dic['color'] = 'black'; lis_kwa.append(dic);
+        dic = text_kwargs.copy(); dic['color'] = 'red'; lis_kwa.append(dic);
         lis_pos = [(oText._x, oText._y-0.3), (oText._x, oText._y), (oText._x, oText._y+0.3)]
         for i in range(len(lis_txt)):
+            '''float('10%'[:-1])
+            if float(lis_txt[i][:-1]) > 90:
+                lis_kwa[i]['color'] = 'pink'
+                newText = dict(x=lis_pos[i][0], y=lis_pos[i][1], text=lis_txt[i], kw=lis_kwa[i])
+            else:'''
+            if(col == ccl - 1) and (lin == ccl - 1):
+                lis_kwa[i]['color'] = 'white'
+            if(col == ccl - 1) and (lin == ccl - 1) and i==2:
+                lis_kwa[i]['color'] = 'red'
             newText = dict(x=lis_pos[i][0], y=lis_pos[i][1], text=lis_txt[i], kw=lis_kwa[i])
             #print 'lin: %s, col: %s, newText: %s' %(lin, col, newText)
             text_add.append(newText)
@@ -101,11 +112,11 @@ def configcell_text_and_colors(array_df, lin, col, oText, facecolors, posi, fz, 
         #main diagonal
         if(col == lin):
             #set color of the textin the diagonal to white
-            oText.set_color('w')
+            oText.set_color('black')
             # set background color in the diagonal to blue
             facecolors[posi] = [0.35, 0.8, 0.55, 1.0]
         else:
-            oText.set_color('r')
+            oText.set_color('black')
 
     return text_add, text_del
 #
@@ -124,7 +135,7 @@ def insert_totals(df_cm):
     #print ('\ndf_cm:\n', df_cm, '\n\b\n')
 #
 
-def pretty_plot_confusion_matrix(df_cm, annot=True, cmap="Oranges", fmt='.2f', fz=11,
+def pretty_plot_confusion_matrix(df_cm, annot=True, cmap="RdBu", fmt='.2f', fz=11,
       lw=0.5, cbar=False, figsize=[8,8], show_null_values=0, pred_val_axis='y', name="conf"):
     """
       print conf matrix with default layout (like matlab)
@@ -206,8 +217,31 @@ def pretty_plot_confusion_matrix(df_cm, annot=True, cmap="Oranges", fmt='.2f', f
     plt.tight_layout()  #set layout slim
     fig1 = plt.gcf()
     plt.show()
-    fig1.savefig(os.path.expanduser('~/Pictures/')+name+'.png')#, format='eps')
-#
+
+    d = ''
+    if os.path.isfile(f"/home/{os.getlogin()}/Pictures/conf.svg"): d=f"_{datetime.datetime.now()}"
+    fig1.savefig(f"/home/{os.getlogin()}/Pictures/{name}{d}.svg", format='svg')
+
+#fmt='1.8f', fz=10, lw=25, cbar=False,show_null_values=2, pred_val_axis='y', name=self.method
+
+def my_conf_matrix_from_data(y_test, predictions, columns=None, annot=True, cmap="Greens",
+      fmt='.2f', fz=11, lw=0.5, cbar=False, figsize=[5,5], show_null_values=0, pred_val_axis='lin', name="conf"):
+    from sklearn.metrics import confusion_matrix
+    from pandas import DataFrame
+
+    #data
+    if(not columns):
+        from string import ascii_uppercase
+        columns = ['class %s' %(i) for i in list(ascii_uppercase)[0:len(np.unique(y_test))]]
+
+    confm = confusion_matrix(y_test, predictions)
+
+    if not figsize:
+        lsize =  len(columns)*1.2
+        figsize = [lsize, lsize]
+
+    df_cm = DataFrame(confm, index=columns, columns=columns)
+    pretty_plot_confusion_matrix(df_cm, fz=fz, cmap=cmap, figsize=figsize, show_null_values=show_null_values, pred_val_axis=pred_val_axis, name=name)
 
 def plot_confusion_matrix_from_data(y_test, predictions, columns=None, annot=True, cmap="Oranges",
       fmt='.2f', fz=11, lw=0.5, cbar=False, figsize=[8,8], show_null_values=0, pred_val_axis='lin', name="conf"):
@@ -247,8 +281,7 @@ def _test_cm():
                        [ 0,  0,  0,  0,  0, 20]])
     #get pandas dataframe
     df_cm = DataFrame(array, index=range(1,7), columns=range(1,7))
-    #colormap: see this and choose your more dear
-    cmap = 'PuRd'
+    cmap = 'Greens'
     pretty_plot_confusion_matrix(df_cm, cmap=cmap)
 #
 
@@ -273,7 +306,7 @@ def _test_data_class():
     pred_val_axis = 'y'
     #size::
     fz = 12;
-    figsize = [9,9];
+    figsize = [6,6];
     if(len(y_test) > 10):
         fz=9; figsize=[14,14];
     plot_confusion_matrix_from_data(y_test, predic, columns,

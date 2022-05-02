@@ -81,9 +81,11 @@ def get_network_file(type='static'):
     main_set_name = yaml_config_gestures['using_set']
     chosen_set = yaml_config_gestures['sets'][main_set_name]
     chosen_set['gestures']
-    chosen_set['hand_mode_sets']
-    chosen_set['mapping_sets']
-    network_set_name = chosen_set['network_set']
+    try:
+        network_set_name = chosen_set['network_set']
+        yaml_config_gestures['network_sets'][network_set_name][f'{type}_network_file']
+    except KeyError:
+        return None
 
     return yaml_config_gestures['network_sets'][network_set_name][f'{type}_network_file']
 
@@ -91,9 +93,10 @@ def get_detection_approach(type='static'):
     main_set_name = yaml_config_gestures['using_set']
     chosen_set = yaml_config_gestures['sets'][main_set_name]
     chosen_set['gestures']
-    chosen_set['hand_mode_sets']
-    chosen_set['mapping_sets']
-    network_set_name = chosen_set['network_set']
+    try:
+        network_set_name = chosen_set['network_set']
+    except KeyError:
+        return None
 
     try:
         return yaml_config_gestures['network_sets'][network_set_name][f'{type}_detection_approach']
@@ -103,11 +106,24 @@ def get_detection_approach(type='static'):
 def get_hand_mode():
     main_set_name = yaml_config_gestures['using_set']
     chosen_set = yaml_config_gestures['sets'][main_set_name]
-    hand_mode_set_name = chosen_set['hand_mode_sets']
+    chosen_set = {}
+    try:
+        hand_mode_set_name = chosen_set['hand_mode_sets']
+    except KeyError:
+        ''' Assign default option '''
+        default_mode_set = {
+            'l': 'static',
+            'r': 'dynamic'
+            }
+        return default_mode_set
+
     return dict(yaml_config_gestures['hand_mode_sets'][hand_mode_set_name])
 
 def get_gesture_mapping():
     main_set_name = yaml_config_gestures['using_set']
     chosen_set = yaml_config_gestures['sets'][main_set_name]
-    mapping_set_name = chosen_set['mapping_sets']
+    try:
+        mapping_set_name = chosen_set['mapping_sets']
+    except KeyError:
+        return {}
     return dict(yaml_config_gestures['mapping_sets'][mapping_set_name])

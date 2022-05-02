@@ -42,7 +42,7 @@ class ClassificationSampler():
         elif self.detection_approach in ['DTW', 'dtw', 'fastdtw', 'fastDTW', 'dynamictimewarp']:
             self.detection_approach = 'DTW'
             from learning.timewarp_lib import fastdtw_ as sample_approach
-        else: raise Exception("No detection approach found!")
+        else: raise Exception(f"No detection approach found! {type} detection is now offline, check configs.")
         self.sample_approach = sample_approach()
 
         rospy.init_node('classification_sampler', anonymous=True)

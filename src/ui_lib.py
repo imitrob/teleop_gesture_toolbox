@@ -42,6 +42,7 @@ from mirracle_gestures.srv import ChangeNetwork, SaveHandRecord
 
 import matplotlib
 matplotlib.use('Qt5Agg')
+matplotlib.rcParams.update({'font.size': 25})
 from PyQt5 import QtCore, QtWidgets
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
@@ -145,16 +146,17 @@ class AnotherWindowPlot(QWidget):
         ''' Upper plot '''
         self.canvas.axes.cla()  # clear the axes content
         self.canvas.twinxaxes.cla()
-        self.canvas.axes.plot(left_stamps, left_values)
-        self.canvas.twinxaxes.plot(right_stamps, right_values)
+        self.canvas.axes.plot(left_stamps, left_values,linewidth=7.0)
+        self.canvas.twinxaxes.plot(right_stamps, right_values,linewidth=7.0)
         self.canvas.axes.set_xlabel('time [s]')
         self.canvas.axes.set_ylabel(f'Static gestures probability [-]')
-        self.canvas.twinxaxes.set_ylabel(f'Dynamic gestures likelihood (DTW distance) [log(mm^-1)]')
+        self.canvas.twinxaxes.set_ylabel(f'Dynamic gestures likelihood [-]')
         tmp_gs = []
         if np.array(left_values).any(): tmp_gs.extend(left_gs)
         if np.array(right_values).any(): tmp_gs.extend(right_gs)
-        self.canvas.axes.legend(tmp_gs, loc='upper right')
-        self.canvas.twinxaxes.legend(right_gs, loc='upper left')
+        self.canvas.axes.legend(tmp_gs, loc='upper left')
+        self.canvas.twinxaxes.legend(right_gs, loc='upper right')
+        '''
         for n,id in left_markers:
             np.array(getattr(gl.gd,l_hand_type+'_info')().names)[left_gs_ids][id]
             self.canvas.axes.annotate(left_gs[id], xy=(left_stamps[n], left_values[n][0]), color='black',
@@ -166,11 +168,14 @@ class AnotherWindowPlot(QWidget):
                         fontsize="small", weight='light',
                         horizontalalignment='center',
                         verticalalignment='center')
+        '''
+        '''
         if gs_filter:
             self.canvas.axes.text(0.0, 0.0, "Only filtered gestures plotted", color='black',
                         fontsize="small", weight='light',
                         horizontalalignment='center',
                         verticalalignment='top', transform = self.canvas.axes.transAxes)
+        '''
         self.canvas.axes.grid(True)
         ''' Bottom plot '''
         #self.canvas.axes2.cla()
@@ -347,15 +352,13 @@ class AnotherWindowPlot(QWidget):
 
         self.canvas.axes2.set_ylim(0, 12)
         self.canvas.axes2.set_xlabel('time [s]')
-        self.canvas.axes2.set_yticks([1, 3, 5, 7, 9, 11], labels=['r activated', 'r base', 'r visible', 'l activated', 'l base', 'l visible'])
+        self.canvas.axes2.set_yticks([1, 3, 5, 7, 9, 11], labels=['R, Activated', 'R, At base', 'R, Visible', 'L, Activated', 'L, At base', 'L, visible'])
         self.canvas.axes2.grid(True)
 
         self.canvas.axes2.vlines(x=list_of_action_activates, ymin=6, ymax=12, color='k')
         self.canvas.axes2.vlines(x=list_of_action_activates_right, ymin=0, ymax=6, color='k')
 
         self.canvas.draw_idle()
-
-
 
 class Example(QMainWindow):
 
@@ -418,6 +421,7 @@ class Example(QMainWindow):
 
         self.comboPlayNLive = QComboBox(self)
         self.comboPlayNLive.addItem("Play path")
+        self.comboPlayNLive.addItem("Gesture based")
         self.comboPlayNLive.activated[str].connect(self.onComboPlayNLiveChanged)
         self.comboPlayNLive.setGeometry(LEFT_MARGIN+130, START_PANEL_Y-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
@@ -511,6 +515,10 @@ class Example(QMainWindow):
         self.movePageCloseGripperButton = QPushButton("Close gripper", self)
         self.movePageCloseGripperButton.clicked.connect(self.close_gripper_button)
         self.movePageCloseGripperButton.move(LEFT_MARGIN+80+100, START_PANEL_Y+10*32)
+
+        self.movePageRobotResetButton = QPushButton("Close gripper", self)
+        self.movePageRobotResetButton.clicked.connect(self.robot_reset_button)
+        self.movePageRobotResetButton.move(LEFT_MARGIN+80, START_PANEL_Y+11*32)
 
 
 
@@ -690,6 +698,7 @@ class Example(QMainWindow):
         self.AllVisibleObjects.append(ObjectQt('movePageGoGripperButton',self.movePageGoGripperButton,2,view_group=['MoveViewState']))
         self.AllVisibleObjects.append(ObjectQt('movePageOpenGripperButton',self.movePageOpenGripperButton,2,view_group=['MoveViewState']))
         self.AllVisibleObjects.append(ObjectQt('movePageCloseGripperButton',self.movePageCloseGripperButton,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageRobotResetButton',self.movePageRobotResetButton,2,view_group=['MoveViewState']))
 
         self.AllVisibleObjects.append(ObjectQt('movePageUseEnvAboveButton',self.movePageUseEnvAboveButton,2,view_group=['MoveViewState']))
         self.AllVisibleObjects.append(ObjectQt('movePageUseEnvWallButton',self.movePageUseEnvWallButton,2,view_group=['MoveViewState']))
@@ -780,16 +789,24 @@ class Example(QMainWindow):
     def close_gripper_button(self):
         ml.md.m.set_gripper(0.0)
 
+    def robot_reset_button(self):
+        pose = Pose()
+        pose.orientation.x = np.sqrt(2)/2
+        pose.orientation.y = np.sqrt(2)/2
+        pose.position.x = 0.5
+        pose.position.z = 0.2
+        ml.md.m.go_to_pose(pose)
+
     def keyPressEvent(self, event):
         ''' Callbacky for every keyboard button press
         '''
         if settings.record_with_keys:
-            KEYS = [self.mapQtKey(key) for key in gl.gd.Gs_keys]
+            KEYS = [self.mapQtKey(key) for key in gl.gd.GsExt_keys]
             if event.key() in KEYS:
                 self.recording = True
                 for n, key in enumerate(KEYS):
                     if event.key() == key:
-                        self.dir_queue.append(gl.gd.Gs[n])
+                        self.dir_queue.append(gl.gd.GsExt[n])
                         self.caller = RepeatableTimer(self.REC_TIME, self.save_data, ())
                         self.caller.start()
         else:
@@ -981,6 +998,8 @@ class Example(QMainWindow):
             ml.md.mode = 'live'
         elif text=="Play path":
             ml.md.mode = 'play'
+        elif text=="Gesture based":
+            ml.md.mode = 'gesture'
     def onComboPickPlayTrajChanged(self, text):
         ml.md.changePlayPath(text)
     def onComboLiveModeChanged(self, text):
@@ -1014,7 +1033,13 @@ class Example(QMainWindow):
         ## Set all objects on page visible (the rest set invisible)
         for obj in self.AllVisibleObjects:
             # Every object that belongs to that group are conditioned by that group
-            if obj.page == settings.WindowState and (self.GesturesViewState if 'GesturesViewState' in obj.view_group else True) and  (self.MoveViewState if 'MoveViewState' in obj.view_group else True) and (self.PlotterWindow if 'PlotterWindow' in obj.view_group else True) and ((ml.md.mode=='live') if 'live' in obj.view_group else True) and ((ml.md.mode=='play') if 'play' in obj.view_group else True):
+            if obj.page == settings.WindowState and \
+            (self.GesturesViewState if 'GesturesViewState' in obj.view_group else True) and \
+            (self.MoveViewState if 'MoveViewState' in obj.view_group else True) and \
+            (self.PlotterWindow if 'PlotterWindow' in obj.view_group else True) and \
+            ((ml.md.mode=='live') if 'live' in obj.view_group else True) and \
+            ((ml.md.mode=='play') if 'play' in obj.view_group else True) and \
+            ((ml.md.mode=='gesture') if 'gesture' in obj.view_group else True):
                 obj.qt.setVisible(True)
             else:
                 obj.qt.setVisible(False)
@@ -1072,7 +1097,7 @@ class Example(QMainWindow):
 
         ''' Draw the bone structure '''
         for h in ['l', 'r']:
-            painter.setPen(QPen(Qt.black, 1))
+            painter.setPen(QPen(Qt.black, 2))
             #if ml.md.r_present():
             if getattr(ml.md, h+'_present')():
                 hand = getattr(ml.md.frames[-1], h)
@@ -1109,7 +1134,7 @@ class Example(QMainWindow):
                             painter.setBrush(QBrush(Qt.blue, Qt.NoBrush))
                         painter.drawEllipse(x+x_bm-5, y+y_bm-5, 10, 10)
 
-                    painter.setPen(QPen(Qt.black, 1))
+                    painter.setPen(QPen(Qt.black, 2))
 
                 for finger in hand.fingers:
                     for b in range(0, 4):
@@ -1191,16 +1216,19 @@ class Example(QMainWindow):
             static_gs_names = gl.gd.static_info().names
             dynamic_gs_file_images = gl.gd.dynamic_info().filenames
             dynamic_gs_names = gl.gd.dynamic_info().names
+            for n, i in enumerate(static_gs_file_images):
+                image_filename = settings.paths.graphics_path+i
+                image_filename = f"{image_filename[:-4]}_left{image_filename[-4:]}"
+                qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y_GESTURES+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(image_filename))
+
             if gl.gd.l.static.relevant():
                 for n, i in enumerate(static_gs_file_images):
-                    image_filename = settings.paths.graphics_path+i
-                    image_filename = f"{image_filename[:-4]}_left{image_filename[-4:]}"
-                    qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y_GESTURES+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(image_filename))
 
                     if gl.gd.l.static[-1][n].activated:
                         qp.drawRect(LEFT_MARGIN,START_PANEL_Y_GESTURES+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                     qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE-gl.gd.l.static[-1][n].probability*ICON_SIZE))
                     qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y_GESTURES+n*ICON_SIZE+10, static_gs_names[n])
+            '''
             if gl.gd.r.static.relevant():
                 for n, i in enumerate(static_gs_file_images):
                     image_filename = settings.paths.graphics_path+i
@@ -1210,17 +1238,31 @@ class Example(QMainWindow):
                         qp.drawRect(w-RIGHT_MARGIN,START_PANEL_Y_GESTURES+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                     qp.drawLine(w-RIGHT_MARGIN+ICON_SIZE+2, START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE, w-RIGHT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE-gl.gd.r.static[-1][n].probability*ICON_SIZE))
                     qp.drawText(w-RIGHT_MARGIN+ICON_SIZE+5, START_PANEL_Y_GESTURES+n*ICON_SIZE+10, static_gs_names[n])
-
+            '''
+            '''
+            for n, i in enumerate(dynamic_gs_file_images):
+                qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y_GESTURES+(n+len(static_gs_file_images))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
 
             if gl.gd.r.dynamic and gl.gd.r.dynamic.relevant():
                 probabilities = gl.gd.r.dynamic[-1].probabilities_norm
                 for n, i in enumerate(dynamic_gs_file_images):
-                    qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y_GESTURES+(n+len(static_gs_file_images))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
+
 
                     if gl.gd.r.dynamic[-1][n].activated:
                         qp.drawRect(LEFT_MARGIN,START_PANEL_Y_GESTURES+(n+len(static_gs_file_images))*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                     qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y_GESTURES+(n+1+len(static_gs_file_images))*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, START_PANEL_Y_GESTURES+(n+1+len(static_gs_file_images))*ICON_SIZE-probabilities[n]*ICON_SIZE)
                     qp.drawText(LEFT_MARGIN+ICON_SIZE+5, START_PANEL_Y_GESTURES+(n+len(static_gs_file_images))*ICON_SIZE+10, dynamic_gs_names[n])
+            '''
+            for n, i in enumerate(dynamic_gs_file_images):
+                qp.drawPixmap(w-RIGHT_MARGIN, START_PANEL_Y_GESTURES+n*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+i))
+            if gl.gd.r.dynamic and gl.gd.r.dynamic.relevant():
+                probabilities = gl.gd.r.dynamic[-1].probabilities_norm
+                for n, i in enumerate(dynamic_gs_file_images):
+
+                    if gl.gd.r.dynamic[-1][n].activated:
+                        qp.drawRect(w-RIGHT_MARGIN,START_PANEL_Y_GESTURES+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
+                    qp.drawLine(w-RIGHT_MARGIN-2, START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE, w-RIGHT_MARGIN-2, int(START_PANEL_Y_GESTURES+(n+1)*ICON_SIZE-probabilities[n]*ICON_SIZE))
+                    qp.drawText(w-RIGHT_MARGIN-90, START_PANEL_Y_GESTURES+n*ICON_SIZE+10, dynamic_gs_names[n])
 
             if gl.gd.l.static and gl.gd.l.static.relevant():
                 n_ = gl.gd.l.static.relevant().biggest_probability_id
@@ -1247,7 +1289,8 @@ class Example(QMainWindow):
                     else:
                         qp.drawLine(X, Y+rh, X-ARRL, Y-ARRL+rh)
                         qp.drawLine(X, Y+rh, X+ARRL, Y-ARRL+rh)
-
+        if ml.md.live_mode_drawing:
+            qp.drawPixmap(w/2, 50, 20, 20, QPixmap(settings.paths.graphics_path+"hold.png"))
         if self.MoveViewState:
             if ml.md.mode == 'play':
                 if gl.gd.relevant(time_now=rospy.Time.now(), hand='l', type='static') and hasattr(gl.gd.l.static[-1], 'grab'):

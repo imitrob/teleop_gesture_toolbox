@@ -1,3 +1,10 @@
+'''
+Dynamic gestures detection method script - Dynamic Time Warping (DTW)
+
+On:
+python timewarp_lib.py
+-> Applies tests on recorded data
+'''
 import time, random
 import numpy as np
 import sys; sys.path.append('..')
@@ -6,8 +13,11 @@ from fastdtw import fastdtw
 from os_and_utils.loading import HandDataLoader, DatasetLoader
 import gestures_lib as gl
 from os_and_utils import confusion_matrix_pretty_print
+
+from os_and_utils.visualizer_lib import VisualizerLib, ScenePlot
 from scipy.spatial.distance import euclidean
 from copy import deepcopy
+import seaborn as sns
 if __name__ == '__main__': gl.init()
 try:
     gl.gd
@@ -42,6 +52,7 @@ class fastdtw_():
         self.counts = [list(Y).count(g_) for g_ in g]
 
         self.X_ProMP = promp_approach.construct_promp_trajectories(self.X, self.Y, condition=False)
+        '''
         self.X_ProMP = np.array([[[ 0.0, 0.0,  0.05], # 'swipe_down'
             [ 0.0,  0.0,  0.025],
             [ 0.0,  0.0, 0.0],
@@ -67,7 +78,7 @@ class fastdtw_():
             [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
             [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
             [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00]]])
-
+        '''
         self.method = None
 
         print(f"[TimeWarp] Gs: {gl.gd.Gs_dynamic}, counts: {self.counts}, records: {sum(self.counts)}")
@@ -77,7 +88,7 @@ class fastdtw_():
         self.method = method
         print(f"[Sample thread] DTW method is: {method}")
 
-    def norm(self, x):
+    def sub_mid(self, x):
         x_ = []
         x0 = deepcopy(x[len(x)//2])
         for n in range(len(x)):
@@ -163,13 +174,13 @@ class fastdtw_():
         for j in range(sum(counts)):
             dist = np.zeros([len(counts),])
             for i in range(len(counts)):
-                x = self.norm(self.X[j])
-                dist[i], _ = fastdtw(x, self.X_ProMP[i], radius=10, dist=euclidean)
+                x = self.sub_mid(self.X[j])
+                dist[i], _ = fastdtw(x, self.X_ProMP[i], radius=1, dist=euclidean)
             results[j] = np.argmin(dist)
         return results
 
     def sample_promp(self, x):
-        x = self.norm(x)
+        x = self.sub_mid(x)
         counts = self.counts
 
         dist = np.zeros([len(counts),])
@@ -209,12 +220,13 @@ class fastdtw_():
 
         return dist
 
-    def sample(self, x, y=None, print_out=False, format='inverse_array'):
-        if not isinstance(x, list):
-            x = x.data
-            # # TEMP: # FIXME:
-            if len(x) != 15: raise Exception("TODO: HERE !")
-            x = np.array(x).reshape(5,3)
+    def sample(self, x, y=None, print_out=False, format='inverse_array', checktype=True):
+        if checktype:
+            if not isinstance(x, list):
+                x = x.data
+                # # TEMP: # FIXME:
+                if len(x) != 15: raise Exception("TODO: HERE !")
+                x = np.array(x).reshape(5,3)
 
         t=time.time()
         if 'eacheach' == self.method:
@@ -261,33 +273,71 @@ class fastdtw_():
         else: raise Exception("Wrong arg flag")
         print(abs(t-time.time()))
 
-        confusion_matrix_pretty_print.plot_confusion_matrix_from_data(self.Y, results, gl.gd.Gs_dynamic,
-          annot=True, cmap = 'Oranges', fmt='1.8f', fz=10, lw=25, cbar=False, figsize=[6,6], show_null_values=2, pred_val_axis='y', name=self.method)
+        confusion_matrix_pretty_print.my_conf_matrix_from_data(self.Y, results, gl.gd.Gs_dynamic,
+          annot=True, cmap = 'Greens', fmt='1.8f', fz=10, lw=25, cbar=False, figsize=[6,6], show_null_values=2, pred_val_axis='y', name=self.method)
 
         print("Accuracy = {}%".format((self.Y == results).mean() * 100))
 
 
 if __name__ == '__main__':
-
-    dataloader_args = {'n':5, 'scene_frame':1, 'normalize':1} # {'normalize':1, 'n':5, 'scene_frame':1, 'inverse':1}
-    X, Y = DatasetLoader(dataloader_args).load_dynamic(settings.paths.learn_path, gl.gd.Gs_dynamic, new=True)
+    # 91%
+    dataloader_args = {'n':10} #, 'scene_frame':1, 'normalize':1}
+    # <40% (?)
+    dataloader_args = {'normalize':1, 'n':10, 'scene_frame':1, 'inverse':1,'scale_limit':1}
+    #X, Y = DatasetLoader(dataloader_args).load_dynamic(settings.paths.learn_path, gl.gd.Gs_dynamic, new=True)
     X, Y = DatasetLoader(dataloader_args).load_dynamic(settings.paths.learn_path, gl.gd.Gs_dynamic)
 
-    fdtw = fastdtw_(X, Y)
-    import os_and_utils.visualizer_lib; reload(os_and_utils.visualizer_lib)
-    from os_and_utils.visualizer_lib import VisualizerLib, ScenePlot
+    fdtw = fastdtw_(X, Y); fdtw.method = 'promp'
+    ScenePlot.my_plot([], fdtw.X_ProMP, legend=['swipe down', 'swipe front right','swipe left','swipe up', 'no gesture'], boundbox=False, leap=False, series_marking='')
 
-    id = 3
-    x = np.array([fdtw.norm(x) for x in X])
-    ScenePlot.my_plot([x[Y==id][0]], [(fdtw.X_ProMP[id], {})], boundbox=True, leap=False)
 
-    ScenePlot.my_plot(x, [(fdtw.X_ProMP[id], {})], boundbox=True, leap=False)
-    ScenePlot.my_plot([], [(fdtw.X_ProMP[0], {}), (fdtw.X_ProMP[1], {}), (fdtw.X_ProMP[2], {}), (fdtw.X_ProMP[3], {}), (fdtw.X_ProMP[4], {})], boundbox=False, leap=False)
+    def plot_true_false_paths(id = 0):
+        true_path_ids, false_path_ids = np.zeros(np.sum(Y==id), dtype=bool), np.zeros(np.sum(Y==id), dtype=bool)
+        for i in range(len(X[Y==id])):
+            if np.argmax(fdtw.sample(X[Y==id][i], checktype=False)) == Y[Y==id][i]:
+                true_path_ids[i] = True
+            else:
+                false_path_ids[i] = True
+
+
+        ScenePlot.my_plot(X[Y==id][true_path_ids], [fdtw.X_ProMP[id]], boundbox=[[0,0.02],[0,0.02],[0,0.02]], leap=False)
+        ScenePlot.my_plot(X[Y==id][false_path_ids], [fdtw.X_ProMP[id]], boundbox=[[0,0.02],[0,0.02],[0,0.02]], leap=False)
+    plot_true_false_paths(0)
+    plot_true_false_paths(1)
+
+
+
+    id=0; ScenePlot.my_plot(X[Y==id][0:4], [fdtw.X_ProMP[id]], boundbox=[[0,0.02],[0,0.02],[0,0.02]], leap=False)
+    id=1; ScenePlot.my_plot(X[Y==id][0:4], [fdtw.X_ProMP[id]], boundbox=[[0,0.1],[0,0.1],[0,0.1]], leap=False)
+    id=2; ScenePlot.my_plot(X[Y==id][0:4], [fdtw.X_ProMP[id]], boundbox=[[0,0.1],[0,0.1],[0,0.1]], leap=False)
+    id=3; ScenePlot.my_plot(X[Y==id][0:4], [fdtw.X_ProMP[id]], boundbox=[[0,0.1],[0,0.1],[0,0.1]], leap=False)
+    id=4; ScenePlot.my_plot(X[Y==id], [fdtw.X_ProMP[id]], boundbox=[[0,0.1],[0,0.1],[0,0.1]], leap=False)
+
+    ''' Poster picture -> distance between representative path and test path '''
+    id = 1
+    tp = 30
+    dist, ind = fastdtw(X[Y==id][tp], fdtw.X_ProMP[id])
+    ScenePlot.dtw_3dplot(np.array([fdtw.X_ProMP[id],X[Y==id][tp]]),ind)
+
+    # All
+    ScenePlot.my_plot([], fdtw.X_ProMP, legend=['swipe down', 'swipe front right','swipe left','swipe up', 'no gesture'], boundbox=False, leap=False)
 
     fdtw.method='eacheach'; fdtw.evaluate() # 95.7%, 3000sec.
     fdtw.method='random'; fdtw.evaluate() # 80%, 51sec.
     fdtw.method='euclidean'; fdtw.evaluate() # 95%, 53sec.
+
+    def inspect(id = 0):
+
+
+        dists = fdtw.sample_promp(X[0])
+        out_id = np.argmin(dists)
+        if out_id != fdtw.Y[id]:
+            ScenePlot.my_plot([X[id]], [fdtw.X_ProMP[id]], boundbox=[[0,0.1],[0,0.1],[0,0.1]], leap=False)
+
+
     fdtw.method='promp'; fdtw.evaluate() # 95.2%, 53.5sec.
+    fdtw.X.shape
+    fdtw.Y.shape
 
     fdtw.X_ProMP[1]
     fdtw.X[70]

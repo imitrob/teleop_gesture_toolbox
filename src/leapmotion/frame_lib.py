@@ -224,7 +224,7 @@ class Frame():
             hand.finger_bones = []
             for fn in h.fingers:
                 for b in fn.bones:
-                    bone = Bone()
+                    bone = rosm.Bone()
 
                     basis = b.basis[0](), b.basis[1](), b.basis[2]()
                     bone.basis = [item for sublist in basis for item in sublist]

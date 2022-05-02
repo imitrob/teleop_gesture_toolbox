@@ -463,18 +463,20 @@ class DatasetLoader():
             Xpalm = np.swapaxes(Xpalm, 1, 2)
             Xpalm = np.array(Xpalm)
         '''
-        ''' Inverse path: Start is end
-            - How data are saved, it saves as inverted
+        ''' Reverse path: Start is end
+            - How data are saved, it saves as reversed
         '''
+
         Xpalm = np.array(Xpalm)
         Xpalm_ = []
         for p in Xpalm:
             p_ = []
-            for n in range(0, len(p)):
+            for n in range(len(p)):
                 p_.append(p[-n-1])
             Xpalm_.append(p_)
 
         Xpalm = np.array(Xpalm_)
+
         '''
         if 'scene_frame' in self.args:
         '''
@@ -482,21 +484,22 @@ class DatasetLoader():
 
         ''' scale limit
         '''
-        limit_distance = 0.1
-        data_ = []
-        for path in Xpath:
-            path_ = []
-            path = np.swapaxes(path, 0, 1)
-            for dim in range(3):
-                _1d = path[dim]
-                if (_1d.max() - _1d.min()) > limit_distance:
-                    path_.append(_1d/(_1d.max() - _1d.min())*limit_distance)
-                else:
-                    path_.append(_1d)
-            path_ = np.swapaxes(path_, 0, 1)
-            data_.append(path_)
-        Xpath = data_
-        print("ADDED SCALE LIMIT")
+        if 'scale_limit' in self.args:
+            limit_distance = 0.2
+            data_ = []
+            for path in Xpath:
+                path_ = []
+                path = np.swapaxes(path, 0, 1)
+                for dim in range(3):
+                    _1d = path[dim]
+                    if (_1d.max() - _1d.min()) > limit_distance:
+                        path_.append(_1d/(_1d.max() - _1d.min())*limit_distance)
+                    else:
+                        path_.append(_1d)
+                path_ = np.swapaxes(path_, 0, 1)
+                data_.append(path_)
+            Xpath = data_
+            print("ADDED SCALE LIMIT")
 
         ''' Discard nan and inf
         '''

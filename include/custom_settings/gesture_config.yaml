@@ -18,6 +18,9 @@ sets:
     hand_mode_sets: setl
     mapping_sets: main_set_static
     network_set: main_set
+  new_gesture_set:
+    gestures: new_gesture_set
+    network_set: new_gesture_set
 
 min_confidence: 0.3
 since_frame_time: 0.5
@@ -43,6 +46,11 @@ network_sets:
     dynamic_detection_approach: PyTorch
     static_network_file: network0.pkl
     dynamic_network_file:
+  new_gesture_set:
+    static_detection_approach: PyMC3
+    dynamic_detection_approach: DTW
+    static_network_file: new_network.pkl #
+    dynamic_network_file: promp
 
 misc_network_args:
   time_samples: 5
@@ -64,6 +72,7 @@ hand_mode_sets:
   setnone:
     l: none
     r: none
+## Default option is now at: settings.py
 
 # Mapping gesture ID to MotionPrimitiveID
 # Mapping example:
@@ -79,11 +88,11 @@ mapping_sets:
     five: nothing
     thumbsup: gripper
     swipe_down: touch
-    swipe_front_right: nothing
+    swipe_front_right: kick
     swipe_left: nothing
     swipe_up: go_to_home
     round: touch
-    nothing_dyn: nothing
+    no_gesture: nothing
     # write about
     # solve RLBench task, push buttons in an order
   set0:
@@ -109,6 +118,26 @@ mapping_sets:
     four: nothing
     five: nothing
     thumbsup: nothing
+
+
+  new_gesture_set:
+    closed_hand: gripper
+    opened_hand: gripper
+    swipe_down: touch
+    swipe_front_right: kick
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

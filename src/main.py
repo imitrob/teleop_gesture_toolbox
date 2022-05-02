@@ -102,11 +102,11 @@ def main_manager():
             if ml.md.r_present():
                 ### MODE 1 default
                 if ml.md.live_mode == 'default':
-                    ml.md.goal_pose = tfm.transformLeapToScene(ml.md.frames[-1].r.palm_pose())
+                    ml.md.goal_pose = tfm.transformLeapToScene(ml.md.frames[-1].r.palm_pose(), ml.md.ENV, ml.md.scale)
 
                 ### MODE 2 interactive
                 elif ml.md.live_mode == 'interactive':
-                    ml.md.goal_pose = goal_pose = tfm.transformLeapToScene(ml.md.frames[-1].r.palm_pose())
+                    ml.md.goal_pose = goal_pose = tfm.transformLeapToScene(ml.md.frames[-1].r.palm_pose(), ml.md.ENV, ml.md.scale)
 
                     # 1. Gesture output
                     gripper_position_ = 0.0

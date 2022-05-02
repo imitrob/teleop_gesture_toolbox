@@ -148,6 +148,7 @@ set_2_dynamic:
     minthre: 0.4
     maxthre: 0.1
 
+
 main_set_static:
   grab:
     record_key: g
@@ -193,3 +194,38 @@ main_set_static:
     mp: true
   greet:
     mp: true
+
+
+
+new_gesture_set:
+  closed_hand:
+    type: static
+    filename: grab.png
+    record_key: 1
+
+  opened_hand:
+    type: static
+    filename: five.png
+    record_key: 2
+
+  swipe_down:
+    type: dynamic
+    filename: swipe_down.png
+    record_key: 3
+
+  swipe_front_right:
+    type: dynamic
+    filename: swipe_right.png
+    record_key: 4
+
+  no_gesture:
+    record_key: n
+    filename: no_gesture.png
+
+  touch_:
+    type: mp
+    record_key: 5
+
+  kick_:
+    type: mp
+    record_key: 6

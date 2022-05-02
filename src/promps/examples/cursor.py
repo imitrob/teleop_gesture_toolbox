@@ -83,7 +83,7 @@ def main():
         ml.md.goal_pose_array.append(ml.md.goal_pose)
 
         if ml.md.r_present():
-            ml.md.goal_pose = tfm.transformLeapToScene(ml.md.frames[-1].r.palm_pose())
+            ml.md.goal_pose = tfm.transformLeapToScene(ml.md.frames[-1].r.palm_pose(), ml.md.ENV, ml.md.scale)
             sim.add_or_edit_object(name="object1",pose=ml.md.goal_pose)
             print(f"ml.md.goal_pose {ml.md.goal_pose.position}")
         rate.sleep()

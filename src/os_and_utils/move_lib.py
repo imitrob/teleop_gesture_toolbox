@@ -4,9 +4,17 @@ import yaml, random
 import settings
 from copy import deepcopy
 
+## TEMP: to test
+import time
+
 from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
 from os_and_utils.utils import ordered_load
 import os_and_utils.scenes as sl
+import gestures_lib as gl
+from os_and_utils.transformations import Transformations as tfm
+from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_motionprimitive_type
+from os_and_utils.utils import point_by_ratio
+from os_and_utils.path_def import Waypoint
 
 class MoveData():
     def __init__(self, init_goal_pose=True):
@@ -72,7 +80,7 @@ class MoveData():
         # TODO: load from YAML
         self.camera_orientation = Vector3(0.,0.,0.)
 
-        self.mode = 'live' # 'play'/'live'/'alternative'
+        self.mode = 'live' # 'play'/'live'/'gesture'
         ''' Scaling factor: if self.mode=='live' '''
         self.scale = 2
         ## interactive
@@ -113,6 +121,10 @@ class MoveData():
         self.current_threshold_to_flip_id = 0
         self.object_focus_id = 0
         self.object_touch_id = 0
+
+        ''' live mode drawing '''
+        self.live_mode_drawing = False
+        self.live_mode_drawing_anchor = []
 
         if init_goal_pose:
             self.goal_pose = Pose()
@@ -222,6 +234,208 @@ class MoveData():
             self.live_mode = 'gesture'
         elif text == "Interactive":
             self.live_mode = 'interactive'
+
+    def main_handle_step(self, simhandle, roscm, prompg, seq):
+
+
+        ## live mode control
+        # TODO: Mapped to right hand now!
+        if self.r_present() and self.mode == 'live':
+            self.do_live_mode(simhandle, h='r', type='drawing', link_gesture='grab')
+
+        if self.mode == 'gesture':
+            if self.present(): # If any hand visible
+                # Send gesture data based on hand mode
+                if self.frames and settings.gesture_detection_on:
+                    roscm.send_g_data()
+
+            # Handle gesture activation
+            if len(gl.gd.actions_queue) > 0:
+                action = gl.gd.actions_queue.pop()
+                if action[1] == 'nothing_dyn':
+                    print(f"===================== ACTION {action[1]} ========================")
+                else:
+                    print(f"===================== ACTION {action[1]} ========================")
+                    path_ = prompg.handle_action_queue(action)
+                    if path_ is not None:
+                        path, waypoints = path_
+                        simhandle.execute_trajectory_with_waypoints(path, waypoints)
+                        if np.array(path).any():
+                            pose = Pose()
+                            pose.position = Point(*path[-1])
+                            pose.orientation.x = np.sqrt(2)/2
+                            pose.orientation.y = np.sqrt(2)/2
+                            self.goal_pose = pose
+            # Handle gesture update activation
+            if self.frames:
+                self.handle_action_update(simhandle)
+
+        # Update focus target
+        if seq % settings.yaml_config_gestures['misc']['rate'] == 0: # every sec
+            simhandle.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id])
+
+
+        # TODO: Possibility to print some info
+        if False and self.present(): # If any hand visible
+            # 2. Info + Save plot data
+            print(f"fps {self.frames[-1].fps}, id {self.frames[-1].seq}")
+            print(f"actions queue {[act[1] for act in gl.gd.actions_queue]}")
+            print(f"point diretoin {self.frames[-1].l.point_direction()}")
+            # Printing presented here represent current mapping
+            if gl.gd.r.dynamic.relevant():
+                print(f"Right Dynamic relevant info: Biggest prob. gesture: {gl.gd.r.dynamic.relevant().biggest_probability}")
+                #print(self.frames[-1].r.get_learning_data(definition=1))
+
+            if gl.gd.l.static.relevant():
+                print(f"Left Static relevant info: Biggest prob. gesture: {gl.gd.l.static.relevant().biggest_probability}")
+
+                #print(self.frames[-1].l.get_learning_data(definition=1))
+
+    def handle_action_update(self, simhandle):
+        ''' Edited for only left hand classification and right hand metrics
+        '''
+        for h in ['l']:#, 'r']:
+            if getattr(gl.gd, h).static.relevant():
+                action_name = getattr(gl.gd, h).static.relevant().activate_name
+                if action_name:
+                    id_primitive = map_to_primitive_gesture(action_name)
+                    if id_primitive == 'gripper':# and getattr(self.frames[-1], 'r').visible:
+                        wps = {1.0: Waypoint()}
+                        #grr = 0.0 # float(input("Write gripper posiiton: "))
+                        #wps[1.0].gripper = grr #1-getattr(self.frames[-1], 'r').pinch_strength #h).pinch_strength
+                        if action_name in ['grab', 'closed_hand']:
+                            wps[1.0].gripper = 0.0 #h).pinch_strength
+                        elif action_name in ['thumbsup', 'opened_hand']:
+                            wps[1.0].gripper = 1.0 #h).pinch_strength
+
+                        #wps[1.0].gripper = 1-getattr(self.frames[-1], 'l').grab_strength #h).pinch_strength
+                        simhandle.execute_trajectory_with_waypoints(None, wps)
+
+                    if id_primitive == 'build_switch' and getattr(self.frames[-1], 'r').visible:
+                        xe,ye,_ = tfm.transformLeapToUIsimple(self.frames[-1].l.elbow_position(), out='list')
+                        xw,yw,_ = tfm.transformLeapToUIsimple(self.frames[-1].l.wrist_position(), out='list')
+                        xp,yp,_ = tfm.transformLeapToUIsimple(self.frames[-1].r.point_position(), out='list')
+
+                        min_dist, min_id = 99999, -1
+                        distance_threshold = 1000
+                        nBuild_modes = len(self.build_modes)
+                        for n, i in enumerate(self.build_modes):
+                            x_bm, y_bm = point_by_ratio((xe,ye),(xw,yw), 0.5+0.5*(n/nBuild_modes))
+                            x_bm = xe + x_bm
+                            y_bm = ye + y_bm
+                            distance = (x_bm - xp) ** 2 + (y_bm - yp) ** 2
+                            if distance < distance_threshold and distance < min_dist:
+                                min_dist = distance
+                                min_id = n
+                        if min_id != -1:
+                            self.build_mode = self.build_modes[min_id]
+
+                    if id_primitive == 'focus':# and getattr(self.frames[-1], 'r').visible:
+                        if action_name == 'point':
+                            self.object_focus_id = 0
+                        elif action_name == 'two':
+                            self.object_focus_id = 1
+                        elif action_name == 'three':
+                            self.object_focus_id = 2
+
+                        '''
+                        direction = getattr(self.frames[-1], 'r').point_direction() #h).pinch_strength
+                        if direction[0] < 0: # user wants to move to next item
+                            # check if previously direction was left, if so, self.current_threshold_to_flip_id will be zeroed
+                            if self.current_threshold_to_flip_id < 0: self.current_threshold_to_flip_id = 0
+                            self.current_threshold_to_flip_id += 1
+
+                        else:
+                            if self.current_threshold_to_flip_id > 0: self.current_threshold_to_flip_id = 0
+                            self.current_threshold_to_flip_id -= 1
+
+                        if self.current_threshold_to_flip_id > settings.yaml_config_gestures['misc']['rate']:
+                            # move next
+                            self.current_threshold_to_flip_id = 0
+                            self.object_focus_id += 1
+                            if self.object_focus_id == sl.scene.n: self.object_focus_id = 0
+                            #simhandle.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id])
+                        elif self.current_threshold_to_flip_id < -settings.yaml_config_gestures['misc']['rate']:
+                            # move prev
+                            self.current_threshold_to_flip_id = 0
+                            self.object_focus_id -= 1
+                            if self.object_focus_id == -1: self.object_focus_id = sl.scene.n-1
+                            #simhandle.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id])
+                        #print("self.current_threshold_to_flip_id", self.current_threshold_to_flip_id, "self.object_focus_id", self.object_focus_id)
+                        '''
+                    '''
+                    _, mp_type = get_id_motionprimitive_type(id_primitive)
+                    try:
+                        robot_promps = self.robot_promps[self.Gs.index(id_primitive)]
+                    except ValueError:
+                        robot_promps = None # It is static gesture
+                    '''
+                    #path = mp_type().update_by_id(robot_promps, id_primitive, self.approach, vars)
+
+        for h in ['r']:
+            if settings.get_detection_approach(type='dynamic') == 'deterministic':
+                if getattr(self.frames[-1], h).visible:
+                    ## TEMP: Experimental
+                    move = gl.gd.processGest_move_in_axis()
+                    if move:
+                        gl.gd.actions_queue.append((rospy.Time.now().to_sec(),move,h))
+
+    def do_live_mode(self, simhandle, h='r', type='drawing', link_gesture='grab'):
+        '''
+        Parameters:
+            simhandle (obj): coppelia/swift or other
+            h (Str): read hand 'r', 'l'
+            type (Str): 'simple' - position based, 'absolute', 'relavive'
+            link_gesture (Str): ['<static_gesture>', 'grab'] - live mode activated when using given static gesture
+        '''
+
+
+        if type == 'simple':
+            self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+            simhandle.go_to_pose(self.goal_pose)
+            return
+
+        relevant = getattr(gl.gd, h).static.relevant()
+        now_actived_gesture = None
+
+        if relevant: now_actived_gesture = relevant.activate_name
+        a = False
+        # When condifitioned gesture as parameter is activated
+        if now_actived_gesture and now_actived_gesture == link_gesture:
+            a = True
+        # Gesture is 'grab', it is not in list, but it is activated externally
+        elif link_gesture == 'grab' and getattr(self.frames[-1], h).grab_strength > 0.8:
+            a = True
+
+        if type == 'absolute':
+            if a:
+                self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+                simhandle.go_to_pose(self.goal_pose)
+
+        elif type == 'relative':
+            # TODO:
+            raise Exception("Not Implemented")
+        elif type == 'drawing':
+            if a:
+
+                mouse_3d = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+
+                if not self.live_mode_drawing: # init anchor
+                    self.live_mode_drawing_anchor = mouse_3d
+                    self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
+                    self.live_mode_drawing = True
+
+                #self.goal_pose = self.goal_pose + (mouse_3d - self.live_mode_drawing_anchor)
+                self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
+                self.goal_pose.position.x += (mouse_3d.position.x - self.live_mode_drawing_anchor.position.x)
+                self.goal_pose.position.y += (mouse_3d.position.y - self.live_mode_drawing_anchor.position.y)
+                self.goal_pose.position.z += (mouse_3d.position.z - self.live_mode_drawing_anchor.position.z)
+
+            else:
+                self.live_mode_drawing = False
+            simhandle.go_to_pose(self.goal_pose)
+        else: raise Exception(f"Wrong parameter type ({type}) not in ['simple','absolute','relative']")
+
 
 class Structure():
     '''

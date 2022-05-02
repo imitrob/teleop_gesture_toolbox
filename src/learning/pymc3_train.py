@@ -1349,6 +1349,7 @@ if __name__ == '__main__':
     parser.add_argument('--experiment', default="train_with_parameters_and_save", type=str, help='(default=%(default))')
     parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default))')
     parser.add_argument('--example', default=False, type=bool, help='(default=%(default))')
+    parser.add_argument('--output', default='new_network', type=str, help='(default=%(default))')
     args=parser.parse_args()
 
     e = Experiments()
@@ -1389,8 +1390,9 @@ if __name__ == '__main__':
         else:
             experiment()
     else:
+
         #train_args = {'input_definition_version':1, 'split':0.8, 'take_every':4, 'iter':[50000], 'n_hidden':[25], 'save_as':'PyMC3-main-set-3'}
-        train_args = {'input_definition_version':1, 'split':0.9, 'take_every':10, 'iter':[3000], 'n_hidden':[50], 'save_as':'PyMC3-static-main-set-withpalecnahoru'}
+        train_args = {'input_definition_version':1, 'split':0.3, 'take_every':10, 'iter':[3000], 'n_hidden':[50], 'save_as': args.output}
 
         if args.seed_wrapper:
             e.seed_wrapper(experiment, args=train_args)

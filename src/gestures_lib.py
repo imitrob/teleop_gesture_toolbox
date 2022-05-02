@@ -439,15 +439,20 @@ class GestureDataDetection():
         static_network_file = settings.get_network_file(type='static')
         dynamic_network_file = settings.get_network_file(type='dynamic')
 
-        from os_and_utils.nnwrapper import NNWrapper
-        nw = NNWrapper.load_network(settings.paths.network_path, static_network_file)
-        static_network_info = nw.args
-        static_network_info['accuracy'] = nw.accuracy
+        if static_network_file is not None:
+            from os_and_utils.nnwrapper import NNWrapper
+            nw = NNWrapper.load_network(settings.paths.network_path, static_network_file)
+            static_network_info = nw.args
+            static_network_info['accuracy'] = nw.accuracy
+        else:
+            static_network_info = None
 
-        #nw = NNWrapper.load_network(settings.paths.network_path, dynamic_network_file)
-        #dynamic_network_info = nw.args
-        dynamic_network_info = {'input_definition_version': 0, 'scene_frame':1}
-
+        if dynamic_network_file is not None:
+            #nw = NNWrapper.load_network(settings.paths.network_path, dynamic_network_file)
+            #dynamic_network_info = nw.args
+            dynamic_network_info = {'input_definition_version': 0, 'scene_frame':1}
+        else:
+            dynamic_network_info = None
 
         return static_network_info, dynamic_network_info
 
@@ -483,6 +488,11 @@ class GestureDataDetection():
             Gs = self.l.static.info.names
             Gs.extend(self.l.dynamic.info.names)
             return Gs
+        elif attr == 'GsExt':
+            Gs = self.l.static.info.names
+            Gs.extend(self.l.dynamic.info.names)
+            Gs.extend(self.l.mp.info.names)
+            return Gs
         elif attr == 'Gs_static':
             return self.l.static.info.names
         elif attr == 'Gs_dynamic':
@@ -490,6 +500,11 @@ class GestureDataDetection():
         elif attr == 'Gs_keys':
             Gs = self.l.static.info.record_keys
             Gs.extend(self.l.dynamic.info.record_keys)
+            return Gs
+        elif attr == 'GsExt_keys':
+            Gs = self.l.static.info.record_keys
+            Gs.extend(self.l.dynamic.info.record_keys)
+            Gs.extend(self.l.mp.info.record_keys)
             return Gs
         elif attr == 'Gs_keys_static':
             return self.l.static.info.record_keys

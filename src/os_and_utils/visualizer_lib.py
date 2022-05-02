@@ -18,17 +18,26 @@ Usage:
     5. Done with plotting
     viz.show()
 '''
+import os
+import datetime
 import matplotlib
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import numpy as np
 import time as t
-import argparse
+import argparse, random
+
+from mpl_toolkits.mplot3d import proj3d
+from matplotlib.patches import Circle, Ellipse
+from itertools import product
+from mpl_toolkits.mplot3d import art3d
+
+#import seaborn as sns
+#sns.set_theme(style="darkgrid")
 
 ## Mirracle gestures includes
 try:
     import settings; settings.init()
-    from os_and_utils import scenes as sl; sl.init()
 except ModuleNotFoundError:
     pass
 
@@ -506,8 +515,50 @@ class ScenePlot:
     my_plot(X[Y==2], promp_paths_nothing_mean)
     '''
     @staticmethod
-    def my_plot(data, promp_paths, waypoints=None, leap=True, boundbox=True, filename='', size=(8,8), legend=[], series_marking='d'):
+    def get_variabilities_dimensions(point_variability, path_normal):
+
+        def get_radius_elipse_with_normal(a,b, vx,vy):
+            ''' Radius from direction vector, input is normal vector
+            Parameters:
+                a,b (Float): elipse dimensions
+                normal (Float): normal vector
+            Returns:
+                r (Float): radius
+            '''
+            theta = np.arctan2(vy,vx)
+            theta_dir = theta + np.pi/2
+
+            e = np.sqrt(1-(b**2/a**2))
+            r = a * np.sqrt(1-e**2 * (np.sin(theta_dir)**2))
+            return r
+        x = get_radius_elipse_with_normal(point_variability[0], point_variability[1], path_normal[0], path_normal[1])
+        y = get_radius_elipse_with_normal(point_variability[0], point_variability[2], path_normal[0], path_normal[2])
+
+        return x,y
+
+    @staticmethod
+    def add_boundbox(data):
+        # TODO:
+
+        # Create cubic bounding box to simulate equal aspect ratio
+        X = np.array(boundbox[0]); Y = np.array(boundbox[1]); Z = np.array(boundbox[2])
+        max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
+        Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
+        Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
+        Zb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][2].flatten() + 0.5*(Z.max()+Z.min())
+        # Comment or uncomment following both lines to test the fake bounding box:
+        for xb, yb, zb in zip(Xb, Yb, Zb):
+           ax.plot([xb], [yb], [zb], 'w')
+
+    @staticmethod
+    def my_plot(data, promp_paths, waypoints=None, leap=True, boundbox=[[-1.0,1.0],[-1.0,1.0],[0.0,2.0]], filename='', size=(6,5), legend=[], series_marking='d', promp_paths_variances=[]):
+        '''
+        Parameters:
+            promp_paths_variances (Float[n x 6]): n path points, 6 = (x,y,z,var_x,var_y,var_z)
+
+        '''
         if legend == []: legend = [f'Series {n}' for n in range(len(promp_paths))]
+
         plt.rcParams["figure.figsize"] = size
         ax = plt.axes(projection='3d')
         for path in data:
@@ -516,13 +567,15 @@ class ScenePlot:
             ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
         colors = ['blue','black', 'yellow', 'red', 'cyan', 'green', 'blue','black', 'yellow', 'red', 'cyan', 'green']
         annotations = [('left','top'), ('left','top'), ('right','bottom'), ('right','bottom'),('left','bottom')]
+
+        ''' Plot 3D paths '''
         for n in range(len(promp_paths)):
             path = promp_paths[n]
             if waypoints is not None: waypoints_ = waypoints[n]
             else: waypoints_ = {}
-            ax.plot3D(path[:,0], path[:,1], path[:,2], colors[n], label=f"{legend[n]}", alpha=1.0)
-            ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
-            ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
+            ax.plot3D(path[:,0], path[:,1], path[:,2], colors[n], label=f"{legend[n]}", alpha=1.0, linewidth=3)
+            ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2, s=30)
+            ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2, s=30)
             npoints = 5
             p = int(len(path[:,0])/npoints)
             if series_marking == '%':
@@ -539,6 +592,36 @@ class ScenePlot:
                 if waypoint.gripper is not None: s += f'(gripper {waypoint.gripper})'
                 if waypoint.eef_rot is not None: s += f'(eef_rot {waypoint.eef_rot})'
                 ax.text(waypoint.p[0], waypoint.p[1], waypoint.p[2], s)
+        ''' Plot 3D paths with variances '''
+        for n in range(len(promp_paths_variances)):
+            path = promp_paths_variances[n]
+
+            ax.plot3D(path[:,0], path[:,1], path[:,2], colors[n], label=f"{legend[n]}", alpha=1.0)
+            ax.scatter(path[:,0][0], path[:,1][0], path[:,2][0], marker='o', color='black', zorder=2)
+            ax.scatter(path[:,0][-1], path[:,1][-1], path[:,2][-1], marker='x', color='black', zorder=2)
+            #npoints = 10
+            #p = len(path[:,0])//npoints
+            for m in range(len(path[:,0])):#npoints):
+                i = m#*p
+                if 0 > i-1: continue
+                if len(path[:,0]) <= i+1: continue
+                # subtract indices (i + 1, i)
+                v2 = np.array([path[:,0][i+1]-path[:,0][i], path[:,1][i+1]-path[:,1][i], path[:,2][i+1]-path[:,2][i]])
+                # subtract indices (i, i - 1)
+                v1 = np.array([path[:,0][i]-path[:,0][i-1], path[:,1][i]-path[:,1][i-1], path[:,2][i]-path[:,2][i-1]])
+
+                direction_path_vector = v1 + v2
+                variances = (path[:,3][i], path[:,4][i], path[:,5][i])
+
+                ellipse_dim = ScenePlot.get_variabilities_dimensions(variances, direction_path_vector)
+                #patch = Circle((0,0), variances[0], facecolor = 'b', alpha = .2)
+                patch = Ellipse((0,0), ellipse_dim[0], height=0.01, facecolor = 'b', alpha = .2)
+                ax.add_patch(patch)
+
+                normal_vector = direction_path_vector
+                pathpatch_2d_to_3d(patch, z = 0, normal = normal_vector)
+                pathpatch_translate(patch, (path[:,0][i], path[:,1][i], path[:,2][i]))
+
         ax.legend()
         # Leap Motion
         if leap:
@@ -546,6 +629,12 @@ class ScenePlot:
             ax.plot_surface(X, Y, Z, color='grey', rstride=1, cstride=1, alpha=0.5)
             ax.text(0.475, 0.0, 0.0, 'Leap Motion')
 
+        # compatibiliy issues, need to import it here
+        sl = None
+        try:
+            from os_and_utils import scenes as sl; sl.init()
+        except:
+            pass
         if sl.scene:
             for n in range(len(sl.scene.object_poses)):
                 pos = sl.scene.object_poses[n].position
@@ -555,7 +644,7 @@ class ScenePlot:
 
         if boundbox:
             # Create cubic bounding box to simulate equal aspect ratio
-            X = np.array([-0.1,0.1]); Y = np.array([-0.1, 0.1]); Z = np.array([0.0, 0.2])
+            X = np.array(boundbox[0]); Y = np.array(boundbox[1]); Z = np.array(boundbox[2])
             max_range = np.array([X.max()-X.min(), Y.max()-Y.min(), Z.max()-Z.min()]).max()
             Xb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][0].flatten() + 0.5*(X.max()+X.min())
             Yb = 0.5*max_range*np.mgrid[-1:2:2,-1:2:2,-1:2:2][1].flatten() + 0.5*(Y.max()+Y.min())
@@ -567,10 +656,212 @@ class ScenePlot:
         ax.set_xlabel('X [m]')
         ax.set_ylabel('Y [m]')
         ax.set_zlabel('Z [m]')
-
+        ax.text(0.05, 0.0,0.95,'• - start\n× - target', horizontalalignment='center', verticalalignment='center', transform = ax.transAxes)
         if filename:
             plt.savefig(f'/home/petr/Documents/{filename}.png', format='png')
+
+        save_fig_and_data(plt, np.array((data, promp_paths, waypoints), dtype=object), filename)
         plt.show()
+
+    '''
+    import matplotlib.pyplot as plt
+    import numpy as np
+    import fastdtw, os
+    sin1 = np.sin(np.linspace(0, 10, 100))
+    sin2 = np.sin(np.linspace(2, 12, 100))
+    data = np.array([sin1, sin2])
+    dist, ind = fastdtw.fastdtw(sin1, sin2)
+    dtw_plot(data,ind)
+    '''
+    @staticmethod
+    def dtw_plot(data, ind, name='dtw_plot'):
+        '''
+        Parameters:
+            data (Float[2, n]): Two paths: Representative & Test
+            ind (Float[m, 2]): Indices: Representative & Test, m>=n
+            name (Str): For plot & data save
+        '''
+        data1 = data[0]
+        data2 = data[1]
+        plt.xlabel('Time [-]')
+        plt.ylabel('Values [-]')
+        plt.plot(data.T, linewidth=2)
+        plt.subplots_adjust(left=0.15)
+        plt.grid(True)
+        indice_lines = []
+        for ind1, ind2 in ind:
+            indice_lines.append([[ind1, ind2], [data1[ind1], data2[ind2]]])
+            plt.plot([ind1, ind2], [data1[ind1], data2[ind2]], linewidth=1, color='grey')
+
+        save_fig_and_data(plt, np.array((indice_lines, data.T), dtype=object), name)
+
+    '''
+    import fastdtw
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import random
+    data_repre = np.array([np.linspace(0,1,100), np.sin(np.linspace(0,1,100)), np.cos(np.linspace(0,1,100))])
+    data_repre.shape
+    data_repre_var = np.ones((3,100)) * 0.1
+
+    data_test = np.array([np.linspace(0,1,100)+1, np.sin(np.linspace(0,1,100)), np.cos(np.linspace(0,1,100))])
+
+    data = np.array([np.vstack((data_repre, data_repre_var)), data_test], dtype=object)
+    data = np.array([data_repre, data_test], dtype=object)
+
+    dist, ind = fastdtw.fastdtw(data[0][0:3].T, data[1].T)
+
+    data[0].shape
+    data = [data[0].T, data[1].T]
+
+    dtw_3dplot(data, ind)
+
+    import scipy.stats
+    scipy.stats.norm(0, 1)
+    scipy.stats.norm(0, 1).pdf(0)
+    scipy.stats.norm(0, 1).cdf(0)
+
+    scipy.stats.norm(100, 12).pdf(101)
+
+    data, ind = np.load(f'/home/{os.getlogin()}/Pictures/dtw_3dplot_2022-04-27 14:38:53.141357.npy', allow_pickle=True)
+    dtw_3dplot(data, ind, name='dtw_3dplot2')
+    '''
+    @staticmethod
+    def dtw_3dplot(data, ind, name='dtw_3dplot'):
+        '''
+        Parameters:
+            data (Float[2, n, 3|6]): Two paths: Representative & Test
+            ind (Float[m, 2]): Indices: Representative & Test, m>=n
+            name (Str): For plot & data save
+        '''
+        plt.subplots_adjust(left=0.15)
+        fig = plt.figure(figsize=(6,5))
+        ax = fig.add_subplot(111, projection='3d')
+
+        data1 = data[0].T # n x 3|6 -> 3|6 x n
+        data2 = data[1].T # n x 3|6 -> 3 x n
+
+        ax.set_xlabel('X [m]')
+        ax.set_ylabel('Y [m]')
+        ax.set_zlabel('Z [m]')
+        ax.grid(True)
+        indice_lines = []
+        for ind1, ind2 in ind:
+            indice_lines.append([[data1[0][ind1], data2[0][ind2]], [data1[1][ind1], data2[1][ind2]], [data1[2][ind1], data2[2][ind2]]])
+            ax.plot3D([data1[0][ind1], data2[0][ind2]], [data1[1][ind1], data2[1][ind2]], [data1[2][ind1], data2[2][ind2]], linewidth=1, color='grey', label='_nolegend_')
+        # rewrite -> to be on top
+        ax.plot3D(data1[0],data1[1],data1[2], linewidth=4)
+        ax.plot3D(data2[0],data2[1],data2[2], linewidth=4)
+        ax.legend(['Representative', 'Test path'])
+
+        if len(data1) > 3:
+            for _ in range(100):
+                random_path = []
+                for i in range(len(data1[0])):
+                    random_path.append([random.uniform(data1[0][i]-data1[3][i], data1[0][i]+data1[3][i]),
+                                        random.uniform(data1[1][i]-data1[4][i], data1[1][i]+data1[4][i]),
+                                        random.uniform(data1[2][i]-data1[5][i], data1[2][i]+data1[4][i])])
+                random_path = np.array(random_path)
+                ax.plot3D(random_path[:,0],random_path[:,1],random_path[:,2], linewidth=1, color='b', alpha=0.2)
+
+        save_fig_and_data(plt, np.array((data, ind), dtype=object), name)
+
+def rotation_matrix(d):
+    """
+    Calculates a rotation matrix given a vector d. The direction of d
+    corresponds to the rotation axis. The length of d corresponds to
+    the sin of the angle of rotation.
+
+    Variant of: http://mail.scipy.org/pipermail/numpy-discussion/2009-March/040806.html
+    """
+    sin_angle = np.linalg.norm(d)
+
+    if sin_angle == 0:
+        return np.identity(3)
+
+    d /= sin_angle
+
+    eye = np.eye(3)
+    ddt = np.outer(d, d)
+    skew = np.array([[    0,  d[2],  -d[1]],
+                  [-d[2],     0,  d[0]],
+                  [d[1], -d[0],    0]], dtype=np.float64)
+
+    M = ddt + np.sqrt(1 - sin_angle**2) * (eye - ddt) + sin_angle * skew
+    return M
+
+def pathpatch_2d_to_3d(pathpatch, z = 0, normal = 'z'):
+    """
+    Transforms a 2D Patch to a 3D patch using the given normal vector.
+
+    The patch is projected into they XY plane, rotated about the origin
+    and finally translated by z.
+    """
+    if type(normal) is str: #Translate strings to normal vectors
+        index = "xyz".index(normal)
+        normal = np.roll((1.0,0,0), index)
+
+    normal /= np.linalg.norm(normal) #Make sure the vector is normalised
+
+    path = pathpatch.get_path() #Get the path and the associated transform
+    trans = pathpatch.get_patch_transform()
+
+    path = trans.transform_path(path) #Apply the transform
+
+    pathpatch.__class__ = art3d.PathPatch3D #Change the class
+    pathpatch._code3d = path.codes #Copy the codes
+    pathpatch._facecolor3d = pathpatch.get_facecolor #Get the face color
+
+    verts = path.vertices #Get the vertices in 2D
+
+    d = np.cross(normal, (0, 0, 1)) #Obtain the rotation vector
+    M = rotation_matrix(d) #Get the rotation matrix
+
+    pathpatch._segment3d = np.array([np.dot(M, (x, y, 0)) + (0, 0, z) for x, y in verts])
+
+def pathpatch_translate(pathpatch, delta):
+    """
+    Translates the 3D pathpatch by the amount delta.
+    """
+    pathpatch._segment3d += delta
+
+def save_fig_and_data(plt, data, name, d=''):
+    if os.path.isfile(f"/home/{os.getlogin()}/Pictures/conf.svg"): d=f"_{datetime.datetime.now()}"
+    plt.savefig(f"/home/{os.getlogin()}/Pictures/{name}{d}.svg", format='svg')
+
+    np.save(f'/home/{os.getlogin()}/Pictures/{name}{d}.npy', data)
+    #dd = np.load(f'/home/{os.getlogin()}/Pictures/{name}.npy', allow_pickle=True)
+
+
+if False:
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from mpl_toolkits.mplot3d import proj3d
+    from matplotlib.patches import Circle
+    from itertools import product
+
+    ax = plt.axes(projection = '3d') #Create axes
+
+    p = Circle((0,0), .2) #Add a circle in the yz plane
+    ax.add_patch(p)
+    pathpatch_2d_to_3d(p, z = 0.5, normal = 'x')
+    pathpatch_translate(p, (0, 0.5, 0))
+
+    p = Circle((0,0), .2, facecolor = 'r') #Add a circle in the xz plane
+    ax.add_patch(p)
+    pathpatch_2d_to_3d(p, z = 0.5, normal = 'y')
+    pathpatch_translate(p, (0.5, 1, 0))
+
+    p = Circle((0,0), .2, facecolor = 'g') #Add a circle in the xy plane
+    ax.add_patch(p)
+    pathpatch_2d_to_3d(p, z = 0, normal = 'z')
+    pathpatch_translate(p, (0.5, 0.5, 0))
+
+    for normal in product((-1, 1), repeat = 3):
+        p = Circle((0,0), .2, facecolor = 'y', alpha = .2)
+        ax.add_patch(p)
+        pathpatch_2d_to_3d(p, z = 0, normal = normal)
+        pathpatch_translate(p, 0.5)
 
 if __name__ == "__main__":
     parser=argparse.ArgumentParser(description='')

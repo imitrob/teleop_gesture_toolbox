@@ -1,3 +1,7 @@
+'''
+Some ideas about timewarp improvement
+'''
+
 from copy import deepcopy
 from fastdtw import fastdtw
 import numpy as np
@@ -5,37 +9,46 @@ import sys; sys.path.append("../.."); import settings; settings.init()
 from os_and_utils.visualizer_lib import VisualizerLib, ScenePlot
 
 points = 15
-swipe_up = np.zeros((points,3)); swipe_up[:,2] = np.linspace(-0.2,0.2,points)
-swipe_down = np.zeros((points,3)); swipe_down[:,2] = np.linspace(0.2,-0.2,points)
-swipe_left = np.zeros((points,3)); swipe_left[:,0] = np.linspace(0.2,-0.2,points)
-swipe_front_right = np.zeros((points,3)); swipe_front_right[:,0] = np.linspace(-0.2,0.2,points)
+swipe_up = 0.001*np.ones((points,6)); swipe_up[:,2] = np.linspace(-0.2,0.2,points)
+swipe_down = 0.001*np.ones((points,6)); swipe_down[:,2] = np.linspace(0.2,-0.2,points)
+swipe_left = 0.001*np.ones((points,6)); swipe_left[:,0] = np.linspace(0.2,-0.2,points)
+swipe_front_right = 0.001*np.ones((points,6)); swipe_front_right[:,0] = np.linspace(-0.2,0.2,points)
 
 ''' Transposed by 1.0 meter '''
-swipe_left_1 = np.zeros((points,3)); swipe_left_1[:,0] = np.linspace(0.5,-0.5,points);
+swipe_left_1 = 0.001*np.ones((points,6)); swipe_left_1[:,0] = np.linspace(0.5,-0.5,points);
 swipe_left_1[:,1] = np.linspace(0.02,-0.02,points)
-swipe_left_1[:,2] = np.linspace(0.02,-0.02,points)
+swipe_left_1[:,2] = np.linspace(-0.02,0.02,points)
 swipe_left_1[:,2]=swipe_left_1[:,2]+1.0
 
 ''' Long movement '''
-swipe_left_2 = np.zeros((points,3)); swipe_left_2[:,0] = np.linspace(2.0,-2.0,points)
-swipe_left_2[:,1] = np.linspace(0.05,-0.05,points)
-swipe_left_2[:,2] = np.linspace(0.05,-0.05,points)
+swipe_left_2 = 0.1*np.ones((points,6)); swipe_left_2[:,0] = np.sin(np.linspace(1.4,-1.4,points))
+swipe_left_2[:,1] = np.cos(np.linspace(1.4,-1.4,points))
+swipe_left_2[:,2] = np.linspace(-1.0,1.0,points)
+swipe_left_2[:,3] = [0.3,0.25,0.2,0.15,0.1,0.05,0.05,0.05,0.05,0.05,0.05,0.1,0.15,0.2,0.25]
+swipe_left_2[:,4] = np.array([0.3,0.25,0.2,0.15,0.1,0.05,0.05,0.05,0.05,0.05,0.05,0.1,0.15,0.2,0.25])/100
+swipe_left_2[:,5] = np.array([0.3,0.25,0.2,0.15,0.1,0.05,0.05,0.05,0.05,0.05,0.05,0.1,0.15,0.2,0.25])/100
+swipe_left_2[:,5]
 ''' '''
-swipe_left_3 = np.zeros((points,3)); swipe_left_3[:,0] = np.linspace(0.8,-0.8,points)
-swipe_left_3[-1] = [-3, -2, -2]
-swipe_left_3[-2] = [-5, -1, -2]
-swipe_left_3[-3] = [-3, -1, -0.3]
-swipe_left_3[-4] = [-2, -0.0, -0.2]
+swipe_left_3 = 0.1*np.ones((points,6)); swipe_left_3[:,0] = np.linspace(0.8,-0.8,points)
+swipe_left_3[-1] = [-3, -2, -2, 1,1,1]
+swipe_left_3[-2] = [-3, -2, -2, 1,1,1]
+swipe_left_3[-3] = [-5, -1, -2, 1,1,1]
+swipe_left_3[-4] = [-3, -1, -0.3, 1,1,1]
+swipe_left_3[-5] = [-2, -0.0, -0.2, 1,1,1]
 
-swipe_left_3[2] = [2, 0.0, 0.2]
-swipe_left_3[1] = [3, 1, 0.3]
-swipe_left_3[0] = [5, 1, 2]
-
+swipe_left_3[3] = [2, 0.0, 0.2, 1,1,1]
+swipe_left_3[2] = [3, 1, 0.3, 1,1,1]
+swipe_left_3[1] = [5, 1, 2, 1,1,1]
+swipe_left_3[0] = [5, 1, 2, 1,1,1]
 
 
 dists = np.array([swipe_up, swipe_down, swipe_left, swipe_front_right,swipe_left_1, swipe_left_2, swipe_left_3])
-ScenePlot.my_plot([], [dists[2], *dists[-3:]], legend=['Swipe left', 'Swipe left (Transposed)', 'Swipe left (Scaled)', 'Swipe left (Diverse start/end)'], leap=False, series_marking='')
+dists = np.array([swipe_left_2])
+dists.shape
 
+ScenePlot.my_plot([], [], legend=['Half circle', 'Swipe left (Transposed)', 'Swipe left (Scaled)', 'Swipe left (Diverse start/end)', 'c','d','e','f','h','i','j','k','l','m','n'], leap=False, series_marking='', promp_paths_variances = dists)
+
+exit()
 def normalize_middle_single(path):
     ''' Normalize path based on middle path point
     Parameters:
