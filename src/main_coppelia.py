@@ -44,6 +44,7 @@ def main():
     seq = 0
     try:
         while not rospy.is_shutdown():
+            seq += 1
             ml.md.main_handle_step(cop, roscm, prompg, seq)
             rate.sleep()
     except KeyboardInterrupt:

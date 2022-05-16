@@ -927,6 +927,8 @@ class Example(QMainWindow):
     def gestures_goal_init_procedure(self):
         ml.md.gestures_goal_pose.position = ml.md.ENV['start']
         ml.md.gestures_goal_pose.orientation = ml.md.ENV['ori']
+        ml.md.goal_pose.position = ml.md.ENV['start']
+        ml.md.goal_pose.orientation = ml.md.ENV['ori']
 
     # Switch the environment functions
     def switchEnvAbove(self):
@@ -1170,8 +1172,8 @@ class Example(QMainWindow):
         self.lblInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*5,ICON_SIZE)
         self.lblStatus.setText(textStatus)
 
-        self.lbl3.setText(settings.get_hand_mode()['l'])
-        self.lbl4.setText(settings.get_hand_mode()['r'])
+        self.lbl3.setText("Det.: "+settings.get_hand_mode()['l'])
+        self.lbl4.setText("Det.: "+settings.get_hand_mode()['r'])
 
         self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
         self.lbl4.move(self.size().width()-RIGHT_MARGIN-40, START_PANEL_Y_GESTURES-30)
@@ -1179,6 +1181,8 @@ class Example(QMainWindow):
         if self.GesturesViewState:
             # up late
             if ml.md.frames:
+                qp.drawLine(LEFT_MARGIN, START_PANEL_Y+(1)*ICON_SIZE+5,
+                LEFT_MARGIN+2*ICON_SIZE+2, START_PANEL_Y+(1)*ICON_SIZE+5)
                 # hand fingers
                 n = 0
                 if ml.md.frames[-1].l.confidence > settings.yaml_config_gestures['min_confidence']:
@@ -1190,6 +1194,7 @@ class Example(QMainWindow):
                     else:
                         qp.drawPixmap(LEFT_MARGIN, START_PANEL_Y, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed_left.png"))
 
+                qp.drawLine(w-RIGHT_MARGIN-ICON_SIZE, START_PANEL_Y+(1)*ICON_SIZE+5, w-RIGHT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(1)*ICON_SIZE+5)
                 if ml.md.frames[-1].r.confidence > settings.yaml_config_gestures['min_confidence']:
                     qp.drawRect(w-RIGHT_MARGIN,START_PANEL_Y+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                 qp.drawLine(w-RIGHT_MARGIN+ICON_SIZE+2, START_PANEL_Y+(n+1)*ICON_SIZE, w-RIGHT_MARGIN+ICON_SIZE+2, int(START_PANEL_Y+(n+1)*ICON_SIZE-round(ml.md.frames[-1].r.confidence,2)*ICON_SIZE))
@@ -1266,10 +1271,10 @@ class Example(QMainWindow):
 
             if gl.gd.l.static and gl.gd.l.static.relevant():
                 n_ = gl.gd.l.static.relevant().biggest_probability_id
-                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y_GESTURES+(n_)*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
+                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y_GESTURES+n_*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
             if gl.gd.r.dynamic and gl.gd.r.dynamic.relevant():
                 n_ = gl.gd.r.dynamic.relevant().biggest_probability_id
-                qp.drawPixmap(LEFT_MARGIN+ICON_SIZE+10,START_PANEL_Y_GESTURES+(n_+len(static_gs_file_images))*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_left.png"))
+                qp.drawPixmap(w-RIGHT_MARGIN-90,START_PANEL_Y_GESTURES+n_*ICON_SIZE, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_right.png"))
 
 
             # circ options

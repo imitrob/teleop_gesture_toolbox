@@ -80,7 +80,7 @@ class MoveData():
         # TODO: load from YAML
         self.camera_orientation = Vector3(0.,0.,0.)
 
-        self.mode = 'live' # 'play'/'live'/'gesture'
+        self.mode = 'play' # 'play'/'live'/'gesture'
         ''' Scaling factor: if self.mode=='live' '''
         self.scale = 2
         ## interactive
@@ -91,7 +91,7 @@ class MoveData():
         ''' Gripper object attached bool '''
         self.attached = False
         ''' Mode about scene interaction - Deprecated '''
-        self.live_mode = 'default'
+        self.live_mode = 'Default'
 
         ''' Builder mode: ['stack', 'wall', 'replace'] '''
         self.build_modes = ['stack', 'wall', 'replace']
@@ -228,20 +228,20 @@ class MoveData():
         self.gestures_goal_pose = Pose()
         self.gestures_goal_pose.position = deepcopy(self.ENV['start'])
         self.gestures_goal_pose.orientation.w = 1.0
-        if text == "Default":
-            self.live_mode = 'default'
-        elif text == "Gesture based":
-            self.live_mode = 'gesture'
-        elif text == "Interactive":
-            self.live_mode = 'interactive'
+
+        self.live_mode = text
 
     def main_handle_step(self, simhandle, roscm, prompg, seq):
 
-
         ## live mode control
         # TODO: Mapped to right hand now!
-        if self.r_present() and self.mode == 'live':
-            self.do_live_mode(simhandle, h='r', type='drawing', link_gesture='grab')
+        if self.mode == 'live':
+            if self.r_present():
+                # # TEMP:
+                if seq % 3 == 0:
+                    self.do_live_mode(simhandle, h='r', type='drawing', link_gesture='grab')
+            else:
+                self.live_mode_drawing = False
 
         if self.mode == 'gesture':
             if self.present(): # If any hand visible
@@ -389,6 +389,8 @@ class MoveData():
             link_gesture (Str): ['<static_gesture>', 'grab'] - live mode activated when using given static gesture
         '''
 
+        # update focused object based on what is closest
+        self.object_focus_id = sl.scene.get_closest_object(self.goal_pose)
 
         if type == 'simple':
             self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)

@@ -101,11 +101,11 @@ def main_manager():
             #    print("[WARN*] Not valid orientation!")
             if ml.md.r_present():
                 ### MODE 1 default
-                if ml.md.live_mode == 'default':
+                if ml.md.live_mode == 'Default':
                     ml.md.goal_pose = tfm.transformLeapToScene(ml.md.frames[-1].r.palm_pose(), ml.md.ENV, ml.md.scale)
 
                 ### MODE 2 interactive
-                elif ml.md.live_mode == 'interactive':
+                elif ml.md.live_mode == 'Interactive':
                     ml.md.goal_pose = goal_pose = tfm.transformLeapToScene(ml.md.frames[-1].r.palm_pose(), ml.md.ENV, ml.md.scale)
 
                     # 1. Gesture output

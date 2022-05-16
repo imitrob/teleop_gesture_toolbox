@@ -247,6 +247,15 @@ class CustomScene():
 
         self.n = len(self.object_names)
 
+    def get_closest_object(self, pos:"Pose()"):
+        min_dist = 1e99
+        min_id = None
+        for n,pose in enumerate(self.object_poses):
+            d = (pos.position.x - pose.position.x)**2 + (pos.position.y - pose.position.y)**2 + (pos.position.z - pose.position.z)**2
+            if d < min_dist:
+                min_dist = d
+                min_id = n
+        return min_id
 
 def init():
     ### 5. Latest Data                      ###
