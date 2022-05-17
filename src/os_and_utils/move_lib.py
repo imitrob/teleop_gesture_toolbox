@@ -15,9 +15,10 @@ from os_and_utils.transformations import Transformations as tfm
 from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_motionprimitive_type
 from os_and_utils.utils import point_by_ratio
 from os_and_utils.path_def import Waypoint
+from os_and_utils.utils_ros import samePoses
 
 class MoveData():
-    def __init__(self, init_goal_pose=True):
+    def __init__(self, init_goal_pose=True, init_env='table'):
         '''
         > saved in arrays
         - Leap Controller
@@ -72,7 +73,7 @@ class MoveData():
             self.ENV_DAT['wall']['ori']  = Quaternion(0, np.sqrt(2)/2, 0, np.sqrt(2)/2)
             self.ENV_DAT['table']['ori'] = Quaternion(np.sqrt(2)/2, np.sqrt(2)/2., 0.0, 0.0)
         # chosen workspace
-        self.ENV = self.ENV_DAT['above']
+        self.ENV = self.ENV_DAT[init_env]
 
         # beta
         # angles from camera -> coppelia
@@ -88,6 +89,12 @@ class MoveData():
         self.strict_mode = False
         ''' Path ID: if self.mode=='play' '''
         self.picked_path = 0
+        self.time_on_one_pose = 0.0
+        self.leavingAction = False
+        self.HoldValue = 0.0
+        self.HoldPrevState = False
+        self.currentPose = 0
+        self.HoldAnchor = 0 # For moving status bar
         ''' Gripper object attached bool '''
         self.attached = False
         ''' Mode about scene interaction - Deprecated '''
@@ -128,8 +135,8 @@ class MoveData():
 
         if init_goal_pose:
             self.goal_pose = Pose()
-            self.goal_pose.orientation = self.ENV_DAT['above']['ori']
-            self.goal_pose.position = Point(0.4,0.,1.0)
+            self.goal_pose.position = self.ENV['start']
+            self.goal_pose.orientation = self.ENV['ori']
 
         # Handle to access simulator
         self.m = None
@@ -215,11 +222,11 @@ class MoveData():
     def changePlayPath(self, path_=None):
         for n, path in enumerate(sl.paths):
             if not path_ or path.name == path_: # pick first path if path_ not given
-                sl.scenes.make_scene(path.scene)
+                sl.scenes.make_scene(self.m, path.scene)
                 self.picked_path = n
                 self.ENV = self.ENV_DAT[path.ENV]
-                settings.HoldValue = 0
-                settings.currentPose = 0
+                self.HoldValue = 0
+                self.currentPose = 0
                 self.goal_pose = deepcopy(sl.paths[1].poses[1])
                 break
 
@@ -231,17 +238,68 @@ class MoveData():
 
         self.live_mode = text
 
-    def main_handle_step(self, simhandle, roscm, prompg, seq):
-
+    def main_handle_step(self, simhandle, roscm, prompg, seq, mod=3):
         ## live mode control
         # TODO: Mapped to right hand now!
         if self.mode == 'live':
-            if self.r_present():
-                # # TEMP:
-                if seq % 3 == 0:
-                    self.do_live_mode(simhandle, h='r', type='drawing', link_gesture='grab')
+            if seq % mod == 0:
+                if self.r_present():
+                    if self.live_mode == 'Default':
+                        self.do_live_mode(simhandle, h='r', type='drawing', link_gesture='grab')
+                    elif self.live_mode == 'End-effector rotation':
+                        x,y = self.frames[-1].r.direction()[0:2]
+                        angle = np.arctan2(y,x)
+
+                        simhandle.set_gripper(eef_rot=angle)
+                else:
+                    self.live_mode_drawing = False
+            if self.l_present():
+                if seq % mod == 0:
+                    self.grasp_on_basic_grab_gesture(simhandle, hnds=['l'])
+
+        if self.mode == 'play':
+            # controls everything:
+            #self.HoldValue
+            ## -> Path that will be performed
+            pp = self.picked_path
+            ## -> HoldValue (0-100) to targetPose number (0,len(path))
+            targetPose = int(self.HoldValue / (100/len(sl.paths[pp].poses)))
+            if targetPose >= len(sl.paths[pp].poses):
+                targetPose = len(sl.paths[pp].poses)-1
+            #diff_pose_progress = 100/len(sl.sp[pp].poses)
+            if targetPose == self.currentPose:
+                self.time_on_one_pose = 0.0
             else:
-                self.live_mode_drawing = False
+                ## 1 - Forward, -1 - Backward
+                direction = 1 if targetPose - self.currentPose > 0 else -1
+                ## Attaching/Detaching when moving backwards
+                if self.leavingAction and self.time_on_one_pose <= 0.1 and direction == -1 and sl.paths[pp].actions[self.currentPose] != "":
+                    if self.attached:
+                        simhandle.release_object(sl.paths[pp].actions[self.currentPose])
+                        self.leavingAction = False
+                    else:
+                        simhandle.pick_object(sl.paths[pp].actions[self.currentPose])
+                        self.leavingAction = False
+                    ## TEMP:
+                    time.sleep(2)
+                ## Set goal_pose one pose in direction
+                self.goal_pose = deepcopy(sl.paths[pp].poses[self.currentPose+direction])
+                ## On new pose target or over time limit
+                if self.time_on_one_pose > 10.0 or samePoses(self.eef_pose, sl.paths[pp].poses[self.currentPose+direction]):
+                    self.leavingAction = True
+                    self.currentPose = self.currentPose+direction
+                    ## Attaching/Detaching when moving forward
+                    if sl.paths[pp].actions[self.currentPose] != "" and direction == 1:
+                        if not self.attached:
+                            simhandle.pick_object(sl.paths[pp].actions[self.currentPose])
+                        else:
+                            simhandle.release_object(sl.paths[pp].actions[self.currentPose])
+                        ## TEMP:
+                        time.sleep(2)
+                    self.time_on_one_pose = 0.0
+                self.time_on_one_pose += 1
+            simhandle.go_to_pose(self.goal_pose)
+
 
         if self.mode == 'gesture':
             if self.present(): # If any hand visible
@@ -271,8 +329,9 @@ class MoveData():
                 self.handle_action_update(simhandle)
 
         # Update focus target
-        if seq % settings.yaml_config_gestures['misc']['rate'] == 0: # every sec
-            simhandle.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id])
+        if seq % (settings.yaml_config_gestures['misc']['rate'] * 2) == 0: # every sec
+            if sl.scene and len(sl.scene.object_poses) > 0:
+                simhandle.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id], timeout=0.2)
 
 
         # TODO: Possibility to print some info
@@ -437,6 +496,29 @@ class MoveData():
                 self.live_mode_drawing = False
             simhandle.go_to_pose(self.goal_pose)
         else: raise Exception(f"Wrong parameter type ({type}) not in ['simple','absolute','relative']")
+
+    def grasp_on_grab_gesture(self, hnds=['l']):
+        for h in hnds:
+            if getattr(gl.gd, h).static.relevant():
+                action_name = getattr(gl.gd, h).static.relevant().activate_name
+                if action_name:
+                    id_primitive = map_to_primitive_gesture(action_name)
+                    if id_primitive == 'gripper':
+                        wps = {1.0: Waypoint()}
+                        if action_name in ['grab', 'closed_hand']:
+                            wps[1.0].gripper = 0.0
+                        elif action_name in ['thumbsup', 'opened_hand']:
+                            wps[1.0].gripper = 1.0
+
+                        simhandle.execute_trajectory_with_waypoints(None, wps)
+
+    def grasp_on_basic_grab_gesture(self, simhandle, hnds=['l']):
+        for h in hnds:
+            grab_strength = getattr(self.frames[-1], h).grab_strength
+            if grab_strength > 0.5:
+                simhandle.pick_object(sl.scene.object_names[self.object_focus_id])
+            else:
+                simhandle.release_object()
 
 
 class Structure():

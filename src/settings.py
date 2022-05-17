@@ -64,16 +64,10 @@ def init(change_working_directory=True):
     VariableValues = np.zeros(NumConfigBars)
 
     # Status Bar
-    global HoldAnchor, HoldPrevState, HoldValue, currentPose, WindowState, leavingAction, w, h, ui_scale, record_with_keys
+    global WindowState, w, h, ui_scale, record_with_keys
     WindowState = 0.0  # 0-Main page, 1-Config page
-    HoldAnchor = 0.0  # For moving status bar
-    HoldPrevState = False  # --||--
-    HoldValue = 0
-    currentPose = 0
-    leavingAction = False
     w, h = 1000, 800 # Will be set dynamically to proper value
     ui_scale = app_data_loaded['Scale']
-
     record_with_keys = False # Bool, Enables recording with keys in UI
     print("[Settings] done")
 

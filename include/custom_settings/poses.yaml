@@ -1,7 +1,7 @@
 home:
   pose:
     position: {'x': 0.5, 'y': 0.0, 'z': 0.2}
-    orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
+    orientation: {'x': 0.7071067811865476, 'y': 0.7071067811865476, 'z': 0.0, 'w': 0.0}
 
 # Some orientations
 above:
@@ -30,5 +30,5 @@ drawer_opened:
     orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
 box:
   pose:
-    position: {'x': 0.4, 'y': 0.0, 'z': 0.1}
+    position: {'x': 0.4, 'y': 0.0, 'z': 0.03}
     orientation: {'x': 0.7071067811865476, 'y': 0.7071067811865476, 'z': 0.0, 'w': 0.0}

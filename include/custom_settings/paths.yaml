@@ -18,6 +18,22 @@ wall:
         position: {'x': 0.4, 'y': 0., 'z': 0.55}
         orientation: wall
 
+test2:
+  env: table
+  poses:
+    - pose:
+        position: {'x': 0.5, 'y': 0.0, 'z': 0.2}
+        orientation: table
+    - pose:
+        position: {'x': 0.5, 'y': 0.1, 'z': 0.2}
+        orientation: table
+    - pose:
+        position: {'x': 0.5, 'y': -0.1, 'z': 0.2}
+        orientation: table
+    - pose:
+        position: home
+        orientation: home
+    - pose: home
 
 test:
   env: wall
@@ -40,18 +56,19 @@ pickplace:
   env: table
   poses:
     - pose:
-        position: {'x': 0., 'y': 0., 'z': 1.17}
-        orientation: above
+        position: {'x': 0.5, 'y': 0., 'z': 0.2}
+        orientation: table
       action: ""
     - pose: box
       action: 'box' # TODO: write simply grab
     - pose:
-        position: {'x': 0.5, 'y': 0.0, 'z': 0.5}
+        position: {'x': 0.5, 'y': 0.0, 'z': 0.3}
         orientation: table
       action: release
     - pose:
-        position: {'x': 0.0, 'y': 0.0, 'z': 1.17}
-        orientation: above
+        position: {'x': 0.5, 'y': 0., 'z': 0.2}
+        orientation: table
+      action: ""
 
 
 circle:

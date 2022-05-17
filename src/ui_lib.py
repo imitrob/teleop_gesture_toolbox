@@ -433,8 +433,7 @@ class Example(QMainWindow):
 
         self.comboLiveMode = QComboBox(self)
         self.comboLiveMode.addItem("Default")
-        self.comboLiveMode.addItem("Interactive")
-        self.comboLiveMode.addItem("Gesture based")
+        self.comboLiveMode.addItem("End-effector rotation")
         self.comboLiveMode.activated[str].connect(self.onComboLiveModeChanged)
         self.comboLiveMode.setGeometry(LEFT_MARGIN+130+ICON_SIZE*2, START_PANEL_Y-10,ICON_SIZE*2,int(ICON_SIZE/2))
         ## Control of the movement exectution
@@ -874,12 +873,12 @@ class Example(QMainWindow):
     def play_method(self):
         while True:
             time.sleep(0.1)
-            settings.HoldValue += self.play_status
-            if self.play_status == 1 and settings.HoldValue > 100:
-                settings.HoldValue = 99
+            ml.md.HoldValue += self.play_status
+            if self.play_status == 1 and ml.md.HoldValue > 100:
+                ml.md.HoldValue = 99
                 self.play_status = 0
-            if self.play_status == -1 and settings.HoldValue < 0:
-                settings.HoldValue = 1
+            if self.play_status == -1 and ml.md.HoldValue < 0:
+                ml.md.HoldValue = 1
                 self.play_status = 0
 
 
@@ -1008,7 +1007,7 @@ class Example(QMainWindow):
         ml.md.changeLiveMode(text)
     def onInteractiveSceneChanged(self, text):
         if text == "Scene 1 Drawer":
-            sl.scenes.make_scene('drawer')
+            sl.scenes.make_scene(ml.md.m, 'drawer')
             ml.md.ENV = ml.md.ENV_DAT['wall']
         elif text == "Scene 2 Pick/Place":
             sl.scenes.make_scene('pickplace')
@@ -1298,23 +1297,24 @@ class Example(QMainWindow):
             qp.drawPixmap(w/2, 50, 20, 20, QPixmap(settings.paths.graphics_path+"hold.png"))
         if self.MoveViewState:
             if ml.md.mode == 'play':
-                if gl.gd.relevant(time_now=rospy.Time.now(), hand='l', type='static') and hasattr(gl.gd.l.static[-1], 'grab'):
-                    if gl.gd.l.static[-1].grab.activated:
+                if ml.md.frames[-1].l.visible:
+                    if ml.md.frames[-1].l.grab_strength:
                         qp.drawPixmap(w/2, 50, 20, 20, QPixmap(settings.paths.graphics_path+"hold.png"))
-                        if settings.HoldPrevState == False:
-                            settings.HoldAnchor = settings.HoldValue - ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
-                        settings.HoldValue = settings.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
-                        settings.HoldValue = settings.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/2
-                        if settings.HoldValue > 100: settings.HoldValue = 100
-                        if settings.HoldValue < 0: settings.HoldValue = 0
+                        if ml.md.HoldPrevState == False:
+                            ml.md.HoldAnchor = ml.md.HoldValue - ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
+                        ml.md.HoldValue = ml.md.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
+                        ml.md.HoldValue = ml.md.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/2
+                        if ml.md.HoldValue > 100: ml.md.HoldValue = 100
+                        if ml.md.HoldValue < 0: ml.md.HoldValue = 0
 
-                    settings.HoldPrevState = gl.gd.l.static.grab.toggle
+                    # # TODO: Hard value
+                    ml.md.HoldPrevState = ml.md.frames[-1].l.grab_strength > 0.8
                 diff_pose_progress = 100/len(sl.paths[ml.md.picked_path].poses)
                 for i in range(0, len(sl.paths[ml.md.picked_path].poses)):
                     qp.fillRect(LEFT_MARGIN+diff_pose_progress*i*((w-40.0)/100.0), 30, 2, 20, Qt.black)
-                qp.fillRect(LEFT_MARGIN+diff_pose_progress*settings.currentPose*((w-40.0)/100.0)+2, 35, diff_pose_progress*((w-40.0)/100.0), 10, Qt.red)
+                qp.fillRect(LEFT_MARGIN+diff_pose_progress*ml.md.currentPose*((w-40.0)/100.0)+2, 35, diff_pose_progress*((w-40.0)/100.0), 10, Qt.red)
                 qp.drawRect(LEFT_MARGIN, 30, w-40, 20)
-                qp.fillRect(LEFT_MARGIN+settings.HoldValue*((w-40.0)/100.0), 30, 10, 20, Qt.black)
+                qp.fillRect(LEFT_MARGIN+ml.md.HoldValue*((w-40.0)/100.0), 30, 10, 20, Qt.black)
 
         if self.GesturesViewState:
             '''
