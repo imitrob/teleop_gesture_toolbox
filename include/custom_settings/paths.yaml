@@ -25,6 +25,12 @@ test2:
         position: {'x': 0.5, 'y': 0.0, 'z': 0.2}
         orientation: table
     - pose:
+        position: {'x': 0.7, 'y': 0.0, 'z': 0.2}
+        orientation: wall
+    - pose:
+        position: {'x': 0.2, 'y': 0.0, 'z': 0.8}
+        orientation: above
+    - pose:
         position: {'x': 0.5, 'y': 0.1, 'z': 0.2}
         orientation: table
     - pose:
@@ -54,11 +60,12 @@ test:
 
 pickplace:
   env: table
+  scene: pickplace
   poses:
     - pose:
         position: {'x': 0.5, 'y': 0., 'z': 0.2}
         orientation: table
-      action: ""
+      action: "release"
     - pose: box
       action: 'box' # TODO: write simply grab
     - pose:

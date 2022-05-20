@@ -40,6 +40,8 @@ class MoveData():
         ## Current/Active robot data at the moment
         self.goal_joints = None
         self.goal_pose = None
+        self.eef_rot = 0.0 #None # 7th joint rotation [rad] (overwrites joints)
+        self.eef_rot_scene = 0.0
         self.joints = None
         self.velocity = None
         self.effort = None
@@ -132,6 +134,8 @@ class MoveData():
         ''' live mode drawing '''
         self.live_mode_drawing = False
         self.live_mode_drawing_anchor = []
+        self.live_mode_drawing_rot = False
+        self.live_mode_drawing_eef_rot_anchor = []
 
         if init_goal_pose:
             self.goal_pose = Pose()
@@ -244,15 +248,10 @@ class MoveData():
         if self.mode == 'live':
             if seq % mod == 0:
                 if self.r_present():
-                    if self.live_mode == 'Default':
-                        self.do_live_mode(simhandle, h='r', type='drawing', link_gesture='grab')
-                    elif self.live_mode == 'End-effector rotation':
-                        x,y = self.frames[-1].r.direction()[0:2]
-                        angle = np.arctan2(y,x)
-
-                        simhandle.set_gripper(eef_rot=angle)
+                    self.do_live_mode(simhandle, h='r', type='drawing', link_gesture='grab')
                 else:
                     self.live_mode_drawing = False
+                    self.live_mode_drawing_rot = False
             if self.l_present():
                 if seq % mod == 0:
                     self.grasp_on_basic_grab_gesture(simhandle, hnds=['l'])
@@ -274,14 +273,12 @@ class MoveData():
                 direction = 1 if targetPose - self.currentPose > 0 else -1
                 ## Attaching/Detaching when moving backwards
                 if self.leavingAction and self.time_on_one_pose <= 0.1 and direction == -1 and sl.paths[pp].actions[self.currentPose] != "":
-                    if self.attached:
-                        simhandle.release_object(sl.paths[pp].actions[self.currentPose])
-                        self.leavingAction = False
-                    else:
-                        simhandle.pick_object(sl.paths[pp].actions[self.currentPose])
-                        self.leavingAction = False
-                    ## TEMP:
-                    time.sleep(2)
+
+                    simhandle.toggle_object(self.attached)
+                    self.attached = not self.attached
+
+                    self.leavingAction = False
+
                 ## Set goal_pose one pose in direction
                 self.goal_pose = deepcopy(sl.paths[pp].poses[self.currentPose+direction])
                 ## On new pose target or over time limit
@@ -290,12 +287,10 @@ class MoveData():
                     self.currentPose = self.currentPose+direction
                     ## Attaching/Detaching when moving forward
                     if sl.paths[pp].actions[self.currentPose] != "" and direction == 1:
-                        if not self.attached:
-                            simhandle.pick_object(sl.paths[pp].actions[self.currentPose])
-                        else:
-                            simhandle.release_object(sl.paths[pp].actions[self.currentPose])
-                        ## TEMP:
-                        time.sleep(2)
+
+                        simhandle.toggle_object(self.attached)
+                        self.attached = not self.attached
+
                     self.time_on_one_pose = 0.0
                 self.time_on_one_pose += 1
             simhandle.go_to_pose(self.goal_pose)
@@ -461,12 +456,17 @@ class MoveData():
 
         if relevant: now_actived_gesture = relevant.activate_name
         a = False
+        b = False
         # When condifitioned gesture as parameter is activated
         if now_actived_gesture and now_actived_gesture == link_gesture:
             a = True
         # Gesture is 'grab', it is not in list, but it is activated externally
         elif link_gesture == 'grab' and getattr(self.frames[-1], h).grab_strength > 0.8:
             a = True
+
+        if self.live_mode == 'Separate eef rot':
+            if getattr(self.frames[-1], h).pinch_strength > 0.8:
+                b = True
 
         if type == 'absolute':
             if a:
@@ -481,10 +481,18 @@ class MoveData():
 
                 mouse_3d = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
 
+                if self.live_mode == 'With eef rot':
+                    x,y = self.frames[-1].r.direction()[0:2]
+                    angle = np.arctan2(y,x)
+
                 if not self.live_mode_drawing: # init anchor
                     self.live_mode_drawing_anchor = mouse_3d
                     self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
                     self.live_mode_drawing = True
+
+                    if self.live_mode == 'With eef rot':
+                        self.eef_rot_scene = deepcopy(self.eef_rot)
+                        self.live_mode_drawing_eef_rot_anchor = angle
 
                 #self.goal_pose = self.goal_pose + (mouse_3d - self.live_mode_drawing_anchor)
                 self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
@@ -492,8 +500,28 @@ class MoveData():
                 self.goal_pose.position.y += (mouse_3d.position.y - self.live_mode_drawing_anchor.position.y)
                 self.goal_pose.position.z += (mouse_3d.position.z - self.live_mode_drawing_anchor.position.z)
 
+                if self.live_mode == 'With eef rot':
+                    self.eef_rot = deepcopy(self.eef_rot_scene)
+                    self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
+                    simhandle.set_gripper(eef_rot=self.eef_rot)
             else:
                 self.live_mode_drawing = False
+            if b:
+                x,y = self.frames[-1].r.direction()[0:2]
+                angle = np.arctan2(y,x)
+
+                if not self.live_mode_drawing_rot: # init anchor
+                    self.live_mode_drawing_rot = True
+                    self.eef_rot_scene = deepcopy(self.eef_rot)
+                    self.live_mode_drawing_eef_rot_anchor = angle
+
+                self.eef_rot = deepcopy(self.eef_rot_scene)
+                self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
+                simhandle.set_gripper(eef_rot=self.eef_rot)
+            else:
+                self.live_mode_drawing_rot = False
+
+
             simhandle.go_to_pose(self.goal_pose)
         else: raise Exception(f"Wrong parameter type ({type}) not in ['simple','absolute','relative']")
 

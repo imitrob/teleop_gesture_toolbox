@@ -191,8 +191,12 @@ def choose_the_object():
     #objects_in_scenes = sl.scene.object_poses[ml.md.object_focus_id]
     #object_id = get_object_of_closest_distance(objects_in_scenes, pose_in_scene)
     object_id = ml.md.object_focus_id
-    position = extv(sl.scene.object_poses[object_id].position)
-    return object_id, position
+    if object_id < sl.scene.n:
+        position = extv(sl.scene.object_poses[object_id].position)
+        return object_id, position
+    else:
+        ## TODO:
+        return 0, [0.5,0.0,0.2]
 
 def handle_build_structure():
     '''
@@ -346,6 +350,25 @@ class StaticMotionPrimitiveGenerator():
 
     def build_switch(self, vars):
         return {}
+
+    def move_block(self, vars):
+        waypoints = {}
+
+        object_id, object_position = choose_the_object()
+        ml.md.object_touch_id = object_id
+        waypoints[1.0] = Waypoint(p=object_position, gripper=1.0)
+        # selecting
+
+        # grabbing
+
+        # moving
+
+        #
+        #distance, direction = f(vars)
+
+
+
+        return waypoints
 
     def gripper(self, vars):
         waypoints = {}

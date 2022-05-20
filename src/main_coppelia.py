@@ -27,8 +27,6 @@ from geometry_msgs.msg import Point, Pose, Quaternion
 
 def main():
     # If gesture detection not enabled in ROSparam -> enable it manually
-    settings.gesture_detection_on = True
-    settings.launch_gesture_detection = True
     ml.md.eef_pose.position = Point(0.3, 0.0, 0.3)
 
     roscm = ROSComm()
@@ -38,7 +36,6 @@ def main():
     ml.md.m = cop = CoppeliaROSInterface()
     print("[Main] Coppelia initialized!")
     sl.scenes.make_scene(cop, 'pickplace3')
-    CoppeliaROSInterface.add_or_edit_object(name="Focus_target", pose=Pose(Point(0.0,0.0,0.0),Quaternion(0.0,0.0,0.0,1.0)))
 
     rate = rospy.Rate(settings.yaml_config_gestures['misc']['rate']) # Hz
     seq = 0
@@ -57,8 +54,11 @@ def main():
 
 
 if __name__ == '__main__':
-    if len(sys.argv)>1 and sys.argv[1] == 'ui':
-        settings.launch_ui = True
+    settings.launch_ui = True
+    settings.gesture_detection_on = True
+    settings.launch_gesture_detection = True
+    if len(sys.argv)>1 and sys.argv[1] == 'noui':
+        settings.launch_ui = False
 
     rospy.init_node('main_manager', anonymous=True)
 
