@@ -1,50 +1,69 @@
-# Robot control via gestures
+# Teleoperation gesture toolbox
+
+
 
 ## Installation
 
-Download installation script [here](https://gitlab.ciirc.cvut.cz/imitrob/mirracle/mirracle_gestures/-/raw/master/installation.sh?inline=false) and run with `bash installation.sh`.
+Tested on Linux Ubuntu 20.04.
 
+### Dependencies
 
-If error occurs or application is black, try to create conda environment. If you don't have anaconda, download it from [link](https://repo.anaconda.com/archive/Anaconda3-2021.05-Linux-x86_64.sh), install with `bash Anaconda3-2021.05-Linux-x86_64.sh`
+- ROS & Conda packages
+  - Tested on [robostack](https://github.com/RoboStack/ros-noetic) version ROS1 Noetic
+  - (Recommended) Use [environment.yml](environment.yml) (conda env create -f environment.yml)
+- [Leap Motion Controller](https://www.ultraleap.com/product/leap-motion-controller/) as a hand sensor ([install](include/scripts/leap_motion_install.sh))
+  - Please copy `LeapSDK` folder to your home folder: `~/`
+- [Coppelia Sim](https://www.coppeliarobotics.com/) simulator ([install](include/scripts/coppelia_sim_install.sh))
+  - (Recommended) Use version 4.1 (PyRep can have problems with newer versions)
+  - Please install Coppelia Sim files to your home folder: `~/CoppeliaSim`
+  - Install PyRep package
+    - Don't forget to export Qt lib:
+    `export LD_LIBRARY_PATH=/home/<user>/CoppeliaSim;
+    export QT_QPA_PLATFORM_PLUGIN_PATH=/home/<user>/CoppeliaSim;`
 
-```
-cd ~/$YOUR_WS/src/mirracle_gestures
-conda env create -f environment.yml
-conda activate gestures_env
-conda install -c anaconda pyqt
-```
+- Sample dataset example:
+  - Download [dataset (1.2GB)]() and move the `learning` folder to match the `<gesture_toolbox>/include/data/learning` folder
 
-Installation tested on newly installed _UBUNTU18_ and lab _CAPEK-PC_. Feel free to open an issue, if something is not working.
 
 ## Launch the robot
 
-### Simulator
-
+- Aliases (suggestion):
+```Shell
+alias copqt='export LD_LIBRARY_PATH=/home/<user>/CoppeliaSim; export QT_QPA_PLATFORM_PLUGIN_PATH=/home/<user>/CoppeliaSim;'
+alias srcgestures='conda activate robostackenv; source ~/<your_ws>/devel/setup.bash'
 ```
-# Term 1, Leap Controller
+- Terminal 1, Leap Controller:
+```Shell
 sudo leapd
-# Term 2, Simulator demo
-source /opt/ros/melodic/setup.bash
-roslaunch mirracle_gestures demo.launch simulator:=coppelia
+```
+- Terminal 2, Coppelia Sim:
+```Shell
+srcgestures; copqt; roslaunch mirracle_sim coppelia_sim.launch
+```
+- Terminal 3, Gestures Detection Threads:
+```Shell
+srcgestures; roslaunch mirracle_gestures demo.launch
+```
+- Terminal 4, Main + GUI:
+```Shell
+srcgestures; rosrun mirracle_gestures main_coppelia
 ```
 
-Add `gripper:=franka_gripper` for gripper option or `gripper:=franka_gripper_with_camera` for gripper with mounted _RealSense_ camera.
+## Recognizers
 
-### Real
+### Static gestures with Probabilistic Neural Network
 
-- Check the Panda Robot light is blue
+- (Default)
+- Preprocessing (based on config):
+```Shell
+rosrun mirracle_gestures pymc3_train
 ```
-# Term 1, Panda Robot Start
-source /opt/ros/melodic/setup.bash
-source ~/<panda_ws>/setup.sh
-roslaunch panda_launch start_robot.launch
-# Term 2, Leap Controller
-sudo leapd
-# Term 3, Workspace with "motion" package
-source /opt/ros/melodic/setup.bash
-source ~/<your_ws>/setup.sh
-roslaunch mirracle_gestures demo.launch simulator:=real
-```
+
+### Dynamic gestures with Dynamic Time Warping
+
+- (Default)
+- Preprocessing not needed
+
 
 ## Application
 
@@ -89,7 +108,7 @@ TODO: Right now all gestures loaded from `network.pkl` needs to have record in t
 All available networks can be downloaded from google drive with button from UI menu and they are saved in folder `<gestures pkg>/include/data/Trained_network/`.
 To get information about network, run: `rosrun mirracle_gestures get_info_about_network.py` then specify network (e.g. network0.pkl).
 
-Train new NN with script (src/learning/learn.py). Running script via Jupyter notebook (IPython) is advised for better orientation in learning processes. TODO: Publish recorded data-set to gdrive
+Train new NN with script (src/learning/pymc3_train.py). Running script via Jupyter notebook (IPython) is advised for better orientation in learning processes. TODO: Publish recorded data-set to gdrive
 
 Gesture management described above can be summarized into graph:
 ```mermaid
@@ -189,53 +208,3 @@ Create new paths in this file as follows:
 <Sample path2 name>:
   ...
 ```
-
-## Frequent issues
-- `segmentation fault` when launching (or the `thread 17 ended with error`). If Conda environment in use, try:
-```
-conda update --all
-```
-- `RuntimeError: RobotInterfacePython: invalid robot model` The robot MoveIt "server" is not launched
-
-- `[Err] [REST.cc:205] Error in REST request
-libcurl: (51) SSL: no alternative certificate subject name matches target host name ‘api.ignitionfuel.org’`
-Solution:
-Open ~/.ignition/fuel/config.yaml:
-replace: api.ignitionfuel.org
-to: fuel.ignitionrobotics.org
-
-- Try upgrade pip with:
-```
-pip install --upgrade pip
-pip3 install --upgrade pip
-```
-
-## GPU Accelerated learning:
-- Check kernel version -> need to be 5.4.0
-```
-uname -a
-```
-- Check gcc version -> need to be 7.5.0
-```
-gcc --version
-```
-- Check what driver suites the linux distribution
-```
-sudo lshw -C display
-```
-- Find the packages available
-```
-sudo apt list nvidia-driver-*
-```
-- Install the drivers
-```
-sudo add-apt-repository ppa:graphics-drivers/ppa
-sudo apt update
-sudo apt install -y nvidia-driver-450
-```
-- Reboot & Check Installation
-```
-sudo reboot
-sudo nvidia-smi
-```
-[Source](https://medium.com/@sreenithyc21/nvidia-driver-installation-for-ubuntu-18-04-2020-2918be830d0f)

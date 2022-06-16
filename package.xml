@@ -1,8 +1,8 @@
 <?xml version="1.0"?>
 <package format="2">
   <name>mirracle_gestures</name>
-  <version>0.0.0</version>
-  <description>The mirracle_gestures package</description>
+  <version>0.1.0</version>
+  <description>Tele-operation gesture toolbox</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
   <maintainer email="Petr.Vanc@cvut.cz">Petr Vanc</maintainer>

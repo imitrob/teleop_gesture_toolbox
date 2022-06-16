@@ -42,7 +42,7 @@ if __name__ == '__main__': sl.init()
 import os_and_utils.move_lib as ml
 if __name__ == '__main__': ml.init()
 
-from coppelia_sim_ros_lib import CoppeliaROSInterface
+from coppelia_sim_ros_client import CoppeliaROSInterface
 from os_and_utils.ros_communication_main import ROSComm
 
 from os_and_utils.parse_yaml import ParseYAML

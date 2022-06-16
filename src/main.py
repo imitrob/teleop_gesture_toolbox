@@ -30,7 +30,7 @@ from os_and_utils.ros_communication_main import ROSComm
 
 # Temporary solution (reading from mirracle_sim pkg)
 sys.path.append(settings.paths.home+"/"+settings.paths.ws_folder+'/src/mirracle_sim/src')
-from coppelia_sim_ros_lib import CoppeliaROSInterface
+from coppelia_sim_ros_client import CoppeliaROSInterface
 
 from geometry_msgs.msg import Pose, Point
 

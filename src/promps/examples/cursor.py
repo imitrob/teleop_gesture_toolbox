@@ -29,7 +29,7 @@ from mirracle_sim.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObj
 from mirracle_sim.msg import ObjectInfo
 from sensor_msgs.msg import JointState, Image
 
-from coppelia_sim_ros_lib import CoppeliaROSInterface
+from coppelia_sim_ros_client import CoppeliaROSInterface
 
 rospy.init_node("coppeliaSimPublisherTopic", anonymous=True)
 

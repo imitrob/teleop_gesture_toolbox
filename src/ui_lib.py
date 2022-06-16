@@ -1547,7 +1547,8 @@ class Example(QMainWindow):
             'w': Qt.Key_W ,
             'x': Qt.Key_X ,
             'y': Qt.Key_Y ,
-            'z': Qt.Key_Z
+            'z': Qt.Key_Z,
+            '': Qt.Key_0
             }
         return mapDict[key]
 

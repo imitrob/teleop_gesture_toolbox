@@ -84,7 +84,7 @@ mapping_sets:
     point: focus
     two: focus
     three: focus
-    four: nothing
+    four: move_block
     five: nothing
     thumbsup: gripper
     swipe_down: touch

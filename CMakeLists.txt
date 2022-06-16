@@ -27,9 +27,6 @@ add_service_files (
   FILES
    ChangeNetwork.srv
 	 SaveHandRecord.srv
-#  AddOrEditObject.srv
-#  RemoveObject.srv
-#  GripperControl.srv
 )
 
 include($ENV{ROS_ROOT}/core/rosbuild/rosbuild.cmake)
