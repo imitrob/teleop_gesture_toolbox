@@ -22,7 +22,7 @@ Tested on Linux Ubuntu 20.04.
     export QT_QPA_PLATFORM_PLUGIN_PATH=/home/<user>/CoppeliaSim;`
 
 - Sample dataset example:
-  - Download [dataset (1.2GB)]() and move the `learning` folder to match the `<gesture_toolbox>/include/data/learning` folder
+  - Download [dataset (1.2GB)](https://drive.google.com/file/d/1Jitk-MxzczreZ81PuO86xTapuSkBMOb-/view?usp=sharing) and move the `learning` folder to match the `<gesture_toolbox>/include/data/learning` folder
 
 
 ## Launch the robot
