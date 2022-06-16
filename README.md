@@ -46,7 +46,7 @@ srcgestures; roslaunch mirracle_gestures demo.launch
 ```
 - Terminal 4, Main + GUI:
 ```Shell
-srcgestures; rosrun mirracle_gestures main_coppelia
+srcgestures; rosrun mirracle_gestures main_coppelia.py
 ```
 
 ## Recognizers
@@ -56,7 +56,7 @@ srcgestures; rosrun mirracle_gestures main_coppelia
 - (Default)
 - Preprocessing (based on config):
 ```Shell
-rosrun mirracle_gestures pymc3_train
+rosrun mirracle_gestures pymc3_train.py
 ```
 
 ### Dynamic gestures with Dynamic Time Warping
