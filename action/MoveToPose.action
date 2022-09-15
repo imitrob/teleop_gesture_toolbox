@@ -1,0 +1,5 @@
+geometry_msgs/PoseStamped goal_pose
+---
+int8 result
+---
+int8 status

@@ -1,0 +1,80 @@
+simulators: ['gazebo', 'real', 'rviz', 'coppelia']
+## Robot data
+# 1. velocity limits, effort limits, position limits (lower, upper)
+# 2. Important data for MoveIt!
+# 3. TAC - Trajectory Action Client topic and Joint States topic
+robots:
+  iiwa:
+    vel_lim: [1.71, 1.71, 1.75, 2.27, 2.44, 3.14, 3.14 ]
+    effort_lim: [ 140, 140, 120, 100, 70, 70, 70 ]
+    lower_lim: [-2.97, -2.09, -2.97, -2.09, -2.97, -2.09, -3.05]
+    upper_lim: [2.97, 2.09, 2.97, 2.09, 2.97, 2.09, 3.05]
+    joint_names: ['r1_joint_1', 'r1_joint_2', 'r1_joint_3', 'r1_joint_4', 'r1_joint_5', 'r1_joint_6', 'r1_joint_7']
+    base_link: base_link
+    group_name: r1_arm
+    eef: r1_ee
+    grasping_group: r1_gripper
+    rviz:
+      tac_topic: /r1/trajectory_controller/follow_joint_trajectory
+      joint_states_topic: /r1/joint_states
+  panda:
+    vel_lim: [2.1750, 2.1750, 2.1750, 2.1750, 2.6100, 2.6100, 2.6100]
+    effort_lim: [ 87, 87, 87, 87, 12, 12, 12 ]
+    lower_lim: [-2.8973, -1.7628, -2.8973, -3.0718, -2.8973, -0.0175, -2.8973]
+    upper_lim: [2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973]
+    joint_names: ['panda_joint1', 'panda_joint2', 'panda_joint3', 'panda_joint4', 'panda_joint5', 'panda_joint6', 'panda_joint7']
+    base_link: panda_link0
+    group_name: panda_arm
+    eef: panda_link8
+    grasping_group: hand
+    gazebo:
+      tac_topic: /position_joint_trajectory_controller/follow_joint_trajectory
+      joint_states_topic: /franka_state_controller/joint_states
+    real:
+      tac_topic: /position_joint_trajectory_controller/follow_joint_trajectory
+      joint_states_topic: /franka_state_controller/joint_states
+    rviz:
+      tac_topic: /execute_trajectory
+      joint_states_topic: /joint_states
+    coppelia:
+      tac_topic: /fakeFCI/joint_state
+      joint_states_topic: /vrep/franka/joint_state
+
+LEAP_AXES: [[1,0,0],[0,0,-1],[0,1,0]]
+ENV_DAT:
+  above:
+    min: [-0.35, -0.35, 0.6]  # minimum values on x,y,z axes of ENV [m]
+    max: [0.35, 0.35, 1.15] # maximum values on x,y,z axes of ENV [m]
+    ori: [0.0, 0.0, 0.0, 1.0] # environment default orientation
+    start: [0.0, 0.0, 0.45] # Start of Leap Motion sensor mapped
+    axes: [[1,0,0],[0,1,0],[0,0,1]]
+    view: [[1,0,0],[0,0,1],[0,1,0]]
+    ori_axes: [[0,1,0],[-1,0,0],[0,0,0]]
+    ori_live: [[0,-1,0],[1,0,0],[0,0,-1]]
+  wall:
+    min: [0.42, -0.2, 0.0]
+    max: [0.7, 0.2, 0.74]
+    ori: [-0.5,0.5,0.5,-0.5]
+    start: [0.7, 0.0, -0.3]
+    axes: [[0,1,0],[-1,0,0],[0,0,1]]
+    view: [[0,-1,0],[0,0,1],[1,0,0]]
+    ori_axes: [[0,-1,0],[1,0,0],[0,0,0]]
+    ori_live: [[-1,0,0],[0,-1,0],[0,0,-1]]
+  table:
+    min: [0.4, -0.3, 0.0]
+    max: [0.7, 0.3, 0.6]
+    ori: [0.7071067811865476, 0.7071067811865476, 0.0, 0.0]
+    start: [0.5, 0.0, 0.2]
+    axes: [[0,1,0],[-1,0,0],[0,0,1]]
+    view: [[0,-1,0],[0,0,1],[1,0,0]]
+    ori_axes: [[0,-1,0],[1,0,0],[0,0,0]]
+    ori_live: [[-1,0,0],[0,-1,0],[0,0,-1]]
+  table_old:
+    min: [0.4, -0.3, 0.0]
+    max: [0.7, 0.3, 0.6]
+    start: [0.5, 0.0, 0.3]
+    ori: [0., 1., 0.0, 0.0]
+    axes: [[0,0,1],[-1,0,0],[0,-1,0]]
+    view: [[0,-1,0],[1,0,0],[0,0,1]]
+    ori_axes: [[-1,0,0],[0,1,0],[0,0,0]]
+    ori_live: [[0,-1,0],[1,0,0],[0,0,-1]]

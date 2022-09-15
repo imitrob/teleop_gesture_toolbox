@@ -1,0 +1,28 @@
+# All values in pixels
+LEFT_MARGIN: 20
+RIGHT_MARGIN: 70
+BOTTOM_MARGIN: 100
+ICON_SIZE: 60
+TOP_MARGIN: 70
+
+BAR_MARGIN: 40
+LeftPanelMaxIterms: 15
+RightPanelMaxIterms: 15
+
+#WindowSize: [1000, 800] # Big window
+WindowSize: [1000, 800] # Small window
+WindowXY: [0, 2000] # 0 - X left, 2000 - Y down
+Scale: 2000
+
+ConfigurationPage:
+  Rows: 2
+  Columns: 4
+  ItemNames:
+    - Gripper open
+    - Applied force
+    - Work reach
+    - Shift start x
+    - Speed
+    - Scene change
+    - Mode
+    - Path

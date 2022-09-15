@@ -1,0 +1,10 @@
+<launch>
+
+  <node pkg="mirracle_gestures" name="static_sample" type="main_sample_thread.py" output="screen"/>
+  <node pkg="mirracle_gestures" name="dynamic_sample" type="dynamic_sample_thread.py" output="screen"/>
+
+  <node pkg="mirracle_gestures" name="leap" type="leap.py" output="screen"/>
+
+  <!--<node pkg="mirracle_gestures" name="main" type="main2.py" output="screen"/>-->
+
+</launch>

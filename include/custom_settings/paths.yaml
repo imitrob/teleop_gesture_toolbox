@@ -1,0 +1,149 @@
+
+wall:
+  env: wall
+  poses:
+    - pose:
+        position: {'x': 0.4, 'y': 0., 'z': 0.65}
+        orientation: wall
+    - pose:
+        position: {'x': 0.5, 'y': 0., 'z': 0.65}
+        orientation: wall
+    - pose:
+        position: {'x': 0.4, 'y': 0., 'z': 0.65}
+        orientation: wall
+    - pose:
+        position: {'x': 0.4, 'y': 0., 'z': 0.95}
+        orientation: wall
+    - pose:
+        position: {'x': 0.4, 'y': 0., 'z': 0.55}
+        orientation: wall
+
+test2:
+  env: table
+  poses:
+    - pose:
+        position: {'x': 0.5, 'y': 0.0, 'z': 0.2}
+        orientation: table
+    - pose:
+        position: {'x': 0.7, 'y': 0.0, 'z': 0.2}
+        orientation: wall
+    - pose:
+        position: {'x': 0.2, 'y': 0.0, 'z': 0.8}
+        orientation: above
+    - pose:
+        position: {'x': 0.5, 'y': 0.1, 'z': 0.2}
+        orientation: table
+    - pose:
+        position: {'x': 0.5, 'y': -0.1, 'z': 0.2}
+        orientation: table
+    - pose:
+        position: home
+        orientation: home
+    - pose: home
+
+test:
+  env: wall
+  poses:
+    - pose:
+        position: {'x': 1., 'y': 1., 'z': 1.}
+        orientation: {'x': 1., 'y': 0., 'z': 0, 'w': 0.}
+    - pose:
+        position: [2.,0.,0.5]
+        orientation: {'x': 1., 'y': 0., 'z': 0, 'w': 0.}
+    - pose:
+        position: {'x': [0.,1.], 'y': [0.9,1.], 'z': [0.5,1.]}
+        orientation: {'x': 1., 'y': 0., 'z': 0, 'w': 0.}
+    - pose:
+        position: home
+        orientation: home
+    - pose: home
+
+pickplace:
+  env: table
+  scene: pickplace
+  poses:
+    - pose:
+        position: {'x': 0.5, 'y': 0., 'z': 0.2}
+        orientation: table
+      action: "release"
+    - pose: box
+      action: 'box' # TODO: write simply grab
+    - pose:
+        position: {'x': 0.5, 'y': 0.0, 'z': 0.3}
+        orientation: table
+      action: release
+    - pose:
+        position: {'x': 0.5, 'y': 0., 'z': 0.2}
+        orientation: table
+      action: ""
+
+
+circle:
+  env: above
+  scene: empty
+  poses:
+    - pose:
+        position: {'x': 0.0, 'y': 0.0, 'z': 1.17}
+        orientation: above
+    - pose:
+        position: {'x': 0.0, 'y': 0.0, 'z': 1.17}
+        orientation: above
+      # TODO: circle:
+      # r: 0.2
+
+# TODO: Circle
+#for i in range(0,n):
+#    pose.position = Point(0.2*np.cos(2*np.pi*i/n),-0.2*np.sin(2*np.pi*i/n),0.95)
+#    poses.append(deepcopy(pose))
+
+smash:
+  env: table
+  scene: pickplace
+  poses:
+    - pose:
+        position: {'x': 0.5, 'y': -0.1, 'z': 0.04}
+        orientation: table
+    - pose:
+        position: {'x': 0.5, 'y': -0.1, 'z': 0.04}
+        orientation: table # TODO: Fix path first pose
+    - pose:
+        position: {'x': 0.5, 'y': 0.3, 'z': 0.04}
+        orientation: table
+
+drawer:
+  env: wall
+  scene: drawer
+  poses:
+    - pose:
+        position: {'x': 0.0, 'y': 0.0, 'z': 1.25}
+        orientation: above
+    - pose:
+        position: drawer
+        orientation: wall
+      action: drawer
+    - pose:
+        position: drawer_opened
+        orientation: drawer_opened
+    - pose:
+        position: {'x': 0.0, 'y': 0.0, 'z': -0.15}
+        orientation: wall # TODO: same
+
+
+pushbutton:
+  env: table
+  scene: pushbutton
+  poses:
+    - pose:
+        position: {'x': 0.0, 'y': 0.0, 'z': 1.25}
+        orientation: above
+    - pose:
+        position: {'x': 0.44, 'y': -0.05, 'z': 0.13}
+        orientation: table
+      action: button
+    - pose:
+        position: {'x': 0.44, 'y': -0.05, 'z': 0.1}
+        orientation: table
+      action: button
+    - pose:
+        position: {'x': 0.0, 'y': 0.0, 'z': 1.25}
+        orientation: above
