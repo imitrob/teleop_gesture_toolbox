@@ -59,23 +59,3 @@ generate_messages(
 catkin_package(
   CATKIN_DEPENDS message_runtime
   )
-
-
-# 1.
-#add_subdirectory(src/leapmotion)
-# 2. Main
-#add_executable(sample src/leapmotion/Sample.cpp)
-# 3. Add Leap
-#target_include_directories(sample PUBLIC "/home/pierro/LeapSDK/include")
-#target_link_directories(sample PUBLIC "/home/pierro/LeapSDK/lib/x64")
-#target_link_libraries(sample PUBLIC hand_classes Leap)
-
-# 4. Target leapmotion dir
-#target_include_directories(sample PUBLIC
-#                          "${PROJECT_BINARY_DIR}"
-#                          "${PROJECT_SOURCE_DIR}/src/leapmotion"
-#                          )
-
-
-
-#
