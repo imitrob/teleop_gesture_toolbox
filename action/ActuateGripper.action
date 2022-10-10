@@ -1,0 +1,9 @@
+int8 STATE_CLOSED=0
+int8 STATE_OPEN=1
+
+int8 state
+float64 width
+---
+bool result
+---
+

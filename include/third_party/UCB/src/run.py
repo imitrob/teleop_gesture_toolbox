@@ -200,7 +200,7 @@ for t,ncla in taskcla[args.sti:]:
     print('Save at '+args.checkpoint)
     np.savetxt(os.path.join(args.checkpoint,'{}_{}_{}.txt'.format(args.experiment,args.approach,args.seed)),acc,'%.5f')
     np.save(os.path.join(args.checkpoint,'args'), args)
-    #np.save('/home/petr/my_ws/src/mirracle_gestures/include/third_party/UCB/checkpoints/gestures_dynamic_ucb', a)
+    #np.save('/home/petr/my_ws/src/teleop_gesture_toolbox/include/third_party/UCB/checkpoints/gestures_dynamic_ucb', a)
 
 utils.print_log_acc_bwt(args, acc, lss)
 print('[Elapsed time = {:.1f} h]'.format((time.time()-tstart)/(60*60)))

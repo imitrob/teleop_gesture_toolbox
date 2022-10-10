@@ -1,0 +1,4 @@
+string camera_namespace
+---
+sensor_msgs/Image synced_depth_image
+sensor_msgs/Image synced_rgb_image

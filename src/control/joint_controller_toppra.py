@@ -4,9 +4,9 @@
 Standalone script:
 Launch:
     1. term: roslaunch panda_launch start_robot.launch
-    2. term: rosrun mirracle_gestures joint_controller.py
+    2. term: rosrun teleop_gesture_toolbox joint_controller.py
         - For launch test
-rosrun mirracle_gestures joint_controller_toppra.py home
+rosrun teleop_gesture_toolbox joint_controller_toppra.py home
 
 '''
 import sys

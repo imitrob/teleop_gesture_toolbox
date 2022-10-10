@@ -161,16 +161,16 @@ class Frame():
         return str
 
     def to_ros(self):
-        ''' This function requires ROS and mirracle_gestures pkg
+        ''' This function requires ROS and teleop_gesture_toolbox pkg
         '''
         try:
             rosm.Frame()
         except:
             try:
-                import mirracle_gestures.msg as rosm
+                import teleop_gesture_toolbox.msg as rosm
             except:
                 raise Exception("ROS not imported")
-        # self frame_lib.Frame() -> frame mirracle_gestures.msg/Frame
+        # self frame_lib.Frame() -> frame teleop_gesture_toolbox.msg/Frame
         frame = rosm.Frame()
         frame.fps = self.fps
         frame.hands = self.hands

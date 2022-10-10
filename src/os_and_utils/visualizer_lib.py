@@ -35,7 +35,6 @@ from mpl_toolkits.mplot3d import art3d
 #import seaborn as sns
 #sns.set_theme(style="darkgrid")
 
-## Mirracle gestures includes
 try:
     import settings; settings.init()
 except ModuleNotFoundError:

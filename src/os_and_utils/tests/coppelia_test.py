@@ -30,11 +30,11 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 
 # Import utils.py from src folder
 
-sys.path.append(settings.paths.mirracle_sim_path)
+sys.path.append(settings.paths.coppelia_sim_ros_interface_path)
 from utils import *
 
-from mirracle_sim.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
-from mirracle_sim.msg import ObjectInfo
+from coppelia_sim_ros_interface.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
+from coppelia_sim_ros_interface.msg import ObjectInfo
 from sensor_msgs.msg import JointState, Image
 
 import os_and_utils.scenes as sl

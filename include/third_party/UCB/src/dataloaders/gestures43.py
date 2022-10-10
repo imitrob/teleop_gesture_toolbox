@@ -4,8 +4,8 @@ import torch
 from torchvision import datasets,transforms
 from itertools import accumulate
 
-sys.path.append("/home/pierro/my_ws/src/mirracle_gestures/src/")
-sys.path.append("/home/pierro/my_ws/src/mirracle_gestures/src/leapmotion")
+sys.path.append("/home/pierro/my_ws/src/teleop_gesture_toolbox/src/")
+sys.path.append("/home/pierro/my_ws/src/teleop_gesture_toolbox/src/leapmotion")
 from os_and_utils.loading import HandDataLoader, DatasetLoader
 from os_and_utils.utils import GlobalPaths
 

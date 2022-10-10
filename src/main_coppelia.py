@@ -1,4 +1,5 @@
 #!/usr/bin/env python3.8
+
 import sys, os, time, threading
 import numpy as np
 import rospy
@@ -19,7 +20,7 @@ from os_and_utils.ros_communication_main import ROSComm
 
 from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_motionprimitive_type
 
-sys.path.append(settings.paths.mirracle_sim_path)
+sys.path.append(settings.paths.coppelia_sim_ros_interface_path)
 from coppelia_sim_ros_client import CoppeliaROSInterface
 
 # TEMP:

@@ -7,7 +7,7 @@ DEPRECATED
   <!-- iiwa simulator -> from gitlab.ciirc.cvut.cz/capek -->
   <!-- panda real -> from gitlab.ciirc.cvut.cz/rop/panda -->
   <!-- panda gazebo simulator -> from github.com/justagist/panda_simulator -->
-  <!-- panda coppelia simulator -> source mirracle_gestures pkg -->
+  <!-- panda coppelia simulator -> source teleop_gesture_toolbox pkg -->
 
   <!-- These params will be merged with panda_description/config/testbed.yaml file somehow -->
   <!--<arg name="robot" default="panda" />--> <!-- 'panda'/('iiwa' not tested) -->
@@ -60,8 +60,8 @@ DEPRECATED
       <include file="$(find panda_launch)/launch/start_robot.launch" />
     </group>
     <group if="$(eval arg('simulator') == 'coppelia')">
-      <include file="$(find mirracle_gestures)/launch/context_silent.launch" />
-      <node pkg="mirracle_gestures" name="coppelia_test" type="coppelia_sim.py" output="screen"/>
+      <include file="$(find teleop_gesture_toolbox)/launch/context_silent.launch" />
+      <node pkg="teleop_gesture_toolbox" name="coppelia_test" type="coppelia_sim.py" output="screen"/>
     </group>
 
   </group>

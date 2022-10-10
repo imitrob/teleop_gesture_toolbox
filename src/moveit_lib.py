@@ -48,7 +48,7 @@ from moveit_msgs.msg import RobotTrajectory
 #import RelaxedIK.Utils.transformations as T
 from sensor_msgs.msg import JointState
 from relaxed_ik.msg import EEPoseGoals, JointAngles
-from mirracle_sim.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
+from coppelia_sim_ros_interface.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
 
 import inverse_kinematics.kinematics_interface
 import settings
@@ -283,7 +283,7 @@ class MoveGroupPythonInteface(object):
             return False
 
 
-    def add_or_edit_object(self, file='', name='', pose=Pose(), shape="", size=None, collision='true', color='', friction=-1, frame_id='panda_link7', mass=-1, inertia=np.zeros(9), inertiaTransformation=np.zeros(12), dynamic='true', pub_info='false', texture_file="", timeout=4):
+    def add_or_edit_object(self, file='', name='', pose=Pose(), shape="", size=None, collision='true', color='', friction=-1, frame_id='panda_link7', mass=-1, inertia=np.zeros(9), inertiaTransformation=np.zeros(12), dynamic='true', pub_info='false', texture_file="", object_state="", timeout=4):
         ''' Adds shape/mesh based on configuration
             - If no shape & no mesh specified -> box created
             - If both shape & mesh specified -> mesh is used
@@ -320,7 +320,7 @@ class MoveGroupPythonInteface(object):
         rospy.wait_for_service('add_or_edit_object')
         try:
             add_or_edit_object = rospy.ServiceProxy('add_or_edit_object', AddOrEditObject)
-            resp1 = add_or_edit_object(name=name, init_file=file, init_shape=shape, init_size=size, init_collision=collision, pose=pose, color=color, friction=friction, frame_id=frame_id, mass=mass, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+            resp1 = add_or_edit_object(name=name, init_file=file, init_shape=shape, init_size=size, init_collision=collision, pose=pose, color=color, friction=friction, frame_id=frame_id, mass=mass, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, object_state=object_state)
         except rospy.ServiceException as e:
             print("Service call failed: %s"%e)
 

@@ -5,7 +5,7 @@
 
 #include "ros/ros.h"
 #include "std_msgs/String.h"
-#include "mirracle_gestures.msg/Frame.h"
+#include "teleop_gesture_toolbox.msg/Frame.h"
 
 #include "handclasses.h"
 
@@ -59,7 +59,7 @@ void SampleListener::onFrame(const Controller& controller) {
   // Get the most recent frame and report some basic information
   const Frame frame = controller.frame();
   const Frame prevframe = controller.frame(1);
-  // Convert (Leap Motion) Frame object frame to (Mirracle Object) Frame_
+  // Convert (Leap Motion) Frame object frame to (Project Object) Frame_
   // Reason -> Frame_ has simpler definitions and is open source (hand_classes.h)
   Frame_ frame_(frame, prevframe);
 

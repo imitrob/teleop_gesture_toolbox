@@ -21,9 +21,9 @@ from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
 
 from leapmotion.frame_lib import Frame
-import mirracle_gestures.msg as rosm
-from mirracle_gestures.msg import DetectionSolution, DetectionObservations
-from mirracle_sim.msg import ObjectInfo
+import teleop_gesture_toolbox.msg as rosm
+from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
+from coppelia_sim_ros_interface.msg import ObjectInfo
 
 from copy import deepcopy
 
@@ -49,13 +49,13 @@ class ROSComm():
         rospy.Subscriber('/hand_frame', rosm.Frame, self.hand_frame)
 
         if settings.launch_gesture_detection:
-            rospy.Subscriber('/mirracle_gestures/static_detection_solutions', DetectionSolution, self.save_static_detection_solutions)
-            self.static_detection_observations_pub = rospy.Publisher('/mirracle_gestures/static_detection_observations', DetectionObservations, queue_size=5)
+            rospy.Subscriber('/teleop_gesture_toolbox/static_detection_solutions', DetectionSolution, self.save_static_detection_solutions)
+            self.static_detection_observations_pub = rospy.Publisher('/teleop_gesture_toolbox/static_detection_observations', DetectionObservations, queue_size=5)
 
-            rospy.Subscriber('/mirracle_gestures/dynamic_detection_solutions', DetectionSolution, self.save_dynamic_detection_solutions)
-            self.dynamic_detection_observations_pub = rospy.Publisher('/mirracle_gestures/dynamic_detection_observations', DetectionObservations, queue_size=5)
+            rospy.Subscriber('/teleop_gesture_toolbox/dynamic_detection_solutions', DetectionSolution, self.save_dynamic_detection_solutions)
+            self.dynamic_detection_observations_pub = rospy.Publisher('/teleop_gesture_toolbox/dynamic_detection_observations', DetectionObservations, queue_size=5)
 
-        self.controller = rospy.Publisher('/mirracle_gestures/target', Float64MultiArray, queue_size=5)
+        self.controller = rospy.Publisher('/teleop_gesture_toolbox/target', Float64MultiArray, queue_size=5)
         self.ik_bridge = IK_bridge()
         self.hand_mode = settings.get_hand_mode()
 

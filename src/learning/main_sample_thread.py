@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 ''' Executes PyMC sampling with pre-learned model
-    -> Receives observations (input) through /mirracle_gestures/static_detection_observations topic
-    -> Publishes solutions (output) through /mirracle_gestures/static_detection_observations topic
+    -> Receives observations (input) through /teleop_gesture_toolbox/static_detection_observations topic
+    -> Publishes solutions (output) through /teleop_gesture_toolbox/static_detection_observations topic
     -> Prelearned neural networks are saved in include/data/learned_networks
-    -> Network file can be changed through /mirracle_gestures/change_network service
+    -> Network file can be changed through /teleop_gesture_toolbox/change_network service
 '''
 import sys, os
 PATH = os.path.dirname(os.path.realpath(__file__))
@@ -17,8 +17,8 @@ import numpy as np
 import rospy
 import time
 
-from mirracle_gestures.msg import DetectionSolution, DetectionObservations
-from mirracle_gestures.srv import ChangeNetwork, ChangeNetworkResponse
+from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
+from teleop_gesture_toolbox.srv import ChangeNetwork, ChangeNetworkResponse
 from std_msgs.msg import Int8, Float64MultiArray
 
 import threading
@@ -46,13 +46,13 @@ class ClassificationSampler():
         self.sample_approach = sample_approach()
 
         rospy.init_node('classification_sampler', anonymous=True)
-        rospy.Service(f'/mirracle_gestures/change_{type}_network', ChangeNetwork, self.change_network_callback)
+        rospy.Service(f'/teleop_gesture_toolbox/change_{type}_network', ChangeNetwork, self.change_network_callback)
 
         if settings.get_network_file(type) == None:
             return
         self.init(settings.get_network_file(type))
-        self.pub = rospy.Publisher(f'/mirracle_gestures/{type}_detection_solutions', DetectionSolution, queue_size=5)
-        rospy.Subscriber(f'/mirracle_gestures/{type}_detection_observations', DetectionObservations, self.callback)
+        self.pub = rospy.Publisher(f'/teleop_gesture_toolbox/{type}_detection_solutions', DetectionSolution, queue_size=5)
+        rospy.Subscriber(f'/teleop_gesture_toolbox/{type}_detection_observations', DetectionObservations, self.callback)
         rospy.spin()
         self.type = type
 

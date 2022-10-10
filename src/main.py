@@ -28,8 +28,8 @@ from os_and_utils.transformations import Transformations as tfm
 from os_and_utils.utils_ros import samePoses
 from os_and_utils.ros_communication_main import ROSComm
 
-# Temporary solution (reading from mirracle_sim pkg)
-sys.path.append(settings.paths.home+"/"+settings.paths.ws_folder+'/src/mirracle_sim/src')
+# Temporary solution (reading from coppelia_sim_ros_interface pkg)
+sys.path.append(settings.paths.home+"/"+settings.paths.ws_folder+'/src/coppelia_sim_ros_interface/src')
 from coppelia_sim_ros_client import CoppeliaROSInterface
 
 from geometry_msgs.msg import Pose, Point
@@ -179,35 +179,35 @@ def main_manager():
             ## -> Path that will be performed
             pp = ml.md.picked_path
             ## -> HoldValue (0-100) to targetPose number (0,len(path))
-            targetPose = int(settings.HoldValue / (100/len(sl.paths[pp].poses)))
+            targetPose = int(ml.md.HoldValue / (100/len(sl.paths[pp].poses)))
             if targetPose >= len(sl.paths[pp].poses):
                 targetPose = len(sl.paths[pp].poses)-1
             #diff_pose_progress = 100/len(sl.sp[pp].poses)
-            if targetPose == settings.currentPose:
+            if targetPose == ml.md.currentPose:
                 time_on_one_pose = 0.0
                 continue
             ## 1 - Forward, -1 - Backward
-            direction = 1 if targetPose - settings.currentPose > 0 else -1
+            direction = 1 if targetPose - ml.md.currentPose > 0 else -1
             ## Attaching/Detaching when moving backwards
-            if settings.leavingAction and time_on_one_pose <= 0.1 and direction == -1 and sl.paths[pp].actions[settings.currentPose] != "":
+            if settings.leavingAction and time_on_one_pose <= 0.1 and direction == -1 and sl.paths[pp].actions[ml.md.currentPose] != "":
                 if ml.md.attached:
-                    settings.mo.release_object(name=sl.paths[pp].actions[settings.currentPose])
-                    settings.leavingAction = False
+                    ml.md.release_object(name=sl.paths[pp].actions[ml.md.currentPose])
+                    ml.md.leavingAction = False
                 else:
-                    settings.mo.pick_object(name=sl.paths[pp].actions[settings.currentPose])
-                    settings.leavingAction = False
+                    md.md.pick_object(name=sl.paths[pp].actions[ml.md.currentPose])
+                    ml.md.leavingAction = False
             ## Set goal_pose one pose in direction
-            ml.md.goal_pose = deepcopy(sl.paths[pp].poses[settings.currentPose+direction])
+            ml.md.goal_pose = deepcopy(sl.paths[pp].poses[ml.md.currentPose+direction])
             ## On new pose target or over time limit
-            if time_on_one_pose > 0.1 or samePoses(ml.md.eef_pose, sl.paths[pp].poses[settings.currentPose+direction]):
-                settings.leavingAction = True
-                settings.currentPose = settings.currentPose+direction
+            if time_on_one_pose > 0.1 or samePoses(ml.md.eef_pose, sl.paths[pp].poses[ml.md.currentPose+direction]):
+                ml.md.leavingAction = True
+                ml.md.currentPose = ml.md.currentPose+direction
                 ## Attaching/Detaching when moving forward
-                if sl.paths[pp].actions[settings.currentPose] != "" and direction == 1:
+                if sl.paths[pp].actions[ml.md.currentPose] != "" and direction == 1:
                     if not ml.md.attached:
-                        settings.mo.pick_object(name=sl.paths[pp].actions[settings.currentPose])
+                        ml.md.pick_object(name=sl.paths[pp].actions[ml.md.currentPose])
                     else:
-                        settings.mo.release_object(name=sl.paths[pp].actions[settings.currentPose])
+                        ml.md.mo.release_object(name=sl.paths[pp].actions[ml.md.currentPose])
                 time_on_one_pose = 0.0
             time_on_one_pose += delay
 

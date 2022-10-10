@@ -20,9 +20,9 @@ def handle_observations_msg(msg):
     global received_gestures_data
     received_gestures_data.append((np.array(msg.observations.data).reshape(5,3),{}))
 
-from mirracle_gestures.msg import DetectionObservations
+from teleop_gesture_toolbox.msg import DetectionObservations
 rospy.init_node("just_plotter", anonymous=True)
-rospy.Subscriber('/mirracle_gestures/dynamic_detection_observations', DetectionObservations, handle_observations_msg)
+rospy.Subscriber('/teleop_gesture_toolbox/dynamic_detection_observations', DetectionObservations, handle_observations_msg)
 
 
 ### reads the load_dynamic data or something

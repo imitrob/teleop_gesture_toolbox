@@ -3,8 +3,8 @@ import numpy as np
 import torch
 from torchvision import datasets,transforms
 
-sys.path.append("/home/pierro/my_ws/src/mirracle_gestures/src/")
-sys.path.append("/home/pierro/my_ws/src/mirracle_gestures/src/leapmotion")
+sys.path.append("/home/pierro/my_ws/src/teleop_gesture_toolbox/src/")
+sys.path.append("/home/pierro/my_ws/src/teleop_gesture_toolbox/src/leapmotion")
 from os_and_utils.loading import HandDataLoader, DatasetLoader
 
 #data_path = '/home/pierro/UCB/data'
