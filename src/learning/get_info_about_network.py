@@ -7,7 +7,7 @@ from import_data import *
 PATH = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(1, PATH)
 sys.path.insert(1, os.path.abspath(os.path.join(PATH, '..')))
-network_path = expanduser("~/"+PATH.split('/')[3]+'/src/mirracle_gestures/include/data/Trained_network/')
+network_path = expanduser("~/"+PATH.split('/')[3]+'/src/teleop_gesture_toolbox/include/data/Trained_network/')
 
 network = input("Enter network file to read info: ")
 nn = NNWrapper.load_network(network_path, name=network)

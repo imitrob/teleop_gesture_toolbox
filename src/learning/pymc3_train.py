@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 '''
-- Recommended to use alongside with mirracle_gestures package
-    > Expects source files (mirracle_gestures) in ~/<your workspace>/src/mirracle_gestures/src and ~/<your workspace>/src/mirracle_gestures/src/learning
-    > Expects dataset recordings saved in ~/<your workspace>/src/mirracle_gestures/include/data/learning/
+- Recommended to use alongside with teleop_gesture_toolbox package
+    > Expects source files (teleop_gesture_toolbox) in ~/<your workspace>/src/teleop_gesture_toolbox/src and ~/<your workspace>/src/teleop_gesture_toolbox/src/learning
+    > Expects dataset recordings saved in ~/<your workspace>/src/teleop_gesture_toolbox/include/data/learning/
         - Download dataset from: https://drive.google.com/drive/u/0/folders/1lasIj7vPenx_ZkMyofvmro6-xtzYdyVm
-    > (optional) Expects saved neural_networks in ~/<your workspace>/src/mirracle_gestures/include/data/Trained_network/
+    > (optional) Expects saved neural_networks in ~/<your workspace>/src/teleop_gesture_toolbox/include/data/Trained_network/
 - Can be run with python3 train.py
 
 '''

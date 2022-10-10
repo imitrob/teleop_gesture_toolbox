@@ -1,4 +1,4 @@
 sensor_msgs/Image input_depth_image
 sensor_msgs/Image input_rgb_image
 ---
-mirracle_gestures/Object[] objects
+teleop_gesture_toolbox/Object[] objects

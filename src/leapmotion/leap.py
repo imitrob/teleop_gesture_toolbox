@@ -2,7 +2,7 @@
 import sys, os; sys.path.append("..")
 if os.getcwd()[-4:] == '.ros': # if running from roslaunch
     import rospkg; rospack = rospkg.RosPack(); rospack.list()
-    sys.path.append(rospack.get_path('mirracle_gestures')+'/src/')
+    sys.path.append(rospack.get_path('teleop_gesture_toolbox')+'/src/')
 import settings
 if __name__ == '__main__': settings.init()
 
@@ -15,8 +15,8 @@ import frame_lib
 
 if ros_enabled():
     import rospy
-    import mirracle_gestures.msg as rosm
-    import mirracle_gestures.srv as ross
+    import teleop_gesture_toolbox.msg as rosm
+    import teleop_gesture_toolbox.srv as ross
     #ross.SaveHandRecord, ross.SaveHandRecordResponseS
 
 class SampleListener(Leap.Listener):
@@ -180,7 +180,7 @@ def main():
     if ros_enabled():
         rospy.init_node('leap', anonymous=True)
     else:
-        print(f"ROS is not enabled! Check also sourcing the mirracle_gestures package")
+        print(f"ROS is not enabled! Check also sourcing the teleop_gesture_toolbox package")
 
     # Create a sample listener and controller
     listener = SampleListener()

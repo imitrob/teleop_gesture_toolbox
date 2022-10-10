@@ -48,7 +48,7 @@ from moveit_msgs.msg import RobotTrajectory
 #import RelaxedIK.Utils.transformations as T
 from sensor_msgs.msg import JointState
 from relaxed_ik.msg import EEPoseGoals, JointAngles
-from mirracle_sim.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
+from coppelia_sim_ros_interface.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
 
 import inverse_kinematics.kinematics_interface
 import settings

@@ -3,7 +3,7 @@ Works also as notebook
 '''
 import rospy
 from std_msgs.msg import Float64MultiArray, MultiArrayLayout, MultiArrayDimension
-from mirracle_gestures.msg import DetectionSolution, DetectionObservations, Hand, Frame
+from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations, Hand, Frame
 global fake_pub; fake_pub = None
 
 def send_fake_recognition_data_thread(fake_data, send_period=0.1):
@@ -15,7 +15,7 @@ def send_fake_recognition_data_thread(fake_data, send_period=0.1):
     rospy.init_node("SendFakeRecognitionData", anonymous=True)
 
     global fake_pub, fake_hand_pub
-    fake_pub = rospy.Publisher("/mirracle_gestures/static_detection_solutions", DetectionSolution, queue_size=5)
+    fake_pub = rospy.Publisher("/teleop_gesture_toolbox/static_detection_solutions", DetectionSolution, queue_size=5)
     fake_hand_pub = rospy.Publisher("/hand_frame", Frame, queue_size=5)
 
     print("[Fake Gestures Pub] Init Done")

@@ -1,5 +1,5 @@
 <launch>
 
-  <node pkg="mirracle_gestures" name="leap" type="leap.py" output="screen"/>
+  <node pkg="teleop_gesture_toolbox" name="leap" type="leap.py" output="screen"/>
 
 </launch>

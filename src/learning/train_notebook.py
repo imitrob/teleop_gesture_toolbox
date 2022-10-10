@@ -33,8 +33,8 @@ if True:
         THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..'))
         paths.ws_folder = THIS_FILE_TMP.split('/')[-1]
 
-        sys.path.insert(1, expanduser("~/"+paths.ws_folder+"/src/mirracle_gestures/src/learning"))
-        sys.path.insert(1, expanduser("~/"+paths.ws_folder+"/src/mirracle_gestures/src"))
+        sys.path.insert(1, expanduser("~/"+paths.ws_folder+"/src/teleop_gesture_toolbox/src/learning"))
+        sys.path.insert(1, expanduser("~/"+paths.ws_folder+"/src/teleop_gesture_toolbox/src"))
 
     from import_data import *
     from warnings import filterwarnings
@@ -100,7 +100,7 @@ if True:
             construct_mapping)
         return yaml.load(stream, OrderedLoader)
 
-    with open(expanduser("~/"+paths.ws_folder+"/src/mirracle_gestures/include/custom_settings/gesture_recording.yaml"), 'r') as stream:
+    with open(expanduser("~/"+paths.ws_folder+"/src/teleop_gesture_toolbox/include/custom_settings/gesture_recording.yaml"), 'r') as stream:
         gestures_data_loaded = ordered_load(stream, yaml.SafeLoader)
 
     Gs = []
@@ -129,8 +129,8 @@ if True:
     print("Gestures for training are: ", Gs)
     print("Arguments for training are: ", args)
 
-    learn_path = expanduser('~/'+paths.ws_folder+'/src/mirracle_gestures/include/data/learning/')
-    network_path = expanduser('~/'+paths.ws_folder+'/src/mirracle_gestures/include/data/Trained_network/')
+    learn_path = expanduser('~/'+paths.ws_folder+'/src/teleop_gesture_toolbox/include/data/learning/')
+    network_path = expanduser('~/'+paths.ws_folder+'/src/teleop_gesture_toolbox/include/data/Trained_network/')
 
     print("Learn path is: ", learn_path)
     print("Network path is: ", network_path)

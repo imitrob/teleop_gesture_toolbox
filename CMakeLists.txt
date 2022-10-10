@@ -1,7 +1,5 @@
 cmake_minimum_required(VERSION 3.0.2)
-project(mirracle_gestures)
-
-#set(CMAKE_CXX_COMPILER "/home/pierro/anaconda3/envs/robostackenv/bin/x86_64-conda-linux-gnu-g++")
+project(teleop_gesture_toolbox)
 
 find_package(catkin REQUIRED COMPONENTS
   roscpp

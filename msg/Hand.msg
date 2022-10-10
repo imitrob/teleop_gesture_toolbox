@@ -10,7 +10,7 @@ float64[3] palm_normal
 float64[3] direction
 float64[3] palm_position
 
-mirracle_gestures/Bone[20] finger_bones
+teleop_gesture_toolbox/Bone[20] finger_bones
 
 float64[3] palm_velocity
 float64[9] basis

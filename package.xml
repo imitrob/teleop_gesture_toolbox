@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <package format="2">
-  <name>mirracle_gestures</name>
-  <version>0.01.0</version>
+  <name>teleop_gesture_toolbox</name>
+  <version>0.1.0</version>
   <description>Tele-operation gesture toolbox</description>
 
   <!-- One maintainer tag required, multiple allowed, one person per tag -->
@@ -17,7 +17,7 @@
   <!-- Url tags are optional, but multiple are allowed, one per tag -->
   <!-- Optional attribute type can be: website, bugtracker, or repository -->
   <!-- Example: -->
-  <!-- <url type="website">http://wiki.ros.org/mirracle_gestures</url> -->
+  <!-- <url type="website">http://wiki.ros.org/teleop_gesture_toolbox</url> -->
 
 
   <!-- Author tags are optional, multiple are allowed, one per tag -->

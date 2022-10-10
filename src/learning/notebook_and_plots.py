@@ -62,7 +62,7 @@ def make_data_boundaries(data_test):
 
 """
 Ability to reproduce in following steps:
-    1. Install mirracle_gestures package
+    1. Install teleop_gesture_toolbox package
     2. Download dataset from gdrive TODO:
     3. Run script from src/learning: `python3.7 train.py`
         - Specify given experiment from class 'Experiments': 'update', 'all',

@@ -32,7 +32,7 @@ if __name__ == '__main__':
 # Keep independency to ROS
 try:
     import rospy
-    from mirracle_gestures.msg import DetectionSolution, DetectionObservations
+    from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
     from std_msgs.msg import Int8, Float64MultiArray, MultiArrayDimension
     ROS = True
 except ModuleNotFoundError:

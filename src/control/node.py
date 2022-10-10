@@ -9,7 +9,7 @@ import numpy as np
 import rospy
 
 if __name__ == '__main__':
-    rospy.init_node("/mirracle_gestures/controller")
+    rospy.init_node("/teleop_gesture_toolbox/controller")
     rospy.Subscriber("/hand_frame", Float64MultiArray, callback)
     rospy.spin()
 

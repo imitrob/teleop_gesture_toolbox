@@ -38,7 +38,7 @@ except ModuleNotFoundError:
 import rospy
 # ros msg classes
 from geometry_msgs.msg import Quaternion, Pose, Point
-from mirracle_gestures.srv import ChangeNetwork, SaveHandRecord
+from teleop_gesture_toolbox.srv import ChangeNetwork, SaveHandRecord
 
 import matplotlib
 matplotlib.use('Qt5Agg')
@@ -820,9 +820,9 @@ class Example(QMainWindow):
         ''' ROS service send request about network change
         '''
 
-        rospy.wait_for_service(f'/mirracle_gestures/change_{type}_network')
+        rospy.wait_for_service(f'/teleop_gesture_toolbox/change_{type}_network')
         try:
-            change_network = rospy.ServiceProxy(f'/mirracle_gestures/change_{type}_network', ChangeNetwork)
+            change_network = rospy.ServiceProxy(f'/teleop_gesture_toolbox/change_{type}_network', ChangeNetwork)
             response = change_network(data=network)
             Gs = [g.lower() for g in response.Gs]
             settings.args = response.args

@@ -19,7 +19,7 @@ import ui_lib as ui
 from os_and_utils.ros_communication_main import ROSComm
 from os_and_utils.parse_yaml import ParseYAML
 
-sys.path.append(settings.paths.mirracle_sim_path)
+sys.path.append(settings.paths.coppelia_sim_ros_interface_path)
 from coppelia_sim_ros_client import CoppeliaROSInterface
 
 from promps.promp_lib import ProMPGenerator

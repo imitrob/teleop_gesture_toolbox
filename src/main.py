@@ -28,8 +28,8 @@ from os_and_utils.transformations import Transformations as tfm
 from os_and_utils.utils_ros import samePoses
 from os_and_utils.ros_communication_main import ROSComm
 
-# Temporary solution (reading from mirracle_sim pkg)
-sys.path.append(settings.paths.home+"/"+settings.paths.ws_folder+'/src/mirracle_sim/src')
+# Temporary solution (reading from coppelia_sim_ros_interface pkg)
+sys.path.append(settings.paths.home+"/"+settings.paths.ws_folder+'/src/coppelia_sim_ros_interface/src')
 from coppelia_sim_ros_client import CoppeliaROSInterface
 
 from geometry_msgs.msg import Pose, Point

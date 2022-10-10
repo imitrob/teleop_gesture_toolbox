@@ -100,7 +100,7 @@ if __name__ == '__main__':
     for _ in range(10):
         swft.step()
 
-    swft.set_gripper(1.0)
+    swft.set_gripper(0.0)
 
     #swft.trajectory([(0.4, 0.0, 0.3),(0.6, 0.0, 0.3),(0.4, 0.0, 0.3)])
     #swft.new((0.4, 0.0, 0.3))

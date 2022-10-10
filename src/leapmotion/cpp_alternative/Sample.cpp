@@ -4,7 +4,7 @@
 
 #include "ros/ros.h"
 //#include "std_msgs/String.h"
-//#include "mirracle_gestures.msg/Frame.h"
+//#include "teleop_gesture_toolbox.msg/Frame.h"
 
 #include "hand_classes.h"
 

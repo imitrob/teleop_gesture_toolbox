@@ -4,7 +4,6 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 
-#os.chdir("/home/pierro/promps_python")
 sys.path.insert(1, os.path.expanduser("~/promps_python"))
 
 from promp.discrete_promp import DiscretePROMP
@@ -12,7 +11,7 @@ from promp.linear_sys_dyn import LinearSysDyn
 from promp.promp_ctrl import PROMPCtrl
 from numpy import diff
 
-pickle_in = open('/home/pierro/promps_python/data/data.pkl',"rb")
+pickle_in = open(f'{os.path.expanduser("~")}/promps_python/data/data.pkl',"rb")
 data = pickle.load(pickle_in, encoding='latin1')
 demos_list    = [data['steps']['states'][k][0][:,0] for k in range(1)]
 Ddemos_list   = [data['steps']['states'][k][0][:,1] for k in range(1)]

@@ -2,7 +2,7 @@
 1. Download dataset & unzip (https://drive.google.com/drive/u/0/folders/1lasIj7vPenx_ZkMyofvmro6-xtzYdyVm)
 2. Use `import_data` function
 Note:
-    - If running standalone (without mirracle_gestures package), copy files from drive and run how_to_use.py
+    - If running standalone (without teleop_gesture_toolbox package), copy files from drive and run how_to_use.py
 '''
 import sys
 sys.path.append("../src/")

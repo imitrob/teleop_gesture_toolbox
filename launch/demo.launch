@@ -56,8 +56,8 @@
   </group>
 
   <!--<group if="$(eval arg('simulator') == 'coppelia')">
-    <include file="$(find mirracle_sim)/launch/coppelia_ros.launch" />
-    <node pkg="mirracle_sim" name="coppelia_sim" type="coppelia_sim_ros_interface.py" output="screen"/>
+    <include file="$(find coppelia_sim_ros_interface)/launch/coppelia_ros.launch" />
+    <node pkg="coppelia_sim_ros_interface" name="coppelia_sim" type="coppelia_sim_ros_interface.py" output="screen"/>
   </group>-->
 
   <!-- There will be pick to three .config files no gripper/gripper/custom gripper -->
@@ -66,15 +66,15 @@
   </group>-->
 
   <group if="$(arg launch_leap)">
-    <node pkg="mirracle_gestures" name="leap" type="leap.py" output="screen"/>
+    <node pkg="teleop_gesture_toolbox" name="leap" type="leap.py" output="screen"/>
   </group>
 
-  <node pkg="mirracle_gestures" name="apply_scene_service" type="apply_scene_service.py" output="screen"/>
-  <node pkg="mirracle_gestures" name="main" type="main.py" output="screen"/>
+  <node pkg="teleop_gesture_toolbox" name="apply_scene_service" type="apply_scene_service.py" output="screen"/>
+  <node pkg="teleop_gesture_toolbox" name="main" type="main.py" output="screen"/>
   <arg name="type" default="static" />
   <param name="mirracle_config/type" type="str" value="$(arg type)" />
-  <node pkg="mirracle_gestures" name="static_sample" type="main_sample_thread.py" output="screen"/>
+  <node pkg="teleop_gesture_toolbox" name="static_sample" type="main_sample_thread.py" output="screen"/>
   <arg name="type" default="dynamic" />
   <param name="mirracle_config/type" type="str" value="$(arg type)" />
-  <node pkg="mirracle_gestures" name="dynamic_sample" type="main_sample_thread.py" output="screen"/>
+  <node pkg="teleop_gesture_toolbox" name="dynamic_sample" type="main_sample_thread.py" output="screen"/>
 </launch>

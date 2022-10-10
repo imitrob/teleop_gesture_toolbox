@@ -4,7 +4,7 @@ from collections import OrderedDict
 
 def ros_enabled():
     try:
-        from mirracle_gestures.msg import Frame as Framemsg
+        from teleop_gesture_toolbox.msg import Frame as Framemsg
         '''
         try:
             rospy.get_param("/mirracle_config/robot", 'panda')
@@ -45,7 +45,7 @@ class GlobalPaths():
         self.ws_folder = THIS_FILE_TMP.split('/')[-1]
 
         MG_PATH = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..'))
-        self.mirracle_gestures_path = MG_PATH+'/src/'
+        self.teleop_gesture_toolbox_path = MG_PATH+'/src/'
         self.learn_path = MG_PATH+'/include/data/learning/'
         self.data_export_path = MG_PATH+'/include/data/export/'
         self.graphics_path = MG_PATH+'/include/graphics/'
@@ -57,8 +57,8 @@ class GlobalPaths():
         self.promp_sebasutp_path = MG_PATH+'/include/third_party/promp/'
         self.promp_paraschos_path = MG_PATH+'/include/third_party/promps_python/'
         TMP2 = os.path.abspath(os.path.join(MG_PATH, '..'))
-        self.coppelia_scene_path = TMP2+"/mirracle_sim/include/scenes/"
-        self.mirracle_sim_path = TMP2+"/mirracle_sim/src/"
+        self.coppelia_scene_path = TMP2+"/coppelia_sim_ros_interface/include/scenes/"
+        self.coppelia_sim_ros_interface_path = TMP2+"/coppelia_sim_ros_interface/src/"
         if change_working_directory:
             sys.path.append(MG_PATH+'/src')
             os.chdir(MG_PATH+'/src')

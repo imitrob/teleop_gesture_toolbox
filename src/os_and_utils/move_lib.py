@@ -7,6 +7,7 @@ from copy import deepcopy
 ## TEMP: to test
 import time
 
+from std_msgs.msg import String
 from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
 from os_and_utils.utils import ordered_load
 import os_and_utils.scenes as sl
@@ -242,7 +243,7 @@ class MoveData():
 
         self.live_mode = text
 
-    def main_handle_step(self, simhandle, roscm, prompg, seq, mod=3):
+    def main_handle_step(self, simhandle, roscm, prompg, seq, mod=3, action_execution=True):
         ## live mode control
         # TODO: Mapped to right hand now!
         if self.mode == 'live':
@@ -295,6 +296,7 @@ class MoveData():
                 self.time_on_one_pose += 1
             simhandle.go_to_pose(self.goal_pose)
 
+        
 
         if self.mode == 'gesture':
             if self.present(): # If any hand visible
@@ -305,22 +307,24 @@ class MoveData():
             # Handle gesture activation
             if len(gl.gd.actions_queue) > 0:
                 action = gl.gd.actions_queue.pop()
-                if action[1] == 'nothing_dyn':
-                    print(f"===================== ACTION {action[1]} ========================")
-                else:
-                    print(f"===================== ACTION {action[1]} ========================")
-                    path_ = prompg.handle_action_queue(action)
-                    if path_ is not None:
-                        path, waypoints = path_
-                        simhandle.execute_trajectory_with_waypoints(path, waypoints)
-                        if np.array(path).any():
-                            pose = Pose()
-                            pose.position = Point(*path[-1])
-                            pose.orientation.x = np.sqrt(2)/2
-                            pose.orientation.y = np.sqrt(2)/2
-                            self.goal_pose = pose
+                roscm.gesture_solution_pub.publish(String(action[1]))
+                if action_execution:
+                    if action[1] == 'nothing_dyn':
+                        print(f"===================== ACTION {action[1]} ========================")
+                    else:
+                        print(f"===================== ACTION {action[1]} ========================")
+                        path_ = prompg.handle_action_queue(action)
+                        if path_ is not None:
+                            path, waypoints = path_
+                            simhandle.execute_trajectory_with_waypoints(path, waypoints)
+                            if np.array(path).any():
+                                pose = Pose()
+                                pose.position = Point(*path[-1])
+                                pose.orientation.x = np.sqrt(2)/2
+                                pose.orientation.y = np.sqrt(2)/2
+                                self.goal_pose = pose
             # Handle gesture update activation
-            if self.frames:
+            if self.frames and action_execution:
                 self.handle_action_update(simhandle)
 
         # Update focus target
