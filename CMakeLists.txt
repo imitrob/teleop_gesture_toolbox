@@ -5,7 +5,7 @@ find_package(catkin REQUIRED COMPONENTS
   roscpp
   rospy
   std_msgs
-  moveit_visual_tools
+  #moveit_visual_tools
   message_generation
   actionlib_msgs
   geometry_msgs
