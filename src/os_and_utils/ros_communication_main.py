@@ -11,7 +11,7 @@ import os_and_utils.scenes as sl
 if __name__ == '__main__': sl.init()
 from os_and_utils.transformations import Transformations as tfm
 
-from std_msgs.msg import Int8, Float64MultiArray, Int32, Bool, MultiArrayDimension
+from std_msgs.msg import Int8, Float64MultiArray, Int32, Bool, MultiArrayDimension, String
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, Vector3
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
@@ -59,7 +59,7 @@ class ROSComm():
         self.ik_bridge = IK_bridge()
         self.hand_mode = settings.get_hand_mode()
 
-
+        self.gesture_solution_pub = rospy.Publisher('/teleop_gesture_toolbox/filtered_gestures', String)
 
     def publish_eef_goal_pose(self, goal_pose):
         ''' Publish goal_pose /relaxed_ik/ee_pose_goals to relaxedIK with its transform
