@@ -1,5 +1,6 @@
 
 std_msgs/Header header
+int64 seq
 float64 fps
 int32 hands
 

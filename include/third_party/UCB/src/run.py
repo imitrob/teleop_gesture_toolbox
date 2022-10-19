@@ -30,7 +30,7 @@ parser.add_argument('--dataset_n_time_samples',          default=4,           ty
 parser.add_argument('--dataset_n_observations',          default=3,            type=int,   help='number of observations (XYZ)')
 parser.add_argument('--normalize',          default='no',            type=str,   help='path seq is zeroes based on first/middle point')
 parser.add_argument('--normalize_dim',          default='no',            type=str,   help='path min/max values is set to its min/max of all XYZ')
-## If dataset parameters changed, you may want to update include/data/learning/tmp_dynamic.npy file (delete it, new one will be automatically created)
+## If dataset parameters changed, you may want to update include/data/gesture_classification/tmp_dynamic.npy file (delete it, new one will be automatically created)
 
 # UCB HYPER-PARAMETERS
 parser.add_argument('--samples',            default='10',           type=int,     help='Number of Monte Carlo samples')

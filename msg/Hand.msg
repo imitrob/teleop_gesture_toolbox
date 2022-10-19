@@ -1,5 +1,5 @@
 bool visible
-float64 id
+int64 id
 bool is_left
 bool is_right
 bool is_valid
