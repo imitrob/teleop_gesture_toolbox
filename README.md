@@ -9,10 +9,10 @@ Tested on Linux Ubuntu 20.04.
 ### Dependencies
 
 - ROS & Conda packages
-  - Tested on [robostack](https://github.com/RoboStack/ros-noetic) version ROS1 Noetic
+  - Tested on [robostack](https://github.com/RoboStack/ros-galactic) version ROS2 Galactic
+    - Why not ROS2 Foxy? -> Not full support on Robostack Conda channel
   - (Recommended) Use [environment.yml](environment.yml) (conda env create -f environment.yml)
 - [Leap Motion Controller](https://www.ultraleap.com/product/leap-motion-controller/) as a hand sensor ([install](include/scripts/leap_motion_install.sh))
-  - Please copy `LeapSDK` folder to your home folder: `~/`
 - [Coppelia Sim](https://www.coppeliarobotics.com/) simulator ([install](include/scripts/coppelia_sim_install.sh))
   - (Recommended) Use version 4.1 (PyRep can have problems with newer versions)
   - Please install Coppelia Sim files to your home folder: `~/CoppeliaSim`
