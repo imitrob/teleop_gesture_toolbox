@@ -1,6 +1,6 @@
 *.pyc
-include/data/Trained_network/netw*
-include/data/Trained_network/PyMC3*
+include/data/trained_networks/netw*
+include/data/trained_networks/PyMC3*
 include/data/learning/
 include/data/export
 include/data/netw

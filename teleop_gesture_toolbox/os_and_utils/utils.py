@@ -42,7 +42,7 @@ class GlobalPaths():
         self.data_export_path = MG_PATH+'/include/data/export/'
         self.graphics_path = MG_PATH+'/include/graphics/'
         self.plots_path = MG_PATH+'/include/plots/'
-        self.network_path = MG_PATH+'/include/data/Trained_network/'
+        self.network_path = MG_PATH+'/include/data/trained_networks/'
         self.models_path = MG_PATH+'/include/models/'
         self.custom_settings_yaml = MG_PATH+'/include/custom_settings/'
         self.UCB_path = MG_PATH+'/include/third_party/UCB/'
@@ -50,7 +50,7 @@ class GlobalPaths():
         self.promp_paraschos_path = MG_PATH+'/include/third_party/promps_python/'
         TMP2 = os.path.abspath(os.path.join(MG_PATH, '..'))
         self.coppelia_scene_path = TMP2+"/coppelia_sim_ros_interface/include/scenes/"
-        self.coppelia_sim_ros_interface_path = TMP2+"/coppelia_sim_ros_interface/src/"
+        self.coppelia_sim_ros_interface_path = TMP2+"/coppelia_sim_ros_interface/coppelia_sim_ros_interface/"
         if change_working_directory:
             sys.path.append(MG_PATH+'/teleop_gesture_toolbox')
             os.chdir(MG_PATH+'/teleop_gesture_toolbox')

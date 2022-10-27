@@ -1,7 +1,9 @@
+import sys, os
 import rclpy
 from rclpy.node import Node
 from os_and_utils import settings
 import numpy as np
+from copy import deepcopy
 import os_and_utils.move_lib as ml
 if __name__ == '__main__': ml.init()
 from os_and_utils.parse_yaml import ParseYAML
@@ -25,17 +27,18 @@ import teleop_gesture_toolbox.msg as rosm
 from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
 
 try:
+    import coppelia_sim_ros_interface
     from coppelia_sim_ros_interface.msg import ObjectInfo
+    sys.path.append(settings.paths.coppelia_sim_ros_interface_path)
+    from coppelia_sim_ros_client import CoppeliaROSInterface
 except:
     print("WARNING: coppelia_sim_ros_interface package was not found!")
     coppelia_sim_ros_interface = None
 
-from copy import deepcopy
-
 class ROSComm(Node):
     ''' ROS communication of main thread: Subscribers (init & callbacks) and Publishers
     '''
-    def __init__(self):
+    def __init__(self, robot_interface='no-interface'):
         super().__init__('ros_comm_main')
         # Saving the joint_states
         if settings.simulator == 'coppelia':
@@ -67,6 +70,15 @@ class ROSComm(Node):
         self.hand_mode = settings.get_hand_mode()
 
         self.gesture_solution_pub = self.create_publisher(String, '/teleop_gesture_toolbox/filtered_gestures', 5)
+        
+        self.r = None
+        if 'coppelia' in robot_interface:
+            self.init_coppelia_interface()
+
+    def init_coppelia_interface(self):
+        assert coppelia_sim_ros_interface is not None, "coppelia_sim_ros_interface failed to load!"
+
+        self.r = CoppeliaROSInterface(rosnode=self)
 
     def publish_eef_goal_pose(self, goal_pose):
         ''' Publish goal_pose /ee_pose_goals to relaxedIK with its transform
@@ -252,7 +264,7 @@ class ROSComm(Node):
             rate.sleep()
 
 
-def init():
+def init(robot_interface=None):
     global roscm
     rclpy.init(args=None)
-    roscm = ROSComm()
+    roscm = ROSComm(robot_interface=robot_interface)

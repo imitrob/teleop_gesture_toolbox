@@ -775,7 +775,7 @@ class Example(QMainWindow):
         pose.position = Point(x=vals[0],y=vals[1],z=vals[2])
         pose.orientation = Quaternion(x=vals[3],y=vals[4],z=vals[5],w=vals[6])
         ml.md.goal_pose = pose
-        ml.md.m.go_to_pose(pose)
+        rc.roscm.r.go_to_pose(pose)
 
     def actuate_gripper_button(self):
         ''' Takes text input float and control gripper position
@@ -786,13 +786,13 @@ class Example(QMainWindow):
         except:
             print("[ERROR*] Value Error!")
             val = 0.0
-        ml.md.m.set_gripper(val, effort=0.04, eef_rot=-1, action="", object="")
+        rc.roscm.r.set_gripper(val, effort=0.4, eef_rot=-1, action="", object="")
 
     def open_gripper_button(self):
-        ml.md.m.set_gripper(1.0, action="release")
+        rc.roscm.r.set_gripper(1.0, action="release")
 
     def close_gripper_button(self):
-        ml.md.m.set_gripper(0.0)
+        rc.roscm.r.set_gripper(0.0)
 
     def robot_reset_button(self):
         '''pose = Pose()
@@ -800,8 +800,8 @@ class Example(QMainWindow):
         pose.orientation.y = np.sqrt(2)/2
         pose.position.x = 0.5
         pose.position.z = 0.2
-        ml.md.m.go_to_pose(pose)'''
-        ml.md.m.reset()
+        rc.roscm.r.go_to_pose(pose)'''
+        rc.roscm.r.reset()
 
     def keyPressEvent(self, event):
         ''' Callbacky for every keyboard button press
@@ -1004,7 +1004,7 @@ class Example(QMainWindow):
 
     def goScene(self, index):
         scenes = sl.scenes.names()
-        sl.scenes.make_scene(ml.md.m, scenes[index])
+        sl.scenes.make_scene(rc.roscm.r, scenes[index])
 
     def onComboPlayNLiveChanged(self, text):
         if text=="Live hand":
@@ -1019,7 +1019,7 @@ class Example(QMainWindow):
         ml.md.changeLiveMode(text)
     def onInteractiveSceneChanged(self, text):
         if text == "Scene 1 Drawer":
-            sl.scenes.make_scene(ml.md.m, 'drawer')
+            sl.scenes.make_scene(rc.roscm.r, 'drawer')
             ml.md.ENV = ml.md.ENV_DAT['wall']
         elif text == "Scene 2 Pick/Place":
             sl.scenes.make_scene('pickplace')

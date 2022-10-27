@@ -30,7 +30,7 @@ Tested on Linux Ubuntu 20.04.
 - Aliases (suggestion):
 ```Shell
 alias copqt='export LD_LIBRARY_PATH=/home/<user>/CoppeliaSim; export QT_QPA_PLATFORM_PLUGIN_PATH=/home/<user>/CoppeliaSim;'
-alias srcgestures='conda activate robostackenv; source ~/<your_ws>/devel/setup.bash'
+alias srcgestures='conda activate <your conda ws>; source ~/<your_ws>/install/setup.bash'
 ```
 - Terminal 1, Leap Controller:
 ```Shell
@@ -38,15 +38,27 @@ sudo leapd
 ```
 - Terminal 2, Coppelia Sim:
 ```Shell
-srcgestures; copqt; roslaunch mirracle_sim coppelia_sim.launch
+srcgestures; copqt
+cd <your ws>/src/coppelia_sim_ros_interface/coppelia_sim_ros_interface
+python coppelia_sim_ros_server.py
 ```
 - Terminal 3, Gestures Detection Threads:
 ```Shell
-srcgestures; roslaunch mirracle_gestures demo.launch
+srcgestures
+cd <your ws>/src/teleop_gesture_toolbox/teleop_gesture_toolbox/gesture_classification
+python main_sample_thread.py
+# and
+python dynamic_sample_thread.py
 ```
 - Terminal 4, Main + GUI:
 ```Shell
-srcgestures; rosrun mirracle_gestures main_coppelia.py
+srcgestures
+cd <your ws>/src/teleop_gesture_toolbox/teleop_gesture_toolbox
+python main_coppelia.py
+# or
+python main.py
+# or
+python example_grec.py
 ```
 
 ## Recognizers
@@ -54,9 +66,10 @@ srcgestures; rosrun mirracle_gestures main_coppelia.py
 ### Static gestures with Probabilistic Neural Network
 
 - (Default)
-- Preprocessing (based on config):
+- Preprocessing (based on config chosen in given script):
 ```Shell
-rosrun mirracle_gestures pymc3_train.py
+cd <your ws>/src/teleop_gesture_toolbox/teleop_gesture_toolbox/learning
+python pymc3_train.py
 ```
 
 ### Dynamic gestures with Dynamic Time Warping
@@ -105,7 +118,7 @@ TODO: Right now all gestures loaded from `network.pkl` needs to have record in t
 
 
 
-All available networks can be downloaded from google drive with button from UI menu and they are saved in folder `<gestures pkg>/include/data/Trained_network/`.
+All available networks can be downloaded from google drive with button from UI menu and they are saved in folder `<gestures pkg>/include/data/trained_networks/`.
 To get information about network, run: `rosrun mirracle_gestures get_info_about_network.py` then specify network (e.g. network0.pkl).
 
 Train new NN with script (src/learning/pymc3_train.py). Running script via Jupyter notebook (IPython) is advised for better orientation in learning processes. TODO: Publish recorded data-set to gdrive
@@ -116,7 +129,7 @@ graph LR;
 classDef someclass fill:#f96;
 classDef someclass2 fill:#00FF00;
 
-A("Train network *<br>src/learning/train.py<br>"):::someclass --> B("Folder containing network data files<br>include/data/Trained_network/<network x>.pkl")
+A("Train network *<br>src/learning/train.py<br>"):::someclass --> B("Folder containing network data files<br>include/data/trained_networks/<network x>.pkl")
 C("Download networks (gdrive)<br><inside user interface>") --> B
 B --> D("Sampling thread<br>src/learning/sample.py<br>(launched by Main<br>src/demo.launch)")
 E("Info about gestures **<br>/include/custom_settings/gesture_recording.yaml"):::someclass2 --> D

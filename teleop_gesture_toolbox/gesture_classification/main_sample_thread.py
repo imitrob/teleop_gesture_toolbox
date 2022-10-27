@@ -132,8 +132,8 @@ if __name__ == '__main__':
     else:
         rclpy.init()
         rosnode = TmpRosNode()
-        if rosnode.has_parameter('/mirracle_config/type'):
-            type = rosnode.get_parameter('/mirracle_config/type')
+        if rosnode.has_parameter('/project_config/type'):
+            type = rosnode.get_parameter('/project_config/type')
         else:
             type = 'static'
         rosnode.destroy_node()

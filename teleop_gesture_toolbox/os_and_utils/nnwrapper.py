@@ -30,7 +30,7 @@ class NNWrapper():
         Parameters:
             X_train (ndarray): Your X training data
             approx, neural_network (PyMC3): Neural network data for sampling
-            network_path (Str): Path to network folder (e.g. '/home/<user>/<ws>/src/teleop_gesture_toolbox/include/data/Trained_network/')
+            network_path (Str): Path to network folder (e.g. '/home/<user>/<ws>/src/teleop_gesture_toolbox/include/data/trained_networks/')
             name (Str): Output network name
                 - name not specified -> will save as network0.pkl, network1.pkl, network2.pkl, ...
                 - name specified -> save as name
@@ -63,7 +63,7 @@ class NNWrapper():
     def load_network(network_path, name=None):
         '''
         Parameters:
-            network_path (Str): Path to network folder (e.g. '/home/<user>/<ws>/src/teleop_gesture_toolbox/include/data/Trained_network/')
+            network_path (Str): Path to network folder (e.g. '/home/<user>/<ws>/src/teleop_gesture_toolbox/include/data/trained_networks/')
             name (Str): Network name to load
         Returns:
             wrapper (NetworkWrapper())

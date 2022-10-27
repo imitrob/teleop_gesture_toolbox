@@ -16,7 +16,6 @@ from os_and_utils.transformations import Transformations as tfm
 from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_motionprimitive_type
 from os_and_utils.path_def import Waypoint
 from os_and_utils.utils_ros import samePoses
-
 import os_and_utils.ros_communication_main as rc
 
 class MoveData():
@@ -148,9 +147,6 @@ class MoveData():
             self.goal_pose.position = self.ENV['start']
             self.goal_pose.orientation = self.ENV['ori']
 
-        # Handle to access simulator
-        self.m = None
-
         self.seq = 0
 
     def present(self):
@@ -234,7 +230,7 @@ class MoveData():
     def changePlayPath(self, path_=None):
         for n, path in enumerate(sl.paths):
             if not path_ or path.name == path_: # pick first path if path_ not given
-                sl.scenes.make_scene(self.m, path.scene)
+                sl.scenes.make_scene(rc.roscm.r, path.scene)
                 self.picked_path = n
                 self.ENV = self.ENV_DAT[path.ENV]
                 self.HoldValue = 0
@@ -250,19 +246,19 @@ class MoveData():
 
         self.live_mode = text
 
-    def main_handle_step(self, simhandle, path_gen, mod=3, action_execution=True):
+    def main_handle_step(self, path_gen, mod=3, action_execution=True):
         ## live mode control
         # TODO: Mapped to right hand now!
         if self.mode == 'live':
             if self.seq % mod == 0:
                 if self.r_present():
-                    self.do_live_mode(simhandle, h='r', type='drawing', link_gesture='grab')
+                    self.do_live_mode(rc.roscm.r, h='r', type='drawing', link_gesture='grab')
                 else:
                     self.live_mode_drawing = False
                     self.live_mode_drawing_rot = False
             if self.l_present():
                 if self.seq % mod == 0:
-                    self.grasp_on_basic_grab_gesture(simhandle, hnds=['l'])
+                    self.grasp_on_basic_grab_gesture(rc.roscm.r, hnds=['l'])
 
         if self.mode == 'play':
             # controls everything:
@@ -281,7 +277,7 @@ class MoveData():
                 direction = 1 if targetPose - self.currentPose > 0 else -1
                 ## Attaching/Detaching when moving backwards
                 if self.leavingAction and self.time_on_one_pose <= 0.1 and direction == -1 and sl.paths[pp].actions[self.currentPose] != "":
-                    if simhandle is not None: simhandle.toggle_object(self.attached)
+                    if rc.roscm.r is not None: rc.roscm.r.toggle_object(self.attached)
                     self.attached = not self.attached
 
                     self.leavingAction = False
@@ -295,12 +291,12 @@ class MoveData():
                     ## Attaching/Detaching when moving forward
                     if sl.paths[pp].actions[self.currentPose] != "" and direction == 1:
 
-                        if simhandle is not None: simhandle.toggle_object(self.attached)
+                        if rc.roscm.r is not None: rc.roscm.r.toggle_object(self.attached)
                         self.attached = not self.attached
 
                     self.time_on_one_pose = 0.0
                 self.time_on_one_pose += 1
-            if simhandle is not None: simhandle.go_to_pose(self.goal_pose)
+            if rc.roscm.r is not None: rc.roscm.r.go_to_pose(self.goal_pose)
 
         if self.mode == 'gesture':
             if self.present(): # If any hand visible
@@ -320,8 +316,8 @@ class MoveData():
                         path_ = path_gen.handle_action_queue(action)
                         if path_ is not None:
                             path, waypoints = path_
-                            if simhandle is not None:
-                                simhandle.execute_trajectory_with_waypoints(path, waypoints)
+                            if rc.roscm.r is not None:
+                                rc.roscm.r.execute_trajectory_with_waypoints(path, waypoints)
                             if np.array(path).any():
                                 pose = Pose()
                                 pose.position = Point(x=path[-1][0],y=path[-1][1],z=path[-1][2])
@@ -330,13 +326,13 @@ class MoveData():
                                 self.goal_pose = pose
             # Handle gesture update activation
             if self.frames and action_execution:
-                self.handle_action_update(simhandle)
+                self.handle_action_update(rc.roscm.r)
 
         # Update focus target
         if self.seq % (settings.yaml_config_gestures['misc']['rate'] * 2) == 0: # every sec
             if sl.scene and len(sl.scene.object_poses) > 0:
-                if simhandle is not None:
-                    simhandle.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id], timeout=0.2)
+                if rc.roscm.r is not None:
+                    rc.roscm.r.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id], timeout=0.2)
 
 
         # TODO: Possibility to print some info
@@ -358,7 +354,7 @@ class MoveData():
         self.seq += 1
 
 
-    def handle_action_update(self, simhandle):
+    def handle_action_update(self):
         ''' Edited for only left hand classification and right hand metrics
         '''
         for h in ['l']:#, 'r']:
@@ -376,8 +372,8 @@ class MoveData():
                             wps[1.0].gripper = 1.0 #h).pinch_strength
 
                         #wps[1.0].gripper = 1-getattr(self.frames[-1], 'l').grab_strength #h).pinch_strength
-                        if simhandle is not None:
-                            simhandle.execute_trajectory_with_waypoints(None, wps)
+                        if rc.roscm.r is not None:
+                            rc.roscm.r.execute_trajectory_with_waypoints(None, wps)
 
                     if id_primitive == 'build_switch' and getattr(self.frames[-1], 'r').visible:
                         xe,ye,_ = tfm.transformLeapToUIsimple(self.frames[-1].l.elbow_position(), out='list')
@@ -422,15 +418,15 @@ class MoveData():
                             self.current_threshold_to_flip_id = 0
                             self.object_focus_id += 1
                             if self.object_focus_id == sl.scene.n: self.object_focus_id = 0
-                            # if simhandle is not None:
-                                #simhandle.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id])
+                            # if rc.roscm.r is not None:
+                                #rc.roscm.r.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id])
                         elif self.current_threshold_to_flip_id < -settings.yaml_config_gestures['misc']['rate']:
                             # move prev
                             self.current_threshold_to_flip_id = 0
                             self.object_focus_id -= 1
                             if self.object_focus_id == -1: self.object_focus_id = sl.scene.n-1
-                            # if simhandle is not None:
-                                #simhandle.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id])
+                            # if rc.roscm.r is not None:
+                                #rc.roscm.r.add_or_edit_object(name='Focus_target', pose=sl.scene.object_poses[self.object_focus_id])
                         #print("self.current_threshold_to_flip_id", self.current_threshold_to_flip_id, "self.object_focus_id", self.object_focus_id)
                         '''
                     '''
@@ -450,10 +446,10 @@ class MoveData():
                     if move:
                         gl.gd.actions_queue.append((rc.roscm.get_clock().now().to_sec(),move,h))
 
-    def do_live_mode(self, simhandle, h='r', type='drawing', link_gesture='grab'):
+    def do_live_mode(self, h='r', type='drawing', link_gesture='grab'):
         '''
         Parameters:
-            simhandle (obj): coppelia/swift or other
+            rc.roscm.r (obj): coppelia/swift or other
             h (Str): read hand 'r', 'l'
             type (Str): 'simple' - position based, 'absolute', 'relavive'
             link_gesture (Str): ['<static_gesture>', 'grab'] - live mode activated when using given static gesture
@@ -464,8 +460,8 @@ class MoveData():
 
         if type == 'simple':
             self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
-            if simhandle is not None:
-                simhandle.go_to_pose(self.goal_pose)
+            if rc.roscm.r is not None:
+                rc.roscm.r.go_to_pose(self.goal_pose)
             return
 
         relevant = getattr(gl.gd, h).static.relevant()
@@ -488,8 +484,8 @@ class MoveData():
         if type == 'absolute':
             if a:
                 self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
-                if simhandle is not None:
-                    simhandle.go_to_pose(self.goal_pose)
+                if rc.roscm.r is not None:
+                    rc.roscm.r.go_to_pose(self.goal_pose)
 
         elif type == 'relative':
             # TODO:
@@ -521,8 +517,8 @@ class MoveData():
                 if self.live_mode == 'With eef rot':
                     self.eef_rot = deepcopy(self.eef_rot_scene)
                     self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
-                    if simhandle is not None:
-                        simhandle.set_gripper(eef_rot=self.eef_rot)
+                    if rc.roscm.r is not None:
+                        rc.roscm.r.set_gripper(eef_rot=self.eef_rot)
             else:
                 self.live_mode_drawing = False
             if b:
@@ -536,13 +532,13 @@ class MoveData():
 
                 self.eef_rot = deepcopy(self.eef_rot_scene)
                 self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
-                if simhandle is not None:
-                    simhandle.set_gripper(eef_rot=self.eef_rot)
+                if rc.roscm.r is not None:
+                    rc.roscm.r.set_gripper(eef_rot=self.eef_rot)
             else:
                 self.live_mode_drawing_rot = False
 
-            if simhandle is not None:
-                simhandle.go_to_pose(self.goal_pose)
+            if rc.roscm.r is not None:
+                rc.roscm.r.go_to_pose(self.goal_pose)
         else: raise Exception(f"Wrong parameter type ({type}) not in ['simple','absolute','relative']")
 
     def grasp_on_grab_gesture(self, hnds=['l']):
@@ -558,18 +554,18 @@ class MoveData():
                         elif action_name in ['thumbsup', 'opened_hand']:
                             wps[1.0].gripper = 1.0
 
-                        if simhandle is not None:
-                            simhandle.execute_trajectory_with_waypoints(None, wps)
+                        if rc.roscm.r is not None:
+                            rc.roscm.r.execute_trajectory_with_waypoints(None, wps)
 
-    def grasp_on_basic_grab_gesture(self, simhandle, hnds=['l']):
+    def grasp_on_basic_grab_gesture(self, hnds=['l']):
         for h in hnds:
             grab_strength = getattr(self.frames[-1], h).grab_strength
             if grab_strength > 0.5:
-                if simhandle is not None:
-                    simhandle.pick_object(sl.scene.object_names[self.object_focus_id])
+                if rc.roscm.r is not None:
+                    rc.roscm.r.pick_object(sl.scene.object_names[self.object_focus_id])
             else:
-                if simhandle is not None:
-                    simhandle.release_object()
+                if rc.roscm.r is not None:
+                    rc.roscm.r.release_object()
 
 
 class Structure():

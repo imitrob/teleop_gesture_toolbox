@@ -1,30 +1,40 @@
 #!/usr/bin/env python
-''' Sends gesture data and receive results in GUI
-'''
 import sys, os, time, threading
 import numpy as np
 import rclpy
 
 # Init functions create global placeholder objects for data
-import os_and_utils.settings as settings; settings.init()
+from os_and_utils import settings; settings.init()
 import os_and_utils.move_lib as ml; ml.init()
 import os_and_utils.scenes as sl; sl.init()
 import gesture_classification.gestures_lib as gl; gl.init()
 import os_and_utils.ui_lib as ui
-import os_and_utils.ros_communication_main as rc; rc.init()
+import os_and_utils.ros_communication_main as rc; rc.init('coppelia')
+
+# ProMP path generator
+from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_motionprimitive_type
+
+# TEMP:
+from geometry_msgs.msg import Point, Pose, Quaternion
 
 def main():
+    # If gesture detection not enabled in ROSparam -> enable it manually
+    #ml.md.eef_pose.position = Point(0.3, 0.0, 0.3)
+
+    #path_generator = ProMPGenerator(promp='sebasutp')
+    path_generator = None
+    #sl.scenes.make_scene(rc.roscm.r, 'pickplace3')
+
     rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
     try:
         while rclpy.ok():
-            rc.roscm.send_g_data()
+            ml.md.main_handle_step(path_generator)
             rate.sleep()
     except KeyboardInterrupt:
         pass
 
     gl.gd.export()
     print("[Main] Ended")
-
 
 if __name__ == '__main__':
     ''' Default main has three threads: 1. ROS spin, 2. GUI (optional), 3. main
