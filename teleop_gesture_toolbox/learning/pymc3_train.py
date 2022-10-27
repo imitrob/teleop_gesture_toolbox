@@ -7,6 +7,9 @@
     > (optional) Expects saved neural_networks in ~/<your workspace>/src/teleop_gesture_toolbox/include/data/trained_networks/
 - Can be run with python pymc3_train.py
 
+!!!
+Needs polishing to new versions
+!!!
 '''
 
 if True: # When running as notebook (jupyter)
