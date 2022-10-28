@@ -70,7 +70,7 @@ class ROSComm(Node):
         self.hand_mode = settings.get_hand_mode()
 
         self.gesture_solution_pub = self.create_publisher(String, '/teleop_gesture_toolbox/filtered_gestures', 5)
-        
+
         self.r = None
         if 'coppelia' in robot_interface:
             self.init_coppelia_interface()
@@ -264,7 +264,7 @@ class ROSComm(Node):
             rate.sleep()
 
 
-def init(robot_interface=None):
+def init(robot_interface=''):
     global roscm
     rclpy.init(args=None)
     roscm = ROSComm(robot_interface=robot_interface)

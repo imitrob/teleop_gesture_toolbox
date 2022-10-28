@@ -6,6 +6,7 @@ from os_and_utils.parse_yaml import ParseYAML
 
 from geometry_msgs.msg import Vector3
 import os_and_utils.move_lib as ml
+import os_and_utils.ros_communication_main as rc
 
 class CustomPoses():
     @staticmethod
@@ -137,10 +138,11 @@ class CustomScenes():
                         scenes.append(CustomScene(pickedscene, poses_data_loaded))
         return scenes
 
-    def make_scene(self, interface_handle=None, new_scene=''):
+    def make_scene(self, new_scene=''):
         ''' Prepare scene, add objects for obstacle or manipulation.
             scene (str):
         '''
+        interface_handle = rc.roscm.r
         refresh()
         if not interface_handle: print("[Scenes] No interface handle added!")
         global scene
@@ -166,7 +168,7 @@ class CustomScenes():
             mass = self.scenes[id].object_masses[i]
             friction = self.scenes[id].object_frictions[i]
             inertia = self.scenes[id].object_inertia[i]
-            inertiaTransformation = self.scenes[id].object_inertiaTransform[i]
+            inertia_transformation = self.scenes[id].object_inertiaTransform[i]
             dynamic = self.scenes[id].object_dynamic[i]
             pub_info = self.scenes[id].object_pub_info[i]
             texture_file = self.scenes[id].object_texture_file[i]
@@ -174,13 +176,13 @@ class CustomScenes():
 
             if interface_handle:
                 if shape:
-                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
                 elif file:
                     if scale: size = [self.scenes[id].object_scales[i], 0, 0]
                     else: size = [0,0,0]
-                    interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/teleop_gesture_toolbox/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=self.scenes[id].object_poses[i], frame_id=settings.base_link)
+                    interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/teleop_gesture_toolbox/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=self.scenes[id].object_poses[i], frame_id=settings.base_link)
                 else:
-                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertiaTransformation=inertiaTransformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
         scene = self.scenes[id]
         ml.md.structures = []
         ml.md.attached = False
