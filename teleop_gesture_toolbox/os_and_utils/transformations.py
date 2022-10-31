@@ -108,6 +108,20 @@ class Transformations():
         pose.position.z = z
         return pose
 
+    transformLeapToBase__CornerConfig_translation = [1.07, 0.4, 0.01]
+    @staticmethod
+    def transformLeapToBase__CornerConfig(pose, out='', t=[1.07, 0.4, 0.01]):
+        '''
+        t (list[3]): Measured
+        '''
+        if isinstance(pose, (list,np.ndarray, tuple)):
+            if len(pose) == 3:
+                x,y,z=pose
+                return np.array([z/1000+t[0], x/1000+t[1], y/1000+t[2]])
+            else: raise Exception("TODO")
+        else: raise Exception("TODO")
+        return pose
+
     @staticmethod
     def transformLeapToScenePose(pose, env, scale, camera_orientation, out='pose'):
         ''' Leap -> rViz -> Scene

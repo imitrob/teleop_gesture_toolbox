@@ -22,37 +22,23 @@ import os_and_utils.ros_communication_main as rc; rc.init("coppelia")
 from os_and_utils.point_direction import get_id_of_closest_point_to_line
 from os_and_utils.transformations import Transformations as tfm
 
-from geometry_msgs.msg import Pose, Point, Quaternion
-
-import threading
-sem = threading.Semaphore()
-
-BASE2LEAP = [1.07, 0.4, 0.01]
-
-def spinning_thread():
+def spinning_threadfn():
     while rclpy.ok():
-
-        sem.acquire()
-        rclpy.spin_once(rc.roscm)
-        sem.release()
+        with rc.rossem:
+            rclpy.spin_once(rc.roscm)
         time.sleep(0.01)
 
-spinning_thread = threading.Thread(target=spinning_thread, args=(), daemon=True)
-spinning_thread.start()
-if True: #def main():
-
-    sem.acquire()
+def main():
     sl.scenes.make_scene('pickplace3')
     # Add Leap Motion object to the scene
-    rc.roscm.r.add_or_edit_object(name="leap", pose=BASE2LEAP, color='c', shape='cube', size=[0.03, 0.1, 0.01])
-    rate = rc.roscm.create_rate(1) # Hz
-    sem.release()
+    with rc.rossem:
+        rc.roscm.r.add_or_edit_object(name="leap", pose=tfm.transformLeapToBase__CornerConfig_translation, color='c', shape='cube', size=[0.03, 0.1, 0.01])
+        #rate = rc.roscm.create_rate(2) # Hz
 
     while rclpy.ok():
         if ml.md.frames and settings.gesture_detection_on:
-            sem.acquire()
-            rc.roscm.send_g_data()
-            sem.release()
+            with rc.rossem:
+                rc.roscm.send_g_data()
 
         if ml.md.frames:
             f = ml.md.frames[-1]
@@ -62,25 +48,22 @@ if True: #def main():
 
             if h in ['r', 'l']:
                 hand = getattr(f, h)
-                p1, p2 = hand.fingers[1].bones[3].prev_joint(), hand.fingers[1].bones[3].next_joint()
-                p1s = np.array(tfm.transformLeapToBase(p1)) + np.array(BASE2LEAP)
-                p2s = np.array(tfm.transformLeapToBase(p2)) + np.array(BASE2LEAP)
-                v = 100*(p2s-p1s)
+                p1, p2 = np.array(hand.palm_position()), np.array(hand.palm_position())+np.array(hand.direction())
+                #p1, p2 = np.array(hand.fingers[1].bones[3].prev_joint()), np.array(hand.fingers[1].bones[3].next_joint())
+                p1s = np.array(tfm.transformLeapToBase__CornerConfig(p1))
+                p2s = np.array(tfm.transformLeapToBase__CornerConfig(p2))
+                v = 1000*(p2s-p1s)
                 line_points = (p1s, p2s+v)
-
-                print(line_points)
-                sem.acquire()
-                rc.roscm.r.remove_object(name='line1')
-                rc.roscm.r.add_line(name='line1', points=line_points)
-                sem.release()
 
                 object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in sl.scene.object_poses]
                 idobj, _ = get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
 
-                print(idobj)
+                with rc.rossem:
+                    rc.roscm.r.add_line(name='line1', points=line_points)
+                    rc.roscm.r.add_or_edit_object(name="Focus_target", pose=object_positions[idobj])
 
         #rate.sleep()
-        time.sleep(1)
+        time.sleep(0.1)
     print("quit")
 
 
@@ -90,7 +73,7 @@ if __name__ == '__main__':
     '''
     if len(sys.argv)>1 and sys.argv[1] == 'noui': settings.launch_ui = False
     # Spin in a separate thread
-    spinning_thread = threading.Thread(target=rclpy.spin, args=(rc.roscm, ), daemon=True)
+    spinning_thread = threading.Thread(target=spinning_threadfn, args=( ), daemon=True)
     spinning_thread.start()
     if settings.launch_ui:
         thread_main = threading.Thread(target = main, daemon=True)
