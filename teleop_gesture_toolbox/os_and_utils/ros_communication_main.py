@@ -25,6 +25,7 @@ from sensor_msgs.msg import JointState
 from leapmotion.frame_lib import Frame
 import teleop_gesture_toolbox.msg as rosm
 from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
+import threading
 
 try:
     import coppelia_sim_ros_interface
@@ -263,8 +264,8 @@ class ROSComm(Node):
 
             rate.sleep()
 
-
 def init(robot_interface=''):
-    global roscm
+    global roscm, rossem
     rclpy.init(args=None)
+    rossem = threading.Semaphore()
     roscm = ROSComm(robot_interface=robot_interface)

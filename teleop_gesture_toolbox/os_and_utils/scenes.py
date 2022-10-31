@@ -175,14 +175,15 @@ class CustomScenes():
             file = self.scenes[id].object_file[i]
 
             if interface_handle:
-                if shape:
-                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
-                elif file:
-                    if scale: size = [self.scenes[id].object_scales[i], 0, 0]
-                    else: size = [0,0,0]
-                    interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/teleop_gesture_toolbox/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=self.scenes[id].object_poses[i], frame_id=settings.base_link)
-                else:
-                    interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+                with rc.rossem:
+                    if shape:
+                        interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+                    elif file:
+                        if scale: size = [self.scenes[id].object_scales[i], 0, 0]
+                        else: size = [0,0,0]
+                        interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/teleop_gesture_toolbox/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=self.scenes[id].object_poses[i], frame_id=settings.base_link)
+                    else:
+                        interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
         scene = self.scenes[id]
         ml.md.structures = []
         ml.md.attached = False

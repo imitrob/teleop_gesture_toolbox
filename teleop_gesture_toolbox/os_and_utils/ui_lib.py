@@ -775,7 +775,8 @@ class Example(QMainWindow):
         pose.position = Point(x=vals[0],y=vals[1],z=vals[2])
         pose.orientation = Quaternion(x=vals[3],y=vals[4],z=vals[5],w=vals[6])
         ml.md.goal_pose = pose
-        rc.roscm.r.go_to_pose(pose)
+        with rc.rossem:
+            rc.roscm.r.go_to_pose(pose)
 
     def actuate_gripper_button(self):
         ''' Takes text input float and control gripper position
@@ -786,13 +787,16 @@ class Example(QMainWindow):
         except:
             print("[ERROR*] Value Error!")
             val = 0.0
-        rc.roscm.r.set_gripper(val, effort=0.4, eef_rot=-1, action="", object="")
+        with rc.rossem:
+            rc.roscm.r.set_gripper(val, effort=0.4, eef_rot=-1, action="", object="")
 
     def open_gripper_button(self):
-        rc.roscm.r.set_gripper(1.0, action="release")
+        with rc.rossem:
+            rc.roscm.r.set_gripper(1.0, action="release")
 
     def close_gripper_button(self):
-        rc.roscm.r.set_gripper(0.0)
+        with rc.rossem:
+            rc.roscm.r.set_gripper(0.0)
 
     def robot_reset_button(self):
         '''pose = Pose()
@@ -800,8 +804,10 @@ class Example(QMainWindow):
         pose.orientation.y = np.sqrt(2)/2
         pose.position.x = 0.5
         pose.position.z = 0.2
-        rc.roscm.r.go_to_pose(pose)'''
-        rc.roscm.r.reset()
+        with rc.rossem:
+            rc.roscm.r.go_to_pose(pose)'''
+        with rc.rossem:
+            rc.roscm.r.reset()
 
     def keyPressEvent(self, event):
         ''' Callbacky for every keyboard button press
@@ -823,10 +829,12 @@ class Example(QMainWindow):
     def changeNetwork(self, network, type='static'):
         ''' ROS service send request about network change
         '''
-        change_network = rc.roscm.create_client(ChangeNetwork, f'/teleop_gesture_toolbox/change_{type}_network')
+        with rc.rossem:
+            change_network = rc.roscm.create_client(ChangeNetwork, f'/teleop_gesture_toolbox/change_{type}_network')
 
         while not change_network.wait_for_service(timeout_sec=1.0):
-            rc.roscm.get_logger().info('service not available, waiting again...')
+            with rc.rossem:
+                rc.roscm.get_logger().info('service not available, waiting again...')
 
         try:
             response = change_network(data=network)
@@ -871,10 +879,12 @@ class Example(QMainWindow):
     def save_data(self):
         ''' Saving record data in this thread will be outdated, ROS service will be created
         '''
-        save_hand_record = rc.roscm.create_client(SaveHandRecord, 'save_hand_record')
+        with rc.rossem:
+            save_hand_record = rc.roscm.create_client(SaveHandRecord, 'save_hand_record')
 
         while not save_hand_record.wait_for_service(timeout_sec=1.0):
-            rc.roscm.get_logger().info('service not available, waiting again...')
+            with rc.rossem:
+                rc.roscm.get_logger().info('service not available, waiting again...')
 
         try:
             resp1 = save_hand_record(directory=settings.paths.learn_path+self.dir_queue.pop(0), save_method='numpy', recording_length=1.0)
@@ -1004,7 +1014,7 @@ class Example(QMainWindow):
 
     def goScene(self, index):
         scenes = sl.scenes.names()
-        sl.scenes.make_scene(rc.roscm.r, scenes[index])
+        sl.scenes.make_scene(scenes[index])
 
     def onComboPlayNLiveChanged(self, text):
         if text=="Live hand":
@@ -1019,7 +1029,7 @@ class Example(QMainWindow):
         ml.md.changeLiveMode(text)
     def onInteractiveSceneChanged(self, text):
         if text == "Scene 1 Drawer":
-            sl.scenes.make_scene(rc.roscm.r, 'drawer')
+            sl.scenes.make_scene('drawer')
             ml.md.ENV = ml.md.ENV_DAT['wall']
         elif text == "Scene 2 Pick/Place":
             sl.scenes.make_scene('pickplace')

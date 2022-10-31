@@ -23,7 +23,7 @@ def main():
 
     #path_generator = ProMPGenerator(promp='sebasutp')
     path_generator = None
-    #sl.scenes.make_scene(rc.roscm.r, 'pickplace3')
+    #sl.scenes.make_scene('pickplace3')
 
     rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
     try:

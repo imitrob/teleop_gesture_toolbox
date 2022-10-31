@@ -230,7 +230,7 @@ class MoveData():
     def changePlayPath(self, path_=None):
         for n, path in enumerate(sl.paths):
             if not path_ or path.name == path_: # pick first path if path_ not given
-                sl.scenes.make_scene(rc.roscm.r, path.scene)
+                sl.scenes.make_scene(path.scene)
                 self.picked_path = n
                 self.ENV = self.ENV_DAT[path.ENV]
                 self.HoldValue = 0
