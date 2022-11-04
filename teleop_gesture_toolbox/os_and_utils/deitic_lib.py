@@ -2,15 +2,17 @@
 import numpy as np
 
 ''' The Leap Motion base to Robot base '''
+# Note: Currently using function in file transformations.py
+# transformLeapToBase__CornerConfig()
 def calibrate_leap_motion():
     ''' Calibration procedure
     Returns:
         transformation matrix 4x4
     - Note: Measured by ruler
     '''
-    return np.array([[1, 0, 0, 1.07],
-                     [0, 1, 0,-0.40],
-                     [0, 0, 1, 0.01],
+    return np.array([[0, 1, 0, 1.07],
+                     [0, 0, 1,-0.40],
+                     [1, 0, 0, 0.01],
                      [0, 0, 0, 1   ]])
 
 def leap_motion_to_world_link(p):
@@ -45,6 +47,36 @@ def get_id_of_closest_point_to_line(line_points, test_points, max_dist=np.inf):
 
     if np.min(distances_from_line) > max_dist: return None, np.min(distances_from_line)
     return np.argmin(distances_from_line), np.min(distances_from_line)
+
+try:
+    import os_and_utils.ros_communication_main as rc
+    from os_and_utils.transformations import Transformations as tfm
+except:
+    print("Deitic gesture cannot be initialized!!!")
+
+def main_deitic_fun(f, h, object_poses):
+    ''' has dependencies
+    f (Frame): ml.md.frames[-1] (take last detection frame)
+    h (string): hand - 'l' left, 'r', right
+    object_poses (): sl.scene.object_poses
+    '''
+    hand = getattr(f, h)
+    p1, p2 = np.array(hand.palm_position()), np.array(hand.palm_position())+np.array(hand.direction())
+    #p1, p2 = np.array(hand.fingers[1].bones[3].prev_joint()), np.array(hand.fingers[1].bones[3].next_joint())
+    p1s = np.array(tfm.transformLeapToBase__CornerConfig(p1))
+    p2s = np.array(tfm.transformLeapToBase__CornerConfig(p2))
+    v = 1000*(p2s-p1s)
+    line_points = (p1s, p2s+v)
+
+    object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in object_poses]
+    idobj, _ = get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
+
+    with rc.rossem:
+        rc.roscm.r.add_line(name='line1', points=line_points)
+        rc.roscm.r.add_or_edit_object(name="Focus_target", pose=object_positions[idobj])
+
+    return
+
 
 if __name__ == '__main__':
     # test 1

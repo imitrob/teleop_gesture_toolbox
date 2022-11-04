@@ -10,6 +10,7 @@ import os_and_utils.scenes as sl; sl.init()
 import gesture_classification.gestures_lib as gl; gl.init()
 import os_and_utils.ui_lib as ui
 import os_and_utils.ros_communication_main as rc; rc.init('coppelia')
+import os_and_utils.deitic_lib as dl
 
 # ProMP path generator
 from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_motionprimitive_type
@@ -17,10 +18,15 @@ from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_mo
 # TEMP:
 from geometry_msgs.msg import Point, Pose, Quaternion
 
-def main():
-    # If gesture detection not enabled in ROSparam -> enable it manually
-    #ml.md.eef_pose.position = Point(0.3, 0.0, 0.3)
 
+
+def spinning_threadfn():
+    while rclpy.ok():
+        with rc.rossem:
+            rclpy.spin_once(rc.roscm)
+        time.sleep(0.01)
+
+def main():
     #path_generator = ProMPGenerator(promp='sebasutp')
     path_generator = None
     #sl.scenes.make_scene('pickplace3')
@@ -28,7 +34,16 @@ def main():
     rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
     try:
         while rclpy.ok():
-            ml.md.main_handle_step(path_generator)
+            if ml.md.frames and settings.gesture_detection_on:
+                with rc.rossem:
+                    rc.roscm.send_g_data()
+                    #ml.md.main_handle_step(path_generator)
+                    if ml.md.frames:
+                        f = ml.md.frames[-1]
+                        if f.l.visible:
+                            dl.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_poses)
+                        
+
             rate.sleep()
     except KeyboardInterrupt:
         pass

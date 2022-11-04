@@ -5,6 +5,9 @@ The new scene is created. The 2) positions of objects are received from Coppelia
 Using 1) and 2), the closest object to pointing direction 3D line is selected.
 
 Right hand has priority over left one.
+
+Note:
+Point gesture direction swapped to whole palm direction as it has better precision.
 '''
 
 import sys, os, time, threading
@@ -19,7 +22,7 @@ import gesture_classification.gestures_lib as gl; gl.init()
 import os_and_utils.ui_lib as ui
 import os_and_utils.ros_communication_main as rc; rc.init("coppelia")
 
-from os_and_utils.point_direction import get_id_of_closest_point_to_line
+from os_and_utils.deitic_lib import get_id_of_closest_point_to_line
 from os_and_utils.transformations import Transformations as tfm
 
 def spinning_threadfn():
