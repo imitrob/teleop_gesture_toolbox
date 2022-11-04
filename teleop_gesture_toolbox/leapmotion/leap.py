@@ -15,6 +15,7 @@ import time, argparse, inspect
 from os_and_utils.saving import Recording
 from os_and_utils.utils import ros_enabled, GlobalPaths
 import frame_lib
+import ctypes
 
 if ros_enabled():
     import rclpy
@@ -22,6 +23,7 @@ if ros_enabled():
     import teleop_gesture_toolbox.msg as rosm
     import teleop_gesture_toolbox.srv as ross
     #ross.SaveHandRecord, ross.SaveHandRecordResponseS
+    from sensor_msgs.msg import Image
     print("ROS Enabled!")
 else:
     print("ROS Disabled!")
@@ -31,6 +33,8 @@ class LeapPublisherNode(Node):
         super().__init__('leap_publisher')
         self.frame_publisher = self.create_publisher(rosm.Frame, '/hand_frame', 5)
         self.srv = self.create_service(ross.SaveHandRecord, 'save_hand_record', self.save_hand_record_callback)
+
+        self.image_publisher = self.create_publisher(Image, '/leap_image', 5)
 
     def save_hand_record_callback(self, request, response):
         self.record.recording_requests.append([request.directory, request.save_method, request.recording_length])
@@ -71,6 +75,24 @@ class SampleListener(Leap.Listener):
             fros = f.to_ros()
             self.rosnode.frame_publisher.publish(fros)
 
+        if self.send_images:
+            img = frame.images[0]
+
+            imgros = Image()
+            imgros.height = img.height
+            imgros.width = img.width
+            imgros.encoding='mono8'
+            imgros.header.stamp = self.rosnode.get_clock().now().to_msg()
+            imgros.step = img.width * 1 * 1
+            imgros.header.frame_id = ""
+
+            image_buffer_ptr = img.data_pointer
+            ctype_array_def = ctypes.c_ubyte * img.width * img.height
+            as_ctype_array = ctype_array_def.from_address(int(image_buffer_ptr))
+            data = np.ctypeslib.as_array(as_ctype_array).flatten().tolist()
+
+            imgros.data = data
+            self.rosnode.image_publisher.publish(imgros)
         self.record.auto_handle(f)
         if self.print_on:
             #print(f.r.get_learning_data(definition=1))
@@ -167,7 +189,7 @@ def main():
     parser.add_argument('--directory', default='', type=str, help='(default=%(default)s)')
     parser.add_argument('--save_method', default='numpy', type=str, help='(default=%(default)s)')
     # TODO:
-    #parser.add_argument("--send_infrared_image", default='false', typ)
+    parser.add_argument("--send_images", default=False, type=bool)
 
     try:
         args=parser.parse_args()
@@ -176,6 +198,7 @@ def main():
         recording_length = args.recording_length
         directory = args.directory
         save_method = args.save_method
+        send_images = args.send_images
     except:
         print("[Leap] parse_args failed -> parse_known_args")
         args=parser.parse_known_args()
@@ -184,6 +207,7 @@ def main():
         recording_length = 1.0
         directory = ''
         save_method = 'numpy'
+        send_images = False
 
     if directory == '':
         #directory = os.path.abspath(os.path.join(os.path.dirname(inspect.getabsfile(inspect.currentframe())), '..', '..'))+'/include/data/learning/'
@@ -198,12 +222,17 @@ def main():
     else:
         print(f"ROS is not enabled! Check also sourcing the teleop_gesture_toolbox package")
 
+
     # Create a sample listener and controller
     listener = SampleListener()
+    listener.send_images = send_images
     listener.print_on = print_on
     controller = Leap.Controller()
 
     # Have the sample listener receive events from the controller
+    if args.send_images:
+        controller.set_policy(Leap.Controller.POLICY_BACKGROUND_FRAMES)
+        controller.set_policy(Leap.Controller.POLICY_IMAGES)
     controller.add_listener(listener)
 
     if record_with_enter:
