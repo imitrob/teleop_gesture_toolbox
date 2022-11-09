@@ -142,9 +142,10 @@ class CustomScenes():
         ''' Prepare scene, add objects for obstacle or manipulation.
             scene (str):
         '''
-        interface_handle = rc.roscm.r
-        refresh()
-        if not interface_handle: print("[Scenes] No interface handle added!")
+        with rc.rossem:
+            interface_handle = rc.roscm.r
+            refresh()
+            if not interface_handle: print("[Scenes] No interface handle added!")
         global scene
         scenes = self.names()
         if scene: # When scene is initialized
@@ -152,8 +153,9 @@ class CustomScenes():
             id = scenes.index(scene.name)
             # remove objects from current scene
             if interface_handle:
-                for i in range(0, len(self.scenes[id].object_names)):
-                    interface_handle.remove_object(name=self.scenes[id].object_names[i])
+                with rc.rossem:
+                    for i in range(0, len(self.scenes[id].object_names)):
+                        interface_handle.remove_object(name=self.scenes[id].object_names[i])
                 #if ml.md.attached:
                 #    self.detach_item_moveit(name=ml.md.attached)
         # get id of new scene

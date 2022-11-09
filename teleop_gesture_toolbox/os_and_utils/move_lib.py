@@ -307,7 +307,7 @@ class MoveData():
             # Handle gesture activation
             if len(gl.gd.actions_queue) > 0:
                 action = gl.gd.actions_queue.pop()
-                rc.roscm.gesture_solution_pub.publish(String(action[1]))
+                rc.roscm.gesture_solution_pub.publish(String(data=action[1]))
                 if action_execution:
                     if action[1] == 'nothing_dyn':
                         print(f"===================== ACTION {action[1]} ========================")
@@ -321,12 +321,11 @@ class MoveData():
                             if np.array(path).any():
                                 pose = Pose()
                                 pose.position = Point(x=path[-1][0],y=path[-1][1],z=path[-1][2])
-                                pose.orientation.x = np.sqrt(2)/2
-                                pose.orientation.y = np.sqrt(2)/2
+                                pose.orientation = Quaternion(x=0.0, y=1.0, z=0.0, w=0.0)
                                 self.goal_pose = pose
             # Handle gesture update activation
             if self.frames and action_execution:
-                self.handle_action_update(rc.roscm.r)
+                self.handle_action_update()
 
         # Update focus target
         if self.seq % (settings.yaml_config_gestures['misc']['rate'] * 2) == 0: # every sec

@@ -63,8 +63,8 @@ def main():
 
                 with rc.rossem:
                     rc.roscm.r.add_line(name='line1', points=line_points)
-                    rc.roscm.r.add_or_edit_object(name="Focus_target", pose=object_positions[idobj])
-
+                    ml.md.object_focus_id = idobj
+                    
         #rate.sleep()
         time.sleep(0.1)
     print("quit")

@@ -69,6 +69,7 @@ import os_and_utils.scenes as sl
 if __name__ == '__main__': sl.init()
 import os_and_utils.move_lib as ml
 if __name__ == '__main__': ml.init()
+import os_and_utils.ros_communication_main as rc
 
 if __name__ == '__main__':
     from coppelia_sim_ros_client import CoppeliaROSInterface
@@ -81,7 +82,7 @@ from os_and_utils.utils_ros import samePoses, extv
 def main(id, X=None, vars={}):
     return generate_path(id=id, X=X, vars=vars)
 
-class ProMPGenerator(Node):
+class ProMPGenerator():
     def __init__(self, promp):
         if promp == 'paraschos':
             import promps.promp_paraschos as approach
@@ -123,7 +124,7 @@ class ProMPGenerator(Node):
             viz.visualize_3d(var,label=f"{key}", xlabel='X', ylabel='Y', zlabel='Z')
         viz.savefig('3Dvarvalues')
         '''
-        print(f"Executing gesture id: {action[1]}, time diff perform to actiovation: {self.get_clock().now().to_sec()-action[0]}")
+        #print(f"Executing gesture id: {action[1]}, time diff perform to actiovation: {rc.roscm.get_clock().now()-action[0]}")
         return path
 
     def generate_path(self, id, vars={}, tmp_action_stamp=None):
@@ -153,6 +154,7 @@ class ProMPGenerator(Node):
         for key in path[1].keys():
             path[1][key] = path[1][key].export()
         gl.gd.action_saves.append((id, id_primitive, tmp_action_stamp, vars, path[0], path[1]))
+        print(path_)
         return path_
 
 def combine_promp_paths(promp_paths):
