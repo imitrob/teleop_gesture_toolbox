@@ -66,4 +66,4 @@ dependencies:
     - machinevision-toolbox-python==0.5.5
     #- opencv-python==4.5.5.62
     - autograd
-    - transformations
+    - transformations==2021.6.6
