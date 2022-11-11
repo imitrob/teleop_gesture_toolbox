@@ -59,7 +59,7 @@ export QT_QPA_PLATFORM_PLUGIN_PATH=$HOME/CoppeliaSim;
 export LD_PRELOAD=$HOME/LeapSDK/lib/x64/libLeap.so;" > ~/activate_teleop.sh
 source ~/activate_teleop.sh
 
-cd $ws/src
+cd $ws
 git clone https://github.com/imitrob/PyRep.git
 cd PyRep
 pip install .
@@ -76,35 +76,61 @@ pip install .
 - Sample trained network example:
   - Download [model (22MB)](https://drive.google.com/file/d/1jyDatUJy10sdXmLjPEdHL1cfSo-RZ4ct/view?usp=share_link) and move the file to `/include/data/trained_networks` folder
 
-## Launch the robot
+## Launching
 
-- Aliases (suggestion):
-```Shell
-alias copqt='export LD_LIBRARY_PATH=/home/<user>/CoppeliaSim; export QT_QPA_PLATFORM_PLUGIN_PATH=/home/<user>/CoppeliaSim;'
-alias srcgestures='conda activate <your conda ws>; source ~/<your_ws>/install/setup.bash'
-```
-- Terminal 1, Leap Controller:
+### Launch Leap Motion publisher
+
+- In first terminal launch Leap Motion Controller backend:
 ```Shell
 sudo leapd
 ```
-- Terminal 2, Coppelia Sim:
+- In second terminal launch Leap ROS2 publisher (publishing to hand messages to topic: `/hand_frame`):
 ```Shell
-srcgestures; copqt
-cd <your ws>/src/coppelia_sim_ros_interface/coppelia_sim_ros_interface
+source ~/activate_teleop.sh
+source $ws/install/setup.bash
+cd $ws/src/teleop_gesture_toolbox/teleop_gesture_toolbox/leapmotion
+python leap.py
+```
+### Launch Robot simulator
+
+```Shell
+source ~/activate_teleop.sh
+source $ws/install/setup.bash
+cd $ws/src/coppelia_sim_ros_interface/coppelia_sim_ros_interface
 python coppelia_sim_ros_server.py
 ```
-- Terminal 3, Gestures Detection Threads:
+
+### Launch Coppelia Sim example
+
 ```Shell
-srcgestures
-cd <your ws>/src/teleop_gesture_toolbox/teleop_gesture_toolbox/gesture_classification
+source ~/activate_teleop.sh
+source $ws/install/setup.bash
+cd $ws/src/coppelia_sim_ros_interface/examples
+python coppelia_sim_ros_example.py
+```
+
+### Launch Static and Dynamic gesture detections
+- Static detection thread
+```Shell
+conda activate teleopenv
+source $ws/install/setup.bash
+cd $ws/src/teleop_gesture_toolbox/teleop_gesture_toolbox/gesture_classification
 python main_sample_thread.py
-# and
+```
+- Dynamic detection thread
+```Shell
+conda activate teleopenv
+source $ws/install/setup.bash
+cd $ws/src/teleop_gesture_toolbox/teleop_gesture_toolbox/gesture_classification
 python dynamic_sample_thread.py
 ```
-- Terminal 4, Main + GUI:
+
+### Launch the main_coppelia GUI/Manager
+
 ```Shell
-srcgestures
-cd <your ws>/src/teleop_gesture_toolbox/teleop_gesture_toolbox
+conda activate teleopenv
+source $ws/install/setup.bash
+cd $ws/src/teleop_gesture_toolbox/teleop_gesture_toolbox
 python main_coppelia.py
 # or
 python main.py

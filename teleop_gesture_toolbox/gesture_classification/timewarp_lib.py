@@ -18,7 +18,7 @@ from os_and_utils.visualizer_lib import VisualizerLib, ScenePlot
 from scipy.spatial.distance import euclidean
 from copy import deepcopy
 import seaborn as sns
-if __name__ == '__main__': gl.init()
+gl.init()
 try:
     gl.gd
 except AttributeError:
