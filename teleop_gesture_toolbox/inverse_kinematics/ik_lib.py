@@ -11,7 +11,7 @@ from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
 
 from copy import deepcopy
-import transformations
+#import transformations
 from os_and_utils import settings
 from os_and_utils.utils_ros import extq
 
@@ -38,7 +38,7 @@ class RelaxedIKInterface(Node):
             pose_.position.x -= 0.55442+0.04
             pose_.position.y -= 0.0
             pose_.position.z -= 0.62443
-            pose_.orientation = Quaternion(*transformations.quaternion_multiply([1.0, 0.0, 0.0, 0.0], extq(pose_.orientation)))
+            #pose_.orientation = Quaternion(*transformations.quaternion_multiply([1.0, 0.0, 0.0, 0.0], extq(pose_.orientation)))
             #pose_.position.z -= 0.926
             #pose_.position.x -= 0.107
         elif settings.robot == 'iiwa':

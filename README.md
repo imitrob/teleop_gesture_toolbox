@@ -63,6 +63,12 @@ cd $ws/src
 git clone https://github.com/imitrob/PyRep.git
 cd PyRep
 pip install .
+
+cd ~/LeapSDK
+gdown https://drive.google.com/uc?id=1sOEsgkofRgy_nhZvp2DrdIvltdMCwIQV
+tar -xvzf Leap.tgz
+cd Leap
+pip install .
 ```
 
 - Sample dataset example:

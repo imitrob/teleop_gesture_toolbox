@@ -8,8 +8,3 @@ cp -r ./LeapSDK/ ~/
 cd ..
 rm -r LeapDeveloperKit_2.3.1+31549_linux
 rm Leap_Motion_SDK_Linux_2.3.1.tgz
-cd ~/LeapSDK
-gdown https://drive.google.com/uc?id=1sOEsgkofRgy_nhZvp2DrdIvltdMCwIQV
-tar -xvzf Leap.tgz
-cd Leap
-pip install .
