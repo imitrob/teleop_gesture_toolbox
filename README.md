@@ -27,18 +27,19 @@ conda install mamba -c conda-forge # Install mamba
 
 mamba create -n teleopenv python=3.9
 conda activate teleopenv
-cd <teleop_gesture_toolbox package>
-mamba env update -n teleopenv --file environment.yml
-
-# Reactivate conda env before proceeding.
-conda deactivate
-conda activate teleopenv  
 
 export ws=<path/to/your/colcon/ws>
 mkdir -p $ws/src
 cd $ws/src
 git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/teleop_gesture_toolbox.git
 git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/coppelia_sim_ros_interface.git
+
+cd <teleop_gesture_toolbox package>
+mamba env update -n teleopenv --file environment.yml
+
+# Reactivate conda env before proceeding.
+conda deactivate
+conda activate teleopenv  
 
 cd $ws
 rosdep init
