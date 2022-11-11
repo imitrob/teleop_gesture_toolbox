@@ -34,7 +34,7 @@ cd $ws/src
 git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/teleop_gesture_toolbox.git
 git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/coppelia_sim_ros_interface.git
 
-cd <teleop_gesture_toolbox package>
+cd $ws/src/teleop_gesture_toolbox
 mamba env update -n teleopenv --file environment.yml
 
 # Reactivate conda env before proceeding.
@@ -45,18 +45,19 @@ cd $ws
 rosdep init
 rosdep update
 rosdep install --from-paths src --ignore-src -r -y
-catkin build
+colcon build --symlink-install
 
-source $ws/devel/setup.bash
+source $ws/install/setup.bash
 
 # make activation script
 echo "export ws=$ws
 conda activate teleopenv
-source $ws/devel/setup.bash
+source $ws/install/setup.bash
 export COPPELIASIM_ROOT=$HOME/CoppeliaSim
 export LD_LIBRARY_PATH=$HOME/CoppeliaSim;
-export QT_QPA_PLATFORM_PLUGIN_PATH=$HOME/CoppeliaSim;" > ~/activate_cbgo.sh
-source ~/activate_cbgo.sh
+export QT_QPA_PLATFORM_PLUGIN_PATH=$HOME/CoppeliaSim;
+export LD_PRELOAD=$HOME/LeapSDK/lib/x64/libLeap.so;" > ~/activate_teleop.sh
+source ~/activate_teleop.sh
 
 cd $ws/src
 git clone https://github.com/imitrob/PyRep.git
@@ -64,12 +65,10 @@ cd PyRep
 pip install .
 ```
 
-
-
-
 - Sample dataset example:
   - Download [dataset (1.2GB)](https://drive.google.com/file/d/1Jitk-MxzczreZ81PuO86xTapuSkBMOb-/view?usp=sharing) and move the `learning` folder to match the `<gesture_toolbox>/include/data/learning` folder
-
+- Sample trained network example:
+  - Download [model (22MB)](https://drive.google.com/file/d/1jyDatUJy10sdXmLjPEdHL1cfSo-RZ4ct/view?usp=share_link) and move the file to `/include/data/trained_networks` folder
 
 ## Launch the robot
 
