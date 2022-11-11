@@ -120,7 +120,7 @@ class ClassificationSampler(Node):
             self.nn = self.sample_approach.init(network)
             self.sem.release()
         else:
-            rospy.logerr(f"[Sample thread] file ({network}) not found")
+            print(f"[Sample thread] file ({network}) not found")
 
 class TmpRosNode(Node):
     def __init__(self):
