@@ -6,20 +6,65 @@ Python gesture toolbox for teleoperating robotic arm. The toolbox covers both st
 
 Tested on Linux Ubuntu 20.04.
 
-### Dependencies
-
-- ROS & Conda packages
-  - Tested on [robostack](https://github.com/RoboStack/ros-galactic) version ROS2 Galactic
-    - Why not ROS2 Foxy? -> Not full support on Robostack Conda channel
-  - (Recommended) Use [environment.yml](environment.yml) (conda env create -f environment.yml)
-- [Leap Motion Controller](https://www.ultraleap.com/product/leap-motion-controller/) as a hand sensor ([install](include/scripts/leap_motion_install.sh))
+- Conda, e.g. Miniconda [download](https://docs.conda.io/en/latest/miniconda.html)
 - [Coppelia Sim](https://www.coppeliarobotics.com/) simulator ([install](include/scripts/coppelia_sim_install.sh))
   - (Recommended) Use version 4.1 (PyRep can have problems with newer versions)
-  - Please install Coppelia Sim files to your home folder: `~/CoppeliaSim`
-  - Install PyRep package
-    - Don't forget to export Qt lib:
-    `export LD_LIBRARY_PATH=/home/<user>/CoppeliaSim;
-    export QT_QPA_PLATFORM_PLUGIN_PATH=/home/<user>/CoppeliaSim;`
+  - Please install Coppelia Sim files to your home folder: `~/CoppeliaSim` (as shown below):
+```
+cd ~
+wget --no-check-certificate https://www.coppeliarobotics.com/files/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+tar -xf CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+mv CoppeliaSim_Edu_V4_1_0_Ubuntu20_04 CoppeliaSim
+rm CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+```
+
+- [Leap Motion Controller](https://www.ultraleap.com/product/leap-motion-controller/) as a hand sensor ([install](include/scripts/leap_motion_install.sh))
+
+- Packages install with Mamba:
+
+```
+conda install mamba -c conda-forge # Install mamba
+
+mamba create -n teleopenv python=3.9
+conda activate teleopenv
+cd <teleop_gesture_toolbox package>
+mamba env update -n teleopenv --file environment.yml
+
+# Reactivate conda env before proceeding.
+conda deactivate
+conda activate teleopenv  
+
+export ws=<path/to/your/colcon/ws>
+mkdir -p $ws/src
+cd $ws/src
+git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/teleop_gesture_toolbox.git
+git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/coppelia_sim_ros_interface.git
+
+cd $ws
+rosdep init
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y
+catkin build
+
+source $ws/devel/setup.bash
+
+# make activation script
+echo "export ws=$ws
+conda activate teleopenv
+source $ws/devel/setup.bash
+export COPPELIASIM_ROOT=$HOME/CoppeliaSim
+export LD_LIBRARY_PATH=$HOME/CoppeliaSim;
+export QT_QPA_PLATFORM_PLUGIN_PATH=$HOME/CoppeliaSim;" > ~/activate_cbgo.sh
+source ~/activate_cbgo.sh
+
+cd $ws/src
+git clone https://github.com/imitrob/PyRep.git
+cd PyRep
+pip install .
+```
+
+
+
 
 - Sample dataset example:
   - Download [dataset (1.2GB)](https://drive.google.com/file/d/1Jitk-MxzczreZ81PuO86xTapuSkBMOb-/view?usp=sharing) and move the `learning` folder to match the `<gesture_toolbox>/include/data/learning` folder

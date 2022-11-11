@@ -1,14 +1,12 @@
-name: teleop_test
+name: teleopenv2
 channels:
-  - pytorch
+  - conda-forge
   - speleo3
   - robostack
   - robostack-experimental
-  - conda-forge
   - defaults
 dependencies:
   - fastdtw
-  - aesara
   - deepdiff
   - pygraphviz
   - arviz
@@ -17,11 +15,7 @@ dependencies:
   - beautifulsoup4
   - binutils
   - bullet
-  - catkin_pkg
-  - catkin_tools
-  - cffi=1.14.2
   - cmake
-  - cudatoolkit
   - curl
   - cython
   - eigen
@@ -34,7 +28,6 @@ dependencies:
   - ipython_genutils
   - ipywidgets
   - jupyter
-  - leap-motion-python
   - matplotlib
   - numpy
   - pandas
@@ -42,15 +35,11 @@ dependencies:
   - pip
   - pymc3
   - pyqt
-  - python=3.8.12
+  - python=3.9
   - pyyaml
   - qpsolvers
   - qt
   - roboticstoolbox-python
-  - ros-galactic-desktop
-  - rosdep
-  - rosdistro
-  - rospkg
   - rtb-data
   - scikit-learn
   - scipy
@@ -61,14 +50,18 @@ dependencies:
   - swift-sim
   - swig
   - sympy
-  - torchaudio
-  - torchvision
   - yaml
   - freeglut
-  - ros-galactic-panda-moveit-config
+  - rosdep
+  - rosdistro
+  - rospkg
+  - ros-galactic-desktop
+  - ros-galactic-moveit-resources-panda-moveit-config
   - ros-galactic-control-msgs
+  - ros-galactic-moveit-msgs
   - pip:
+    - cffi==1.14.2
     - machinevision-toolbox-python==0.5.5
-    - opencv-python==4.5.5.62
+    #- opencv-python==4.5.5.62
     - autograd
     - transformations
