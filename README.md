@@ -20,99 +20,63 @@ rm CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
 
 - [Leap Motion Controller](https://www.ultraleap.com/product/leap-motion-controller/) as a hand sensor ([install](include/scripts/leap_motion_install.sh))
 
-- Packages install with Mamba:
+- Packages install with Mamba and ROS2 workspace setup:
+1. Set your ROS2 workspace path with: `export ws=<path/to/your/colcon/ws>`
+2. Go through installation process in [installation.sh](installation.sh) script.
 
-```
-conda install mamba -c conda-forge # Install mamba
-
-mamba create -n teleopenv python=3.9
-conda activate teleopenv
-
-export ws=<path/to/your/colcon/ws>
-mkdir -p $ws/src
-cd $ws/src
-git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/teleop_gesture_toolbox.git
-git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/coppelia_sim_ros_interface.git
-
-cd $ws/src/teleop_gesture_toolbox
-mamba env update -n teleopenv --file environment.yml
-
-# Reactivate conda env before proceeding.
-conda deactivate
-conda activate teleopenv  
-
-cd $ws
-rosdep init
-rosdep update
-rosdep install --from-paths src --ignore-src -r -y
-colcon build --symlink-install
-
-source $ws/install/setup.bash
-
-# make activation script
-echo "export ws=$ws
-conda activate teleopenv
-source $ws/install/setup.bash
-export COPPELIASIM_ROOT=$HOME/CoppeliaSim
-export LD_LIBRARY_PATH=$HOME/CoppeliaSim;
-export QT_QPA_PLATFORM_PLUGIN_PATH=$HOME/CoppeliaSim;
-export LD_PRELOAD=$HOME/LeapSDK/lib/x64/libLeap.so;" > ~/activate_teleop.sh
-source ~/activate_teleop.sh
-
-cd $ws/src
-git clone https://github.com/imitrob/PyRep.git
-cd PyRep
-pip install .
-
-cd ~/LeapSDK
-gdown https://drive.google.com/uc?id=1sOEsgkofRgy_nhZvp2DrdIvltdMCwIQV
-tar -xvzf Leap.tgz
-cd Leap
-pip install .
-```
-
-- Sample dataset example:
+- Use sample dataset example (recommended):
   - Download [dataset (1.2GB)](https://drive.google.com/file/d/1Jitk-MxzczreZ81PuO86xTapuSkBMOb-/view?usp=sharing) and move the `learning` folder to match the `<gesture_toolbox>/include/data/learning` folder
-- Sample trained network example:
+- Use sample trained network example (recommended):
   - Download [model (22MB)](https://drive.google.com/file/d/1jyDatUJy10sdXmLjPEdHL1cfSo-RZ4ct/view?usp=share_link) and move the file to `/include/data/trained_networks` folder
 
-## Launch the robot
+## Launching
 
-- Aliases (suggestion):
+### Launch Backend
+
 ```Shell
-alias copqt='export LD_LIBRARY_PATH=/home/<user>/CoppeliaSim; export QT_QPA_PLATFORM_PLUGIN_PATH=/home/<user>/CoppeliaSim;'
-alias srcgestures='conda activate <your conda ws>; source ~/<your_ws>/install/setup.bash'
+source ~/activate_teleop_backend.sh
+ros2 launch teleop_gesture_toolbox backend.launch
 ```
-- Terminal 1, Leap Controller:
+- This launches:
+  1. Leap software backend (Shell command: `sudo leapd`)
+  2. Leap Motion Controller ROS publisher (`ros2 run teleop_gesture_toolbox leap_run.py`) (Script: `leapmotion/leap.py`)
+  3. Static gestures detection (`ros2 run teleop_gesture_toolbox static_sample_thread_run.py`) (`gesture_classification/main_sample_thread.py`)
+  4. Dynamic gestures detection (`ros2 run teleop_gesture_toolbox dynamic_sample_thread_run.py`) (`gesture_classification/dynamic_sample_thread.py`)
+  5. Coppelia Sim simulator with Panda robot from *Coppelia Sim ROS interface package* (`ros2 run coppelia_sim_ros_interface server_run.py`) (`coppelia_sim_ros_server.py`)
+
+- Note: You can run nodes separately via `ros2 run <package> <python file>` as shown
+- Note: If you can't see the Leap Motion Near-infrared lights, run `sudo leapd`
+
+
+### Examples
+
+- Now you can run examples
+
+#### Coppelia Sim example
+
 ```Shell
-sudo leapd
-```
-- Terminal 2, Coppelia Sim:
-```Shell
-srcgestures; copqt
-cd <your ws>/src/coppelia_sim_ros_interface/coppelia_sim_ros_interface
-python coppelia_sim_ros_server.py
-```
-- Terminal 3, Gestures Detection Threads:
-```Shell
-srcgestures
-cd <your ws>/src/teleop_gesture_toolbox/teleop_gesture_toolbox/gesture_classification
-python main_sample_thread.py
-# and
-python dynamic_sample_thread.py
-```
-- Terminal 4, Main + GUI:
-```Shell
-srcgestures
-cd <your ws>/src/teleop_gesture_toolbox/teleop_gesture_toolbox
-python main_coppelia.py
-# or
-python main.py
-# or
-python example_grec.py
+source ~/activate_teleop.sh
+ros2 run coppelia_sim_ros_interface example_run.py
 ```
 
-## Recognizers
+#### GRec postprocessing
+
+```Shell
+source ~/activate_teleop.sh
+ros2 run teleop_gesture_toolbox example_grec.py
+```
+
+
+#### Run GUI/Manager (set to Coppelia Sim)
+
+```Shell
+source ~/activate_teleop.sh
+ros2 run teleop_gesture_toolbox main_coppelia.py
+```
+
+
+
+## Recognizers (The text below might be outdated and need to be revisioned)
 
 ### Static gestures with Probabilistic Neural Network
 

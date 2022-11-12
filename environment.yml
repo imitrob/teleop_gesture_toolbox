@@ -60,6 +60,7 @@ dependencies:
   - ros-galactic-moveit-resources-panda-moveit-config
   - ros-galactic-control-msgs
   - ros-galactic-moveit-msgs
+  - ros-galactic-geometry-msgs
   - colcon-common-extensions
   - pip:
     - cffi==1.14.2
