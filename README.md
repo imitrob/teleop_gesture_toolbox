@@ -9,7 +9,7 @@ Tested on Linux Ubuntu 20.04.
 ### Dependencies
 
 - Conda, e.g. Miniconda [download](https://docs.conda.io/en/latest/miniconda.html)
-- [Coppelia Sim](https://www.coppeliarobotics.com/) simulator ([install](include/scripts/coppelia_sim_install.sh))
+- [Coppelia Sim](https://www.coppeliarobotics.com/) simulator
   - (Recommended) Use version 4.1 (PyRep can have problems with newer versions)
   - Please install Coppelia Sim files to your home folder: `~/CoppeliaSim` (as shown below):
 ```
@@ -18,12 +18,14 @@ wget --no-check-certificate https://www.coppeliarobotics.com/files/CoppeliaSim_E
 tar -xf CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
 mv CoppeliaSim_Edu_V4_1_0_Ubuntu20_04 CoppeliaSim
 rm CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+cd CoppeliaSim
+rm libsimExtROS2Interface.so # Official ROS2 interface needs to be disabled
 ```
 
 - [Leap Motion Controller](https://www.ultraleap.com/product/leap-motion-controller/) as a hand sensor ([install](include/scripts/leap_motion_install.sh))
 
 ### Packages install with Mamba and ROS2 workspace setup:
-1. Set your ROS2 workspace path with: `export ws=<path/to/your/colcon/ws>`
+1. Set your ROS2 workspace path with: `export ws=<path/to/your/colcon/ws>`, e.g. `export ws=/home/$USER/teleop_ws`
 2. Go through installation process in [include/scripts/installation.sh](include/scripts/installation.sh) script.
 
 - Use sample dataset example (recommended):
@@ -46,39 +48,41 @@ ros2 launch teleop_gesture_toolbox backend.launch
   4. Dynamic gestures detection (`ros2 run teleop_gesture_toolbox dynamic_sample_thread_run.py`) (`gesture_classification/dynamic_sample_thread.py`)
   5. Coppelia Sim simulator with Panda robot from *Coppelia Sim ROS interface package* (`ros2 run coppelia_sim_ros_interface server_run.py`) (`coppelia_sim_ros_server.py`)
 
-- Note: You can run nodes separately via `ros2 run <package> <python file>` as shown
-- Note: If you can't see the Leap Motion Near-infrared lights, run `sudo leapd`
+- **Note**: You can run nodes separately via `ros2 run <package> <python file>` as shown
+- **Note**: If you can't see the Leap Motion Controller Near-infrared lights, run `sudo leapd`
 
 
 ### Examples
 
-- Now you can run examples
+- Now you can run examples in second terminal
 
 #### Coppelia Sim example
 
+- Example of controlling CoppeliaSim scene and Panda robot using ROS2 interface
+- You can look at `<coppelia_sim_ros_interface>/examples/coppelia_sim_ros_example.py` script
 ```Shell
 source ~/activate_teleop_backend.sh
 ros2 run coppelia_sim_ros_interface example_run.py
 ```
 
-#### GRec postprocessing
+#### Gesture Recognitions
+
+- Launches GUI only for gesture detection feedback (without use of simulator)  
 
 ```Shell
 source ~/activate_teleop.sh
 ros2 run teleop_gesture_toolbox example_grec.py
 ```
 
+#### Run GUI/Manager (with connection to Coppelia Sim)
 
-#### Run GUI/Manager (set to Coppelia Sim)
-
+- Starts a GUI with demo (TODO: needs some tuning)
 ```Shell
 source ~/activate_teleop.sh
 ros2 run teleop_gesture_toolbox main_coppelia.py
 ```
 
-
-
-## Recognizers (The text below might be outdated and need to be revisioned)
+## Recognizers
 
 ### Static gestures with Probabilistic Neural Network
 
@@ -136,9 +140,9 @@ TODO: Right now all gestures loaded from `network.pkl` needs to have record in t
 
 
 All available networks can be downloaded from google drive with button from UI menu and they are saved in folder `<gestures pkg>/include/data/trained_networks/`.
-To get information about network, run: `rosrun mirracle_gestures get_info_about_network.py` then specify network (e.g. network0.pkl).
+To get information about network, run: `python get_info_about_network.py` (located in `/learning` folder) then specify network (e.g. `network0.pkl`).
 
-Train new NN with script (src/learning/pymc3_train.py). Running script via Jupyter notebook (IPython) is advised for better orientation in learning processes. TODO: Publish recorded data-set to gdrive
+Train new NN with script (`src/learning/pymc3_train.py`). Running script via IPython is advised for better orientation in learning processes. TODO: Publish recorded data-set to gdrive
 
 Gesture management described above can be summarized into graph:
 ```mermaid
@@ -161,7 +165,7 @@ D --> I
 
 ## Manage Scenes
 
-Scene configurations YAML file is saved in `<gestures_pkg>/include/custom_settings/scenes.yaml`.
+Scene configurations YAML file is saved in `<teleop_gesture_toolbox pkg>/include/custom_settings/scenes.yaml`.
 
 The object needs to have at least _pose_ and _size_.
 
@@ -206,7 +210,7 @@ Create new scenes in this file as follows:
 ```
 
 ## Manage Paths
-Path configurations YAML file is saved in `<gestures_pkg>/include/custom_settings/paths.yaml`.
+Path configurations YAML file is saved in `<teleop_gesture_toolbox pkg>/include/custom_settings/paths.yaml`.
 
 Create new paths in this file as follows:
 ```yaml

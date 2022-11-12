@@ -15,6 +15,8 @@ mamba env update -n teleopenv --file environment.yml
 # Reactivate conda env before proceeding.
 conda deactivate
 conda activate teleopenv
+conda deactivate # first may fail for some reason (?)
+conda activate teleopenv
 
 cd $ws
 rosdep init
