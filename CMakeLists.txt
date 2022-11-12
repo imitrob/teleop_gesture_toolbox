@@ -46,7 +46,7 @@ install(DIRECTORY
 )
 
 install(
-  PROGRAMS script/leap_backend_run.sh
+  PROGRAMS include/scripts/leap_backend_run.sh
   DESTINATION lib/${PROJECT_NAME})
 
 ament_export_dependencies(rosidl_default_runtime)

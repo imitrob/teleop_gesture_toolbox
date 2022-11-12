@@ -1,11 +1,9 @@
 #!/bin/bash
-
 conda install mamba -c conda-forge # Install mamba
 
 mamba create -n teleopenv python=3.9
 conda activate teleopenv
 
-export ws=<path/to/your/colcon/ws>
 mkdir -p $ws/src
 cd $ws/src
 git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/teleop_gesture_toolbox.git
@@ -23,7 +21,6 @@ rosdep init
 rosdep update
 rosdep install --from-paths src --ignore-src -r -y
 colcon build --symlink-install
-
 source $ws/install/setup.bash
 
 # make activation script for backend

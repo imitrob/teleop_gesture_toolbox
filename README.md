@@ -6,6 +6,8 @@ Python gesture toolbox for teleoperating robotic arm. The toolbox covers both st
 
 Tested on Linux Ubuntu 20.04.
 
+### Dependencies
+
 - Conda, e.g. Miniconda [download](https://docs.conda.io/en/latest/miniconda.html)
 - [Coppelia Sim](https://www.coppeliarobotics.com/) simulator ([install](include/scripts/coppelia_sim_install.sh))
   - (Recommended) Use version 4.1 (PyRep can have problems with newer versions)
@@ -20,9 +22,9 @@ rm CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
 
 - [Leap Motion Controller](https://www.ultraleap.com/product/leap-motion-controller/) as a hand sensor ([install](include/scripts/leap_motion_install.sh))
 
-- Packages install with Mamba and ROS2 workspace setup:
+### Packages install with Mamba and ROS2 workspace setup:
 1. Set your ROS2 workspace path with: `export ws=<path/to/your/colcon/ws>`
-2. Go through installation process in [installation.sh](installation.sh) script.
+2. Go through installation process in [include/scripts/installation.sh](include/scripts/installation.sh) script.
 
 - Use sample dataset example (recommended):
   - Download [dataset (1.2GB)](https://drive.google.com/file/d/1Jitk-MxzczreZ81PuO86xTapuSkBMOb-/view?usp=sharing) and move the `learning` folder to match the `<gesture_toolbox>/include/data/learning` folder
@@ -55,7 +57,7 @@ ros2 launch teleop_gesture_toolbox backend.launch
 #### Coppelia Sim example
 
 ```Shell
-source ~/activate_teleop.sh
+source ~/activate_teleop_backend.sh
 ros2 run coppelia_sim_ros_interface example_run.py
 ```
 
