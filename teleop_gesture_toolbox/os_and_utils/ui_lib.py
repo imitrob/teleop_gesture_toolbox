@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.8
+#!/usr/bin/env python
 """ Launches Interface Application
     - Loads config from include/custom_settings/application.yaml
 """

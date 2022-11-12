@@ -126,7 +126,7 @@ class TmpRosNode(Node):
     def __init__(self):
         super().__init__("tmp_reading_parameters_node")
 
-if __name__ == '__main__':
+def main():
     if len(sys.argv) > 1 and sys.argv[1] in ['static', 'dynamic']:
         type = sys.argv[1]
     else:
@@ -151,7 +151,7 @@ if __name__ == '__main__':
         rosnode = ClassificationSampler(type=type)
         rclpy.spin(rosnode)
 
-
-
+if __name__ == '__main__':
+    main()
 
 #

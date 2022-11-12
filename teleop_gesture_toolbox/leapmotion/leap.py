@@ -1,7 +1,5 @@
 #!/usr/bin/env python
 import sys, os; sys.path.append("..")
-
-print(os.getcwd())
 import numpy as np
 np.save("/home/petr/Downloads/out.txt", str(os.getcwd()))
 if os.getcwd()[-4:] == '.ros': # if running from roslaunch
@@ -188,6 +186,7 @@ def main():
     parser.add_argument('--recording_length', default=1., type=float, help='(default=%(default)s)')
     parser.add_argument('--directory', default='', type=str, help='(default=%(default)s)')
     parser.add_argument('--save_method', default='numpy', type=str, help='(default=%(default)s)')
+    parser.add_argument('--ros-args', action='store_true')
     # TODO:
     parser.add_argument("--send_images", default=False, type=bool)
 
@@ -230,7 +229,7 @@ def main():
     controller = Leap.Controller()
 
     # Have the sample listener receive events from the controller
-    if args.send_images:
+    if send_images:
         controller.set_policy(Leap.Controller.POLICY_BACKGROUND_FRAMES)
         controller.set_policy(Leap.Controller.POLICY_IMAGES)
     controller.add_listener(listener)

@@ -32,12 +32,22 @@ ament_python_install_package(teleop_gesture_toolbox)
 # Install examples
 set(EXAMPLES_DIR teleop_gesture_toolbox)
 install(PROGRAMS
-    ${EXAMPLES_DIR}/leapmotion/leap.py
-    ${EXAMPLES_DIR}/gesture_classification/main_sample_thread.py
-    ${EXAMPLES_DIR}/gesture_classification/dynamic_sample_thread.py
-    ${EXAMPLES_DIR}/main.py
+    ${EXAMPLES_DIR}/launch_entries/leap_run.py
+    ${EXAMPLES_DIR}/launch_entries/dynamic_detection_run.py
+    ${EXAMPLES_DIR}/launch_entries/static_detection_run.py
+    ${EXAMPLES_DIR}/main_coppelia.py
+    ${EXAMPLES_DIR}/example_grec.py
     DESTINATION lib/${PROJECT_NAME}
 )
+
+install(DIRECTORY
+  launch
+  DESTINATION share/${PROJECT_NAME}
+)
+
+install(
+  PROGRAMS script/leap_backend_run.sh
+  DESTINATION lib/${PROJECT_NAME})
 
 ament_export_dependencies(rosidl_default_runtime)
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 import sys, os, time, threading
+sys.path.append(os.path.join(os.path.abspath(__file__), "..", '..', 'python3.9', 'site-packages', 'teleop_gesture_toolbox'))
 import numpy as np
 import rclpy
 
