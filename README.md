@@ -68,7 +68,7 @@ ros2 run coppelia_sim_ros_interface example_run.py
 #### Gesture Recognitions
 
 - Launches GUI only for gesture detection feedback (without use of simulator)  
-
+- In dropdown menu pick the `Gesture based` item
 ```Shell
 source ~/activate_teleop.sh
 ros2 run teleop_gesture_toolbox example_grec.py
