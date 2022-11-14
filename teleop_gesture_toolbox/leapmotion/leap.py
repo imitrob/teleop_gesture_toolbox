@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 import sys, os; sys.path.append("..")
 import numpy as np
-np.save("/home/petr/Downloads/out.txt", str(os.getcwd()))
 if os.getcwd()[-4:] == '.ros': # if running from roslaunch
     import rospkg; rospack = rospkg.RosPack(); rospack.list()
     sys.path.append(rospack.get_path('teleop_gesture_toolbox')+'/src/')
