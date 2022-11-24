@@ -16,7 +16,6 @@ import os_and_utils.deitic_lib as dl; dl.init()
 # ProMP path generator
 from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_motionprimitive_type
 
-
 def main():
     path_generator = None
     path_generator = ProMPGenerator(promp='sebasutp')
@@ -28,19 +27,6 @@ def main():
             if ml.md.frames and settings.gesture_detection_on:
                 with rc.rossem:
                     ml.md.main_handle_step(path_generator)
-                if ml.md.frames:
-                    f = ml.md.frames[-1]
-                    if f.l.visible and f.l.grab_strength < 0.1:
-                        dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_poses)
-                    if not f.l.visible:
-                        dl.dd.enable() # enabled focusing on new object
-                    if f.l.visible and f.l.grab_strength > 0.9:
-                        with rc.rossem:
-                            if f.l.pinch_strength > 0.9:
-                                rc.roscm.r.pick_object(sl.scene.object_names[ml.md.object_focus_id])
-                            elif f.l.pinch_strength < 0.1:
-                                rc.roscm.r.release_object()
-
             rate.sleep()
     except KeyboardInterrupt:
         pass

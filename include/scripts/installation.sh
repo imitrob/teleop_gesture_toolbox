@@ -30,13 +30,13 @@ echo "export ws=$ws
 conda activate teleopenv
 export COPPELIASIM_ROOT=$HOME/CoppeliaSim
 export QT_QPA_PLATFORM_PLUGIN_PATH=$HOME/CoppeliaSim;
-export LD_LIBRARY_PATH=$HOME/CoppeliaSim:$HOME/LeapSDK/lib/x64/;
+export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/CoppeliaSim:$HOME/LeapSDK/lib/x64/;
 source $ws/install/setup.bash;" > ~/activate_teleop_backend.sh
 
 # make activation script for examples or GUIs
 echo "export ws=$ws
 conda activate teleopenv
-export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$HOME/LeapSDK/lib/x64/;
+export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/LeapSDK/lib/x64/;
 source $ws/install/setup.bash;" > ~/activate_teleop.sh
 
 source ~/activate_teleop.sh

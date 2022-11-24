@@ -252,13 +252,13 @@ class MoveData():
         if self.mode == 'live':
             if self.seq % mod == 0:
                 if self.r_present():
-                    self.do_live_mode(rc.roscm.r, h='r', type='drawing', link_gesture='grab')
+                    self.do_live_mode(h='r', type='drawing', link_gesture='grab')
                 else:
                     self.live_mode_drawing = False
                     self.live_mode_drawing_rot = False
             if self.l_present():
                 if self.seq % mod == 0:
-                    self.grasp_on_basic_grab_gesture(rc.roscm.r, hnds=['l'])
+                    self.grasp_on_basic_grab_gesture(hnds=['l'])
 
         if self.mode == 'play':
             # controls everything:
