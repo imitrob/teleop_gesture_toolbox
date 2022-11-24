@@ -2,6 +2,7 @@
 ''' Sends gesture data and receive results in GUI
 '''
 import sys, os, time, threading
+sys.path.append(os.path.join(os.path.abspath(__file__), "..", '..', 'python3.9', 'site-packages', 'teleop_gesture_toolbox'))
 import numpy as np
 import rclpy
 
@@ -25,13 +26,18 @@ def main():
     gl.gd.export()
     print("[Main] Ended")
 
+def spinning_threadfn():
+    while rclpy.ok():
+        with rc.rossem:
+            rclpy.spin_once(rc.roscm)
+        time.sleep(0.01)
 
 if __name__ == '__main__':
     ''' Default main has three threads: 1. ROS spin, 2. GUI (optional), 3. main
     '''
     if len(sys.argv)>1 and sys.argv[1] == 'noui': settings.launch_ui = False
     # Spin in a separate thread
-    spinning_thread = threading.Thread(target=rclpy.spin, args=(rc.roscm, ), daemon=True)
+    spinning_thread = threading.Thread(target=spinning_threadfn, args=(), daemon=True)
     spinning_thread.start()
     if settings.launch_ui:
         thread_main = threading.Thread(target = main, daemon=True)
