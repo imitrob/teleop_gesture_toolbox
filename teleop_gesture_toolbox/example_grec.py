@@ -13,11 +13,13 @@ import os_and_utils.ui_lib as ui
 import os_and_utils.ros_communication_main as rc; rc.init()
 
 def main():
-    rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate']) # Hz
+    with rc.rossem:
+        rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate']) # Hz
     while rclpy.ok():
         # Send gesture data based on hand mode
-        if ml.md.frames and settings.gesture_detection_on:
-            rc.roscm.send_g_data()
+        with rc.rossem:
+            if ml.md.frames and settings.gesture_detection_on:
+                rc.roscm.send_g_data()
 
         if len(gl.gd.actions_queue) > 0:
             action = gl.gd.actions_queue.pop()

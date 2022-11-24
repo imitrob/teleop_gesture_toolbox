@@ -22,7 +22,8 @@ def main():
     path_generator = ProMPGenerator(promp='sebasutp')
     sl.scenes.make_scene('pickplace3')
 
-    rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
+    with rc.rossem:
+        rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
     try:
         while rclpy.ok():
             if ml.md.frames and settings.gesture_detection_on:
@@ -52,7 +53,7 @@ def spinning_threadfn():
     while rclpy.ok():
         with rc.rossem:
             rclpy.spin_once(rc.roscm)
-        time.sleep(0.01)
+        time.sleep(0.001)
 
 if __name__ == '__main__':
     ''' Default main has three threads: 1. ROS spin, 2. GUI (optional), 3. main

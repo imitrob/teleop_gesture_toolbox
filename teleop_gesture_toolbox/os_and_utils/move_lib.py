@@ -318,7 +318,7 @@ class MoveData():
                             path, waypoints = path_
                             if rc.roscm.r is not None:
                                 rc.roscm.r.execute_trajectory_with_waypoints(path, waypoints)
-                            if np.array(path).any():
+                            if np.array(path).any() and path is not None:
                                 pose = Pose()
                                 pose.position = Point(x=path[-1][0],y=path[-1][1],z=path[-1][2])
                                 pose.orientation = Quaternion(x=0.0, y=1.0, z=0.0, w=0.0)
@@ -436,7 +436,7 @@ class MoveData():
                         robot_promps = None # It is static gesture
                     '''
                     #path = mp_type().update_by_id(robot_promps, id_primitive, self.approach, vars)
-
+        '''
         for h in ['r']:
             if settings.get_detection_approach(type='dynamic') == 'deterministic':
                 if getattr(self.frames[-1], h).visible:
@@ -444,6 +444,7 @@ class MoveData():
                     move = gl.gd.processGest_move_in_axis()
                     if move:
                         gl.gd.actions_queue.append((rc.roscm.get_clock().now().to_sec(),move,h))
+        '''
 
     def do_live_mode(self, h='r', type='drawing', link_gesture='grab'):
         '''

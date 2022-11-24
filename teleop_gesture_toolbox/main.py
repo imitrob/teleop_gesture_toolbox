@@ -15,10 +15,12 @@ import os_and_utils.ui_lib as ui
 import os_and_utils.ros_communication_main as rc; rc.init()
 
 def main():
-    rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
+    with rc.rossem:
+        rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
     try:
         while rclpy.ok():
-            rc.roscm.send_g_data()
+            with rc.rossem:
+                rc.roscm.send_g_data()
             rate.sleep()
     except KeyboardInterrupt:
         pass
@@ -30,7 +32,7 @@ def spinning_threadfn():
     while rclpy.ok():
         with rc.rossem:
             rclpy.spin_once(rc.roscm)
-        time.sleep(0.01)
+        time.sleep(0.001)
 
 if __name__ == '__main__':
     ''' Default main has three threads: 1. ROS spin, 2. GUI (optional), 3. main

@@ -21,55 +21,49 @@ import os_and_utils.scenes as sl; sl.init()
 import gesture_classification.gestures_lib as gl; gl.init()
 import os_and_utils.ui_lib as ui
 import os_and_utils.ros_communication_main as rc; rc.init("coppelia")
+import os_and_utils.deitic_lib as dl; dl.init()
 
-from os_and_utils.deitic_lib import get_id_of_closest_point_to_line
 from os_and_utils.transformations import Transformations as tfm
+
+
+
+def main():
+    sl.scenes.make_scene('pickplace3')
+
+    with rc.rossem:
+        rc.roscm.r.add_or_edit_object(name="leap", pose=tfm.transformLeapToBase__CornerConfig_translation, color='c', shape='cube', size=[0.03, 0.1, 0.01])
+        rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
+    try:
+        while rclpy.ok():
+            if ml.md.frames and settings.gesture_detection_on:
+                with rc.rossem:
+                    #ml.md.main_handle_step(path_generator)
+                    rc.roscm.send_g_data()
+                if ml.md.frames:
+                    f = ml.md.frames[-1]
+                    if f.l.visible and f.l.grab_strength < 0.1:
+                        dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_poses)
+                    if not f.l.visible:
+                        dl.dd.enable() # enabled focusing on new object
+                    if f.l.visible and f.l.grab_strength > 0.9:
+                        with rc.rossem:
+                            if f.l.pinch_strength > 0.9:
+                                rc.roscm.r.pick_object(sl.scene.object_names[ml.md.object_focus_id])
+                            elif f.l.pinch_strength < 0.1:
+                                rc.roscm.r.release_object()
+
+            rate.sleep()
+    except KeyboardInterrupt:
+        pass
+
+    print("[Main] Ended")
+
 
 def spinning_threadfn():
     while rclpy.ok():
         with rc.rossem:
             rclpy.spin_once(rc.roscm)
-        time.sleep(0.01)
-
-def main():
-    sl.scenes.make_scene('pickplace3')
-    # Add Leap Motion object to the scene
-    with rc.rossem:
-        rc.roscm.r.add_or_edit_object(name="leap", pose=tfm.transformLeapToBase__CornerConfig_translation, color='c', shape='cube', size=[0.03, 0.1, 0.01])
-        #rate = rc.roscm.create_rate(2) # Hz
-
-    while rclpy.ok():
-        if ml.md.frames and settings.gesture_detection_on:
-            with rc.rossem:
-                rc.roscm.send_g_data()
-
-        if ml.md.frames:
-            f = ml.md.frames[-1]
-            if f.r.visible: h = 'r'
-            elif f.l.visible: h = 'l'
-            else: h = ''
-
-            if h in ['r', 'l']:
-                hand = getattr(f, h)
-                p1, p2 = np.array(hand.palm_position()), np.array(hand.palm_position())+np.array(hand.direction())
-                #p1, p2 = np.array(hand.fingers[1].bones[3].prev_joint()), np.array(hand.fingers[1].bones[3].next_joint())
-                p1s = np.array(tfm.transformLeapToBase__CornerConfig(p1))
-                p2s = np.array(tfm.transformLeapToBase__CornerConfig(p2))
-                v = 1000*(p2s-p1s)
-                line_points = (p1s, p2s+v)
-
-                object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in sl.scene.object_poses]
-                idobj, _ = get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
-
-                with rc.rossem:
-                    rc.roscm.r.add_line(name='line1', points=line_points)
-                    ml.md.object_focus_id = idobj
-                    
-        #rate.sleep()
-        time.sleep(0.1)
-    print("quit")
-
-
+        time.sleep(0.001)
 
 if __name__ == '__main__':
     ''' Default main has three threads: 1. ROS spin, 2. GUI (optional), 3. main

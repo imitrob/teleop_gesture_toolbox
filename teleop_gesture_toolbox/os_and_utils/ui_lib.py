@@ -719,6 +719,12 @@ class Example(QMainWindow):
 
         # Various
         self.paint_sequence = 0
+        ## Save record service
+        with rc.rossem:
+            self.save_hand_record_cli = rc.roscm.create_client(SaveHandRecord, '/save_hand_record')
+            while not self.save_hand_record_cli.wait_for_service(timeout_sec=1.0):
+                print('save_hand_record service not available, waiting again...')
+        self.save_hand_record_req = SaveHandRecord.Request()
 
     def togglePlotWindow(self, state):
         if state:
@@ -880,16 +886,14 @@ class Example(QMainWindow):
         ''' Saving record data in this thread will be outdated, ROS service will be created
         '''
         with rc.rossem:
-            save_hand_record = rc.roscm.create_client(SaveHandRecord, 'save_hand_record')
+            self.save_hand_record_req.directory = settings.paths.learn_path+self.dir_queue.pop(0)
+            self.save_hand_record_req.save_method = 'numpy'
+            self.save_hand_record_req.recording_length = 1.0
+            future = self.save_hand_record_cli.call_async(self.save_hand_record_req)
 
-        while not save_hand_record.wait_for_service(timeout_sec=1.0):
-            with rc.rossem:
-                rc.roscm.get_logger().info('service not available, waiting again...')
+            #rclpy.spin_until_future_complete(rc.roscm, future)
+            #future.result()
 
-        try:
-            resp1 = save_hand_record(directory=settings.paths.learn_path+self.dir_queue.pop(0), save_method='numpy', recording_length=1.0)
-        except rclpy.ServiceException as e:
-            print("Service call failed: %s"%e)
         self.recording = False
 
     def play_method(self):

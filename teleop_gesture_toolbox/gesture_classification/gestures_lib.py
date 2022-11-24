@@ -372,8 +372,9 @@ class TemplateGs():
     def relevant(self, last_secs=1.0):
         ''' Searches gestures_queue, and returns the last gesture record, None if no records in that time were made
         '''
-        if ROS: abs_time = rc.roscm.get_clock().now().nanoseconds/1e9 - last_secs
-        else: abs_time = time.time() - last_secs
+        with rc.rossem:
+            if ROS: abs_time = rc.roscm.get_clock().now().nanoseconds/1e9 - last_secs
+            else: abs_time = time.time() - last_secs
 
         #abs_time = time.time() - last_secs
         # if happened within last_secs interval
@@ -543,7 +544,7 @@ class GestureDataDetection():
     '''
     LOGIC
     '''
-    def prepare_postprocessing(self, hand_tag, type, sensor_seq, activate_length=1.0, activate_length_dynamic=0.2, distance_length=3.0):
+    def prepare_postprocessing(self, hand_tag, type, sensor_seq, activate_length=1.0, activate_length_dynamic=2.0, distance_length=3.0):
         ''' High-level logic
         Parameters:
             activate_length (Int): [seconds] Time length when gesture is activated in order to make action
@@ -598,7 +599,8 @@ class GestureDataDetection():
                         if not np.array([data[n].action_activated for data in gs[-distance_length-2:-2]]).any():
                             g.action_activated = True
                             self.actions_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag))
-                            if ROS: rc.roscm.gesture_solution_pub.publish(String(data=gs.info.names[n]))
+                            with rc.rossem:
+                                if ROS: rc.roscm.gesture_solution_pub.publish(String(data=gs.info.names[n]))
 
     def last(self):
         return self.l.static.relevant(), self.r.static.relevant(), self.l.dynamic.relevant(), self.r.dynamic.relevant()

@@ -74,8 +74,8 @@ class DeiticLib():
         object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in object_poses]
         idobj, _ = self.get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
 
-        if self.set_focus_logic(hand):
-
+        #if self.set_focus_logic(hand):
+        if True:
             if rc is not None:
 
                 with rc.rossem:

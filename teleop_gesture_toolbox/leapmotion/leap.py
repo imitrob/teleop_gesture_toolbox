@@ -29,11 +29,12 @@ class LeapPublisherNode(Node):
     def __init__(self):
         super().__init__('leap_publisher')
         self.frame_publisher = self.create_publisher(rosm.Frame, '/hand_frame', 5)
-        self.srv = self.create_service(ross.SaveHandRecord, 'save_hand_record', self.save_hand_record_callback)
+        self.srv = self.create_service(ross.SaveHandRecord, '/save_hand_record', self.save_hand_record_callback)
 
         self.image_publisher = self.create_publisher(Image, '/leap_image', 5)
 
     def save_hand_record_callback(self, request, response):
+        print("save hand record callback")
         self.record.recording_requests.append([request.directory, request.save_method, request.recording_length])
         response.success = True
         return response
@@ -182,7 +183,7 @@ def main():
     parser=argparse.ArgumentParser(description='')
     parser.add_argument('--print', default=False, type=bool, help='(default=%(default)s)')
     parser.add_argument('--record_with_enter', default=False, type=bool, help='(default=%(default)s)', choices=[True, False])
-    parser.add_argument('--recording_length', default=1., type=float, help='(default=%(default)s)')
+    parser.add_argument('--recording_length', default=1., type=float, help='(default=%(default)s)') # [s]
     parser.add_argument('--directory', default='', type=str, help='(default=%(default)s)')
     parser.add_argument('--save_method', default='numpy', type=str, help='(default=%(default)s)')
     parser.add_argument('--ros-args', action='store_true')

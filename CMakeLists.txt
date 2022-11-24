@@ -10,6 +10,7 @@ find_package(sensor_msgs REQUIRED)
 find_package(moveit_msgs REQUIRED)
 find_package(control_msgs REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
+#find_package(crow_msgs REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Bone.msg"
@@ -37,6 +38,7 @@ install(PROGRAMS
     ${EXAMPLES_DIR}/launch_entries/static_detection_run.py
     ${EXAMPLES_DIR}/main_coppelia.py
     ${EXAMPLES_DIR}/example_grec.py
+    ${EXAMPLES_DIR}/main_workshop_demo.py
     DESTINATION lib/${PROJECT_NAME}
 )
 

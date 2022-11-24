@@ -3,19 +3,19 @@ threecones:
   Objects:
     cone1:
       pose:
-        position: {'x': 0.6, 'y': 0.2, 'z': 0.0}
+        position: {'x': 0.6, 'y': 0.2, 'z': 0.1}
         orientation: {'x': 0.0, 'y': 0.0, 'z':0.0, 'w':1.0}
       size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
       shape: cone
     cone2:
       pose:
-        position: {'x': 0.6, 'y': 0.0, 'z': 0.0}
+        position: {'x': 0.6, 'y': 0.0, 'z': 0.1}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
       shape: cone
     cone3:
       pose:
-        position: {'x': 0.4, 'y': -0.2, 'z': 0.0}
+        position: {'x': 0.4, 'y': -0.2, 'z': 0.1}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
       shape: cone
@@ -24,7 +24,7 @@ sphere:
   Objects:
     sphere1:
       pose:
-        position: {'x': 0.6, 'y': 0.2, 'z': 0.0}
+        position: {'x': 0.6, 'y': 0.2, 'z': 0.1}
         orientation: {'x': 0.0, 'y': 0.0, 'z':0.0, 'w':1.0}
       size: {'x': 0.2, 'y': 0.2, 'z': 0.2}
       shape: sphere
@@ -49,45 +49,6 @@ threecones2:
 
 empty:
 
-drawer:
-  Objects:
-    drawer:
-      pose:
-        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.3, 'z': 0.4} # from [-0.3, -0.5, 0.4]
-      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
-      file: drawer.obj
-    drawer_socket_1:
-      pose:
-        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.25085, 'z': 0.083617}
-      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.283617} # z: 0.032766+0.094613+0.015387+0.124468+0.016383
-      file: drawer_socket_1.obj
-    drawer_socket_2:
-      pose:
-        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.25085, 'z': 0.124468}
-      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.142766} # z: 0.032766+0.094613+0.015387
-      file: drawer_socket_2.obj
-    drawer_socket_3:
-      pose:
-        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.25085, 'z': 0.094613}
-      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.032766}
-      file: drawer_socket_3.obj
-
-  Misc:
-    drawer_heights:
-      - 0.083617
-      - 0.124468
-      - 0.094613
-    axes: [[0.,1.,0.], [-1.,0.,0.],[0.,0.,1.]] # transformation to workspace
-    drawer_sockets_open: 0.0
-
 pickplace:
   Objects:
     box:
@@ -104,85 +65,24 @@ pushbutton:
   Objects:
     button:
       pose:
-        position: {'x': 0.6, 'y': 0.1, 'z': 0.0}
+        position: {'x': 0.6, 'y': 0.1, 'z': 0.1}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.1, 'y': 0.1, 'z': 0.1}
       mesh_trans_origin: {'x': 0.0, 'y': -0.6, 'z': 0.0}
       file: button.obj
     button_out:
       pose:
-        position: {'x': 0.6, 'y': 0.1, 'z': 0.0}
+        position: {'x': 0.6, 'y': 0.1, 'z': 0.1}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.1, 'y': 0.1, 'z': 0.13}
       mesh_trans_origin: {'x': 0.0, 'y': -0.6, 'z': 0.0}
       file: button_out.obj
 
-# Scenes with multiple objects
-drawer2:
-  Objects:
-    drawer:
-      pose:
-        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.3, 'z': 0.4} # from [-0.3, -0.5, 0.4]
-      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
-    drawer_socket_1:
-      pose:
-        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.25085, 'z': 0.083617}
-      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.283617} # z: 0.032766+0.094613+0.015387+0.124468+0.016383
-    drawer_socket_2:
-      pose:
-        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.25085, 'z': 0.124468}
-      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.142766} # z: 0.032766+0.094613+0.015387
-    drawer_socket_3:
-      pose:
-        position: {'x': 0.8, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.25085, 'z': 0.094613}
-      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.032766}
-
-    drawer2:
-      pose:
-        position: {'x': 0.6, 'y': -0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.3, 'z': 0.4} # from [-0.3, -0.5, 0.4]
-      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
-    drawer2_socket_1:
-      pose:
-        position: {'x': 0.6, 'y': -0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.25085, 'z': 0.083617}
-      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.283617} # z: 0.032766+0.094613+0.015387+0.124468+0.016383
-    drawer2_socket_2:
-      pose:
-        position: {'x': 0.6, 'y': -0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.25085, 'z': 0.124468}
-      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.142766} # z: 0.032766+0.094613+0.015387
-    drawer2_socket_3:
-      pose:
-        position: {'x': 0.6, 'y': -0.2, 'z': 0.0}
-        orientation: {'x': 0.5, 'y': -0.5, 'z': -0.5, 'w': 0.5}
-      size: {'x': 0.5, 'y': -0.25085, 'z': 0.094613}
-      mesh_trans_origin: {'x': 0.024574, 'y': 0.0, 'z': 0.032766}
-
-  Misc:
-    drawer_heights:
-      - 0.083617
-      - 0.124468
-      - 0.094613
-    axes: [[0.,1.,0.], [-1.,0.,0.],[0.,0.,1.]] # transformation to workspace
-    drawer_sockets_open: 0.0
-
 pickplace3:
   Objects:
     box:
       pose:
-        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.0, 1.0]}
+        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.1, 1.0]}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
@@ -190,7 +90,7 @@ pickplace3:
       pub_info: true
     box2:
       pose:
-        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.0, 1.0]}
+        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.1, 1.0]}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
@@ -198,48 +98,9 @@ pickplace3:
       pub_info: true
     box3:
       pose:
-        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.0, 1.0]}
+        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.1, 1.0]}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
       color: blue
       pub_info: true
-
-pushbutton2:
-  Objects:
-    button:
-      pose:
-        position: {'x': 0.4, 'y': 0.0, 'z': 0.0}
-        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.1, 'y': 0.1, 'z': 0.1}
-      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
-    button_out:
-      pose:
-        position: {'x': 0.4, 'y': 0.0, 'z': 0.0}
-        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.1, 'y': 0.1, 'z': 0.13}
-      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
-    button2:
-      pose:
-        position: {'x': 0.6, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.1, 'y': 0.1, 'z': 0.1}
-      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
-    button2_out:
-      pose:
-        position: {'x': 0.6, 'y': 0.2, 'z': 0.0}
-        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.1, 'y': 0.1, 'z': 0.13}
-      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
-    button3:
-      pose:
-        position: {'x': 0.7, 'y': -0.3, 'z': 0.0}
-        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.1, 'y': 0.1, 'z': 0.1}
-      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
-    button3_out:
-      pose:
-        position: {'x': 0.7, 'y': -0.3, 'z': 0.0}
-        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.1, 'y': 0.1, 'z': 0.13}
-      mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}

@@ -1,5 +1,5 @@
 <launch>
-  <node pkg="teleop_gesture_toolbox" exec="leap_backend_run.sh" output="screen" />
+  <!--<node pkg="teleop_gesture_toolbox" exec="leap_backend_run.sh" output="screen" />-->
 
   <node pkg="teleop_gesture_toolbox" exec="static_detection_run.py" output="screen"/>
   <node pkg="teleop_gesture_toolbox" exec="dynamic_detection_run.py" output="screen"/>
