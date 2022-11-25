@@ -25,3 +25,7 @@ ConfigurationPage:
     - Scene change
     - Mode
     - Path
+
+# Plot Exports
+ExportPlotFontSize: 12 # 24 for large
+ExportPlotLinewidth: 2.0

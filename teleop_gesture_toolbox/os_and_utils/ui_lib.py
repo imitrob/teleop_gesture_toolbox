@@ -69,7 +69,7 @@ class AnotherWindowPlot(QWidget):
     def __init__(self, *args, **kwargs):
         super(QWidget, self).__init__(*args, **kwargs)
 
-        self.canvas = MplCanvas(self, width=5, height=4, dpi=100)
+        self.canvas = MplCanvas(self, width=8, height=6, dpi=100)
         layout = QVBoxLayout()
         layout.addWidget(self.canvas)
         self.setLayout(layout)
@@ -83,7 +83,7 @@ class AnotherWindowPlot(QWidget):
     def set_n_series(self, n_series):
         self.n_series = n_series
 
-    def update_plot(self, l_hand_type='static', r_hand_type='dynamic', gs_filter=['grab', 'point', 'two', 'three', 'five', 'swipe_up','swipe_down', 'nothing_dyn'], options='log'):
+    def update_plot(self, l_hand_type='static', r_hand_type='dynamic', gs_filter=['grab', 'point', 'two', 'three', 'five', 'swipe_up','swipe_down', 'nothing_dyn'], options='log', linewidth=2.0):
         ''' Might be little messy when constructing plot data
             Takes data from ml.md and gl.gd
         Parameters:
@@ -124,7 +124,7 @@ class AnotherWindowPlot(QWidget):
                 right_values_.append(np.array(value)[right_gs_ids])
             right_values = right_values_
         # TEMP:
-        if 'log' in options:
+        if 'log' in options and r_hand_type:
             right_values = np.array(right_values)
             right_values = (np.log(right_values)-right_values.min())/(right_values.max()-right_values.min())
 
@@ -150,8 +150,8 @@ class AnotherWindowPlot(QWidget):
         ''' Upper plot '''
         self.canvas.axes.cla()  # clear the axes content
         self.canvas.twinxaxes.cla()
-        self.canvas.axes.plot(left_stamps, left_values,linewidth=7.0)
-        self.canvas.twinxaxes.plot(right_stamps, right_values,linewidth=7.0)
+        self.canvas.axes.plot(left_stamps, left_values,linewidth=linewidth)
+        self.canvas.twinxaxes.plot(right_stamps, right_values,linewidth=linewidth)
         self.canvas.axes.set_xlabel('time [s]')
         self.canvas.axes.set_ylabel(f'Static gestures probability [-]')
         self.canvas.twinxaxes.set_ylabel(f'Dynamic gestures likelihood [-]')
@@ -384,6 +384,9 @@ class Example(QMainWindow):
 
         LeftPanelMaxIterms = app_data_loaded['LeftPanelMaxIterms']
         RightPanelMaxIterms = app_data_loaded['RightPanelMaxIterms']
+
+        matplotlib.rcParams.update({'font.size': app_data_loaded['ExportPlotFontSize']})
+        self.linewidth = app_data_loaded['ExportPlotLinewidth']
 
         self.setMinimumSize(QSize(500, 400)) # Minimum window size
         self.lbl1 = QLabel('Left Hand', self)
@@ -1001,7 +1004,7 @@ class Example(QMainWindow):
         settings.record_with_keys = state
 
     def update_plot_with_vars(self):
-        self.plot_window.update_plot()
+        self.plot_window.update_plot(linewidth=self.linewidth)
 
     def export_plot_data(self):
         gl.gd.export()

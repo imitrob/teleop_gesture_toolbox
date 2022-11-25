@@ -60,6 +60,8 @@ class ClassificationSampler(Node):
         self.create_subscription(DetectionObservations, f'/teleop_gesture_toolbox/{type}_detection_observations', self.callback, 10)
         self.type = type
 
+        self.seq = 0
+
     def callback(self, data):
         ''' When received configuration, generates/sends output
             - header output the header of detection, therefore it just copies it
@@ -76,9 +78,12 @@ class ClassificationSampler(Node):
         sol.id = int(id)
         sol.probabilities.data = list(np.array(pred, dtype=float))
         sol.header = data.header
+        sol.seq = self.seq
         sol.sensor_seq = data.sensor_seq
         sol.approach = self.detection_approach
         self.pub.publish(sol)
+
+        self.seq += 1
 
     def change_network_callback(self, msg):
         ''' Receives service callback of network change

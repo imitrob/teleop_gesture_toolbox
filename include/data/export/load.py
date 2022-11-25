@@ -6,17 +6,33 @@ gesture_columns_static = ['stamp[s]', 'seq', 'grab', 'pinch', 'point', 'two', 't
 gesture_columns_dynamic = ['stamp[s]', 'seq', 'swipe_down', 'swipe_front_right', 'swipe_left', 'swipe_up', 'round','swipe_down', 'swipe_front_right', 'swipe_left', 'swipe_up', 'round','swipe_down', 'swipe_front_right', 'swipe_left', 'swipe_up', 'round']
 column_mp = ['id', 'id_primitive', 'tmp_action_stamp', 'vars', 'path', 'waypoints']
 
+#record_n = 'record_2/'
+record_n = input("Enter record folder name (e.g., record_8):")
 
-record_n = 'record_8/'
+try:
+    gesture_data_static = np.load(f"{record_n}/gesture_data_left_static.npy")
+    print("Shape of static data: ", gesture_data_static.shape)
+    df = pd.DataFrame(columns=gesture_columns_static, data=gesture_data_static)
+    print("Static data as table:")
+    print(df)
+except:
+    print("No static data in this recording!")
 
-gesture_data_static = np.load(f"{record_n}/gesture_data_left_static.npy")
-gesture_data_static.shape
-gesture_data_dynamic = np.load(f"{record_n}/gesture_data_right_dynamic.npy")
-gesture_data_dynamic.shape
-
-gesture_data_mp = np.load(f"{record_n}/executed_MPs.npy", allow_pickle=True)
-gesture_data_mp[0][4].shape
-
+try:
+    gesture_data_dynamic = np.load(f"{record_n}/gesture_data_right_dynamic.npy")
+    print("Shape of dynamic data: ", gesture_data_dynamic.shape)
+    print("Dynamic data as table:")
+    df = pd.DataFrame(columns=gesture_columns_dynamic, data=gesture_data_dynamic)
+    print(df)
+except:
+    print("No dynamic data in this recording!")
+try:
+    gesture_data_mp = np.load(f"{record_n}/executed_MPs.npy", allow_pickle=True)
+    df = pd.DataFrame(columns=column_mp, data=gesture_data_mp)
+    print("Motion primitives data as table:")
+    print(df)
+except:
+    print("No motion primitives data in this recording!")
 
 
 def plot_static():
@@ -27,19 +43,6 @@ def plot_static():
     viz.savefig(f"./{record_n}/plot_3")
     viz.show()
 plot_static()
-
-
-df = pd.DataFrame(columns=gesture_columns_static, data=gesture_data_static)
-df
-
-df = pd.DataFrame(columns=gesture_columns_dynamic, data=gesture_data_dynamic)
-df
-
-gesture_data_mp[0]
-df = pd.DataFrame(columns=column_mp, data=gesture_data_mp)
-df
-
-gesture_data_mp[0][3].keys()
 
 def plot_mp():
     viz = VisualizerLib()

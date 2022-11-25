@@ -7,7 +7,7 @@ if os.getcwd()[-4:] == '.ros': # if running from roslaunch
 # for ros2 run, which has current working directory in ~/<colcon_ws>
 sys.path.append("../python3.9/site-packages/teleop_gesture_toolbox")
 import Leap
-import time, argparse, inspect
+import time, argparse, inspect, threading
 
 from os_and_utils.saving import Recording
 from os_and_utils.utils import ros_enabled, GlobalPaths
@@ -32,6 +32,7 @@ class LeapPublisherNode(Node):
         self.srv = self.create_service(ross.SaveHandRecord, '/save_hand_record', self.save_hand_record_callback)
 
         self.image_publisher = self.create_publisher(Image, '/leap_image', 5)
+        self.record = Recording()
 
     def save_hand_record_callback(self, request, response):
         print("save hand record callback")
@@ -41,7 +42,6 @@ class LeapPublisherNode(Node):
 
 class SampleListener(Leap.Listener):
     def on_init(self, controller):
-        self.record = Recording()
         if ros_enabled():
             self.rosnode = LeapPublisherNode()
         print("[leap] Initialized")
@@ -91,7 +91,7 @@ class SampleListener(Leap.Listener):
 
             imgros.data = data
             self.rosnode.image_publisher.publish(imgros)
-        self.record.auto_handle(f)
+        self.rosnode.record.auto_handle(f)
         if self.print_on:
             #print(f.r.get_learning_data(definition=1))
             print(f)
@@ -176,7 +176,7 @@ def spin_default(listener, record_settings):
 
 def spin_record_with_enter(listener, record_settings):
     input()
-    listener.record.recording_requests.append(record_settings)
+    listener.rosnode.record.recording_requests.append(record_settings)
 
 
 def main():
@@ -233,6 +233,9 @@ def main():
         controller.set_policy(Leap.Controller.POLICY_BACKGROUND_FRAMES)
         controller.set_policy(Leap.Controller.POLICY_IMAGES)
     controller.add_listener(listener)
+
+    spinning_thread = threading.Thread(target=rclpy.spin, args=(listener.rosnode, ), daemon=True)
+    spinning_thread.start()
 
     if record_with_enter:
         spin = spin_record_with_enter

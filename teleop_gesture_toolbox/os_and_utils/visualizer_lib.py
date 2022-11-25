@@ -78,8 +78,8 @@ class VisualizerLib():
             ax = fig.add_subplot(111, projection='3d')
         if dim == 2:
             ax = fig.add_subplot(111)
-        if type(title) is type("a"):
-            fig.canvas.set_window_title(title)
+        #if type(title) is type("a"):
+        #    fig.canvas.set_window_title(title)
 
         ## Move figure
         nfigs = len(list(map(plt.figure, plt.get_fignums())))-1 # get number of opened figures after creating new one
