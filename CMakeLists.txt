@@ -39,6 +39,7 @@ install(PROGRAMS
     ${EXAMPLES_DIR}/main_coppelia.py
     ${EXAMPLES_DIR}/example_grec.py
     ${EXAMPLES_DIR}/main_workshop_demo.py
+    ${EXAMPLES_DIR}/main.py
     DESTINATION lib/${PROJECT_NAME}
 )
 

@@ -12,15 +12,18 @@ import os_and_utils.move_lib as ml; ml.init()
 import os_and_utils.scenes as sl; sl.init()
 import gesture_classification.gestures_lib as gl; gl.init()
 import os_and_utils.ui_lib as ui
-import os_and_utils.ros_communication_main as rc; rc.init()
+settings.simulator = 'real'
+import os_and_utils.ros_communication_main as rc; rc.init(settings.simulator)
 
 def main():
     with rc.rossem:
         rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
+
     try:
         while rclpy.ok():
             with rc.rossem:
-                rc.roscm.send_g_data()
+                ml.md.main_handle_step(None)
+                #rc.roscm.send_g_data()
             rate.sleep()
     except KeyboardInterrupt:
         pass

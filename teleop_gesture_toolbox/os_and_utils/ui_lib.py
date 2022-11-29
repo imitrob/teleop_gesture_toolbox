@@ -725,8 +725,8 @@ class Example(QMainWindow):
         ## Save record service
         with rc.rossem:
             self.save_hand_record_cli = rc.roscm.create_client(SaveHandRecord, '/save_hand_record')
-            while not self.save_hand_record_cli.wait_for_service(timeout_sec=1.0):
-                print('save_hand_record service not available, waiting again...')
+            if not self.save_hand_record_cli.wait_for_service(timeout_sec=1.0):
+                print('save_hand_record service not available!!!')
         self.save_hand_record_req = SaveHandRecord.Request()
 
     def togglePlotWindow(self, state):

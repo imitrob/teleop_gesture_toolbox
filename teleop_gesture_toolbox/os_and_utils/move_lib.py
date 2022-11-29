@@ -456,7 +456,8 @@ class MoveData():
         '''
 
         # update focused object based on what is closest
-        self.object_focus_id = sl.scene.get_closest_object(self.goal_pose)
+        if sl.scene is not None:
+            self.object_focus_id = sl.scene.get_closest_object(self.goal_pose)
 
         if type == 'simple':
             self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)

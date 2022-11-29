@@ -21,7 +21,7 @@ Created on 12/08/14
 This file contains kinematics related classes to ease
 the use of MoveIt! kinematics services.
 """
-
+import time
 import rclpy
 from rclpy.node import Node
 from moveit_msgs.srv import GetPositionFK, GetPositionIK, GetStateValidity
@@ -46,6 +46,9 @@ class ForwardKinematics(Node):
             self.get_logger().info('service not available, waiting again...')
         print("Ready for making FK calls")
 
+        self.create_subscription(JointState, '/joint_states', self.joint_states_callback, 10)
+        self.joint_states = None
+
         # Initilize global frame_id
         self.FRAME_ID = None
         if frame_id:
@@ -54,13 +57,16 @@ class ForwardKinematics(Node):
     def closeFK(self):
         self.fk_srv.close()
 
+    def joint_states_callback(self, msg):
+        self.joint_states = msg
+
     def getFK(self, fk_link_names, joint_names, positions, frame_id=None):
         """Get the forward kinematics of a joint configuration
         @fk_link_names list of string or string : list of links that we want to get the forward kinematics from
         @joint_names list of string : with the joint names to set a position to ask for the FK
         @positions list of double : with the position of the joints
         @frame_id string : the reference frame to be used"""
-        gpfkr = GetPositionFKRequest()
+        gpfkr = GetPositionFK.Request()
         if type(fk_link_names) == type("string"):
             gpfkr.fk_link_names = [fk_link_names]
         else:
@@ -78,9 +84,13 @@ class ForwardKinematics(Node):
         if self.FRAME_ID:
             frame_id = self.FRAME_ID
         # Subscribe to a joint_states
-        js = rclpy.wait_for_message('/joint_states', JointState)
+        #js = self.wait_for_message('/joint_states', JointState)
+        while self.joint_states is None:
+            rclpy.spin_once(self)
+            print("Waiting for joint_states")
+            time.sleep(1)
         # Call FK service
-        fk_result = self.getFK(fk_link_names, js.name, js.position, frame_id=frame_id)
+        fk_result = self.getFK(fk_link_names, self.joint_states.name, self.joint_states.position, frame_id=frame_id)
         return fk_result
 
 

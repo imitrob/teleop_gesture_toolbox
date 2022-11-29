@@ -81,7 +81,7 @@ def load_params(roscm=None):
     else:
         robot = 'panda'
         simulator = 'coppelia'
-        gripper = 'none'
+        gripper = 'franka_hand'
         plot = False
         inverse_kinematics = ''
         inverse_kinematics_topic = ''
