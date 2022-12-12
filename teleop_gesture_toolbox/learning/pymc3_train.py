@@ -42,19 +42,19 @@ if True: # When running as notebook (jupyter)
     from sklearn.metrics import plot_confusion_matrix
     import os_and_utils.confusion_matrix_pretty_print as confusion_matrix_pretty_print
     #from fastdtw import fastdtw
-    from promps import promp_lib
     from statistics import mode, StatisticsError
     from itertools import combinations, permutations
     from scipy import stats
     import seaborn as sns
 
-    from timewarp_lib import *
+    #from timewarp_lib import *
 
     rc = {'xtick.labelsize': 20, 'ytick.labelsize': 20, 'axes.labelsize': 20, 'font.size': 20,
           'legend.fontsize': 12.0, 'axes.titlesize': 10, "figure.figsize": [12, 6]}
     sns.set(rc = rc)
     sns.set_style("white")
 
+    '''
     if os.path.isdir(os.path.expanduser("~/promps_python")):
         PROMP_ON = True
         sys.path.insert(1, os.path.expanduser("~/promps_python"))
@@ -65,7 +65,7 @@ if True: # When running as notebook (jupyter)
         from numpy import linalg as LA
     if not os.path.isdir(os.path.expanduser("~/promps_python")):
         PROMP_ON = False
-
+    '''
     from os_and_utils.loading import HandDataLoader, DatasetLoader
     from os_and_utils.nnwrapper import NNWrapper
 
@@ -84,8 +84,9 @@ if True: # When running as notebook (jupyter)
     # Initialize random number generator
     np.random.seed(0)
 
-    import gestures_lib as gl
+    import gesture_classification.gestures_lib as gl
     gl.init()
+
 
 class PyMC3Train():
 

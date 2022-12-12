@@ -14,6 +14,9 @@ import sys,os
 from copy import deepcopy
 
 #from leapmotion import frame_lib; frame_lib.__name__ = 'frame_lib'; frame_lib.__spec__.name = 'frame_lib'
+if __name__ == '__main__':
+    sys.path.append("..")
+    sys.path.append("../leapmotion")
 sys.path.append("leapmotion")
 import frame_lib
 
@@ -156,8 +159,11 @@ class DatasetLoader():
         data = np.load(f"{dir}tmp_{type}{HandDataLoader().get_ext()}", allow_pickle=True).item()
         return data
 
-    def load_static(self, dir, Gs):
-        return self.load_dynamic(dir=dir, Gs=Gs, type='static')
+    def load_static(self, dir, Gs, out='', new=False):
+        return self.load(dir=dir, Gs=Gs, type='static', out=out, new=new)
+
+    def load_dynamic(self, dir, Gs, out='', new=False):
+        return self.load(dir=dir, Gs=Gs, type='dynamic', out=out, new=new)
 
     def load_mp_tmp(self,dir,Gs):
         data = np.load(f"{dir}tmp_mp{HandDataLoader().get_ext()}", allow_pickle=True).item()
@@ -165,7 +171,7 @@ class DatasetLoader():
 
     def load_mp(self,dir,Gs, approach, new=False):
         ## Load movements same as dynamic
-        X, Y, diff = self.load_dynamic(dir=dir, Gs=Gs, type='mp', out='diff', new=new)
+        X, Y, diff = self.load(dir=dir, Gs=Gs, type='mp', out='diff', new=new)
         ## Check trained MPs
         robot_promps = []
         '''
@@ -186,13 +192,7 @@ class DatasetLoader():
         '''
         return X,Y,robot_promps
 
-    def load_dynamic(self, dir, Gs, type = 'dynamic', out='', new=False):
-        ''' Rename this function!
-            Main function:
-            - Get difference
-            -
-        '''
-
+    def load(self, dir, Gs, type = 'dynamic', out='', new=False):
         data = self.load_tmp(dir, type=type)
         files = self.hdl.get_files(dir,Gs)
         if not data or new:
@@ -560,4 +560,13 @@ def avg_dataframe(data_n):
     data_avg *= (1/len(data_n))
     return data_avg
 
-#
+
+if __name__ == '__main__':
+    print("Updating tmp data files")
+
+    import os_and_utils.settings as settings; settings.init()
+    import gesture_classification.gestures_lib as gl; gl.init()
+
+    dataloader_args = {'normalize':1, 'n':5, 'scene_frame':1, 'inverse':1}
+    DatasetLoader(dataloader_args).load(settings.paths.learn_path, gl.gd.Gs_dynamic, new=True)
+    DatasetLoader({'input_definition_version':1}).load_static(settings.paths.learn_path, gl.gd.Gs_static, new=True)
