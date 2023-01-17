@@ -1,11 +1,8 @@
 import collections
 import numpy as np
-import yaml, random
+import yaml, random, time
 from os_and_utils import settings
 from copy import deepcopy
-
-## TEMP: to test
-import time
 
 from std_msgs.msg import String
 from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
@@ -17,15 +14,34 @@ from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_mo
 from os_and_utils.path_def import Waypoint
 from os_and_utils.utils_ros import samePoses
 import os_and_utils.ros_communication_main as rc
+import os_and_utils.deitic_lib as dl
+
+import spatialmath as sm
+from spatialmath import UnitQuaternion
+
+from ament_index_python.packages import get_package_share_directory
+try:
+    package_share_directory = get_package_share_directory('context_based_gesture_operation')
+    import sys; sys.path.append(package_share_directory)
+    import context_based_gesture_operation as cbgo
+except:
+    cbgo = None
+import os_and_utils.ycb_data as ycb_data
+
+try:
+    import spatialmath as sm
+    from spatialmath import UnitQuaternion
+except ModuleNotFoundError:
+    sm = None
 
 class MoveData():
     def __init__(self, init_goal_pose=True, init_env='table'):
         '''
         > saved in arrays
         - Leap Controller
-        - Plan (eef_pose, goal_pose, ...)
+        - Plan (eef_pose, goal_pose, ... )
         > single data
-        - Plan (eef_pose, goal_pose, ...)
+        - Plan (eef_pose, goal_pose, ... )
         - States (joints, velocity, eff, ... )
         '''
 
@@ -105,7 +121,7 @@ class MoveData():
         ''' Gripper object attached bool '''
         self.attached = False
         ''' Mode about scene interaction - Deprecated '''
-        self.live_mode = 'Default'
+        self.live_mode = 'With eef rot'
 
         ''' Builder mode: ['stack', 'wall', 'replace'] '''
         self.build_modes = ['stack', 'wall', 'replace']
@@ -139,7 +155,6 @@ class MoveData():
         ''' live mode drawing '''
         self.live_mode_drawing = False
         self.live_mode_drawing_anchor = []
-        self.live_mode_drawing_rot = False
         self.live_mode_drawing_eef_rot_anchor = []
 
         if init_goal_pose:
@@ -246,20 +261,23 @@ class MoveData():
 
         self.live_mode = text
 
+    def live_handle_step(self, mod=3):
+        if self.seq % mod == 0:
+            if self.r_present():
+                self.do_live_mode(h='r', type='drawing with collision detection', link_gesture='grab')
+            else:
+                self.live_mode_drawing = False
+        if self.l_present():
+            if self.seq % mod == 0:
+                self.grasp_on_basic_grab_gesture(hnds=['l'])
+
+
+
     def main_handle_step(self, path_gen, mod=3, action_execution=True):
         ## live mode control
         # TODO: Mapped to right hand now!
         if self.mode == 'live':
-            if self.seq % mod == 0:
-                if self.r_present():
-                    self.do_live_mode(h='r', type='drawing', link_gesture='grab')
-                else:
-                    self.live_mode_drawing = False
-                    self.live_mode_drawing_rot = False
-            if self.l_present():
-                if self.seq % mod == 0:
-                    self.grasp_on_basic_grab_gesture(hnds=['l'])
-
+            self.live_handle_step(mod)
         if self.mode == 'play':
             # controls everything:
             #self.HoldValue
@@ -459,88 +477,33 @@ class MoveData():
         if sl.scene is not None:
             self.object_focus_id = sl.scene.get_closest_object(self.goal_pose)
 
-        if type == 'simple':
-            self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
-            if rc.roscm.r is not None:
-                rc.roscm.r.go_to_pose(self.goal_pose)
-            return
-
+        if type == 'simple': return DirectTeleoperation.simple_teleop_step(self)
+        '''
+        Live mode is enabled only, when link_gesture is activated
+        '''
         relevant = getattr(gl.gd, h).static.relevant()
         now_actived_gesture = None
 
         if relevant: now_actived_gesture = relevant.activate_name
-        a = False
-        b = False
-        # When condifitioned gesture as parameter is activated
+        a = False # Activated
+
+        # Check if activated gesture is the gesture which triggers the live mode
         if now_actived_gesture and now_actived_gesture == link_gesture:
             a = True
         # Gesture is 'grab', it is not in list, but it is activated externally
         elif link_gesture == 'grab' and getattr(self.frames[-1], h).grab_strength > 0.8:
             a = True
 
-        if self.live_mode == 'Separate eef rot':
-            if getattr(self.frames[-1], h).pinch_strength > 0.8:
-                b = True
-
         if type == 'absolute':
-            if a:
-                self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
-                if rc.roscm.r is not None:
-                    rc.roscm.r.go_to_pose(self.goal_pose)
-
+            DirectTeleoperation.absolute_teleop_step(a, self, h)
         elif type == 'relative':
-            # TODO:
-            raise Exception("Not Implemented")
+            DirectTeleoperation.relative_teleop_step(a, self, h)
         elif type == 'drawing':
-            if a:
-
-                mouse_3d = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
-
-                if self.live_mode == 'With eef rot':
-                    x,y = self.frames[-1].r.direction()[0:2]
-                    angle = np.arctan2(y,x)
-
-                if not self.live_mode_drawing: # init anchor
-                    self.live_mode_drawing_anchor = mouse_3d
-                    self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
-                    self.live_mode_drawing = True
-
-                    if self.live_mode == 'With eef rot':
-                        self.eef_rot_scene = deepcopy(self.eef_rot)
-                        self.live_mode_drawing_eef_rot_anchor = angle
-
-                #self.goal_pose = self.goal_pose + (mouse_3d - self.live_mode_drawing_anchor)
-                self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
-                self.goal_pose.position.x += (mouse_3d.position.x - self.live_mode_drawing_anchor.position.x)
-                self.goal_pose.position.y += (mouse_3d.position.y - self.live_mode_drawing_anchor.position.y)
-                self.goal_pose.position.z += (mouse_3d.position.z - self.live_mode_drawing_anchor.position.z)
-
-                if self.live_mode == 'With eef rot':
-                    self.eef_rot = deepcopy(self.eef_rot_scene)
-                    self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
-                    if rc.roscm.r is not None:
-                        rc.roscm.r.set_gripper(eef_rot=self.eef_rot)
-            else:
-                self.live_mode_drawing = False
-            if b:
-                x,y = self.frames[-1].r.direction()[0:2]
-                angle = np.arctan2(y,x)
-
-                if not self.live_mode_drawing_rot: # init anchor
-                    self.live_mode_drawing_rot = True
-                    self.eef_rot_scene = deepcopy(self.eef_rot)
-                    self.live_mode_drawing_eef_rot_anchor = angle
-
-                self.eef_rot = deepcopy(self.eef_rot_scene)
-                self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
-                if rc.roscm.r is not None:
-                    rc.roscm.r.set_gripper(eef_rot=self.eef_rot)
-            else:
-                self.live_mode_drawing_rot = False
-
-            if rc.roscm.r is not None:
-                rc.roscm.r.go_to_pose(self.goal_pose)
+            DirectTeleoperation.drawing_teleop_step(a, self, h)
+        elif type == 'drawing with collision detection':
+            DirectTeleoperation.drawing_mode_with_collision_detection_step(a,self,h)
         else: raise Exception(f"Wrong parameter type ({type}) not in ['simple','absolute','relative']")
+
 
     def grasp_on_grab_gesture(self, hnds=['l']):
         for h in hnds:
@@ -563,10 +526,518 @@ class MoveData():
             grab_strength = getattr(self.frames[-1], h).grab_strength
             if grab_strength > 0.5:
                 if rc.roscm.r is not None:
-                    rc.roscm.r.pick_object(sl.scene.object_names[self.object_focus_id])
+                    if not rc.roscm.is_real and sl.scene is not None and not (sl.scene.object_names is None) and self.object_focus_id is not None:
+                        rc.roscm.r.pick_object(sl.scene.object_names[self.object_focus_id])
+                    else:
+                        rc.roscm.r.close_gripper()
             else:
                 if rc.roscm.r is not None:
                     rc.roscm.r.release_object()
+
+class DirectTeleoperation():
+    """ TODO: Add remaining function to th
+    """
+    @staticmethod
+    def simple_teleop_step(self):
+        self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+        if rc.roscm.r is not None:
+            rc.roscm.r.go_to_pose(self.goal_pose)
+
+    @staticmethod
+    def absolute_teleop_step(a, self, h):
+        if a:
+            self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+            if rc.roscm.r is not None:
+                rc.roscm.r.go_to_pose(self.goal_pose)
+
+    @staticmethod
+    def relative_teleop_step(a, self, h):
+        raise Exception("Not Implemented")
+
+    def drawing_teleop_step(a, self, h):
+        if a:
+
+            mouse_3d = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+
+            if self.live_mode == 'With eef rot':
+                x,y = self.frames[-1].r.direction()[0:2]
+                angle = np.arctan2(y,x)
+
+            if not self.live_mode_drawing: # init anchor
+                self.live_mode_drawing_anchor = mouse_3d
+                self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
+                self.live_mode_drawing = True
+
+                if self.live_mode == 'With eef rot':
+                    self.eef_rot_scene = deepcopy(self.eef_rot)
+                    self.live_mode_drawing_eef_rot_anchor = angle
+
+            #self.goal_pose = self.goal_pose + (mouse_3d - self.live_mode_drawing_anchor)
+            self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
+            self.goal_pose.position.x += (mouse_3d.position.x - self.live_mode_drawing_anchor.position.x)
+            self.goal_pose.position.y += (mouse_3d.position.y - self.live_mode_drawing_anchor.position.y)
+            self.goal_pose.position.z += (mouse_3d.position.z - self.live_mode_drawing_anchor.position.z)
+
+            if self.live_mode == 'With eef rot':
+                self.eef_rot = deepcopy(self.eef_rot_scene)
+                self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
+
+            q = UnitQuaternion([0.0,0.0,1.0,0.0])
+            rot = sm.SO3(q.R) * sm.SO3.Rz(self.eef_rot)
+            qx,qy,qz,qw = UnitQuaternion(rot).vec_xyzs
+            self.goal_pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
+        else:
+            self.live_mode_drawing = False
+
+        if rc.roscm.r is not None:
+            rc.roscm.r.go_to_pose(self.goal_pose)
+
+
+    @staticmethod
+    def drawing_mode_with_collision_detection_step(a, self, h):
+        if a:
+
+            mouse_3d = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+
+            if self.live_mode == 'With eef rot':
+                x,y = self.frames[-1].r.direction()[0:2]
+                angle = np.arctan2(y,x)
+
+            if not self.live_mode_drawing: # init anchor
+                self.live_mode_drawing_anchor = mouse_3d
+                self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
+                self.live_mode_drawing = True
+
+                if self.live_mode == 'With eef rot':
+                    self.eef_rot_scene = deepcopy(self.eef_rot)
+                    self.live_mode_drawing_eef_rot_anchor = angle
+
+            #self.goal_pose = self.goal_pose + (mouse_3d - self.live_mode_drawing_anchor)
+            self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
+            self.goal_pose.position.x += (mouse_3d.position.x - self.live_mode_drawing_anchor.position.x)
+            self.goal_pose.position.y += (mouse_3d.position.y - self.live_mode_drawing_anchor.position.y)
+            self.goal_pose.position.z += (mouse_3d.position.z - self.live_mode_drawing_anchor.position.z)
+
+            mouse_3d_list = [mouse_3d.position.x- self.live_mode_drawing_anchor.position.x,
+            mouse_3d.position.y- self.live_mode_drawing_anchor.position.y, mouse_3d.position.z- self.live_mode_drawing_anchor.position.z]
+            anchor_list = [self.live_mode_drawing_anchor_scene.position.x, self.live_mode_drawing_anchor_scene.position.y, self.live_mode_drawing_anchor_scene.position.z]
+
+            anchor, goal_pose = DirectTeleoperation.damping_difference(anchor=anchor_list,
+                                        eef=mouse_3d_list, objects=np.array([]))
+            self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
+            self.goal_pose.position.x += (goal_pose[0])
+            self.goal_pose.position.y += (goal_pose[1])
+            self.goal_pose.position.z += (goal_pose[2])
+
+            if self.live_mode == 'With eef rot':
+                self.eef_rot = deepcopy(self.eef_rot_scene)
+                self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
+
+            q = UnitQuaternion([0.0,0.0,1.0,0.0])
+            rot = sm.SO3(q.R) * sm.SO3.Rz(self.eef_rot)
+            qx,qy,qz,qw = UnitQuaternion(rot).vec_xyzs
+            self.goal_pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
+        else:
+            self.live_mode_drawing = False
+
+        if rc.roscm.r is not None:
+            rc.roscm.r.go_to_pose(self.goal_pose)
+
+    @staticmethod
+    def compute_closest_pointing_object(hand_trajectory_vector, goal_pose):
+        ''' TODO!
+        '''
+        raise NotImplementedError
+        goal_pose + hand_trajectory_vector
+        return object_name, object_distance_to_bb
+
+    @staticmethod
+    def damping_compute(position, objects):
+        '''
+        Parameters:
+            eef (Vector[3]): xyz of eef position
+            objects (Vector[o][4]): where xyz + approx. ball collision diameter
+        Return:
+            damping (0 - 1): rate
+
+        Linear damping with parameter 0.1m
+        '''
+
+        def t__(position):
+            return np.clip(10 * position[2], 0, 1)
+
+        def o__(position, p):
+            d = np.linalg.norm(position - p[0:3])
+            return np.clip(10 * (d - p[3]), 0, 1)
+
+        v__ = []
+        v__.append(t__(position))
+        for o in objects:
+            v__.append(o__(position, o))
+
+        v = np.min(v__)
+        return v
+
+    @staticmethod
+    def damping_difference(anchor, eef, objects):
+        eef = np.array(eef)
+        anchor = np.array(anchor)
+
+        path_points = [True, True]
+        for i in range(0,100,1):
+            i = i/100
+            v = anchor + i * (eef)
+            r = DirectTeleoperation.damping_compute(v, objects)
+
+            if r < 1.0 and path_points[0] is True:
+                path_points[0] = i
+            if r == 0.0 and path_points[1] is True:
+                path_points[1] = i
+        if path_points[0] is True: path_points[0] = 1.0
+        if path_points[1] is True: path_points[1] = 1.0
+        v = anchor + path_points[0] * (eef)
+        v_ = anchor + path_points[1] * (eef)
+        damping_factor = (DirectTeleoperation.damping_compute(v_, objects) + DirectTeleoperation.damping_compute(v, objects)) / 2
+        v2 = damping_factor * (path_points[1] - path_points[0]) * (eef)
+        return anchor, (path_points[0] * (eef))+v2
+
+    '''
+    def __test(objects=np.array([])):
+        toplot = []
+
+        x = np.arange(10,-10,-1)
+        x = x/10
+        for i in x:
+            toplot.append(damping_difference(np.array([1.0,0.0,0.5]), np.array([1.0,0.0,i]), objects))
+        toplot = np.array(toplot)
+
+        plt.plot(x, toplot[:,2])
+
+
+    __test()
+    __test(np.array([[0.0,0.0,0.05,0.05]]))
+    '''
+
+    def live_mode_with_damping(mouse_3d):
+        '''
+        '''
+        anchor = np.array([0.0,0.0,0.5])
+        #mouse_3d = np.array([0.0,0.0,0.4])
+
+        goal_pose_prev = anchor + (mouse_3d - anchor)
+
+
+
+        hand_trajectory_vector = (mouse_3d - anchor)/np.linalg.norm(mouse_3d-anchor)
+
+        #object_name, object_distance_to_bb = compute_closest_pointing_object(hand_trajectory_vector, goal_pose)
+        object_name, object_distance_to_bb = 'box1', 0.2
+
+
+        mode, magn = live_mode_damp_scaler(object_name, object_distance_to_bb)
+
+        if mode == 'damping':
+            goal_pose = anchor + magn * (mouse_3d - anchor)
+        elif mode == 'interact':
+            pass
+        return goal_pose,magn
+
+    def live_mode_damp_scaler(object_name, object_distance_to_bb):
+        # different value based on object_name & type
+        magn = sigmoid(object_distance_to_bb)
+        if False: #damping <= 0.0:
+            return 'interact', magn
+        else:
+            return 'damping', magn
+
+    def sigmoid(x, center=0.14, tau=40):
+        ''' Inverted sigmoid. sigmoid(x=0)=1, sigmoid(x=center)=0.5
+        '''
+        return 1 / (1 + np.exp((x-center)*(-tau)))
+
+    '''
+    mouse_3d = np.array([[0.0,0.0,0.4],[0.0,0.0,0.35],[0.0,0.0,0.3],[0.0,0.0,0.25],[0.0,0.0,0.2],[0.0,0.0,0.15],[0.0,0.0,0.1],[0.0,0.0,0.08], [0.0,0.0,0.06], [0.0,0.0,0.04], [0.0,0.0,0.02], [0.0,0.0,0.0]])
+
+    magns = []
+    for pmouse_3d in mouse_3d:
+        edited,magn = live_mode_with_damping(pmouse_3d)
+        magns.append(magn)
+    magns
+
+    x = np.array(range(12))/10
+    y = sigmoid(x)
+    import matplotlib.pyplot as plt
+    x
+    plt.plot(mouse_3d[:,2], edited[:,2])
+    '''
+
+
+class RealRobotConvenience():
+    @staticmethod
+    def update_scene_and_print():
+        s = RealRobotConvenience.update_scene()
+        print(s)
+        return s
+
+    @staticmethod
+    def deictic():
+        s = RealRobotConvenience.update_scene()
+        s.object_poses
+        if s.object_poses == []: return None, None
+        poses = []
+        for pose in s.object_poses:
+            poses.append( Pose(position=Point(x=pose[0], y=pose[1], z=pose[2]), orientation=Quaternion(x=pose[3], y=pose[4], z=pose[5], w=pose[6])) )
+
+        idobj = dl.dd.main_deitic_fun(md.frames[-1], 'l', poses, plot_line=False)
+        return idobj, s.object_names[idobj]
+
+    @staticmethod
+    def longer_move():
+        rc.roscm.r.go_to_pose(md.goal_pose)
+        time.sleep(0.5)
+        rc.roscm.r.go_to_pose(md.goal_pose)
+        time.sleep(0.5)
+        rc.roscm.r.go_to_pose(md.goal_pose)
+        time.sleep(0.5)
+
+    @staticmethod
+    def test_deictic():
+        print("Test deictic started")
+        try:
+            while True:
+                time.sleep(0.5)
+                with rc.rossem:
+                    _, nameobj = RealRobotConvenience.deictic()
+                print(nameobj)
+                go_on_top_of_object(nameobj, s)
+        except KeyboardInterrupt:
+            print("KeyboardInterrupt: Test deictic ended\n\n")
+
+    @staticmethod
+    def update_scene():
+        assert cbgo is not None, "move_lib.py script doesn't have access to context_based_gesture_operation package!"
+        if rc.roscm.robot_interface == 'real':
+            objects = rc.roscm.r.get_object_positions()
+        else:
+            return sl.scene.s
+
+
+        s = None
+        s = cbgo.srcmodules.Scenes.Scene(init='', random=False)
+
+        for object in objects:
+            type = (ycb_data.NAME2TYPE[ycb_data.COSYPOSE2NAME[object['label']]]).capitalize()
+
+            o = getattr(cbgo.srcmodules.Objects, type)(name=ycb_data.COSYPOSE2NAME[object['label']], position=np.array(object['pose'][0]))
+            o.quaternion = np.array(object['pose'][1])
+
+            s.objects.append(o)
+        return s
+
+    @staticmethod
+    def mark_objects(s):
+
+        print("Mark all visible objects procedure started")
+        for object in s.objects:
+            q_final = RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name)
+            p = object.position
+            md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.3), orientation=Quaternion(x=q_final[0],y=q_final[1],z=q_final[2],w=q_final[3]))
+            RealRobotConvenience.longer_move()
+
+            print(f"This is name: {object.name} and type: {object.type}")
+            time.sleep(2)
+
+        print("Procedure ended\n\n")
+
+
+    @staticmethod
+    def get_quaternion_eef(q_, name):
+        ''' Based on CosyPose, where each object (name) has OFFSET
+        '''
+        assert sm is not None, "spatialmath package couldn't be imported!"
+        try:
+            offset_z_rot = ycb_data.OFFSETS_Z_ROT[name]
+        except KeyError: # Use simulator
+            offset_z_rot = 0.
+
+        q = UnitQuaternion([0.0,0.0,1.0,0.0])
+        q_2 = UnitQuaternion([q_[3], *q_[0:3]])
+
+        rot = sm.SO3(q.R) * sm.SO3.Rz(q_2.rpy()[2]-np.pi/2+offset_z_rot)
+        return UnitQuaternion(rot).vec_xyzs
+
+    @staticmethod
+    def go_on_top_of_object(nameobj, s):
+        object = s.get_object_by_name(nameobj)
+        q_final = RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name)
+
+        p = object.position
+        md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.3), orientation=Quaternion(x=q_final[0],y=q_final[1],z=q_final[2],w=q_final[3]))
+        RealRobotConvenience.longer_move()
+
+    @staticmethod
+    def get_target_objects(num_of_objects, s):
+        object_names = []
+        for i in range(num_of_objects):
+            input("start deictic")
+            for i in [3,2,1]:
+                time.sleep(0.3)
+                _, nameobj_ = RealRobotConvenience.deictic()
+
+                print(i)
+                RealRobotConvenience.go_on_top_of_object(nameobj_, s)
+
+            time.sleep(1.0)
+            _, nameobj_ = RealRobotConvenience.deictic()
+
+            print(f"Object {i} picked: {nameobj_}")
+            object_names.append(nameobj_)
+        return object_names
+
+
+class RealRobotActionLib():
+    @staticmethod
+    def get_offset_for_name(name):
+        try:
+            return ycb_data.OFFSETS[name]
+        except KeyError:
+            return 0.
+
+    put_deictic_params = 0
+    @staticmethod
+    def put(object_names=None):
+        pass
+
+    move_up_deictic_params = 0
+    @staticmethod
+    def move_up(object_names=None):
+        md.goal_pose = Pose(position=Point(x=0.5, y=0.0, z=0.4), orientation=Quaternion(x=0.0,y=1.0,z=0.0,w=0.0))
+        RealRobotConvenience.longer_move()
+
+    move_left_deictic_params = 0
+    @staticmethod
+    def move_left(object_names=None):
+        md.goal_pose = Pose(position=Point(x=0.5, y=-0.2, z=0.4), orientation=Quaternion(x=0.0,y=1.0,z=0.0,w=0.0))
+        RealRobotConvenience.longer_move()
+
+    move_right_deictic_params = 0
+    @staticmethod
+    def move_right(object_names=None):
+        md.goal_pose = Pose(position=Point(x=0.5, y=0.2, z=0.4), orientation=Quaternion(x=0.0,y=1.0,z=0.0,w=0.0))
+        RealRobotConvenience.longer_move()
+
+    move_backdown_deictic_params = 0
+    @staticmethod
+    def move_backdown(object_names=None):
+        md.goal_pose = Pose(position=Point(x=0.3, y=-0.2, z=0.4), orientation=Quaternion(x=0.0,y=1.0,z=0.0,w=0.0))
+        RealRobotConvenience.longer_move()
+        md.goal_pose = Pose(position=Point(x=0.3, y=-0.2, z=0.1), orientation=Quaternion(x=0.0,y=1.0,z=0.0,w=0.0))
+        RealRobotConvenience.longer_move()
+
+    move_down_deictic_params = 0
+    @staticmethod
+    def move_down(object_names=None):
+        RealRobotActionLib.move_backdown(object_names=object_names)
+
+    pick_up_deictic_params = 1
+    @staticmethod
+    def pick_up(object_names):
+        assert len(object_names) == 1, "Action has different argument number"
+        objname = object_names[0]
+
+        s = RealRobotConvenience.update_scene()
+
+        object = s.get_object_by_name(objname)
+
+        p = object.position
+        q = RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name)
+        md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.3), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+        RealRobotConvenience.longer_move()
+        correct = input("Check correctness of CosyPose and press Enter")
+        if correct != "":
+            print("Operation aborted!")
+            return
+
+        of = RealRobotActionLib.get_offset_for_name(object.name)
+
+        md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+of), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+        RealRobotConvenience.longer_move()
+        rc.roscm.r.close_gripper()
+        time.sleep(0.4)
+        md.goal_pose.position.z += 0.04
+        RealRobotConvenience.longer_move()
+
+    put_on_deictic_params = 1
+    @staticmethod
+    def put_on(object_names):
+        assert len(object_names) == 1, "Action has different argument number"
+        objname = object_names[0]
+
+        s = RealRobotConvenience.update_scene()
+        print(s)
+        print("picking: ", objname)
+        object = s.get_object_by_name(objname)
+
+        p = object.position
+        q = RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name)
+        md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.3), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+        RealRobotConvenience.longer_move()
+
+        of = RealRobotActionLib.get_offset_for_name(object.name)
+        md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.2), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+        RealRobotConvenience.longer_move()
+        rc.roscm.r.open_gripper()
+
+    replace_deictic_params = 2
+    @staticmethod
+    def replace(object_names):
+        assert len(object_names) == 2, "Action has different argument number"
+        objname = object_names[0]
+        objname2 = object_names[1]
+
+        s = RealRobotConvenience.update_scene()
+        print(s)
+        print("picking: ", objname)
+        object = s.get_object_by_name(objname)
+
+        p = object.position
+        q = get_quaternion_eef(object.quaternion, object.name)
+        md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.3), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+        RealRobotConvenience.longer_move()
+
+        of = RealRobotActionLib.get_offset_for_name(object.name)
+        md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.2), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+        RealRobotConvenience.longer_move()
+        input("cont?")
+        rc.roscm.r.open_gripper()
+
+    put_on_fake_deictic_params = 2
+    @staticmethod
+    def put_on_fake(object_names):
+        assert len(object_names) == 2, "Action has different argument number"
+        objname = object_names[0]
+        objname2 = object_names[1]
+
+        s = RealRobotConvenience.update_scene()
+        object = s.get_object_by_name(objname2)
+
+        mindist = np.inf
+        bestobj = None
+        assert s.object_positions != []
+        for object2 in s.object_positions:
+            d = np.linalg.norm(np.array(object2)-np.array(object.position))
+            if d == 0: continue # same object
+            if d < mindist:
+                bestobj = object2.name
+                mindist = d
+        print("bestobj: ", bestobj)
+        input("cont... >>")
+        RealRobotActionLib.pick_up(objname='mustard bottle')
+        RealRobotActionLib.move_backdown(objname='mustard bottle')
+        rc.roscm.r.open_gripper()
+        RealRobotActionLib.pick_up(objname=objname)
+        RealRobotActionLib.put_on(objname=objname2)
+
 
 
 class Structure():

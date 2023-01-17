@@ -7,7 +7,7 @@ from copy import deepcopy
 import os_and_utils.move_lib as ml
 if __name__ == '__main__': ml.init()
 from os_and_utils.parse_yaml import ParseYAML
-from inverse_kinematics.ik_lib import IK_bridge
+#from inverse_kinematics.ik_lib import IK_bridge
 import gesture_classification.gestures_lib as gl
 if __name__ == '__main__': gl.init()
 import os_and_utils.scenes as sl
@@ -27,6 +27,11 @@ import teleop_gesture_toolbox.msg as rosm
 from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
 import threading
 
+''' Experimental '''
+EXPERIMENTAL = False
+if EXPERIMENTAL:
+    from spatialmath import UnitQuaternion
+
 try:
     import coppelia_sim_ros_interface
     from coppelia_sim_ros_interface.msg import ObjectInfo
@@ -36,12 +41,30 @@ except:
     print("WARNING: coppelia_sim_ros_interface package was not found!")
     coppelia_sim_ros_interface = None
 
+import ament_index_python
+try:
+    from os_and_utils.pymoveit2_interface import PyMoveIt2Interface
+    from ament_index_python.packages import get_package_share_directory
+    package_share_directory = get_package_share_directory('pymoveit2')
+except ModuleNotFoundError and ament_index_python.packages.PackageNotFoundError:
+    print("WARNING: pymoveit2 package was not found!")
+    PyMoveIt2Interface = None
+
+try:
+    from os_and_utils.zmqarmer_interface import ZMQArmerInterface
+except ModuleNotFoundError:
+    ZMQArmerInterface = None
+
+
 class ROSComm(Node):
     ''' ROS communication of main thread: Subscribers (init & callbacks) and Publishers
     '''
     def __init__(self, robot_interface='no-interface'):
         super().__init__('ros_comm_main')
+        self.robot_interface = robot_interface
+
         # Saving the joint_states
+        ''' Coppelia Sim Feedbacks '''
         if settings.simulator == 'coppelia':
             self.create_subscription(JointState, "joint_states_coppelia", self.joint_states, 10)
 
@@ -49,11 +72,19 @@ class ROSComm(Node):
             self.create_subscription(Vector3, '/coppelia/camera_angle', self.camera_angle, 10)
             if coppelia_sim_ros_interface is not None:
                 self.create_subscription(ObjectInfo, '/coppelia/object_info', self.object_info_callback, 10)
-        else:
-            self.create_subscription(JointState, "joint_states", self.joint_states, 10)
+        #else:
+        #    self.create_subscription(JointState, "joint_states", self.joint_states, 10)
+
+        ''' Real Panda Feedbacks'''
+        if EXPERIMENTAL:
+            if settings.simulator == 'real':
+                self.create_subscription(Pose, '/joint_states', self.joint_states, 10)
+                self.pose_eef_pub = self.create_publisher(Pose, '/pose_eef', 10)
+
+            self.joint_states_n = 0
 
         # Saving relaxedIK output
-        self.create_subscription(JointAngles, '/joint_angle_solutions', self.ik, 10)
+        #self.create_subscription(JointAngles, '/joint_angle_solutions', self.ik, 10)
         # Goal pose publisher
         self.ee_pose_goals_pub = self.create_publisher(EEPoseGoals,'/ee_pose_goals', 5)
 
@@ -67,7 +98,7 @@ class ROSComm(Node):
             self.dynamic_detection_observations_pub = self.create_publisher(DetectionObservations, '/teleop_gesture_toolbox/dynamic_detection_observations', 5)
 
         self.controller = self.create_publisher(Float64MultiArray, '/teleop_gesture_toolbox/target', 5)
-        self.ik_bridge = IK_bridge()
+        #self.ik_bridge = IK_bridge()
         self.hand_mode = settings.get_hand_mode()
 
         self.gesture_solution_pub = self.create_publisher(String, '/teleop_gesture_toolbox/filtered_gestures', 5)
@@ -75,18 +106,37 @@ class ROSComm(Node):
         self.r = None
         if 'coppelia' in robot_interface:
             self.init_coppelia_interface()
+            self.is_real = False
+
+        if 'real' in robot_interface:
+            self.init_real_interface__pymoveit2__panda()
+            self.is_real = True
+
+        if 'ros1armer' in robot_interface:
+            self.init_real_interface__zmqarmer__panda()
+            self.is_real = True
 
     def init_coppelia_interface(self):
         assert coppelia_sim_ros_interface is not None, "coppelia_sim_ros_interface failed to load!"
 
         self.r = CoppeliaROSInterface(rosnode=self)
 
+    def init_real_interface__pymoveit2__panda(self):
+        assert PyMoveIt2Interface is not None, "pymoveit2_interface failed to load"
+
+        self.r = PyMoveIt2Interface(rosnode=self)
+
+    def init_real_interface__zmqarmer__panda(self):
+        assert ZMQArmerInterface is not None, "ZMQArmerInterface failed to load!"
+
+        self.r = ZMQArmerInterface()
+
     def publish_eef_goal_pose(self, goal_pose):
         ''' Publish goal_pose /ee_pose_goals to relaxedIK with its transform
             Publish goal_pose /ee_pose_goals the goal eef pose
         '''
         self.ee_pose_goals_pub.publish(goal_pose)
-        self.ik_bridge.relaxedik.ik_node_publish(pose_r = self.ik_bridge.relaxedik.relaxik_t(goal_pose))
+        #self.ik_bridge.relaxedik.ik_node_publish(pose_r = self.ik_bridge.relaxedik.relaxik_t(goal_pose))
 
     def object_info_callback(self, data):
         ''' Only handles pose
@@ -119,8 +169,7 @@ class ROSComm(Node):
         f.import_from_ros(data)
         ml.md.frames.append(f)
 
-    @staticmethod
-    def joint_states(data):
+    def joint_states(self, data):
         ''' Saves joint_states to * append array 'settings.joint_in_time' circle buffer.
                                   * latest data 'ml.md.joints', 'ml.md.velocity', 'ml.md.effort'
             Topic used:
@@ -148,6 +197,19 @@ class ROSComm(Node):
             ml.md.effort = data.effort[-7:] # [Nm]
 
         else: raise Exception("Wrong robot name!")
+
+        if EXPERIMENTAL:
+            self.joint_states_n+=1
+            if self.joint_states_n%10 == 0 and settings.simulator == 'real' and self.r is not None:
+                fk_se3 = self.r.model.fkine(ml.md.joints)
+                p = fk_se3.t
+                q = UnitQuaternion(fk_se3).vec_xyzs
+
+                rkpose = Pose(position = Point(x=p[0], y=p[1], z=p[2]), orientation = Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+                ml.md.eef_pose = rkpose
+                self.pose_eef_pub.publish(rkpose)
+
+
 
     @staticmethod
     def save_static_detection_solutions(data):
@@ -196,7 +258,7 @@ class ROSComm(Node):
             send_dynamic_g_data_bool = hand_mode is not None and 'dynamic' in hand_mode[key] and len(ml.md.frames) > time_samples and gl.gd.dynamic_network_info is not None
             if send_dynamic_g_data_bool:
                 args = gl.gd.dynamic_network_info
-                if getattr(ml.md, key+'_present')():
+                if getattr(ml.md, key+'_present')() and getattr(ml.md.frames[-1], key).grab_strength < 0.5:
                     try:
                         ''' Warn when low FPS '''
                         n = ml.md.frames[-1].fps
