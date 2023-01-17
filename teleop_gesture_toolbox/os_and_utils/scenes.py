@@ -8,6 +8,14 @@ from geometry_msgs.msg import Vector3
 import os_and_utils.move_lib as ml
 import os_and_utils.ros_communication_main as rc
 
+from ament_index_python.packages import get_package_share_directory
+try:
+    package_share_directory = get_package_share_directory('context_based_gesture_operation')
+    import sys; sys.path.append(package_share_directory)
+    import context_based_gesture_operation as cbgo
+except:
+    cbgo = None
+
 class CustomPoses():
     @staticmethod
     def GeneratePosesFromYAML(paths_folder=None, poses_file_catch_phrase='poses'):
@@ -138,9 +146,11 @@ class CustomScenes():
                         scenes.append(CustomScene(pickedscene, poses_data_loaded))
         return scenes
 
-    def make_scene(self, new_scene=''):
+    def make_scene(self, new_scene='', approach=0):
         ''' Prepare scene, add objects for obstacle or manipulation.
             scene (str):
+
+        approach == 0 - old approach, approach == 1 - new scene approach - from context_based_gesture_operation
         '''
         with rc.rossem:
             interface_handle = rc.roscm.r
@@ -161,7 +171,18 @@ class CustomScenes():
         # get id of new scene
         id = self.names().index(new_scene)
 
+        if approach == 1:
+            assert cbgo is not None, "context_based_gesture_operation not imported!"
+            s = cbgo.srcmodules.Scenes.Scene(random=False)
         for i in range(0, len(self.scenes[id].object_names)):
+            if approach == 1:
+                pose = self.scenes[id].object_poses[i]
+                o = cbgo.srcmodules.Objects.Object(name=f'object{i}',
+                                position=[pose.position.x,pose.position.y,pose.position.z],
+                                orientation=[pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w],
+                                random=False)
+                s.objects.append(o)
+
             obj_name = self.scenes[id].object_names[i] # object name
             size = extv(self.scenes[id].object_sizes[i])
             color = self.scenes[id].object_colors[i]
@@ -186,13 +207,20 @@ class CustomScenes():
                         interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/teleop_gesture_toolbox/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=self.scenes[id].object_poses[i], frame_id=settings.base_link)
                     else:
                         interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+
+
         scene = self.scenes[id]
+        print("SCENE in make scen function", scene)
+        if approach == 1:
+            scene.s = s
         ml.md.structures = []
         ml.md.attached = False
         if id == 0:
             scene = None
         ml.md.object_focus_id = 0
         print(f"[Scenes] Scene {new_scene} ready!")
+
+
 
 
 class CustomScene():
@@ -222,6 +250,8 @@ class CustomScene():
         self.object_pub_info = []
         self.object_texture_file = []
         self.object_file = []
+
+        self.s = None # Approach 1
         if not scene_data:
             return
 
@@ -262,13 +292,13 @@ class CustomScene():
                 min_id = n
         return min_id
 
-def init():
+def init(approach=0):
     ### 5. Latest Data                      ###
     ###     - Generated Scenes from YAML    ###
     ###     - Generated Paths from YAML     ###
     ###     - Current scene info            ###
     ###########################################
-    global poses, paths, scenes, scene
+    global poses, paths, scenes, scene, scene_approach
 
     ## Objects for saved scenes and paths
     #paths
@@ -277,6 +307,9 @@ def init():
     scenes = CustomScenes.GenerateFromYAML()
     paths = CustomPaths.GenerateFromYAML(scenes)
     scene = None # current scene informations
+
+    scene_approach = approach
+
 
 def refresh():
     ''' Generate new random vars

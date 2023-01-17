@@ -48,6 +48,7 @@ class DeiticLib():
         Embedding: line_points are start and end of last bone (distal) from pointing finger (2nd finger)
         test_points:
         '''
+        assert test_points != [], "test_points empty"
         distances_from_line = []
         for test_point in test_points:
             closest_point = self.get_closest_point_to_line(line_points, test_point)
@@ -57,7 +58,7 @@ class DeiticLib():
         if np.min(distances_from_line) > max_dist: return None, np.min(distances_from_line)
         return np.argmin(distances_from_line), np.min(distances_from_line)
 
-    def main_deitic_fun(self, f, h, object_poses):
+    def main_deitic_fun(self, f, h, object_poses, plot_line=True):
         ''' has dependencies
         f (Frame): ml.md.frames[-1] (take last detection frame)
         h (string): hand - 'l' left, 'r', right
@@ -69,19 +70,19 @@ class DeiticLib():
         p1s = np.array(tfm.transformLeapToBase__CornerConfig(p1))
         p2s = np.array(tfm.transformLeapToBase__CornerConfig(p2))
         v = 1000*(p2s-p1s)
-        line_points = (p1s, p2s+v)
+        line_points = [list(p1s), list(p2s+v)]
 
         object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in object_poses]
         idobj, _ = self.get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
 
         #if self.set_focus_logic(hand):
-        if True:
+        if plot_line:
             if rc is not None:
 
                 with rc.rossem:
-                    rc.roscm.r.add_line(name='line1', points=line_points)
+                    #rc.roscm.r.add_line(name='line1', points=line_points)
                     rc.roscm.r.add_or_edit_object(name="Focus_target", pose=object_positions[idobj])
-        return
+        return idobj
 
     def set_focus_logic(self, hand):
         '''
