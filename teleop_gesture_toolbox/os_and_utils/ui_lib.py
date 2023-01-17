@@ -1094,10 +1094,16 @@ class Example(QMainWindow):
                 for n in range(1,pts):
                     #if ml.md.frames[-n-1].l.visible and ml.md.frames[-n].l.visible:
                     if getattr(ml.md.frames[-n-1], h).visible and getattr(ml.md.frames[-n], h).visible:
-                        #p1 = tfm.transformLeapToUIsimple(ml.md.frames[-n].l.palm_pose())
-                        p1 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n], h).palm_pose())
-                        #p2 = tfm.transformLeapToUIsimple(ml.md.frames[-n-1].l.palm_pose())
-                        p2 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n-1], h).palm_pose())
+                        if settings.hand_sensor == 'leap':
+                            #p1 = tfm.transformLeapToUIsimple(ml.md.frames[-n].l.palm_pose())
+                            p1 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n], h).palm_pose())
+                            #p2 = tfm.transformLeapToUIsimple(ml.md.frames[-n-1].l.palm_pose())
+                            p2 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n-1], h).palm_pose())
+                        elif settings.hand_sensor == 'hi5':
+                            #p1 = tfm.transformLeapToUIsimple(ml.md.frames[-n].l.palm_pose())
+                            p1 = tfm.transformHi5ToUIsimple(getattr(ml.md.frames[-n], h).palm_pose())
+                            #p2 = tfm.transformLeapToUIsimple(ml.md.frames[-n-1].l.palm_pose())
+                            p2 = tfm.transformHi5ToUIsimple(getattr(ml.md.frames[-n-1], h).palm_pose())
                         if is_hand_inside_ball(getattr(ml.md.frames[-n], h)):
                             painter.setPen(QPen(Qt.green, p1.position.z))
                             painter.drawLine(p1.position.x, p1.position.y, p2.position.x, p2.position.y)
@@ -1126,58 +1132,78 @@ class Example(QMainWindow):
 
 
         ''' Draw the bone structure '''
-        for h in ['l', 'r']:
-            painter.setPen(QPen(Qt.black, 2))
-            #if ml.md.r_present():
-            if getattr(ml.md, h+'_present')():
+        if settings.hand_sensor == 'leap':
+            for h in ['l', 'r']:
+                painter.setPen(QPen(Qt.black, 2))
+                #if ml.md.r_present():
+                if getattr(ml.md, h+'_present')():
+                    hand = getattr(ml.md.frames[-1], h)
+                    palm = hand.palm_position()
+                    wrist = hand.wrist_position()
+
+                    elbow = hand.elbow_position()
+                    pose_palm = Pose()
+                    pose_palm.position = Point(x=palm[0], y=palm[1], z=palm[2])
+                    pose_wrist = Pose()
+                    pose_wrist.position = Point(x=wrist[0], y=wrist[1], z=wrist[2])
+                    pose_elbow = Pose()
+                    pose_elbow.position = Point(x=elbow[0], y=elbow[1], z=elbow[2])
+                    pose_palm_ = tfm.transformLeapToUIsimple(pose_palm)
+                    pose_wrist_ = tfm.transformLeapToUIsimple(pose_wrist)
+                    x, y = pose_palm_.position.x, pose_palm_.position.y
+                    x_, y_ = pose_wrist_.position.x, pose_wrist_.position.y
+                    painter.drawLine(x, y, x_, y_)
+                    pose_elbow_ = tfm.transformLeapToUIsimple(pose_elbow)
+                    x, y = pose_elbow_.position.x, pose_elbow_.position.y
+                    painter.drawLine(x, y, x_, y_)
+
+                    if h == 'l':
+                        ''' Set builder mode '''
+                        nBuild_modes = len(ml.md.build_modes)
+                        id_build_mode = ml.md.build_modes.index(ml.md.build_mode)
+                        painter.setPen(QPen(Qt.blue, 4))
+                        for n, i in enumerate(ml.md.build_modes):
+                            x_bm, y_bm = point_by_ratio((x, y),(x_, y_), 0.5+0.5*(n/nBuild_modes))
+
+                            if n == id_build_mode:
+                                painter.setBrush(QBrush(Qt.blue, Qt.SolidPattern))
+                            else:
+                                painter.setBrush(QBrush(Qt.blue, Qt.NoBrush))
+                            painter.drawEllipse(x+x_bm-5, y+y_bm-5, 10, 10)
+
+                        painter.setPen(QPen(Qt.black, 2))
+
+                    for finger in hand.fingers:
+                        for b in range(0, 4):
+                            bone = finger.bones[b]
+                            pose_bone_prev = Pose()
+                            pose_bone_prev.position = Point(x=bone.prev_joint[0], y=bone.prev_joint[1], z=bone.prev_joint[2])
+                            pose_bone_next = Pose()
+                            pose_bone_next.position = Point(x=bone.next_joint[0], y=bone.next_joint[1], z=bone.next_joint[2])
+                            pose_bone_prev_ = tfm.transformLeapToUIsimple(pose_bone_prev)
+                            pose_bone_next_ = tfm.transformLeapToUIsimple(pose_bone_next)
+                            x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
+                            x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
+                            painter.drawLine(x, y, x_, y_)
+
+        elif settings.hand_sensor == 'hi5' and ml.md.frames:
+            for h in ['l', 'r']:
+                painter.setPen(QPen(Qt.black, 2))
                 hand = getattr(ml.md.frames[-1], h)
-                palm = hand.palm_position()
-                wrist = hand.wrist_position()
-
-                elbow = hand.elbow_position()
+                position_palm = hand.palm_position()
                 pose_palm = Pose()
-                pose_palm.position = Point(x=palm[0], y=palm[1], z=palm[2])
-                pose_wrist = Pose()
-                pose_wrist.position = Point(x=wrist[0], y=wrist[1], z=wrist[2])
-                pose_elbow = Pose()
-                pose_elbow.position = Point(x=elbow[0], y=elbow[1], z=elbow[2])
-                pose_palm_ = tfm.transformLeapToUIsimple(pose_palm)
-                pose_wrist_ = tfm.transformLeapToUIsimple(pose_wrist)
-                x, y = pose_palm_.position.x, pose_palm_.position.y
-                x_, y_ = pose_wrist_.position.x, pose_wrist_.position.y
-                painter.drawLine(x, y, x_, y_)
-                pose_elbow_ = tfm.transformLeapToUIsimple(pose_elbow)
-                x, y = pose_elbow_.position.x, pose_elbow_.position.y
-                painter.drawLine(x, y, x_, y_)
-
-                if h == 'l':
-                    ''' Set builder mode '''
-                    nBuild_modes = len(ml.md.build_modes)
-                    id_build_mode = ml.md.build_modes.index(ml.md.build_mode)
-                    painter.setPen(QPen(Qt.blue, 4))
-                    for n, i in enumerate(ml.md.build_modes):
-                        x_bm, y_bm = point_by_ratio((x, y),(x_, y_), 0.5+0.5*(n/nBuild_modes))
-
-                        if n == id_build_mode:
-                            painter.setBrush(QBrush(Qt.blue, Qt.SolidPattern))
-                        else:
-                            painter.setBrush(QBrush(Qt.blue, Qt.NoBrush))
-                        painter.drawEllipse(x+x_bm-5, y+y_bm-5, 10, 10)
-
-                    painter.setPen(QPen(Qt.black, 2))
+                pose_palm.position = Point(x=position_palm[0], y=position_palm[1], z=position_palm[2])
 
                 for finger in hand.fingers:
-                    for b in range(0, 4):
-                        bone = finger.bones[b]
-                        pose_bone_prev = Pose()
-                        pose_bone_prev.position = Point(x=bone.prev_joint[0], y=bone.prev_joint[1], z=bone.prev_joint[2])
-                        pose_bone_next = Pose()
-                        pose_bone_next.position = Point(x=bone.next_joint[0], y=bone.next_joint[1], z=bone.next_joint[2])
-                        pose_bone_prev_ = tfm.transformLeapToUIsimple(pose_bone_prev)
-                        pose_bone_next_ = tfm.transformLeapToUIsimple(pose_bone_next)
-                        x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
-                        x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
-                        painter.drawLine(x, y, x_, y_)
+                    bone = finger.bones[3]
+
+                    pose_bone_next = Pose()
+                    pose_bone_next.position = Point(x=position_palm[0]+bone.next_joint[0], y=position_palm[1]+bone.next_joint[1], z=position_palm[2]+bone.next_joint[2])
+                    pose_bone_prev_ = tfm.transformHi5ToUIsimple(pose_palm)
+                    pose_bone_next_ = tfm.transformHi5ToUIsimple(pose_bone_next)
+                    x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
+                    x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
+                    painter.drawLine(x, y, x_, y_)
 
 
     def movePage(self, e):
@@ -1326,7 +1352,6 @@ class Example(QMainWindow):
                         qp.drawLine(X, Y+rh, X+ARRL, Y-ARRL+rh)
         if ml.md.live_mode_drawing:
             qp.drawPixmap(w/2, ICON_SIZE/2+TOP_MARGIN, ICON_SIZE/2, ICON_SIZE/2, QPixmap(settings.paths.graphics_path+"directional.png"))
-        if ml.md.live_mode_drawing_rot:
             qp.drawPixmap(w/2+ICON_SIZE/2, ICON_SIZE/2+TOP_MARGIN, ICON_SIZE/2, ICON_SIZE/2, QPixmap(settings.paths.graphics_path+"round.png"))
 
         if self.MoveViewState:

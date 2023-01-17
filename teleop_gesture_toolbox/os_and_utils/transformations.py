@@ -240,6 +240,35 @@ class Transformations():
         return pose_
 
     @staticmethod
+    def transformHi5ToUIsimple(pose, out='pose'):
+        ''' Hi5 -> UI
+        Parameters:
+            pose (Pose() or list)
+            out (Str): 'pose' -> output as Pose, 'list' -> output as list
+        Returns:
+            xyz (Pose or list - based on out Param)
+        '''
+        if isinstance(pose, list):
+            x, y, z = pose[0], pose[1], pose[2]
+        else:
+            x, y, z = pose.position.x, pose.position.y, pose.position.z
+        x_ = 2*(y*1000) + settings.w/2 - 3750
+        y_ = 2*(x*1000) + settings.h/2 - 2670
+        z_ = float(round(-((z*1000))/10))
+
+        print(x_,y_)
+
+        if out == 'pose':
+            pose_ = Pose()
+            pose_.orientation = pose.orientation
+            pose_.position.x, pose_.position.y, pose_.position.z = x_, y_, z_
+        elif out == 'list':
+            pose_ = x_, y_, z_
+        else: raise Exception(f"transformLeapToUIsimple wrong argumeter: {out}")
+
+        return pose_
+
+    @staticmethod
     def transformLeapToUI(pose, env, scale):
         ''' Leap -> UI
         '''
