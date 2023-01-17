@@ -31,9 +31,13 @@ except ModuleNotFoundError: settings = None
 class Frame():
     ''' Advanced variables derived from frame object
     '''
-    def __init__(self, frame=None, leapgestures=None):
+    def __init__(self, frame=None, leapgestures=None, import_device_if_available='leap'):
         if frame:
-            self.import_from_leap(frame)
+            if import_device_if_available == 'leap':
+                self.import_from_leap(frame)
+            elif import_device_if_available == 'hi5':
+                self.import_from_hi5(frame)
+            else: raise Exception(f"import_device_if_available {import_device_if_available} not implemented!")
         else:
             # Stamp
             self.seq = 0 # ID of frame
@@ -52,6 +56,34 @@ class Frame():
 
     def stamp(self):
         return self.sec+self.nanosec*1e-9
+
+    def import_from_hi5(self, frame):
+        (gloves, left_tracker, right_tracker, id ) = frame
+
+        #if left_tracker is None or right_tracker is None:
+        #    print("left_tracker or right_tracker not received yet!")
+        #    return None
+
+        ''' Note, if gloves and tracker stamps are near each other I don't need
+        to synchronize the data and keep multiple stamps
+        '''
+        #if abs(gloves.header.stamp.sec - left_tracker.header.stamp.sec) > 0.05:
+        #    if abs(left_tracker.header.stamp.sec - right_tracker.header.stamp.sec) > 0.05:
+        #        print("trackers and gloves are not synchronized, need to implement syncing in hi5.py")
+        #        return None
+
+        self.seq = id
+        self.fps = 10.
+        self.sec = gloves.header.stamp.sec
+        self.nanosec = gloves.header.stamp.nanosec
+        self.hands = 2
+
+        left_tracker.pose
+        right_tracker.pose
+        hand = ('left', gloves.left_hand, gloves.left_thumb, gloves.left_index, gloves.left_middle, gloves.left_ring, gloves.left_pinky)
+        self.l = Hand(hand, import_device_if_available='hi5')
+        hand = ('right', gloves.right_hand, gloves.right_thumb, gloves.right_index, gloves.right_middle, gloves.right_ring, gloves.right_pinky)
+        self.r = Hand(hand, import_device_if_available='hi5')
 
     def import_from_leap(self, frame):
         self.seq = frame.id
@@ -262,10 +294,13 @@ class Frame():
 class Hand():
     ''' Advanced variables of hand derived from hand object
     '''
-    def __init__(self, hand=None):
+    def __init__(self, hand=None, import_device_if_available='leap'):
         if hand:
             # Import Hand data from Leap Motion hand object
-            self.import_from_leap(hand)
+            if import_device_if_available == 'leap':
+                self.import_from_leap(hand)
+            elif import_device_if_available == 'hi5':
+                self.import_from_hi5(hand)
         else:
             self.visible = False
             self.id = 0
@@ -372,6 +407,52 @@ class Hand():
         self.arm_basis = [Vector(x=v1[0], y=v1[1], z=v1[2]),
                           Vector(x=v2[0], y=v2[1], z=v2[2]),
                           Vector(x=v3[0], y=v3[1], z=v3[2])]
+
+    def import_from_hi5(self, hnd):
+        self.visible = True
+        if hnd[0] == 'left':
+            self.id = 0 # Hi5 has only two hands at one session
+            self.is_left = True
+            self.is_right = False
+        elif hnd[0] == 'right':
+            self.id = 1 # Hi5 has only two hands at one session
+            self.is_left = False
+            self.is_right = True
+        self.is_valid = True # We suppose Hi5 gloves are always valid
+        self.confidence = 1.0 # We don't have Hi5 gloves confidence measure
+        # needs to be computed separately
+        self.grab_strength = 0.0 #hand.grab_strength
+        self.pinch_strength = 0.0 #hand.pinch_strength
+
+
+        # hnd[1] is type Pose
+        self.palm_position = Vector([hnd[1].position.x, hnd[1].position.y, hnd[1].position.z])
+        palm_q = (hnd[1].orientation.x, hnd[1].orientation.y, hnd[1].orientation.z, hnd[1].orientation.w)
+        d = transform_quaternion_to_direction_vector(palm_q)
+        self.direction = Vector(x=d[0], y=d[1], z=d[2])
+        n = transform_quaternion_to_normal_vector(palm_q)
+        self.palm_normal = Vector(x=n[0], y=n[1], z=n[2])
+
+        self.palm_velocity = Vector() # Not implemented
+        self.basis = [Vector(), Vector(), Vector()] # Not implemented
+        self.sphere_center = Vector() # Not implemented
+        self.sphere_radius = -1. # Not implemented
+        self.stabilized_palm_position = Vector() # Not implemented
+
+        self.fingers = [Finger(hnd[2], import_device_if_available='hi5'),
+                        Finger(hnd[3], import_device_if_available='hi5'),
+                        Finger(hnd[4], import_device_if_available='hi5'),
+                        Finger(hnd[5], import_device_if_available='hi5'),
+                        Finger(hnd[6], import_device_if_available='hi5')]
+
+        self.palm_width = -1. # Is not known
+        self.time_visible = -1. # Is not known
+        self.wrist_position = Vector() # Is not known
+        self.elbow_position = Vector() # Is not known
+        self.arm_valid = False # Doesn't measure arm/elbow
+        self.arm_width = -1. # Is not known
+        self.arm_direction = Vector() # Is not known
+        self.arm_basis = [Vector(), Vector(), Vector()] # Is now known
 
     def import_from_ros(self, hnd):
         self.visible = hnd.visible
@@ -657,10 +738,13 @@ def angle_between_two_angles(vector_1, vector_2):
 
 
 class Bone():
-    def __init__(self, bone=None):
+    def __init__(self, bone=None, import_device_if_available='leap'):
         if bone:
             # Import Finger data from Leap Motion finger object
-            self.import_from_leap(bone)
+            if import_device_if_available == 'leap':
+                self.import_from_leap(bone)
+            elif import_device_if_available == 'hi5':
+                self.import_from_hi5(bone)
         else:
             self.basis = [Vector(),Vector(),Vector()]
             self.direction = Vector()
@@ -690,6 +774,22 @@ class Bone():
         self.length = bone.length
         self.width = bone.width
 
+    def import_from_hi5(self, bone):
+        # bone is type Pose
+        v = bone.position.x, bone.position.y, bone.position.z
+        self.next_joint = Vector(x=v[0], y=v[1], z=v[2])
+        self.prev_joint = Vector(x=v[0], y=v[1], z=v[2])
+        self.center = Vector(x=v[0], y=v[1], z=v[2])
+
+        q = bone.orientation.x, bone.orientation.y, bone.orientation.z, bone.orientation.w
+        d = transform_quaternion_to_direction_vector(q)
+        self.direction = Vector(x=v[0], y=v[1], z=v[2])
+
+        self.basis = [Vector(), Vector(), Vector()] # not implemented
+        self.is_valid = True
+        self.length = -1. # Is not known
+        self.width = -1. # Is not known
+
     def import_from_ros(self, bn):
         v1 = bn.basis[0:3]
         v2 = bn.basis[3:6]
@@ -710,10 +810,13 @@ class Bone():
         self.width = bn.width
 
 class Finger():
-    def __init__(self, finger=None):
+    def __init__(self, finger=None, import_device_if_available='leap'):
         if finger:
             # Import Finger data from Leap Motion finger object
-            self.import_from_leap(finger)
+            if import_device_if_available == 'leap':
+                self.import_from_leap(finger)
+            elif import_device_if_available == 'hi5':
+                self.import_from_hi5(finger)
         else:
             self.bones = [Bone(), # Metacarpal
                           Bone(), # Proximal
@@ -725,6 +828,12 @@ class Finger():
                       Bone(finger.bone(1)),
                       Bone(finger.bone(2)),
                       Bone(finger.bone(3))]
+
+    def import_from_hi5(self, finger):
+        self.bones = [Bone(),
+                      Bone(),
+                      Bone(),
+                      Bone(finger, import_device_if_available='hi5')]
 
     def import_from_ros(self, bns):
         self.bones[0].import_from_ros(bns[0])
@@ -809,4 +918,21 @@ class LeapGesturesScreentap():
         self.direction = [0.,0.,0.]
         self.position = [0.,0.,0.]
         self.state = 0
-#
+
+# ----------------------------------------------
+
+def transform_quaternion_to_direction_vector(q):
+    x,y,z,w = q
+    V = [0.,0.,0.]
+    V[0] = 2 * (x * z - w * y)
+    V[1] = 2 * (y * z + w * x)
+    V[2] = 1 - 2 * (x * x + y * y)
+    return V
+
+def transform_quaternion_to_normal_vector(q):
+    x,y,z,w = q
+    V = [0.,0.,0.]
+    V[0] = 2 * (x*y - w*z)
+    V[1] = 1 - 2 * (x*x + z*z)
+    V[2] = 2 * (y*z + w*x)
+    return V
