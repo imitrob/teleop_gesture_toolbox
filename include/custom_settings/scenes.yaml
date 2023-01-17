@@ -107,48 +107,57 @@ pickplace3:
 
 deitic_accuracy_config_scene:
   Objects:
-    box1:
+    box:
       pose:
         position: {'x': 0.2, 'y': -0.2, 'z': 0.02}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.01, 'y': 0.01, 'z': 0.01}
-    box2:
+      color: blue
+    box1:
       pose:
         position: {'x': 0.2, 'y':  0.0, 'z': 0.02}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.01, 'y': 0.01, 'z': 0.01}
-    box3:
+      color: blue
+    box2:
       pose:
         position: {'x': 0.2, 'y': 0.2, 'z': 0.02}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.01, 'y': 0.01, 'z': 0.01}
-    box4:
+      color: blue
+    box3:
       pose:
         position: {'x': 0.4, 'y': -0.2, 'z': 0.02}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.01, 'y': 0.01, 'z': 0.01}
-    box5:
+      color: blue
+    box4:
       pose:
         position: {'x': 0.4, 'y': 0.0, 'z': 0.02}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.01, 'y': 0.01, 'z': 0.01}
-    box6:
+      color: blue
+    box5:
       pose:
         position: {'x': 0.4, 'y':  0.2, 'z': 0.02}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.01, 'y': 0.01, 'z': 0.01}
-    box7:
+      color: blue
+    box6:
       pose:
         position: {'x': 0.6, 'y': -0.2, 'z': 0.02}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.01, 'y': 0.01, 'z': 0.01}
-    box8:
+      color: blue
+    box7:
       pose:
         position: {'x': 0.6, 'y':  0.0, 'z': 0.02}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.01, 'y': 0.01, 'z': 0.01}
-    box9:
+      color: blue
+    box8:
       pose:
         position: {'x': 0.6, 'y':  0.2, 'z': 0.02}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.01, 'y': 0.01, 'z': 0.01}
+      color: blue

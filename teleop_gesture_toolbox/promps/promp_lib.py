@@ -1,7 +1,7 @@
 '''
 ProMP lib can generate dynamic motion primitives, static ones and its combinaitons
 
-Gesture ID is mapped to MotionPrimitive ID (gesture_config.yaml)
+Gesture ID is mapped to MotionPrimitive ID (main_config.yaml)
 Gesture ID -> Movement of hand (classification)
 MotionPrimitive ID -> Can generate - Dynamic motion primitive
                                    - Static motion primitive
@@ -137,7 +137,7 @@ class ProMPGenerator():
             trajectory ([n][x,y,z]): n ~ 100 (?) It is ProMP output path (When static MP -> returns None)
             waypoints (dict{} of Waypoint() instances), where index is time (0-1) of trajectory execution
         '''
-        # Uses gesture_config.yaml
+        # Uses main_config.yaml
         id_primitive = map_to_primitive_gesture(id)
         if id_primitive is None: return None
         print(f"Generating path for id {id} to {id_primitive}")
@@ -166,6 +166,8 @@ def map_to_primitive_gesture(id_gesture):
     ''' Mapping hand gesture ID to robot primitive gesture ID
     '''
     mapping = settings.get_gesture_mapping()
+    assert mapping is not {}, "Mapping is {} empty dict"
+
     try:
         mapping[id_gesture]
     except KeyError:

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 ''' Run main_sample_thread.py with: gesture_detection_approach: pymc3
-                                    in include/custom_settings/gesture_config.yaml
+                                    in include/custom_settings/main_config.yaml
 '''
 import numpy as np
 import theano

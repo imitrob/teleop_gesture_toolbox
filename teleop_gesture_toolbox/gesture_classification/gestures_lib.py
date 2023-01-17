@@ -294,7 +294,7 @@ class TemplateGs():
             # fill the self.info with gesutre in yaml file: self.info.<g1>. ...
             configGestures = ParseYAML.load_gesture_config_file(settings.paths.custom_settings_yaml)
             gestures = ParseYAML.load_gestures_file(settings.paths.custom_settings_yaml, ret='obj')
-            GsSet = gestures[configGestures['using_set']]
+            GsSet = gestures[configGestures['using_config']]
             for gesture in GsSet:
                 type_ = ParseYAML.parseGestureType(GsSet[gesture])
                 if type == type_:

@@ -455,7 +455,7 @@ class ParseYAML():
 
     @staticmethod
     def load_gesture_config_file(custom_settings_yaml):
-        with open(custom_settings_yaml+"gesture_config.yaml", 'r') as stream:
+        with open(custom_settings_yaml+"main_config.yaml", 'r') as stream:
             gesture_config = ordered_load(stream, yaml.SafeLoader)
         return gesture_config
 
@@ -477,7 +477,7 @@ class ParseYAML():
 
         keys = gestures_data_loaded.keys()
 
-        Gs_set = gesture_config['using_set']
+        Gs_set = gesture_config['using_config']
 
         Gs = []
         GsK = []
@@ -485,7 +485,7 @@ class ParseYAML():
         try:
             gestures_data_loaded[Gs_set]
         except:
-            raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
+            raise Exception("Error in gesture_recording.yaml, using_config variable, does not point to any available set below!")
         try:
             gestures_data_loaded[Gs_set].keys()
         except:
