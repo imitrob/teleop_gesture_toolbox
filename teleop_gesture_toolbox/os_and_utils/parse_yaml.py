@@ -33,8 +33,8 @@ class ParseYAML():
 
             if object[key] in ['', 'none']:
                 return ''
-            elif not any(x in object[key] for x in ['.obj','.dae']):
-                raise Exception("Mesh file not in right format, check YAML file!")
+            #elif not any(x in object[key] for x in ['.obj','.dae', '.ply']):
+            #    raise Exception("Mesh file not in right format, check YAML file!")
             else:
                 return object[key]
         else:
@@ -61,6 +61,24 @@ class ParseYAML():
                 return object[key]
         else:
             return ''
+
+    @staticmethod
+    def parseSemanticType(object):
+        keys = ['semantic_type']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if object[key] in ['']:
+                return 'object'
+            elif object[key] in ['object', 'drawer', 'cup']:
+                return object[key]
+            else:
+                raise Exception("semantic_type not defined!")
+        else:
+            return 'object'
 
     @staticmethod
     def parseInertiaTransform(object):
@@ -285,13 +303,13 @@ class ParseYAML():
             q = poses_data[pose_vec]['pose']['orientation']
             rosPose.orientation = Quaternion(x=q['x'],y=q['y'],z=q['z'],w=q['w'])
         else:
-            rosPose.position = ParseYAML.parsePosition(pose_vec, poses_data)
+            rosPose.position = ParseYAML.parsePositionOrSize(pose_vec, poses_data)
             rosPose.orientation = ParseYAML.parseOrientation(pose_vec, poses_data)
         return rosPose
 
 
     @staticmethod
-    def parsePosition(pose_vec, poses_data, key='position'):
+    def parsePositionOrSize(pose_vec, poses_data, key='position'):
         '''
             1. position is {'x':0,'y':0,'z':0} or [0,0,0]
             2. position is {'x':[0,1], 'y':[0,1], 'z':[0,1]}
@@ -302,6 +320,8 @@ class ParseYAML():
         # Check if exists:
         if key in pose_vec.keys():
             position = pose_vec[key]
+        elif key == 'size':
+            position = [1.0,1.0,1.0]
         else:
             print("[WARN*] Position not specified in YAML, Maybe TODO: to defaulf value of env")
             position = [0.5,0.0,0.5]

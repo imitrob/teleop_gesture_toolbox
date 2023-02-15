@@ -1,10 +1,11 @@
 import numpy as np
 
 OFFSETS = {'sugar box': 0.085+0.04, 'cracker box': 0.107+0.03, 'pudding box': 0.045+0.07,
-'mustard bottle': 0.095+0.07, 'bowl': 0.0, 'potted meat can': 0.1, 'foam brick': 0.05,
+'mustard bottle': 0.095+0.07, 'bowl': 0.0, 'potted meat can': 0.0, 'foam brick': 0.0,
 'tomato soup can': 0.1}
 OFFSETS_Z_ROT = {'sugar box': 0.0, 'cracker box': 0.0, 'pudding box': np.pi/2,
-'mustard bottle': 0.0, 'bowl': 0.0, 'potted meat can': np.pi/2, 'foam brick': 0.0,
+'mustard bottle': 0.0, 'bowl': 0.0, 'potted meat can': np.pi,
+'foam brick': 0.0,
 'tomato soup can': 0.0}
 
 NAME2TYPE = {

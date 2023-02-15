@@ -1,20 +1,18 @@
-import os, yaml
+import os, yaml, sys
 from os_and_utils import settings
 from os_and_utils.utils_ros import extv
 from os_and_utils.utils import merge_two_dicts, ordered_load
 from os_and_utils.parse_yaml import ParseYAML
 
-from geometry_msgs.msg import Vector3
+from geometry_msgs.msg import Vector3, Point, Quaternion, Pose
 import os_and_utils.move_lib as ml
 import os_and_utils.ros_communication_main as rc
 
 from ament_index_python.packages import get_package_share_directory
-try:
-    package_share_directory = get_package_share_directory('context_based_gesture_operation')
-    import sys; sys.path.append(package_share_directory)
-    import context_based_gesture_operation as cbgo
-except:
-    cbgo = None
+from os_and_utils.utils import get_cbgo_path
+sys.path.append(get_cbgo_path())
+from context_based_gesture_operation.srcmodules import Scenes as cbgoScenes
+from context_based_gesture_operation.srcmodules import Objects as cbgoObjects
 
 class CustomPoses():
     @staticmethod
@@ -146,79 +144,98 @@ class CustomScenes():
                         scenes.append(CustomScene(pickedscene, poses_data_loaded))
         return scenes
 
-    def make_scene(self, new_scene='', approach=0):
+    def make_scene_from_scenedef(self,s):
+        rc.roscm.r.reset()
+        ''' 1. Spawn objects '''
+        for obj in s.objects:
+            pose = Pose(position=Point(x=obj.position_real[0], y=obj.position_real[1], z=obj.position_real[2]), orientation=Quaternion(x=obj.orientation[0], y=obj.orientation[1], z=obj.orientation[2], w=obj.orientation[3]))
+            #if shape:
+            if obj.ycb:
+                rc.roscm.r.add_or_edit_object(name=obj.name, size=1., color=obj.color, pose=pose, dynamic="true", pub_info="true", file=obj.name)
+            else:
+                rc.roscm.r.add_or_edit_object(name=obj.name, size=obj.size, color=obj.color, pose=pose, dynamic="true", pub_info="true")
+            #elif file:
+            #    if scale: size = [self.scenes[id].object_scales[i], 0, 0]
+            #    else: size = [0,0,0]
+            #    rc.roscm.r.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/teleop_gesture_toolbox/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=self.scenes[id].object_poses[i], frame_id=settings.base_link)
+            #else:
+            #    rc.roscm.r.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+        global scene
+        scene = s
+
+        ''' 2. Set goal to robot '''
+
+        ''' 3. Set all object state '''
+
+
+    def make_scene_from_yaml(self, new_scene=''):
         ''' Prepare scene, add objects for obstacle or manipulation.
             scene (str):
-
-        approach == 0 - old approach, approach == 1 - new scene approach - from context_based_gesture_operation
         '''
-        with rc.rossem:
-            interface_handle = rc.roscm.r
-            refresh()
-            if not interface_handle: print("[Scenes] No interface handle added!")
+        interface_handle = rc.roscm.r
+        refresh()
+        if not interface_handle: print("[Scenes] No interface handle added!")
         global scene
         scenes = self.names()
         if scene: # When scene is initialized
-            # get id of current scene
-            id = scenes.index(scene.name)
             # remove objects from current scene
             if interface_handle:
-                with rc.rossem:
-                    for i in range(0, len(self.scenes[id].object_names)):
-                        interface_handle.remove_object(name=self.scenes[id].object_names[i])
+                for i in range(0, len(scene.O)):
+                    interface_handle.remove_object(name=scene.O[i])
                 #if ml.md.attached:
                 #    self.detach_item_moveit(name=ml.md.attached)
         # get id of new scene
         id = self.names().index(new_scene)
 
-        if approach == 1:
-            assert cbgo is not None, "context_based_gesture_operation not imported!"
-            s = cbgo.srcmodules.Scenes.Scene(random=False)
+        scene = cbgoScenes.Scene(random=False, objects=[])
         for i in range(0, len(self.scenes[id].object_names)):
-            if approach == 1:
-                pose = self.scenes[id].object_poses[i]
-                o = cbgo.srcmodules.Objects.Object(name=f'object{i}',
-                                position=[pose.position.x,pose.position.y,pose.position.z],
-                                orientation=[pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w],
-                                random=False)
-                s.objects.append(o)
+            pose = self.scenes[id].object_poses[i]
+            print(f"Object name: {self.scenes[id].object_names[i]}")
 
-            obj_name = self.scenes[id].object_names[i] # object name
-            size = extv(self.scenes[id].object_sizes[i])
-            color = self.scenes[id].object_colors[i]
-            scale = self.scenes[id].object_scales[i]
-            shape = self.scenes[id].object_shapes[i]
-            mass = self.scenes[id].object_masses[i]
-            friction = self.scenes[id].object_frictions[i]
-            inertia = self.scenes[id].object_inertia[i]
-            inertia_transformation = self.scenes[id].object_inertiaTransform[i]
-            dynamic = self.scenes[id].object_dynamic[i]
-            pub_info = self.scenes[id].object_pub_info[i]
-            texture_file = self.scenes[id].object_texture_file[i]
-            file = self.scenes[id].object_file[i]
+            semantic_type = self.scenes[id].object_semantic_types[i]
+            o = getattr(cbgoObjects, semantic_type.capitalize())(name=f'{self.scenes[id].object_names[i]}',
+                            position_real=[pose.position.x,pose.position.y,pose.position.z],
+                            orientation=[pose.orientation.x, pose.orientation.y, pose.orientation.z, pose.orientation.w],
+                            random=False,
+                            size = extv(self.scenes[id].object_sizes[i]),
+                            color = self.scenes[id].object_colors[i],
+                            scale = self.scenes[id].object_scales[i],
+                            shape_type = self.scenes[id].object_shapes[i],
+                            mass = self.scenes[id].object_masses[i],
+                            friction = self.scenes[id].object_frictions[i],
+                            inertia = self.scenes[id].object_inertia[i],
+                            inertia_transformation = self.scenes[id].object_inertiaTransform[i],
+                            )
+            if semantic_type == 'drawer':
+                o.opened = True
+            scene.objects.append(o)
 
             if interface_handle:
-                with rc.rossem:
-                    if shape:
-                        interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape=shape, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
-                    elif file:
-                        if scale: size = [self.scenes[id].object_scales[i], 0, 0]
-                        else: size = [0,0,0]
-                        interface_handle.add_or_edit_object(file=f"{settings.paths.home}/{settings.paths.ws_folder}/src/teleop_gesture_toolbox/include/models/{file}", size=size, color=color, mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file, name=obj_name, pose=self.scenes[id].object_poses[i], frame_id=settings.base_link)
-                    else:
-                        interface_handle.add_or_edit_object(name=obj_name, frame_id=settings.base_link, size=size, color=color, pose=self.scenes[id].object_poses[i], shape='cube', mass=mass, friction=friction, inertia=inertia, inertia_transformation=inertia_transformation, dynamic=dynamic, pub_info=pub_info, texture_file=texture_file)
+                if o.shape_type:
+                    interface_handle.add_or_edit_object(name=o.name, frame_id=settings.base_link, size=o.size,
+                    color=o.color, pose=self.scenes[id].object_poses[i], shape=o.shape_type, mass=o.mass, friction=o.friction,
+                    inertia=o.inertia, inertia_transformation=o.inertia_transformation, dynamic=self.scenes[id].object_dynamic[i],
+                    pub_info=self.scenes[id].object_pub_info[i], texture_file=self.scenes[id].object_texture_file[i])
+                elif self.scenes[id].object_file[i]:
+                    if self.scenes[id].object_scales[i]: size = [self.scenes[id].object_scales[i], 0, 0]
+                    else: size = [0,0,0]
+                    interface_handle.add_or_edit_object(
+                    file=f"{self.scenes[id].object_file[i]}",
+                    size=o.size, color=o.color, mass=o.mass, friction=o.friction, inertia=o.inertia, inertia_transformation=o.inertia_transformation,
+                    dynamic=self.scenes[id].object_dynamic[i], pub_info=self.scenes[id].object_pub_info[i],
+                    texture_file=self.scenes[id].object_texture_file[i], name=o.name, pose=self.scenes[id].object_poses[i],
+                    frame_id=settings.base_link)
+                else:
+                    interface_handle.add_or_edit_object(name=o.name, frame_id=settings.base_link, size=o.size, color=o.color,
+                    pose=self.scenes[id].object_poses[i], shape='cube', mass=o.mass, friction=o.friction, inertia=o.inertia,
+                    inertia_transformation=o.inertia_transformation, dynamic=self.scenes[id].object_dynamic[i],
+                    pub_info=self.scenes[id].object_pub_info[i], texture_file=self.scenes[id].object_texture_file[i])
 
-
-        scene = self.scenes[id]
-        print("SCENE in make scen function", scene)
-        if approach == 1:
-            scene.s = s
         ml.md.structures = []
         ml.md.attached = False
-        if id == 0:
-            scene = None
         ml.md.object_focus_id = 0
         print(f"[Scenes] Scene {new_scene} ready!")
+        #print(scene)
 
 
 
@@ -251,7 +268,9 @@ class CustomScene():
         self.object_texture_file = []
         self.object_file = []
 
-        self.s = None # Approach 1
+        self.object_semantic_types = []
+
+
         if not scene_data:
             return
 
@@ -262,7 +281,7 @@ class CustomScene():
             pose_vec = objects[object]['pose']
 
             self.object_poses.append(ParseYAML.parsePose(pose_vec, poses_data))
-            self.object_sizes.append(ParseYAML.parsePosition(objects[object], poses_data, key='size'))
+            self.object_sizes.append(ParseYAML.parsePositionOrSize(objects[object], poses_data, key='size'))
             self.object_scales.append(ParseYAML.parseScale(objects[object]))
             self.object_colors.append(ParseYAML.parseColor(objects[object]))
             self.object_shapes.append(ParseYAML.parseShape(objects[object]))
@@ -274,6 +293,8 @@ class CustomScene():
             self.object_pub_info.append(ParseYAML.parsePubInfo(objects[object]))
             self.object_texture_file.append(ParseYAML.parseTextureFile(objects[object]))
             self.object_file.append(ParseYAML.parseMeshFile(objects[object]))
+
+            self.object_semantic_types.append(ParseYAML.parseSemanticType(objects[object]))
             if 'mesh_trans_origin' in scene_data.keys():
                 if 'axes' in scene_data.keys():
                     self.mesh_trans_origin = TransformWithAxes(scene_data['mesh_trans_origin'], scene_data['axes'])
@@ -292,13 +313,13 @@ class CustomScene():
                 min_id = n
         return min_id
 
-def init(approach=0):
+def init():
     ### 5. Latest Data                      ###
     ###     - Generated Scenes from YAML    ###
     ###     - Generated Paths from YAML     ###
     ###     - Current scene info            ###
     ###########################################
-    global poses, paths, scenes, scene, scene_approach
+    global poses, paths, scenes, scene
 
     ## Objects for saved scenes and paths
     #paths
@@ -308,7 +329,6 @@ def init(approach=0):
     paths = CustomPaths.GenerateFromYAML(scenes)
     scene = None # current scene informations
 
-    scene_approach = approach
 
 
 def refresh():

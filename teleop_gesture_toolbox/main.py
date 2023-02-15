@@ -16,8 +16,7 @@ import os_and_utils.ui_lib as ui
 import os_and_utils.ros_communication_main as rc; rc.init('real')
 
 def main():
-    with rc.rossem:
-        rate = rc.roscm.create_rate(1.0)
+    rate = rc.roscm.create_rate_(1.0)
 
     #spinnin_thread = threading.Thread(target=rclpy.spin, daemon=True, args=(rc.roscm,))
     #spinnin_thread.start()
@@ -26,9 +25,8 @@ def main():
 
     try:
         while rclpy.ok():
-            with rc.rossem:
-                ml.md.main_handle_step(None)
-                #rc.roscm.send_g_data()
+            ml.md.main_handle_step(None)
+            #rc.roscm.send_g_data()
             time.sleep(0.01)#rate.sleep()
     except KeyboardInterrupt:
         pass
@@ -38,8 +36,7 @@ def main():
 
 def spinning_threadfn():
     while rclpy.ok():
-        with rc.rossem:
-            rclpy.spin_once(rc.roscm)
+        rc.roscm.spin_once()
         time.sleep(0.001)
 
 def spinning_threadfn2():

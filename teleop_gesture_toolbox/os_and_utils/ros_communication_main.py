@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, time
 import rclpy
 from rclpy.node import Node
 from os_and_utils import settings
@@ -27,16 +27,23 @@ import teleop_gesture_toolbox.msg as rosm
 from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
 import threading
 
+from context_based_gesture_operation.msg import Scene as SceneRos
+from context_based_gesture_operation.msg import Gestures as GesturesRos
+from context_based_gesture_operation.srv import BTreeSingleCall
+from teleop_gesture_toolbox.srv import ChangeNetwork, SaveHandRecord
+
 ''' Experimental '''
+DEBUGSEMAPHORE = False
 EXPERIMENTAL = False
 if EXPERIMENTAL:
     from spatialmath import UnitQuaternion
+    import roboticstoolbox as rtb
 
 try:
     import coppelia_sim_ros_interface
     from coppelia_sim_ros_interface.msg import ObjectInfo
     sys.path.append(settings.paths.coppelia_sim_ros_interface_path)
-    from coppelia_sim_ros_client import CoppeliaROSInterface
+    from coppelia_sim_ros_client import CoppeliaROSInterface, CoppeliaROSInterfaceWithSem
 except:
     print("WARNING: coppelia_sim_ros_interface package was not found!")
     coppelia_sim_ros_interface = None
@@ -55,6 +62,14 @@ try:
 except ModuleNotFoundError:
     ZMQArmerInterface = None
 
+def withsem(func):
+    def inner(*args, **kwargs):
+        if DEBUGSEMAPHORE: print(f"ACQ, {args}, {kwargs}")
+        with rossem:
+            ret = func(*args, **kwargs)
+        if DEBUGSEMAPHORE: print("---")
+        return ret
+    return inner
 
 class ROSComm(Node):
     ''' ROS communication of main thread: Subscribers (init & callbacks) and Publishers
@@ -66,7 +81,7 @@ class ROSComm(Node):
         # Saving the joint_states
         ''' Coppelia Sim Feedbacks '''
         if settings.simulator == 'coppelia':
-            self.create_subscription(JointState, "joint_states_coppelia", self.joint_states, 10)
+            self.create_subscription(JointState, "joint_states_coppelia", self.joint_states_callback, 10)
 
             self.create_subscription(Pose, '/pose_eef', self.coppelia_eef, 10)
             self.create_subscription(Vector3, '/coppelia/camera_angle', self.camera_angle, 10)
@@ -78,23 +93,24 @@ class ROSComm(Node):
         ''' Real Panda Feedbacks'''
         if EXPERIMENTAL:
             if settings.simulator == 'real':
-                self.create_subscription(Pose, '/joint_states', self.joint_states, 10)
+                self.create_subscription(Pose, '/joint_states', self.joint_states_callback, 10)
                 self.pose_eef_pub = self.create_publisher(Pose, '/pose_eef', 10)
 
             self.joint_states_n = 0
+            self.model = rtb.models.Panda()
 
         # Saving relaxedIK output
         #self.create_subscription(JointAngles, '/joint_angle_solutions', self.ik, 10)
         # Goal pose publisher
         self.ee_pose_goals_pub = self.create_publisher(EEPoseGoals,'/ee_pose_goals', 5)
 
-        self.create_subscription(rosm.Frame, '/hand_frame', ROSComm.hand_frame, 10)
+        self.create_subscription(rosm.Frame, '/hand_frame', ROSComm.hand_frame_callback, 10)
 
         if settings.launch_gesture_detection:
-            self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/static_detection_solutions', self.save_static_detection_solutions, 10)
+            self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/static_detection_solutions', self.save_static_detection_solutions_callback, 10)
             self.static_detection_observations_pub = self.create_publisher(DetectionObservations,'/teleop_gesture_toolbox/static_detection_observations', 5)
 
-            self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/dynamic_detection_solutions', self.save_dynamic_detection_solutions, 10)
+            self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/dynamic_detection_solutions', self.save_dynamic_detection_solutions_callback, 10)
             self.dynamic_detection_observations_pub = self.create_publisher(DetectionObservations, '/teleop_gesture_toolbox/dynamic_detection_observations', 5)
 
         self.controller = self.create_publisher(Float64MultiArray, '/teleop_gesture_toolbox/target', 5)
@@ -102,6 +118,15 @@ class ROSComm(Node):
         self.hand_mode = settings.get_hand_mode()
 
         self.gesture_solution_pub = self.create_publisher(String, '/teleop_gesture_toolbox/filtered_gestures', 5)
+
+        self.call_tree_singlerun_cli = self.create_client(BTreeSingleCall, '/btree_onerun')
+        while not self.call_tree_singlerun_cli.wait_for_service(timeout_sec=1.0):
+            print('Behaviour tree not available, waiting again...')
+
+        self.save_hand_record_cli = self.create_client(SaveHandRecord, '/save_hand_record')
+        if not self.save_hand_record_cli.wait_for_service(timeout_sec=1.0):
+            print('save_hand_record service not available!!!')
+        self.save_hand_record_req = SaveHandRecord.Request()
 
         self.r = None
         if 'coppelia' in robot_interface:
@@ -116,10 +141,63 @@ class ROSComm(Node):
             self.init_real_interface__zmqarmer__panda()
             self.is_real = True
 
+        self.last_time_livin = time.time()
+
+    @withsem
+    def save_hand_record(self, dir):
+        self.save_hand_record_req.directory = settings.paths.learn_path+dir
+        self.save_hand_record_req.save_method = 'numpy'
+        self.save_hand_record_req.recording_length = 1.0
+
+        return self.save_hand_record_cli.call_async(self.save_hand_record_req)
+
+    @withsem
+    def call_tree_singlerun(self, req):
+
+        future = self.call_tree_singlerun_cli.call_async(req)
+        while future.result() is None:
+            rossem.release()
+            time.sleep(0.2)
+            rossem.acquire()
+        #self.spin_until_future_complete_(future)
+        result = future.result().intent
+
+        return result
+
+    @withsem
+    def change_network(self, network, type):
+        change_network_cli = self.create_client(ChangeNetwork, f'/teleop_gesture_toolbox/change_{type}_network')
+
+        while not change_network_cli.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('service not available, waiting again...')
+
+        try:
+            response = change_network(data=network)
+            Gs = [g.lower() for g in response.gs]
+            settings.args = response.args
+            print("[UI] Gestures & Network changed, new set of gestures: "+str(", ".join(Gs)))
+        except rclpy.ServiceException as e:
+            print("Service call failed: %s"%e)
+        settings.paths.gesture_network_file = network
+
+        gl.gd.gesture_change_srv(local_data=response)
+
+    @withsem
+    def create_rate_(self, rate):
+        self.create_rate(rate)
+
+    @withsem
+    def get_time(self):
+        return self.get_clock().now().nanoseconds/1e9
+
+    @withsem
+    def gesture_solution_publish(self, msg):
+        return self.gesture_solution_pub.publish(msg)
+
     def init_coppelia_interface(self):
         assert coppelia_sim_ros_interface is not None, "coppelia_sim_ros_interface failed to load!"
 
-        self.r = CoppeliaROSInterface(rosnode=self)
+        self.r = CoppeliaROSInterfaceWithSem(sem=rossem, rosnode=self)
 
     def init_real_interface__pymoveit2__panda(self):
         assert PyMoveIt2Interface is not None, "pymoveit2_interface failed to load"
@@ -130,6 +208,17 @@ class ROSComm(Node):
         assert ZMQArmerInterface is not None, "ZMQArmerInterface failed to load!"
 
         self.r = ZMQArmerInterface()
+
+    def spin_once(self, sem=True):
+        if sem:
+            if DEBUGSEMAPHORE: print("ACQ - spinner")
+            with rossem:
+                self.last_time_livin = time.time()
+                rclpy.spin_once(roscm)
+            if DEBUGSEMAPHORE: print("---")
+        else:
+            self.last_time_livin = time.time()
+            rclpy.spin_once(roscm)
 
     def publish_eef_goal_pose(self, goal_pose):
         ''' Publish goal_pose /ee_pose_goals to relaxedIK with its transform
@@ -142,9 +231,17 @@ class ROSComm(Node):
         ''' Only handles pose
         '''
         if sl.scene:
-            object_names = sl.scene.object_names
-            object_id = object_names.index(data.name)
-            sl.scene.object_poses[object_id] = data.pose
+            object_names = sl.scene.O
+            if data.name in object_names:
+                object_id = object_names.index(data.name)
+                #sl.scene.object_poses[object_id] = data.pose
+                o = sl.scene.get_object_by_name(data.name)
+                o.position_real = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
+                o.position = sl.scene.pos_real_to_grid(np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z]))
+                o.quaternion = np.array([data.pose.orientation.x, data.pose.orientation.y, data.pose.orientation.z, data.pose.orientation.w])
+
+            else:
+                print("Warning. Unwanted objects on the scene")
 
     @staticmethod
     def ik(data):
@@ -162,14 +259,14 @@ class ROSComm(Node):
         ml.md.camera_orientation = data
 
     @staticmethod
-    def hand_frame(data):
+    def hand_frame_callback(data):
         ''' Hand data received by ROS msg is saved
         '''
         f = Frame()
         f.import_from_ros(data)
         ml.md.frames.append(f)
 
-    def joint_states(self, data):
+    def joint_states_callback(self, data):
         ''' Saves joint_states to * append array 'settings.joint_in_time' circle buffer.
                                   * latest data 'ml.md.joints', 'ml.md.velocity', 'ml.md.effort'
             Topic used:
@@ -200,25 +297,27 @@ class ROSComm(Node):
 
         if EXPERIMENTAL:
             self.joint_states_n+=1
-            if self.joint_states_n%10 == 0 and settings.simulator == 'real' and self.r is not None:
-                fk_se3 = self.r.model.fkine(ml.md.joints)
+            if self.joint_states_n%10 == 0 and self.r is not None:# and settings.simulator == 'real':
+                fk_se3 = self.model.fkine(ml.md.joints)
                 p = fk_se3.t
                 q = UnitQuaternion(fk_se3).vec_xyzs
 
                 rkpose = Pose(position = Point(x=p[0], y=p[1], z=p[2]), orientation = Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
-                ml.md.eef_pose = rkpose
-                self.pose_eef_pub.publish(rkpose)
-
+                p2 = np.array([ml.md.eef_pose.position.x, ml.md.eef_pose.position.y, ml.md.eef_pose.position.z])
+                print(p.round(2), p2.round(2), np.allclose(p, p2, atol=1e-2))
+                #ml.md.eef_pose = rkpose
+                #self.pose_eef_pub.publish(rkpose)
 
 
     @staticmethod
-    def save_static_detection_solutions(data):
+    def save_static_detection_solutions_callback(data):
         gl.gd.new_record(data, type='static')
 
     @staticmethod
-    def save_dynamic_detection_solutions(data):
+    def save_dynamic_detection_solutions_callback(data):
         gl.gd.new_record(data, type='dynamic')
 
+    @withsem
     def send_g_data(self):
         ''' Sends appropriate gesture data as ROS msg
             Launched node for static/dynamic detection.
@@ -328,6 +427,15 @@ class ROSComm(Node):
                 send_g_data(roscm, hand_mode, args)
 
             rate.sleep()
+
+    def spin_until_future_complete_(self, future):
+        if rossem is not None:
+            while rclpy.spin_until_future_complete(self, future, timeout_sec=0.01) is not None:
+                rossem.release()
+                time.sleep(0.01)
+                rossem.acquire()
+        else:
+            raise Exception("[ERROR] NotImplementedError!")
 
 def init(robot_interface=''):
     global roscm, rossem

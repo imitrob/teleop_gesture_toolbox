@@ -372,8 +372,10 @@ class TemplateGs():
     def relevant(self, last_secs=1.0):
         ''' Searches gestures_queue, and returns the last gesture record, None if no records in that time were made
         '''
-        if ROS: abs_time = rc.roscm.get_clock().now().nanoseconds/1e9 - last_secs
-        else: abs_time = time.time() - last_secs
+        '''if ROS:
+            abs_time = rc.roscm.get_time() - last_secs
+        else:'''
+        abs_time = time.time() - last_secs
 
         #abs_time = time.time() - last_secs
         # if happened within last_secs interval
@@ -406,17 +408,18 @@ class GestureDataHand():
 class GestureDataDetection():
     ''' The main class: gl.gd
     '''
-    def __init__(self):
+    def __init__(self, silent=False):
         self.l = GestureDataHand()
         self.r = GestureDataHand()
-        print(f"Static gestures: {self.static_info().names}, \nDynamic gestures {self.dynamic_info().names}\nMotionPrimitive ids {self.l.mp.info.names}")
+        if not silent:
+            print(f"Static gestures: {self.static_info().names}, \nDynamic gestures {self.dynamic_info().names}\nMotionPrimitive ids {self.l.mp.info.names}")
         ## TODO: Additional names for additional gestures computed by comparing left and right hand
         self.combs = None
 
         # TEMP g data:
         self.experimental_move_in_axis_toggle = [False, False, False]
 
-        self.actions_queue = collections.deque(maxlen=50)
+        self.gestures_queue = collections.deque(maxlen=50)
 
         self.static_network_info, self.dynamic_network_info = self.load_netork_info()
         # Auxiliary
@@ -429,6 +432,10 @@ class GestureDataDetection():
 
         # Save of actions
         self.action_saves = []
+
+        # Gesture prediction
+        self.static_gesture_action_prediction = [""] * self.static_info().n
+        self.dynamic_gesture_action_prediction = [""] * self.dynamic_info().n
 
     def static_info(self):
         ''' Note: info is saved both in self.l and self.r as the same
@@ -463,8 +470,10 @@ class GestureDataDetection():
     def relevant(self, time_now, hand='r', type='static', relevant_time=1.0):
         ''' Returns solutions based on hand and type if not older than relevant_time
         '''
-        if ROS: t = rc.roscm.get_clock().now().nanoseconds/1e9
-        else: t = time.time()
+        '''if ROS:
+            t = rc.roscm.get_time()
+        else: '''
+        t = time.time()
 
         self_h = getattr(self, hand)
         self_h_type = getattr(self_h, type)
@@ -543,7 +552,7 @@ class GestureDataDetection():
     '''
     LOGIC
     '''
-    def prepare_postprocessing(self, hand_tag, type, sensor_seq, activate_length=1.0, activate_length_dynamic=2.0, distance_length=3.0):
+    def prepare_postprocessing(self, hand_tag, type, sensor_seq, activate_length=1.0, activate_length_dynamic=0.3, distance_length=3.0):
         ''' High-level logic
         Parameters:
             activate_length (Int): [seconds] Time length when gesture is activated in order to make action
@@ -580,7 +589,6 @@ class GestureDataDetection():
             #print("g.above_threshold", g.above_threshold, "g.biggest_probability", g.biggest_probability, "time_visible > time_visible_threshold", g.time_visible > gs.info[n].time_visible_threshold, "time_visible", g.time_visible, "gs.info[n].time_visible_threshold", gs.info[n].time_visible_threshold)
 
             if g.above_threshold and g.biggest_probability and g.time_visible > gs.info[n].time_visible_threshold:
-                #print("1")
                 g.activated = True
             elif g.above_threshold == False:
                 g.activated = False
@@ -588,17 +596,23 @@ class GestureDataDetection():
             # Activate first is higher layer that evaluates more frames and add action to queue
             # If at least 10 gesture records were toggled (occured) and now it is not occuring
             g.action_activated = False
-            if gs.n > activate_length:
-                #if g.activated:
-                #    print("2")
+            if gs.n > activate_length: # on start
                 if np.array([data[n].activated for data in gs[-activate_length-2:-1]]).all(): # gesture was shown with no interruption
-                    #print("3")
-                    if gs[-1][n].activated == False: # now it ended -> action can happen
-                        #print("4")
-                        if not np.array([data[n].action_activated for data in gs[-distance_length-2:-2]]).any():
+                    if ( True or #gs[-1][n].activated == False or   # now it ended -> action can happen
+                        (np.array([data[n].activated for data in gs[-activate_length-2:-1]]).all() and not np.array([data[n].action_activated for data in gs[-distance_length*2-2:-1]]).any())): # or gesture happening for a long time
+                        if not np.array([data[n].action_activated for data in gs[-distance_length-2:-1]]).any():
                             g.action_activated = True
-                            self.actions_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag))
-                            if ROS: rc.roscm.gesture_solution_pub.publish(String(data=gs.info.names[n]))
+                            self.gestures_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag))
+
+    def gestures_queue_to_ros(self, rostemplate):
+        '''
+        GesturesRos()
+        '''
+        rostemplate.probabilities.data = list(np.array(np.zeros(len(self.Gs)), dtype=float))
+        for g in self.gestures_queue:
+            rostemplate.probabilities.data[self.Gs.index(g[1])] = 1.0
+
+        return rostemplate
 
     def last(self):
         return self.l.static.relevant(), self.r.static.relevant(), self.l.dynamic.relevant(), self.r.dynamic.relevant()
@@ -1015,9 +1029,9 @@ class GestureDataDetection():
             else:
                 g.toggle[2] = False
 
-def init():
+def init(silent=False):
     global gd
-    gd = GestureDataDetection()
+    gd = GestureDataDetection(silent=silent)
 
 #### For testing purposes
 def main():

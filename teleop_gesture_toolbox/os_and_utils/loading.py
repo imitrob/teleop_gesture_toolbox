@@ -12,13 +12,15 @@ import numpy as np
 import pickle
 import sys,os
 from copy import deepcopy
-
+'''
 #from leapmotion import frame_lib; frame_lib.__name__ = 'frame_lib'; frame_lib.__spec__.name = 'frame_lib'
 if __name__ == '__main__':
     sys.path.append("..")
     sys.path.append("../leapmotion")
 sys.path.append("leapmotion")
 import frame_lib
+'''
+import leapmotion.frame_lib as frame_lib
 
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import scale

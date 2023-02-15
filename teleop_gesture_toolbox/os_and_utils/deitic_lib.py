@@ -1,4 +1,6 @@
-
+'''
+>>> import sys; sys.path.append("..")
+'''
 import numpy as np
 from os_and_utils.transformations import Transformations as tfm
 try:
@@ -64,6 +66,8 @@ class DeiticLib():
         h (string): hand - 'l' left, 'r', right
         object_poses (): sl.scene.object_poses
         '''
+        if len(object_poses) == 0: return None
+
         hand = getattr(f, h)
         p1, p2 = np.array(hand.palm_position()), np.array(hand.palm_position())+np.array(hand.direction())
         #p1, p2 = np.array(hand.fingers[1].bones[3].prev_joint()), np.array(hand.fingers[1].bones[3].next_joint())
@@ -72,16 +76,13 @@ class DeiticLib():
         v = 1000*(p2s-p1s)
         line_points = [list(p1s), list(p2s+v)]
 
-        object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in object_poses]
+        object_positions = [[pose[0],pose[1],pose[2]] for pose in object_poses]
         idobj, _ = self.get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
 
         #if self.set_focus_logic(hand):
-        if plot_line:
-            if rc is not None:
-
-                with rc.rossem:
-                    #rc.roscm.r.add_line(name='line1', points=line_points)
-                    rc.roscm.r.add_or_edit_object(name="Focus_target", pose=object_positions[idobj])
+        if plot_line and rc is not None:
+            rc.roscm.r.add_line(name='line1', points=line_points)
+            rc.roscm.r.add_or_edit_object(name="Focus_target", pose=object_positions[idobj])
         return idobj
 
     def set_focus_logic(self, hand):
@@ -107,21 +108,24 @@ def init():
 
 
 if __name__ == '__main__':
+    deictic_test()
+
+def deictic_test():
     dl = DeiticLib()
     # test 1
     line_points = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))
     test_points = ((0.0, 0.0, 1.00000), (10.0, 0.0, 1.0), (10.0, 0.0, 2.0))
     closest_point = dl.get_id_of_closest_point_to_line(line_points, test_points)
-    closest_point
+    assert closest_point == (0, 1.0)
 
     # test 2
     line_points = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))
     test_points = ((0.0, 0.0, 0.99999), (10.0, 0.0, 1.0), (10.0, 0.0, 2.0))
     closest_point = dl.get_id_of_closest_point_to_line(line_points, test_points)
-    closest_point
+    assert closest_point == (0, 0.99999)
 
     # test 3
     line_points = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))
     test_points = ((0.0, 0.0, 0.99999), (10.0, 0.0, 1.0), (10.0, 0.0, 2.0))
     closest_point = dl.get_id_of_closest_point_to_line(line_points, test_points, max_dist=0.3)
-    closest_point
+    assert closest_point == (None, 0.99999)

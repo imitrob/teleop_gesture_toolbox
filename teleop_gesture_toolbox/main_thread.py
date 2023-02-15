@@ -23,8 +23,7 @@ import os_and_utils.deitic_lib as dl; dl.init()
 
 def spinning_threadfn():
     while rclpy.ok():
-        with rc.rossem:
-            rclpy.spin_once(rc.roscm)
+        rc.roscm.spin_once()
         time.sleep(0.001)
 
 #if __name__ == '__main__':

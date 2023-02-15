@@ -144,4 +144,22 @@ def point_by_ratio(p1, p2, ratio):
     x2, y2 = p2
     return (x2 - x1) * ratio, (y2 - y1) * ratio
 
-#
+
+def get_cbgo_path():
+    from ament_index_python.packages import get_package_share_directory
+    try:
+        package_share_directory = get_package_share_directory('context_based_gesture_operation')
+    except:
+        raise Exception("Package context_based_gesture_operation not found!")
+    return "/".join(package_share_directory.split("/")[:-4])+"/src/context_based_gesture_operation/context_based_gesture_operation"
+
+class cc:
+    H = '\033[95m'
+    OK = '\033[94m'
+    OKCYAN = '\033[96m'
+    OKGREEN = '\033[92m'
+    W = '\033[93m'
+    F = '\033[91m'
+    E = '\033[0m'
+    B = '\033[1m'
+    U = '\033[4m'

@@ -517,7 +517,7 @@ if __name__ == '__main__':
     sim = CoppeliaROSInterface()
     pose.position = Point(0.3, 0.0, 0.5)
     sim.go_to_pose(pose, blocking=True)
-    sl.scenes.make_scene(sim, 'pickplace')
+    sl.scenes.make_scene_from_yaml(sim, 'pickplace')
 
 
     def execute(pathwaypoints):
@@ -525,7 +525,7 @@ if __name__ == '__main__':
         pose.position = Point(0.3, 0.0, 0.5)
         pose.orientation = Quaternion(0.7071067811865476, 0.7071067811865476, 0.0, 0.0)
         sim.go_to_pose(pose, blocking=True)
-        sl.scenes.make_scene(sim, 'pickplace')
+        sl.scenes.make_scene_from_yaml(sim, 'pickplace')
         time.sleep(2)
 
         path, waypoints = pathwaypoints

@@ -1,4 +1,69 @@
 
+ycb_1:
+  Objects:
+    bowl:
+      pose:
+        position: {'x': 0.6, 'y': 0.1, 'z': 0.02}
+        orientation: {'x': -1.0, 'y': 0.0, 'z': 0.0, 'w': 1000.0}
+      file: bowl
+      mass: 5.
+      semantic_type: drawer
+      pub_info: true
+    potted_meat_can:
+      pose:
+        position: {'x': 0.6, 'y': -0.1, 'z': 0.02}
+        orientation: {'x': -1.0, 'y': 0.0, 'z': 0.0, 'w': 1000.0}
+      file: potted_meat_can
+      mass: 5.
+      semantic_type: object
+      pub_info: true
+
+ycb_2:
+  Objects:
+    potted_meat_can:
+      pose:
+        position: {'x': 0.6, 'y': 0.1, 'z': 0.02}
+        orientation: {'x': -1.0, 'y': 0.0, 'z': 0.0, 'w': 1000.0}
+      file: potted_meat_can
+      mass: 5.
+      semantic_type: object
+      pub_info: true
+    foam_brick:
+      pose:
+        position: {'x': 0.6, 'y': -0.1, 'z': 0.02}
+        orientation: {'x': -1.0, 'y': 0.0, 'z': 0.0, 'w': 1000.0}
+      file: foam_brick
+      mass: 5.
+      semantic_type: object
+      pub_info: true
+
+ycb_3:
+  Objects:
+    bowl:
+      pose:
+        position: {'x': 0.6, 'y': 0.1, 'z': 0.02}
+        orientation: {'x': -1.0, 'y': 0.0, 'z': 0.0, 'w': 1000.0}
+      file: bowl
+      mass: 5.
+      semantic_type: drawer
+      pub_info: true
+    potted_meat_can:
+      pose:
+        position: {'x': 0.6, 'y': -0.1, 'z': 0.02}
+        orientation: {'x': -1.0, 'y': 0.0, 'z': 0.0, 'w': 1000.0}
+      file: potted_meat_can
+      mass: 5.
+      semantic_type: object
+      pub_info: true
+    pudding_box:
+      pose:
+        position: {'x': 0.6, 'y': 0.1, 'z': 0.1}
+        orientation: {'x': -1.0, 'y': 0.0, 'z': 0.0, 'w': 1000.0}
+      file: pudding_box
+      mass: 5.
+      semantic_type: object
+      pub_info: true
+
 threecones:
   Objects:
     cone1:
@@ -28,24 +93,6 @@ sphere:
         orientation: {'x': 0.0, 'y': 0.0, 'z':0.0, 'w':1.0}
       size: {'x': 0.2, 'y': 0.2, 'z': 0.2}
       shape: sphere
-threecones2:
-  Objects:
-    cone1:
-      pose: home
-      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
-      shape: cone
-    cone2:
-      pose:
-        position: home
-        orientation: table
-      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
-      shape: cone
-    cone3:
-      pose:
-        position: {'x': [0.,4.], 'y': [1.,2.], 'z': 1.0}
-        orientation: wall
-      size: {'x': 0.075, 'y': 0.075, 'z': 0.075}
-      shape: cone
 
 empty:
 
@@ -61,28 +108,12 @@ pickplace:
       scale: 1.0
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
       pub_info: true
-pushbutton:
-  Objects:
-    button:
-      pose:
-        position: {'x': 0.6, 'y': 0.1, 'z': 0.1}
-        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.1, 'y': 0.1, 'z': 0.1}
-      mesh_trans_origin: {'x': 0.0, 'y': -0.6, 'z': 0.0}
-      file: button.obj
-    button_out:
-      pose:
-        position: {'x': 0.6, 'y': 0.1, 'z': 0.1}
-        orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
-      size: {'x': 0.1, 'y': 0.1, 'z': 0.13}
-      mesh_trans_origin: {'x': 0.0, 'y': -0.6, 'z': 0.0}
-      file: button_out.obj
 
 pickplace3:
   Objects:
     box:
       pose:
-        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.1, 1.0]}
+        position: {'x': [0.4,0.6], 'y': [-0.2, 0.2], 'z': [0.1, 0.2]}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
@@ -90,7 +121,7 @@ pickplace3:
       pub_info: true
     box2:
       pose:
-        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.1, 1.0]}
+        position: {'x': [0.4,0.6], 'y': [-0.2, 0.2], 'z': [0.1, 0.2]}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}
@@ -98,7 +129,7 @@ pickplace3:
       pub_info: true
     box3:
       pose:
-        position: {'x': [0.3,0.6], 'y': [-0.2, 0.2], 'z': [0.1, 1.0]}
+        position: {'x': [0.4,0.6], 'y': [-0.2, 0.2], 'z': [0.1, 0.2]}
         orientation: {'x': 0.0, 'y': 0.0, 'z': 0.0, 'w': 1.0}
       size: {'x': 0.04, 'y': 0.04, 'z': 0.04}
       mesh_trans_origin: {'x': 0.0, 'y': 0.0, 'z': 0.0}

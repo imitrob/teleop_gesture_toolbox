@@ -42,7 +42,6 @@ import rclpy
 from rclpy.node import Node
 # ros msg classes
 from geometry_msgs.msg import Quaternion, Pose, Point
-from teleop_gesture_toolbox.srv import ChangeNetwork, SaveHandRecord
 
 import matplotlib
 matplotlib.use('Qt5Agg')
@@ -394,9 +393,9 @@ class Example(QMainWindow):
         self.lbl2 = QLabel('Right Hand', self)
         self.lbl2.setGeometry(self.size().width()-140, 36, 100, 50)
         self.lbl3 = QLabel('Gestures', self)
-        self.lbl3.setGeometry(20, TOP_MARGIN_GESTURES-30, 150, 50)
+        self.lbl3.setGeometry(20, TOP_MARGIN_GESTURES-33, 150, 50)
         self.lbl4 = QLabel('Gestures', self)
-        self.lbl4.setGeometry(self.size().width()-140, TOP_MARGIN_GESTURES-30, 100, 50)
+        self.lbl4.setGeometry(self.size().width()-140, TOP_MARGIN_GESTURES-33, 100, 50)
 
         ## View Configuration App
         settings.WindowState = 0
@@ -427,8 +426,8 @@ class Example(QMainWindow):
             i.setVisible(False)
 
         self.comboPlayNLive = QComboBox(self)
+        self.comboPlayNLive.addItem("Gest. control")
         self.comboPlayNLive.addItem("Play path")
-        self.comboPlayNLive.addItem("Gesture based")
         self.comboPlayNLive.activated[str].connect(self.onComboPlayNLiveChanged)
         self.comboPlayNLive.setGeometry(LEFT_MARGIN+130, TOP_MARGIN-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
@@ -461,7 +460,7 @@ class Example(QMainWindow):
         self.dir_queue = []
 
         self.lblStatus = QLabel('Status bar', self)
-        self.lblStatus.setGeometry(LEFT_MARGIN+130, TOP_MARGIN+32, 200, 100)
+        self.lblStatus.setGeometry(LEFT_MARGIN+130+ICON_SIZE, TOP_MARGIN+32, 500, 200)
 
         self.comboInteractiveSceneChanges = QComboBox(self)
         self.comboInteractiveSceneChanges.addItem("Scene 1 Drawer")
@@ -472,7 +471,7 @@ class Example(QMainWindow):
         self.comboInteractiveSceneChanges.setGeometry(LEFT_MARGIN+130+ICON_SIZE*4, TOP_MARGIN-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
         # Bottom
-        self.btnRecordActivate = QPushButton('Keyboard recording', self)
+        self.btnRecordActivate = QPushButton('Key record', self)
         self.btnRecordActivate.clicked.connect(self.record_with_keys)
         self.btnRecordActivate.setGeometry(LEFT_MARGIN+130, TOP_MARGIN+30,ICON_SIZE*2,int(ICON_SIZE/2))
 
@@ -513,7 +512,7 @@ class Example(QMainWindow):
         self.movePageGoPoseEdits[-1].move(LEFT_MARGIN+80, TOP_MARGIN+(i+1)*32)
         self.movePageGoPoseEdits[-1].resize(200, 32)
         self.movePageGoPoseEdits[-1].setText(lblsVals[i])
-        self.movePageGoGripperButton = QPushButton("Actuate gripper", self)
+        self.movePageGoGripperButton = QPushButton("Move gripper", self)
         self.movePageGoGripperButton.clicked.connect(self.actuate_gripper_button)
         self.movePageGoGripperButton.move(LEFT_MARGIN+80, TOP_MARGIN+9*32)
 
@@ -528,8 +527,6 @@ class Example(QMainWindow):
         self.movePageRobotResetButton.clicked.connect(self.robot_reset_button)
         self.movePageRobotResetButton.move(LEFT_MARGIN+80, TOP_MARGIN+11*32)
 
-
-
         self.movePageUseEnvAboveButton = QPushButton('Above env.', self)
         self.movePageUseEnvAboveButton.clicked.connect(self.movePageUseEnvAboveButtonFun)
         self.movePageUseEnvAboveButton.setGeometry(LEFT_MARGIN+300, TOP_MARGIN+100,ICON_SIZE*2,int(ICON_SIZE/2))
@@ -542,6 +539,73 @@ class Example(QMainWindow):
         self.movePagePoseNowButton = QPushButton('Set current pose', self)
         self.movePagePoseNowButton.clicked.connect(self.movePagePoseNowButtonFun)
         self.movePagePoseNowButton.setGeometry(LEFT_MARGIN+300, TOP_MARGIN+20,ICON_SIZE*2,int(ICON_SIZE/2))
+
+        ''' Do Actions
+        '''
+        self.comboMovePagePickObject1Label = QLabel(self)
+        self.comboMovePagePickObject1Label.setText("Focus: Object 1")
+        self.comboMovePagePickObject1Label.setGeometry(LEFT_MARGIN+90, 700-int(ICON_SIZE),ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.comboMovePagePickObject1 = QComboBox(self)
+        self.comboMovePagePickObject1.addItem(None)
+        if sl.scene is not None:
+            for n,object in enumerate(sl.scene.O):
+                    self.comboMovePagePickObject1.addItem(object)
+        self.comboMovePagePickObject1.activated[str].connect(self.comboMovePagePickObject1Fun)
+        self.comboMovePagePickObject1.setGeometry(LEFT_MARGIN+90, 700-int(ICON_SIZE/2),ICON_SIZE*2,int(ICON_SIZE/2))
+        self.comboMovePagePickObject1Picked = None
+
+        self.comboMovePagePickObject2Label = QLabel(self)
+        self.comboMovePagePickObject2Label.setText("Object 2")
+        self.comboMovePagePickObject2Label.setGeometry(LEFT_MARGIN+90+2*ICON_SIZE, 700-int(ICON_SIZE),ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.comboMovePagePickObject2 = QComboBox(self)
+        self.comboMovePagePickObject2.addItem(None)
+        if sl.scene is not None:
+            for n,object in enumerate(sl.scene.O):
+                    self.comboMovePagePickObject2.addItem(object)
+        self.comboMovePagePickObject2.activated[str].connect(self.comboMovePagePickObject2Fun)
+        self.comboMovePagePickObject2.setGeometry(LEFT_MARGIN+90+2*ICON_SIZE, 700-int(ICON_SIZE/2),ICON_SIZE*2,int(ICON_SIZE/2))
+        self.comboMovePagePickObject2Picked = None
+
+        self.comboMovePageDoAction = QComboBox(self)
+        for n,action in enumerate(ml.RealRobotActionLib.get_available_actions()):
+            self.comboMovePageDoAction.addItem(action)
+        self.comboMovePageDoAction.activated[str].connect(self.movePageDoActionComboFun)
+        self.comboMovePageDoAction.setGeometry(LEFT_MARGIN+500, TOP_MARGIN+120,ICON_SIZE*2,int(ICON_SIZE/2))
+        self.movePageDoActionComboPicked = 0
+
+        self.movePageDoActionButton = QPushButton('Do Action', self)
+        self.movePageDoActionButton.clicked.connect(self.movePageDoActionFun)
+        self.movePageDoActionButton.setGeometry(LEFT_MARGIN+500, TOP_MARGIN+160,ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.movePageDoActionAuxiliaryParameter1Label = QLabel(self)
+        self.movePageDoActionAuxiliaryParameter1Label.setText("Aux. param. 1")
+        self.movePageDoActionAuxiliaryParameter1Label.setGeometry(LEFT_MARGIN+90+4*ICON_SIZE, 700-int(ICON_SIZE),ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.movePageDoActionAuxiliaryParameter1 = QLineEdit(self)
+        self.movePageDoActionAuxiliaryParameter1.resize(200, 32)
+        self.movePageDoActionAuxiliaryParameter1.setText('0.0')
+        self.movePageDoActionAuxiliaryParameter1.setGeometry(LEFT_MARGIN+90+4*ICON_SIZE, 700-int(ICON_SIZE/2),ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.movePageDoActionAuxiliaryParameter2Label = QLabel(self)
+        self.movePageDoActionAuxiliaryParameter2Label.setText("Aux. param. 2")
+        self.movePageDoActionAuxiliaryParameter2Label.setGeometry(LEFT_MARGIN+90+6*ICON_SIZE, 700-int(ICON_SIZE),ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.movePageDoActionAuxiliaryParameter2 = QLineEdit(self)
+        self.movePageDoActionAuxiliaryParameter2.resize(200, 32)
+        self.movePageDoActionAuxiliaryParameter2.setText('0.0')
+        self.movePageDoActionAuxiliaryParameter2.setGeometry(LEFT_MARGIN+90+6*ICON_SIZE, 700-int(ICON_SIZE/2),ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.movePageDoActionRefreshObjects = QPushButton('Refresh', self)
+        self.movePageDoActionRefreshObjects.clicked.connect(self.movePageDoActionRefreshObjectsFun)
+        self.movePageDoActionRefreshObjects.setGeometry(LEFT_MARGIN+90+8*ICON_SIZE, 700-int(ICON_SIZE/2),ICON_SIZE*2,int(ICON_SIZE/2))
+
+        self.movePageDoActionGenActionCheckBox = QCheckBox('Gestures/GUI', self)
+        #self.movePageDoActionGenActionCheckBox.clicked.connect(self.movePageDoActionGenActionButtonFun)
+        self.movePageDoActionGenActionCheckBox.stateChanged.connect(lambda:self.real_or_sim_datapull__btnstate(self.movePageDoActionGenActionCheckBox))
+        self.movePageDoActionGenActionCheckBox.setGeometry(LEFT_MARGIN+90+10*ICON_SIZE, 700-int(ICON_SIZE/2),ICON_SIZE*2,int(ICON_SIZE/2))
+        self.movePageDoActionGenActionCheckBox.setChecked(True)
 
         self.timer = QBasicTimer()
         self.timer.start(100, self)
@@ -630,7 +694,7 @@ class Example(QMainWindow):
 
         initTestAction = QAction('Initialization test', self)
         initTestAction.triggered.connect(self.thread_testInit)
-        tableTestAction = QAction('Table test', self)
+        tableTestAction = QAction('Movement test', self)
         tableTestAction.triggered.connect(self.thread_testMovements)
         inputTestAction = QAction('Test by input', self)
         inputTestAction.triggered.connect(self.thread_testMovementsInput)
@@ -638,6 +702,22 @@ class Example(QMainWindow):
         inputPlotJointsAction.triggered.connect(self.thread_inputPlotJointsAction)
         inputPlotPosesAction = QAction('Plot poses path now', self)
         inputPlotPosesAction.triggered.connect(self.thread_inputPlotPosesAction)
+
+        self.buttonsActivateStaticGestures = []
+        for index,g in enumerate(gl.gd.Gs_static):
+            b = QPushButton(f"{g}", self)
+            b.clicked.connect(
+                lambda checked, index=index: self.makeStaticGesture(index))
+            b.setGeometry(LEFT_MARGIN+90, TOP_MARGIN_GESTURES+index*ICON_SIZE, ICON_SIZE+30, ICON_SIZE)
+            self.buttonsActivateStaticGestures.append(b)
+        self.buttonsActivateDynamicGestures = []
+        for index,g in enumerate(gl.gd.Gs_dynamic):
+            b = QPushButton(f"{g}", self)
+            b.clicked.connect(
+                lambda checked, index=index: self.makeDynamicGesture(index))
+            b.setGeometry(self.size().width()-RIGHT_MARGIN-80-ICON_SIZE-30, TOP_MARGIN_GESTURES+index*ICON_SIZE, ICON_SIZE+30, ICON_SIZE)
+            self.buttonsActivateDynamicGestures.append(b)
+
 
         ## Add actions to the menu
         viewMenu.addAction(viewOptionsAction)
@@ -649,8 +729,8 @@ class Example(QMainWindow):
         configMenu.addMenu(impMenu)
         configMenu.addMenu(impMenu2)
         configMenu.addAction(print_path_trace_action)
-        testingMenu.addAction(tableTestAction)
         testingMenu.addAction(initTestAction)
+        testingMenu.addAction(tableTestAction)
         testingMenu.addAction(inputTestAction)
         testingMenu.addAction(inputPlotJointsAction)
         testingMenu.addAction(inputPlotPosesAction)
@@ -679,6 +759,16 @@ class Example(QMainWindow):
         self.AllVisibleObjects.append(ObjectQt('lbl3',self.lbl3,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lbl4',self.lbl4,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lblInfo',self.lbl2,0,view_group=['GesturesViewState']))
+        for n,obj in enumerate(self.buttonsActivateStaticGestures):
+            self.AllVisibleObjects.append(ObjectQt(f'buttonsActivateStaticGestures{n}',obj,0,view_group=['GesturesViewState', 'GUI_datapull']))
+        for n,obj in enumerate(self.buttonsActivateDynamicGestures):
+            self.AllVisibleObjects.append(ObjectQt(f'buttonsActivateDynamicGestures{n}',obj,0,view_group=['GesturesViewState', 'GUI_datapull']))
+
+        self.AllVisibleObjects.append(ObjectQt('comboMovePagePickObject1Label',self.comboMovePagePickObject1Label,0,view_group=['GesturesViewState', 'GUI_datapull']))
+        self.AllVisibleObjects.append(ObjectQt('comboMovePagePickObject2Label',self.comboMovePagePickObject2Label,0,view_group=['GesturesViewState', 'GUI_datapull']))
+        self.AllVisibleObjects.append(ObjectQt('movePageDoActionAuxiliaryParameter1Label',self.movePageDoActionAuxiliaryParameter1Label,0,view_group=['GesturesViewState', 'GUI_datapull']))
+        self.AllVisibleObjects.append(ObjectQt('movePageDoActionAuxiliaryParameter2Label',self.movePageDoActionAuxiliaryParameter2Label,0,view_group=['GesturesViewState', 'GUI_datapull']))
+
         self.AllVisibleObjects.append(ObjectQt('comboPlayNLive',self.comboPlayNLive,0,view_group=['MoveViewState']))
 
         self.AllVisibleObjects.append(ObjectQt('comboPickPlayTraj',self.comboPickPlayTraj,0,view_group=['MoveViewState', 'play']))
@@ -689,9 +779,9 @@ class Example(QMainWindow):
         self.AllVisibleObjects.append(ObjectQt('comboLiveMode',self.comboLiveMode,0,view_group=['MoveViewState', 'live']))
         self.AllVisibleObjects.append(ObjectQt('comboInteractiveSceneChanges',self.comboInteractiveSceneChanges,0,view_group=['MoveViewState', 'live']))
 
-        self.AllVisibleObjects.append(ObjectQt('btnRecordActivate',self.btnRecordActivate,0,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('btnRecordActivate',self.btnRecordActivate,0,view_group=[]))
+        self.AllVisibleObjects.append(ObjectQt('btnExportDataActivate',self.btnExportDataActivate,0,view_group=[]))
         self.AllVisibleObjects.append(ObjectQt('btnPlotActivate',self.btnPlotActivate,0,view_group=['MoveViewState', 'PlotterWindow']))
-        self.AllVisibleObjects.append(ObjectQt('btnExportDataActivate',self.btnExportDataActivate,0,view_group=['MoveViewState']))
         self.AllVisibleObjects.append(ObjectQt('btnDeletePlotActivate',self.btnDeletePlotActivate,0,view_group=['MoveViewState', 'PlotterWindow']))
 
         for n,obj in enumerate(self.lblConfNamesObj):
@@ -713,6 +803,17 @@ class Example(QMainWindow):
         self.AllVisibleObjects.append(ObjectQt('movePageUseEnvTableButton',self.movePageUseEnvTableButton,2,view_group=['MoveViewState']))
         self.AllVisibleObjects.append(ObjectQt('movePagePoseNowButton',self.movePagePoseNowButton,2,view_group=['MoveViewState']))
 
+        self.AllVisibleObjects.append(ObjectQt('comboMovePageDoAction',self.comboMovePageDoAction,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageDoActionButton',self.movePageDoActionButton,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageDoActionRefreshObjects',self.movePageDoActionRefreshObjects,0,view_group=['MoveViewState']))
+
+        self.AllVisibleObjects.append(ObjectQt('comboMovePagePickObject1',self.comboMovePagePickObject1,0,view_group=['GesturesViewState', 'GUI_datapull']))
+        self.AllVisibleObjects.append(ObjectQt('comboMovePagePickObject2',self.comboMovePagePickObject2,0,view_group=['GesturesViewState', 'GUI_datapull']))
+        self.AllVisibleObjects.append(ObjectQt('movePageDoActionAuxiliaryParameter1',self.movePageDoActionAuxiliaryParameter1,0,view_group=['GesturesViewState', 'GUI_datapull']))
+        self.AllVisibleObjects.append(ObjectQt('movePageDoActionAuxiliaryParameter2',self.movePageDoActionAuxiliaryParameter2,0,view_group=['GesturesViewState', 'GUI_datapull']))
+        self.AllVisibleObjects.append(ObjectQt('movePageDoActionGenActionCheckBox',self.movePageDoActionGenActionCheckBox,0,view_group=['MoveViewState']))
+
+
         self.setMouseTracking(True)
         self.mousex, self.mousey = 0.,0.
         self.updateLeftRightPanel(rightPanelNames=['r conf.', 'l conf.'])
@@ -722,12 +823,14 @@ class Example(QMainWindow):
 
         # Various
         self.paint_sequence = 0
-        ## Save record service
-        with rc.rossem:
-            self.save_hand_record_cli = rc.roscm.create_client(SaveHandRecord, '/save_hand_record')
-            if not self.save_hand_record_cli.wait_for_service(timeout_sec=1.0):
-                print('save_hand_record service not available!!!')
-        self.save_hand_record_req = SaveHandRecord.Request()
+
+
+    def real_or_sim_datapull__btnstate(self,b):
+        if b.text() == "Gestures/GUI":
+            if b.isChecked() == True:
+                ml.md.real_or_sim_datapull = True
+            else:
+                ml.md.real_or_sim_datapull = False
 
     def togglePlotWindow(self, state):
         if state:
@@ -784,8 +887,7 @@ class Example(QMainWindow):
         pose.position = Point(x=vals[0],y=vals[1],z=vals[2])
         pose.orientation = Quaternion(x=vals[3],y=vals[4],z=vals[5],w=vals[6])
         ml.md.goal_pose = pose
-        with rc.rossem:
-            rc.roscm.r.go_to_pose(pose)
+        rc.roscm.r.go_to_pose(pose)
 
     def actuate_gripper_button(self):
         ''' Takes text input float and control gripper position
@@ -796,16 +898,13 @@ class Example(QMainWindow):
         except:
             print("[ERROR*] Value Error!")
             val = 0.0
-        with rc.rossem:
-            rc.roscm.r.set_gripper(val, effort=0.4, eef_rot=-1, action="", object="")
+        rc.roscm.r.set_gripper(position=val, effort=0.4, eef_rot=-1, action="", object="")
 
     def open_gripper_button(self):
-        with rc.rossem:
-            rc.roscm.r.set_gripper(1.0, action="release")
+        rc.roscm.r.set_gripper(position=1.0, action="release")
 
     def close_gripper_button(self):
-        with rc.rossem:
-            rc.roscm.r.set_gripper(0.0)
+        rc.roscm.r.set_gripper(position=0.0)
 
     def robot_reset_button(self):
         '''pose = Pose()
@@ -813,10 +912,8 @@ class Example(QMainWindow):
         pose.orientation.y = np.sqrt(2)/2
         pose.position.x = 0.5
         pose.position.z = 0.2
-        with rc.rossem:
-            rc.roscm.r.go_to_pose(pose)'''
-        with rc.rossem:
-            rc.roscm.r.reset()
+        rc.roscm.r.go_to_pose(pose)'''
+        rc.roscm.r.reset()
 
     def keyPressEvent(self, event):
         ''' Callbacky for every keyboard button press
@@ -838,23 +935,7 @@ class Example(QMainWindow):
     def changeNetwork(self, network, type='static'):
         ''' ROS service send request about network change
         '''
-        with rc.rossem:
-            change_network = rc.roscm.create_client(ChangeNetwork, f'/teleop_gesture_toolbox/change_{type}_network')
-
-        while not change_network.wait_for_service(timeout_sec=1.0):
-            with rc.rossem:
-                rc.roscm.get_logger().info('service not available, waiting again...')
-
-        try:
-            response = change_network(data=network)
-            Gs = [g.lower() for g in response.gs]
-            settings.args = response.args
-            print("[UI] Gestures & Network changed, new set of gestures: "+str(", ".join(Gs)))
-        except rclpy.ServiceException as e:
-            print("Service call failed: %s"%e)
-        settings.paths.gesture_network_file = network
-
-        gl.gd.gesture_change_srv(local_data=response)
+        return rc.roscm.change_network(network, type)
 
     def download_networks_gdrive(self):
         ''' Downloads all networks from google drive
@@ -888,15 +969,8 @@ class Example(QMainWindow):
     def save_data(self):
         ''' Saving record data in this thread will be outdated, ROS service will be created
         '''
-        with rc.rossem:
-            self.save_hand_record_req.directory = settings.paths.learn_path+self.dir_queue.pop(0)
-            self.save_hand_record_req.save_method = 'numpy'
-            self.save_hand_record_req.recording_length = 1.0
-            future = self.save_hand_record_cli.call_async(self.save_hand_record_req)
-
-            #rclpy.spin_until_future_complete(rc.roscm, future)
-            #future.result()
-
+        dir = self.dir_queue.pop(0)
+        future = rc.roscm.save_hand_record(dir)
         self.recording = False
 
     def play_method(self):
@@ -994,6 +1068,78 @@ class Example(QMainWindow):
         self.movePageGoPoseEdits[5].setText(str(ml.md.goal_pose.orientation.z))
         self.movePageGoPoseEdits[6].setText(str(ml.md.goal_pose.orientation.w))
 
+    def movePageDoActionFun(self):
+        getattr(ml.RealRobotActionLib,self.movePageDoActionComboPicked)((self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked))
+
+    def movePageDoActionRefreshObjectsFun(self):
+        ml.RealRobotConvenience.update_scene()
+
+        if rc.roscm.is_real:
+            ml.RealRobotConvenience.update_scene()
+        if sl.scene is not None:
+            self.comboMovePagePickObject1.clear()
+            self.comboMovePagePickObject1.addItem(None)
+            for n,object in enumerate(sl.scene.O):
+                self.comboMovePagePickObject1.addItem(object)
+        else:
+            print("scene", sl.scene)
+        if sl.scene is not None:
+            self.comboMovePagePickObject2.clear()
+            self.comboMovePagePickObject2.addItem(None)
+            for n,object in enumerate(sl.scene.O):
+                self.comboMovePagePickObject2.addItem(object)
+
+        static_predictions, dynamic_predictions = ml.md.predict_handle()
+
+        for n,btn in enumerate(self.buttonsActivateStaticGestures):
+            btn.setText(f"{gl.gd.Gs_static[n]}\n{static_predictions[n]}")
+        for n,btn in enumerate(self.buttonsActivateDynamicGestures):
+            btn.setText(f"{gl.gd.Gs_dynamic[n]}\n{dynamic_predictions[n]}")
+
+
+    def movePageDoActionGenActionButtonFun(self):
+        ''' Generate User intent from data gathered using data from GUI
+
+
+        '''
+        s = ml.RealRobotConvenience.update_scene()
+
+        ''' gestures gathered '''
+        gl.gd.gestures_queue
+
+        ''' '''
+        focus_point = np.array([0.3,0.0,0.3])
+        target_action, target_object = g2i_tester.predict_with_list_of_gestures(s, gl.gd.gestures_queue, focus_point, scene_def_id=8)
+        if target_action is None:
+            return (None, None)
+
+        # Empty the queue
+        gl.gd.gestures_queue.clear()
+
+        num_of_objects = getattr(ml.RealRobotActionLib, target_action+"_deictic_params")
+        object_names = ml.RealRobotConvenience.get_target_objects(num_of_objects, s)
+
+        return target_action, object_names
+
+
+
+
+
+
+        print(f"Episode evaluated! ta: {action}, to: {object_names}")
+        if action in dir(ml.RealRobotActionLib):
+            print("Action is defined! -> executing")
+            getattr(ml.RealRobotActionLib,action)(object_names)
+        else:
+            print("Action not defined")
+            gl.gd.gestures_queue.clear()
+
+        evaluate_episode = False
+
+
+
+
+
     # Fixed orientation function
     def fixedOriAct(self, state):
         settings.ORIENTATION_MODE = 'fixed' if state else 'free'
@@ -1021,7 +1167,13 @@ class Example(QMainWindow):
 
     def goScene(self, index):
         scenes = sl.scenes.names()
-        sl.scenes.make_scene(scenes[index])
+        sl.scenes.make_scene_from_yaml(scenes[index])
+
+    def makeStaticGesture(self, index):
+        gl.gd.gestures_queue.append((time.time(), gl.gd.Gs_static[index], 'l'))
+    def makeDynamicGesture(self, index):
+        gl.gd.gestures_queue.append((time.time(), gl.gd.Gs_dynamic[index], 'r'))
+
 
     def onComboPlayNLiveChanged(self, text):
         if text=="Live hand":
@@ -1034,23 +1186,34 @@ class Example(QMainWindow):
         ml.md.changePlayPath(text)
     def onComboLiveModeChanged(self, text):
         ml.md.changeLiveMode(text)
+    def movePageDoActionComboFun(self,text):
+        self.movePageDoActionComboPicked = text
+    def comboMovePagePickObject1Fun(self,text):
+        ml.md.object_focus_id = sl.scene.get_object_id(text)
+        ml.md.comboMovePagePickObject1Picked = text
+    def comboMovePagePickObject2Fun(self,text):
+        ml.md.comboMovePagePickObject2Picked = text
+
     def onInteractiveSceneChanged(self, text):
         if text == "Scene 1 Drawer":
-            sl.scenes.make_scene('drawer')
+            sl.scenes.make_scene_from_yaml('drawer')
             ml.md.ENV = ml.md.ENV_DAT['wall']
         elif text == "Scene 2 Pick/Place":
-            sl.scenes.make_scene('pickplace')
+            sl.scenes.make_scene_from_yaml('pickplace')
             ml.md.ENV = ml.md.ENV_DAT['table']
         elif text == "Scene 3 Push button":
-            sl.scenes.make_scene('pushbutton')
+            sl.scenes.make_scene_from_yaml('pushbutton')
             ml.md.ENV = ml.md.ENV_DAT['table']
         elif text == "Scene 4 - 2 Pick/Place":
-            sl.scenes.make_scene('pickplace2')
+            sl.scenes.make_scene_from_yaml('pickplace2')
             ml.md.ENV = ml.md.ENV_DAT['table']
         else: raise Exception("Item not on a list!")
         self.gestures_goal_init_procedure()
 
     def paintEvent(self, e):
+
+
+
         ## Window Resolution update
         self.w = settings.w = self.size().width()
         self.h = settings.h = self.size().height()
@@ -1069,7 +1232,8 @@ class Example(QMainWindow):
             (self.PlotterWindow if 'PlotterWindow' in obj.view_group else True) and \
             ((ml.md.mode=='live') if 'live' in obj.view_group else True) and \
             ((ml.md.mode=='play') if 'play' in obj.view_group else True) and \
-            ((ml.md.mode=='gesture') if 'gesture' in obj.view_group else True):
+            ((ml.md.mode=='gesture') if 'gesture' in obj.view_group else True) and \
+            ((ml.md.real_or_sim_datapull==False) if 'GUI_datapull' in obj.view_group else True):
                 obj.qt.setVisible(True)
             else:
                 obj.qt.setVisible(False)
@@ -1215,6 +1379,12 @@ class Example(QMainWindow):
         qp = QPainter()
         qp.begin(self)
         textStatus = ""
+        main_livin = (time.time()-ml.md.last_time_livin) < 1.0
+        spinner_livin = (time.time()-rc.roscm.last_time_livin) < 1.0
+
+        textStatus += f"main: {'o' if main_livin else 'x'}, spin: {'o' if spinner_livin else 'x'}"
+        textStatus += f" {[g[1] for g in gl.gd.gestures_queue]}"
+        textStatus += f"\n{sl.scene}"
         if ml.md.goal_pose and ml.md.goal_joints:
             structures_str = [structure.object_stack for structure in ml.md.structures]
             textStatus += f"eef: {str(round(ml.md.eef_pose.position.x,2))} {str(round(ml.md.eef_pose.position.y,2))} {str(round(ml.md.eef_pose.position.z,2))}\ng p: {str(round(ml.md.goal_pose.position.x,2))} {str(round(ml.md.goal_pose.position.y,2))} {str(round(ml.md.goal_pose.position.z,2))}\ng q:{str(round(ml.md.goal_pose.orientation.x,2))} {str(round(ml.md.goal_pose.orientation.y,2))} {str(round(ml.md.goal_pose.orientation.z,2))} {str(round(ml.md.goal_pose.orientation.w,2))}\nAttached: {ml.md.attached}\nbuild_mode {ml.md.build_mode}\nobject_touch and focus_id {ml.md.object_focus_id} {ml.md.object_focus_id}\nStructures: {str(structures_str)}\n"
@@ -1232,11 +1402,16 @@ class Example(QMainWindow):
         self.lbl4.setText("Det.: "+settings.get_hand_mode()['r'])
 
         self.lbl2.move(self.size().width()-RIGHT_MARGIN-40, 36)
-        self.lbl4.move(self.size().width()-RIGHT_MARGIN-40, TOP_MARGIN_GESTURES-30)
+        self.lbl4.move(self.size().width()-RIGHT_MARGIN-40, TOP_MARGIN_GESTURES-33)
+
+        # Don't wait for Leap, when simulated gestures are input
+        if ml.md.real_or_sim_datapull == False:
+            self.GesturesViewState = True
 
         if self.GesturesViewState:
             # up late
             if ml.md.frames:
+
                 qp.drawLine(LEFT_MARGIN, TOP_MARGIN+(1)*ICON_SIZE+5,
                 LEFT_MARGIN+2*ICON_SIZE+2, TOP_MARGIN+(1)*ICON_SIZE+5)
                 # hand fingers
@@ -1288,7 +1463,9 @@ class Example(QMainWindow):
                     if gl.gd.l.static[-1][n].activated:
                         qp.drawRect(LEFT_MARGIN,TOP_MARGIN_GESTURES+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                     qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE-gl.gd.l.static[-1][n].probability*ICON_SIZE))
-                    qp.drawText(LEFT_MARGIN+ICON_SIZE+5, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, static_gs_names[n])
+
+                    if ml.md.real_or_sim_datapull == True:
+                        qp.drawText(LEFT_MARGIN+ICON_SIZE+5, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, static_gs_names[n])
             '''
             if gl.gd.r.static.relevant():
                 for n, i in enumerate(static_gs_file_images):
@@ -1323,7 +1500,10 @@ class Example(QMainWindow):
                     if gl.gd.r.dynamic[-1][n].activated:
                         qp.drawRect(w-RIGHT_MARGIN,TOP_MARGIN_GESTURES+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                     qp.drawLine(w-RIGHT_MARGIN-2, TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE, w-RIGHT_MARGIN-2, int(TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE-probabilities[n]*ICON_SIZE))
-                    qp.drawText(w-RIGHT_MARGIN-90, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, dynamic_gs_names[n])
+                    if ml.md.real_or_sim_datapull == True:
+                        qp.drawText(w-RIGHT_MARGIN-90, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, dynamic_gs_names[n])
+            for n,dyng in enumerate(self.buttonsActivateDynamicGestures):
+                dyng.setGeometry(w-RIGHT_MARGIN-100, TOP_MARGIN_GESTURES+n*ICON_SIZE, ICON_SIZE+20, ICON_SIZE)
 
             if gl.gd.l.static and gl.gd.l.static.relevant():
                 n_ = gl.gd.l.static.relevant().biggest_probability_id
@@ -1362,7 +1542,7 @@ class Example(QMainWindow):
                         if ml.md.HoldPrevState == False:
                             ml.md.HoldAnchor = ml.md.HoldValue - ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
                         ml.md.HoldValue = ml.md.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
-                        ml.md.HoldValue = ml.md.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/2
+                        #ml.md.HoldValue = ml.md.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/2
                         if ml.md.HoldValue > 100: ml.md.HoldValue = 100
                         if ml.md.HoldValue < 0: ml.md.HoldValue = 0
 
@@ -1476,7 +1656,7 @@ class Example(QMainWindow):
                 v = int(len(scenes)/125. * value)
                 if v >= len(scenes):
                     v = len(scenes)-1
-                sl.scene.make_scene(scene=scenes[v])
+                sl.scene.make_scene_from_yaml(scene=scenes[v])
             elif n == 2:
                 modes = ml.md.modes()
                 v = int(len(modes)/125. * value)
@@ -1557,7 +1737,7 @@ class Example(QMainWindow):
                 for i in gl.gd.l.static[-1]:
                     i.toggle = False
 
-            self.step = self.step + 1
+
         '''
         self.update()
 
@@ -1609,7 +1789,7 @@ class Example(QMainWindow):
         thread = Thread(target = ml.md.testInit)
         thread.start()
     def thread_testMovements(self):
-        thread = Thread(target = ml.md.testMovements)
+        thread = Thread(target = ml.RealRobotConvenience.testMovements)
         thread.start()
     def thread_testMovementsInput(self):
         thread = Thread(target = ml.md.testMovementsInput)
@@ -1648,6 +1828,7 @@ class RepeatableTimer(object):
 
 
 def main():
+    global ex
     app = QApplication(sys.argv)
     ex = Example()
     sys.exit(app.exec_())
