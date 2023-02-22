@@ -12,7 +12,10 @@ import os_and_utils.move_lib as ml; ml.init()
 import os_and_utils.scenes as sl; sl.init()
 import gesture_classification.gestures_lib as gl; gl.init()
 import os_and_utils.ui_lib as ui
-import os_and_utils.ros_communication_main as rc; rc.init('coppelia') # 'coppelia'
+''' Real setup or Coppelia sim or default (Real setup) '''
+if len(sys.argv)>1 and sys.argv[1] == 'ros1armer': import os_and_utils.ros_communication_main as rc; rc.init('ros1armer')
+elif len(sys.argv)>1 and sys.argv[1] == 'coppelia': import os_and_utils.ros_communication_main as rc; rc.init('ros1armer')
+else: import os_and_utils.ros_communication_main as rc; rc.init('ros1armer')
 import os_and_utils.deitic_lib as dl; dl.init()
 
 from geometry_msgs.msg import Pose, Point, Quaternion
@@ -30,18 +33,26 @@ sys.path.append(get_cbgo_path())
 from context_based_gesture_operation.srcmodules.Actions import Actions
 
 def main():
-    ml.RealRobotActionLib.cautious = False
+    print(f"settings.launch_gesture_detection{settings.launch_gesture_detection}")
+    ml.RealRobotActionLib.cautious = True
     path_gen = PathGenDummy()
 
-    sl.scenes.make_scene_from_yaml('pickplace')
+    #sl.scenes.make_scene_from_yaml('pickplace')
+
+    print(s)
+    test_toolbox_features()
     try:
         while rclpy.ok():
             ml.md.main_handle_step(path_gen=path_gen)
             time.sleep(0.01)
             if ml.md.evaluate_episode:
+                print("=== EVALUATE ===")
                 episode_evaluation_and_execution(s=ml.RealRobotConvenience.update_scene())
                 gl.gd.gestures_queue.clear()
                 ml.md.evaluate_episode = False
+                print("Move hand out to end the episode!")
+                while ml.md.relevant():
+                    time.sleep(0.1)
     except KeyboardInterrupt:
         pass
 
@@ -52,19 +63,27 @@ def main():
 def episode_evaluation_and_execution(s):
     ''' Get focus point first
     '''
+    ''' SIMPLIFICATION choose last only '''
+
+    gl.gd.gestures_queue = [gl.gd.gestures_queue[-1]]
+    print("Action gesture: ", gl.gd.gestures_queue[-1][1])
+
     object_name_1 = None
     if ml.md.real_or_sim_datapull:
         object_name_1 = ml.RealRobotConvenience.get_target_objects(1, s)[0]
     else: # Fake data from GUI
         object_name_1 = ml.md.comboMovePagePickObject1Picked
 
+    ''' No objects on scene '''
+    if object_name_1 is None:
+        return None
 
     ''' Object not given -> use eef position '''
     if object_name_1 is None:
         focus_point = s.r.eef_position_real
-        print("object_name_1 none", focus_point, " object_name_1", object_name_1)
+        #print("object_name_1 none", focus_point, " object_name_1", object_name_1)
     else:
-        print("object_name_1", object_name_1, object_name_1 is None, type(object_name_1))
+        #print("object_name_1", object_name_1, object_name_1 is None, type(object_name_1))
         if s.get_object_by_name(object_name_1) is None:
             print(f"{cc.W}Object target is not in the scene!{cc.E}")
             return
@@ -125,6 +144,20 @@ def episode_evaluation_and_execution(s):
         getattr(ml.RealRobotActionLib, target_action)(target_objects)
 
         ml.md.actions_done.append((target_action, target_objects))
+
+def test_toolbox_features():
+    num_of_objects = 1
+    s = ml.RealRobotConvenience.update_scene()
+
+    y = input("[Tester] Pick object by pointing to it")
+    ml.RealRobotConvenience.get_target_objects(num_of_objects, s)
+    y = input("[Tester] Pick object by selecting it")
+    ml.RealRobotConvenience.get_target_objects(num_of_objects, s)
+    y = input("[Tester] Test marking objects")
+    ml.RealRobotConvenience.mark_objects(s=ml.RealRobotConvenience.update_scene())
+    y = input("[Tester] Test deictic gesture")
+    ml.RealRobotConvenience.test_deictic()
+
 
 def spinning_threadfn():
     while rclpy.ok():

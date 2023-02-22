@@ -142,6 +142,12 @@ def test_Tmat_to_pose():
 
 if __name__ == "__main__":
     r = ZMQArmerInterface()
+    time.sleep(5)
+    r.close_gripper()
+    time.sleep(5)
+    r.open_gripper()
+
+
     print(r.get_joints())
     time.sleep(5)
     r.go_to_pose([0.5, 0.0, 0.4, -1.0, 0.0, 0.0, 0.0])
@@ -187,7 +193,7 @@ class ZMQArmerInterfaceWithSem():
 
     def handle_waypoint_action(self, *args, **kwargs):
         with self.sem:
-            return self.r.handle_waypoint_action(sem=self.sem, *args, **kwargs)
+            return self.r.handle_waypoint_action(*args, **kwargs)
 
     def go_to_pose(self, *args, **kwargs):
         with self.sem:
@@ -203,23 +209,25 @@ class ZMQArmerInterfaceWithSem():
 
     def gripper_control(self, *args, **kwargs):
         with self.sem:
-            return self.r.open_gripper(sem=self.sem, *args, **kwargs)
+            return self.r.open_gripper(*args, **kwargs)
 
     def open_gripper(self, *args, **kwargs):
         with self.sem:
-            return self.r.open_gripper(sem=self.sem, *args, **kwargs)
+            return self.r.open_gripper(*args, **kwargs)
 
     def close_gripper(self, *args, **kwargs):
         with self.sem:
-            return self.r.close_gripper(sem=self.sem, *args, **kwargs)
+            return self.r.close_gripper(*args, **kwargs)
 
     def pick_object(self, *args, **kwargs):
         with self.sem:
-            return self.r.pick_object(sem=self.sem, *args, **kwargs)
+            return self.r.pick_object(*args, **kwargs)
 
     def release_object(self, *args, **kwargs):
+        #print("release object before")
         with self.sem:
-            return self.r.release_object(sem=self.sem, *args, **kwargs)
+            #print("release object in")
+            return self.r.release_object(*args, **kwargs)
 
     def toggle_object(self, *args, **kwargs):
         with self.sem:
@@ -227,16 +235,20 @@ class ZMQArmerInterfaceWithSem():
 
     def set_gripper(self, *args, **kwargs):
         with self.sem:
-            return self.r.set_gripper(sem=self.sem, *args, **kwargs) # 1
+            return self.r.set_gripper(*args, **kwargs) # 1
 
     def add_line(self, *args, **kwargs):
         with self.sem:
-            return self.r.add_line(sem=self.sem, *args, **kwargs) # 2
+            return self.r.add_line(*args, **kwargs) # 2
 
     def add_or_edit_object(self, *args, **kwargs):
         with self.sem:
-            return self.r.add_or_edit_object(sem=self.sem, *args, **kwargs) # 3
+            return self.r.add_or_edit_object(*args, **kwargs) # 3
 
     def remove_object(self, *args, **kwargs):
         with self.sem:
-            return self.r.remove_object(sem=self.sem, *args, **kwargs) # 4
+            return self.r.remove_object(*args, **kwargs) # 4
+
+    def get_object_positions(self, *args, **kwargs):
+        with self.sem:
+            return self.r.get_object_positions(*args, **kwargs) # 4

@@ -94,6 +94,14 @@ sphere:
       size: {'x': 0.2, 'y': 0.2, 'z': 0.2}
       shape: sphere
 
+drawer:
+  Objects:
+    drawer:
+      pose:
+        position: {'x': 0.6, 'y': 0.2, 'z': 0.1}
+        orientation: {'x': 0.0, 'y': 0.0, 'z':0.0, 'w':1.0}
+      object_state: 'slightly-opened'
+
 empty:
 
 pickplace:

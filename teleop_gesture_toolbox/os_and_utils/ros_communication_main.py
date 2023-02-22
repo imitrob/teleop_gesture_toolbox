@@ -58,7 +58,7 @@ except ModuleNotFoundError and ament_index_python.packages.PackageNotFoundError:
     PyMoveIt2Interface = None
 
 try:
-    from os_and_utils.zmqarmer_interface import ZMQArmerInterface
+    from os_and_utils.zmqarmer_interface import ZMQArmerInterface, ZMQArmerInterfaceWithSem
 except ModuleNotFoundError:
     ZMQArmerInterface = None
 
@@ -207,7 +207,8 @@ class ROSComm(Node):
     def init_real_interface__zmqarmer__panda(self):
         assert ZMQArmerInterface is not None, "ZMQArmerInterface failed to load!"
 
-        self.r = ZMQArmerInterface()
+        #self.r = ZMQArmerInterface()
+        self.r = ZMQArmerInterfaceWithSem(rossem)
 
     def spin_once(self, sem=True):
         if sem:
