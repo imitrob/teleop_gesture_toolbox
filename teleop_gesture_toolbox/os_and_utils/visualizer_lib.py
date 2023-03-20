@@ -17,6 +17,9 @@ Usage:
     viz.visualize_ntraj(data)
     5. Done with plotting
     viz.show()
+
+
+>>> import sys; sys.path.append("..")
 '''
 import os
 import datetime
@@ -34,6 +37,7 @@ from mpl_toolkits.mplot3d import art3d
 
 #import seaborn as sns
 #sns.set_theme(style="darkgrid")
+from os_and_utils.transformations import Transformations as tfm
 
 try:
     from os_and_utils import settings; settings.init()
@@ -43,7 +47,6 @@ except ModuleNotFoundError:
 # Ensure package independency to ROS
 try:
     from geometry_msgs.msg import Pose, Point, Quaternion, PoseStamped, Vector3Stamped, QuaternionStamped, Vector3
-    from control_msgs.msg import FollowJointTrajectoryAction, FollowJointTrajectoryGoal
     import rclpy
     ROS_COMPATIBILITY = True
 
@@ -499,6 +502,83 @@ def main(args):
         if plotToppraPlan:
             self.plot_plan(plan=settings.toppraPlan)
 
+class HandPlot:
+    ''' Hand bone structure plot 'learning/tests/static_gestures_data_checker.py'
+    '''
+    @staticmethod
+    def hand_plot(hand_line_figs,alpha=0.3):
+
+        fig = plt.figure(figsize=(6,5))
+        ax = fig.add_subplot(111)
+        plt.axis('off')
+
+        for hand_lines in hand_line_figs:
+            for line in hand_lines:
+                ax.plot([line[0],line[2]],[line[1],line[3]], color='black', alpha=alpha)
+
+        fig.canvas.draw()
+
+        #img = plt.imshow(data, interpolation='nearest')
+        #plt.savefig("test.png", bbox_inches='tight')
+
+
+    @staticmethod
+    def generate_hand_lines(frame, h, alpha=0.3):
+        assert ROS_COMPATIBILITY, "ROS needed!"
+        plot_lines = []
+
+        hand = getattr(frame, h)
+        palm = hand.palm_position()
+        wrist = hand.wrist_position()
+
+        elbow = hand.elbow_position()
+        pose_palm = Pose()
+        pose_palm.position = Point(x=palm[0], y=palm[1], z=palm[2])
+        pose_wrist = Pose()
+        pose_wrist.position = Point(x=wrist[0], y=wrist[1], z=wrist[2])
+        pose_elbow = Pose()
+        pose_elbow.position = Point(x=elbow[0], y=elbow[1], z=elbow[2])
+        pose_palm_ = tfm.transformLeapToUIsimple(pose_palm, type='plt')
+        pose_wrist_ = tfm.transformLeapToUIsimple(pose_wrist, type='plt')
+        x, y = pose_palm_.position.x, pose_palm_.position.y
+        x_, y_ = pose_wrist_.position.x, pose_wrist_.position.y
+        plot_lines.append((x, y, x_, y_))
+        pose_elbow_ = tfm.transformLeapToUIsimple(pose_elbow, type='plt')
+        x, y = pose_elbow_.position.x, pose_elbow_.position.y
+        plot_lines.append((x, y, x_, y_))
+        """
+        if h == 'l':
+            ''' Set builder mode '''
+            nBuild_modes = len(ml.md.build_modes)
+            id_build_mode = ml.md.build_modes.index(ml.md.build_mode)
+            painter.setPen(QPen(Qt.blue, 4))
+            for n, i in enumerate(ml.md.build_modes):
+                x_bm, y_bm = point_by_ratio((x, y),(x_, y_), 0.5+0.5*(n/nBuild_modes))
+
+                if n == id_build_mode:
+                    painter.setBrush(QBrush(Qt.blue, Qt.SolidPattern))
+                else:
+                    painter.setBrush(QBrush(Qt.blue, Qt.NoBrush))
+                painter.drawEllipse(x+x_bm-5, y+y_bm-5, 10, 10)
+
+            painter.setPen(QPen(Qt.black, 2))
+        """
+        for finger in hand.fingers:
+            for b in range(0, 4):
+                bone = finger.bones[b]
+                pose_bone_prev = Pose()
+                pose_bone_prev.position = Point(x=bone.prev_joint[0], y=bone.prev_joint[1], z=bone.prev_joint[2])
+                pose_bone_next = Pose()
+                pose_bone_next.position = Point(x=bone.next_joint[0], y=bone.next_joint[1], z=bone.next_joint[2])
+                pose_bone_prev_ = tfm.transformLeapToUIsimple(pose_bone_prev, type='plt')
+                pose_bone_next_ = tfm.transformLeapToUIsimple(pose_bone_next, type='plt')
+                x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
+                x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
+                plot_lines.append((x, y, x_, y_))
+
+        return np.array(plot_lines)
+
+
 class ScenePlot:
     '''
     promp_paths = approach.construct_promp_trajectories2(X, Y, start='mean')
@@ -552,7 +632,11 @@ class ScenePlot:
            ax.plot([xb], [yb], [zb], 'w')
 
     @staticmethod
-    def my_plot(data, promp_paths, waypoints=None, leap=True, boundbox=[[-1.0,1.0],[-1.0,1.0],[0.0,2.0]], filename='', size=(6,5), legend=[], series_marking='d', promp_paths_variances=[]):
+    def scene_objects(s):
+        ScenePlot.my_plot([], [], scene=s, waypoints=None, leap=True, boundbox=[[0.0,0.8],[-0.4,0.4],[0.0,0.8]], filename='', size=(6,5), legend=[], series_marking='d', promp_paths_variances=[])
+
+    @staticmethod
+    def my_plot(data, promp_paths, scene=None, waypoints=None, leap=True, boundbox=[[-1.0,1.0],[-1.0,1.0],[0.0,2.0]], filename='', size=(6,5), legend=[], series_marking='d', promp_paths_variances=[]):
         '''
         Parameters:
             promp_paths_variances (Float[n x 6]): n path points, 6 = (x,y,z,var_x,var_y,var_z)
@@ -623,7 +707,8 @@ class ScenePlot:
                 pathpatch_2d_to_3d(patch, z = 0, normal = normal_vector)
                 pathpatch_translate(patch, (path[:,0][i], path[:,1][i], path[:,2][i]))
 
-        ax.legend()
+        if len(promp_paths) > 0 or len(promp_paths_variances) > 0:
+            ax.legend()
         # Leap Motion
         if leap:
             X,Y,Z = VisualizerLib.cuboid_data([0.475, 0.0, 0.0], (0.004, 0.010, 0.001))
@@ -631,17 +716,21 @@ class ScenePlot:
             ax.text(0.475, 0.0, 0.0, 'Leap Motion')
 
         # compatibiliy issues, need to import it here
-        sl = None
-        try:
-            from os_and_utils import scenes as sl; sl.init()
-        except:
-            pass
-        if sl.scene:
-            for n in range(len(sl.scene.object_poses)):
-                pos = sl.scene.object_poses[n].position
-                size = sl.scene.object_sizes[n]
-                X,Y,Z = VisualizerLib.cuboid_data([pos.x, pos.y, pos.z], (size.x, size.y, size.z))
-                ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
+        if scene:
+            for o in scene.objects:
+                X,Y,Z = VisualizerLib.cuboid_data(o.position_real, [o.size, o.size, o.size])
+                ax.plot_surface(X,Y,Z, color=o.color, rstride=1, cstride=1, alpha=0.8)
+
+            X,Y,Z = VisualizerLib.cuboid_data(scene.r.eef_position_real, [0.02, 0.02, 0.1])
+            ax.plot_surface(X,Y,Z, color='black', rstride=1, cstride=1, alpha=0.3)
+            '''
+            X,Y,Z = VisualizerLib.cuboid_data([0.,0.,0.], [0.02, 0.02, 0.5])
+            ax.plot_surface(X,Y,Z, color='black', rstride=1, cstride=1, alpha=0.3)
+
+            X,Y,Z = VisualizerLib.cuboid_data([0.,0.,0.3], [0.3, 0.02, 0.02])
+            ax.plot_surface(X,Y,Z, color='black', rstride=1, cstride=1, alpha=0.3)
+            '''
+
 
         if boundbox:
             # Create cubic bounding box to simulate equal aspect ratio
@@ -833,7 +922,30 @@ def save_fig_and_data(plt, data, name, d=''):
     #dd = np.load(f'/home/{os.getlogin()}/Pictures/{name}.npy', allow_pickle=True)
 
 
-if False:
+def tester():
+
+    from os_and_utils.loading import HandDataLoader, DatasetLoader
+    import gesture_classification.gestures_lib as gl; gl.init()
+    dataloader_args = {'interpolate':1, 'discards':1, 'normalize':1, 'normalize_dim':1, 'n':0}
+    X, Y = DatasetLoader(dataloader_args).load_static(settings.paths.learn_path, gl.gd.Gs_static)
+    X
+
+    ml.md.frames[-1]
+    HandPlot.hand_plot()
+
+    ax = plt.axes(projection='3d')
+    X,Y,Z = VisualizerLib.cuboid_data([0.0, 0.0, 0.0], (0.1, 0.1, 0.1))
+    ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
+    X,Y,Z = VisualizerLib.cuboid_data([1.0, 0.0, 0.0], (0.1, 0.1, 0.1))
+    ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
+    X,Y,Z = VisualizerLib.cuboid_data([2.0, 0.0, 0.0], (0.1, 0.1, 0.1))
+    ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
+    X,Y,Z = VisualizerLib.cuboid_data([-1.0, 0.0, 0.0], (0.1, 0.1, 0.1))
+    ax.plot_surface(X, Y, Z, color='yellow', rstride=1, cstride=1, alpha=0.8)
+    plt.show()
+
+
+
     import numpy as np
     import matplotlib.pyplot as plt
     from mpl_toolkits.mplot3d import proj3d
