@@ -40,6 +40,8 @@ available_configurations:
     dynamic_detection_approach: DTW
     static_network_file: new_network.pkl #
     dynamic_network_file: promp
+    hand_mode_l: static
+    hand_mode_r: dynamic
 
 min_confidence: 0.3
 since_frame_time: 0.5

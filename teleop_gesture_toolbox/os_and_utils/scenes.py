@@ -1,7 +1,6 @@
 import os, yaml, sys
 from os_and_utils import settings
-from os_and_utils.utils_ros import extv
-from os_and_utils.utils import merge_two_dicts, ordered_load
+from os_and_utils.utils import merge_two_dicts, ordered_load, extv
 from os_and_utils.parse_yaml import ParseYAML
 
 from geometry_msgs.msg import Vector3, Point, Quaternion, Pose

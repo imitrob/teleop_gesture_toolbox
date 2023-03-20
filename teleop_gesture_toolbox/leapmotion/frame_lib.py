@@ -338,6 +338,8 @@ class Hand():
         self.bone_angles = []
         self.finger_distances = []
 
+        self.oc = None
+
     def palm_pose(self):
         if ROS_IMPORT:
             pose = Pose()
@@ -556,6 +558,21 @@ class Hand():
     def point_direction(self):
         return self.fingers[1].bones[3].direction()
 
+    def palm_direction(self):
+        return self.direction()
+
+    @property
+    def _oc_(self):
+        return self.oc
+
+    @property
+    def oc(self):
+        if self.oc is None:
+            self.prepare_open_fingers()
+            self.oc
+        else:
+            return self.oc
+
     def get_open_fingers(self):
         ''' Stand of each finger, for deterministic gesture detection
         Returns:
@@ -684,9 +701,13 @@ class Hand():
         Returns:
             stop (Bool)
         '''
-        if self.palm_velocity[0]/1000 < threshold and self.palm_velocity[1]/1000 < threshold and self.palm_velocity[2]/1000 < threshold:
+        if self.visible and np.max(self.palm_velocity())/1000 < threshold:
             return True
         return False
+
+    @property
+    def stable(self):
+        return self.is_stop()
 
     def get_learning_data_static(self, definition=0):
         return self.get_learning_data(definition=definition)

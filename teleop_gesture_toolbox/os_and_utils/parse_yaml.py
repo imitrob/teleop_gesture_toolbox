@@ -1,10 +1,9 @@
 import yaml, random
 import numpy as np
-from os_and_utils.utils import ordered_load, isarray, isnumber
-
+from os_and_utils.utils import ordered_load, isarray, isnumber, extv, extq
+from copy import deepcopy
 # ROS dependency only to some functions
 try:
-    from os_and_utils.utils_ros import extv, extq
     from geometry_msgs.msg import Pose, Point, Quaternion
 except:
     pass
@@ -294,6 +293,7 @@ class ParseYAML():
         ''' Parse pose from YAML file
             1. pose is string: saves from poses.yaml file
         '''
+
         rosPose = Pose()
         if type(pose_vec) == str:
             if pose_vec not in poses_data.keys():

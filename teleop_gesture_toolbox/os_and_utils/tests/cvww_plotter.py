@@ -36,12 +36,15 @@ plt.bar(br3, gesture2_, color ='b', width = barWidth,
 
 
 # Adding Xticks
+plt.rcParams['pdf.fonttype'] = 42
+plt.rcParams['ps.fonttype'] = 42
+
 plt.xlabel('Scenario', fontsize = 15)
 plt.ylabel('Time to complete [s]', fontsize = 15)
 plt.xticks([r + barWidth for r in range(len(teleop))],
-        ['Put', 'Relocation', 'Unfeasible placement'])
+        ['Put to bowl', 'Swap objects', 'Put to occupied bowl'])
 
 
 plt.legend()
-plt.savefig("/home/petr/Pictures/CVWW22_plot_taskcompletion.eps")
+plt.savefig("/home/petr/Pictures/CVWW22_plot_taskcompletion_font.eps")
 plt.show()

@@ -71,6 +71,11 @@ def init(change_working_directory=True):
     record_with_keys = False # Bool, Enables recording with keys in UI
     print("[Settings] Workspace folder is set to: " + paths.ws_folder)
 
+
+    global feedback_mode, feedback_modes
+    feedback_modes = ['keyboard', 'gesture', 'all-at-once']
+    feedback_mode = 'gesture'
+
 def get_network_file(type='static'):
     main_config_name = yaml_config_gestures['using_config']
     chosen_config = yaml_config_gestures['available_configurations'][main_config_name]

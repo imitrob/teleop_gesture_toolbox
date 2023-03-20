@@ -22,12 +22,8 @@ def main():
         if len(gl.gd.gestures_queue) > 0:
             action = gl.gd.gestures_queue.pop()
             if action[1] != "no_gesture": print(action[1])
-        # Need arrived data in gl.gd.l[0.0].static.prob
         rate.sleep()
     print("quit")
-
-print("", end="")
-print("")
 
 if __name__ == '__main__':
     ''' Default main has three threads: 1. ROS spin, 2. GUI (optional), 3. main

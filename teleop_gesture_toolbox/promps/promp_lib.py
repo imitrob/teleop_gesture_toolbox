@@ -23,7 +23,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
 import rclpy
-from rclpy.node import Node
 from itertools import combinations, product
 
 if __name__ == '__main__':
@@ -38,7 +37,6 @@ from os_and_utils.loading import HandDataLoader, DatasetLoader
 
 
 from os_and_utils.transformations import Transformations as tfm
-from os_and_utils.utils_ros import extv
 from os_and_utils.visualizer_lib import VisualizerLib, ScenePlot
 from os_and_utils.path_def import Waypoint
 
@@ -76,8 +74,8 @@ if __name__ == '__main__':
     from os_and_utils.ros_communication_main import ROSComm
 
 from os_and_utils.parse_yaml import ParseYAML
-from os_and_utils.utils import get_object_of_closest_distance
-from os_and_utils.utils_ros import samePoses, extv
+from os_and_utils.utils import get_object_of_closest_distance, extv
+from os_and_utils.utils_ros import samePoses
 
 def main(id, X=None, vars={}):
     return generate_path(id=id, X=X, vars=vars)

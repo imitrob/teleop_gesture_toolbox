@@ -1,8 +1,8 @@
 import numpy as np
 import transformations
-from os_and_utils.utils_ros import extq
+from os_and_utils.utils import extq
 ## ROS dependent lib
-from geometry_msgs.msg import Quaternion, Point, Pose
+from geometry_msgs.msg import Pose
 from os_and_utils import settings
 from copy import deepcopy
 
@@ -91,22 +91,51 @@ class Transformations():
             else:
                 return [pose[0]/1000, -pose[2]/1000, pose[1]/1000] + pose[3:]
 
-        if isinstance(pose, Point):
-            x = pose.x/1000
-            y = -pose.z/1000
-            z = pose.y/1000
-            pose.x = x
-            pose.y = y
-            pose.z = z
+        def is_type_Pose(pose):
+            try:
+                pose.position
+                pose.orientation
+                pose.position.x
+                pose.orientation.x
+            except AttributeError:
+                return False
+            return True
+
+        ''' Input is Pose '''
+        if is_type_Pose(pose):
+            x = pose.position.x/1000
+            y = -pose.position.z/1000
+            z = pose.position.y/1000
+            pose.position.x = x
+            pose.position.y = y
+            pose.position.z = z
             return pose
 
-        x = pose.position.x/1000
-        y = -pose.position.z/1000
-        z = pose.position.y/1000
-        pose.position.x = x
-        pose.position.y = y
-        pose.position.z = z
+        ''' Input is Point '''
+        x = pose.x/1000
+        y = -pose.z/1000
+        z = pose.y/1000
+        pose.x = x
+        pose.y = y
+        pose.z = z
         return pose
+
+    @staticmethod
+    def tester_transformLeapToBase():
+        from geometry_msgs.msg import Point, Pose, Quaternion
+
+        pose = [0.,0.,0.]
+        Transformations.transformLeapToBase(pose)
+
+        pose = [0.,0.,0.,  0.,0.,0.,0.]
+        Transformations.transformLeapToBase(pose)
+
+        pose = Pose(position=Point(x=0.,y=0.,z=0.), orientation=Quaternion(x=0.,y=0.,z=0.,w=1.))
+        Transformations.transformLeapToBase(pose)
+
+        pose = Point(x=0.,y=0.,z=0.)
+        Transformations.transformLeapToBase(pose)
+
 
     transformLeapToBase__CornerConfig_translation = [1.07, 0.4, 0.01]
     @staticmethod
@@ -184,7 +213,10 @@ class Transformations():
         euler = transformations.euler_from_matrix(R, 'rxyz')
 
         x,y,z,w = transformations.quaternion_multiply(transformations.quaternion_from_euler(*euler), extq(env['ori']))
-        pose_.orientation = Quaternion(x=x,y=y,z=z,w=w)
+        pose_.orientation.x = x
+        pose_.orientation.y = y
+        pose_.orientation.z = z
+        pose_.orientation.w = w
 
         if settings.orientation_mode == 'fixed':
             pose_.orientation = env['ori']
@@ -200,9 +232,12 @@ class Transformations():
     def transformSceneToUI(pose, env, view='view'):
         ''' Scene -> rViz -> UI
         '''
-        pose_ = Pose()
-        pose_.orientation = pose.orientation
-        p = Point(x=pose.position.x-env['start'].x, y=pose.position.y-env['start'].y, z=pose.position.z-env['start'].z)
+        p = deepcopy(pose.position)
+        pose_ = deepcopy(pose)
+
+        p.x = pose.position.x-env['start'].x
+        p.y = pose.position.y-env['start'].y
+        p.z = pose.position.z-env['start'].z
         # View transformation
         x = (np.dot([p.x,p.y,p.z], env[view][0]) )*settings.ui_scale
         y = (np.dot([p.x,p.y,p.z], env[view][1]) )*settings.ui_scale
@@ -214,7 +249,7 @@ class Transformations():
         return pose_
 
     @staticmethod
-    def transformLeapToUIsimple(pose, out='pose'):
+    def transformLeapToUIsimple(pose, type='Qt', out='pose'):
         ''' Leap -> UI
         Parameters:
             pose (Pose() or list)
@@ -228,6 +263,8 @@ class Transformations():
             x, y, z = pose.position.x, pose.position.y, pose.position.z
         x_ = 2*x + settings.w/2
         y_ = 2*z + settings.h/2
+        if type=='plt':
+            y_=-y_
         z_ = float(round(-(y-300)/10))
         if out == 'pose':
             pose_ = Pose()
@@ -288,8 +325,9 @@ class Transformations():
 
     @staticmethod
     def pointToScene(point, env, scale):
+        point_ = deepcopy(point)
         x,y,z = point.x, point.y, point.z
-        point_ = Point()
+
         point_.x = np.dot([x,y,z], env['axes'][0])*scale + env['start'].x
         point_.y = np.dot([x,y,z], env['axes'][1])*scale + env['start'].y
         point_.z = np.dot([x,y,z], env['axes'][2])*scale + env['start'].z

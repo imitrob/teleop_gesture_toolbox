@@ -24,7 +24,7 @@ from os_and_utils.nnwrapper import NNWrapper
 if __name__ == '__main__': settings.init()
 import os_and_utils.move_lib as ml
 if __name__ == '__main__': ml.init()
-
+from os_and_utils.utils import cc
 
 from os_and_utils.parse_yaml import ParseYAML
 
@@ -747,6 +747,118 @@ class GestureDataDetection():
                 networks.append(file)
         return networks
 
+    @staticmethod
+    def capture_gesture_moment(DEBUG=False):
+        if DEBUG: print("[[1]] finish episode")
+        while ml.md.present():
+            time.sleep(0.01)
+        if DEBUG: print("[[2]] approvement init")
+        while not ml.md.present():
+            time.sleep(0.01)
+        if DEBUG: print("[[3]] make hand stable")
+        while not ml.md.any_hand_stable():
+            time.sleep(0.01)
+        if DEBUG: print("[[4]] 1 sec")
+        time.sleep(1.0)
+        if DEBUG: print("[[5]] cvak")
+
+
+    @staticmethod
+    def approve_handle(printer, type='y/n'):
+        print(f"{cc.OKCYAN}{printer}{cc.E}")
+        if settings.feedback_mode == 'keyboard':
+            y = input()
+            return y
+        elif settings.feedback_mode == 'gesture':
+
+            gd.capture_gesture_moment()
+
+            if type == 'y/n':
+                while True:
+                    ag = gd.approve_gesture()
+                    if ag != '':
+                        print(f"{cc.H}{'Agreement' if ag == 'y' else 'Disagreement'}{cc.E}")
+                        return ag
+            elif type == 'y':
+                while True:
+                    ag = gd.approve_gesture()
+                    if ag != '':
+                        print(f"{cc.H}{'Continue'}{cc.E}")
+                        return ag
+            elif type == 'number':
+                while True:
+                    ag = gd.number_gesture()
+                    if ag != '':
+                        print(f"{cc.H}Number: {ag}{cc.E}")
+                        return ag
+            else:
+                raise Exception("NotImplementedError!")
+        else: raise Exception(f"wrong feedback_mode {settings.feedback_mode} not in {settings.feedback_modes}")
+
+
+    @staticmethod
+    def approve_gesture():
+        if gd.processPose_approvement():
+            return 'y'
+        elif gd.processPose_disapprovement():
+            return 'n'
+        else:
+            return ''
+
+    @staticmethod
+    def number_gesture():
+        while not ml.md.frames: time.sleep(0.1)
+        fa = ml.md.frames[-1]
+        if fa.r.visible:
+            h = 'r'
+        elif fa.l.visible:
+            h = 'l'
+        else: return
+        fah = getattr(fa,h)
+
+        fah._oc_
+        fingers = 0
+        # TODO: load from config
+        THRE = [0.95, 0.7, 0.7, 0.7, 0.7]
+        for i in range(5):
+            if fah._oc_[i] > THRE[i]:
+                fingers += 1
+        return fingers
+
+    @staticmethod
+    def processPose_approvement():
+        while not ml.md.frames: time.sleep(0.1)
+        fa = ml.md.frames[-1]
+        if fa.r.visible:
+            h = 'r'
+        elif fa.l.visible:
+            h = 'l'
+        else: return
+        fah = getattr(fa,h)
+
+        # Thumbs up gesture
+        if fah._oc_[1] < 0.3 and fah.oc[2] < 0.3 and fah.oc[3] < 0.3 and fah.oc[4] < 0.3:
+            return True
+        else:
+            return False
+
+    @staticmethod
+    def processPose_disapprovement():
+        if not ml.md.frames: return
+
+        fa = ml.md.frames[-1]
+        if fa.r.visible:
+            h = 'r'
+        elif fa.l.visible:
+            h = 'l'
+        else: return
+        fah = getattr(fa,h)
+
+        # Thumbs up gesture
+        if fah._oc_[1] > 0.3 and fah.oc[2] > 0.3 and fah.oc[3] > 0.3 and fah.oc[4] > 0.3:
+            return True
+        else:
+            return False
     '''
     Old deterministic approach
     '''
@@ -813,17 +925,22 @@ class GestureDataDetection():
     def processOc():
         fa = md.frames[-1]
         if fa.r.visible:
-            gd = settings.gd.r
-            if fa.r.conf > gd.min_confidence:
-                gd.conf = True
-            else:
-                gd.conf = False
+            h = 'r'
+        elif fa.l.visible:
+            h = 'l'
+        else: return
 
-            for i in range(0,5):
-                if fa.r.OC[i] > gd.oc_turn_on_thre[i] and gd.conf:
-                    gd.oc[i] = True
-                elif fa.r.OC[i] < gd.oc_turn_off_thre[i]:
-                    gd.oc[i] = False
+        gd = getattr(settings.gd,h)
+        if getattr(fa,h).conf > gd.min_confidence:
+            gd.conf = True
+        else:
+            gd.conf = False
+
+        for i in range(0,5):
+            if getattr(fa,h).OC[i] > gd.oc_turn_on_thre[i] and gd.conf:
+                gd.oc[i] = True
+            elif getattr(fa,h).OC[i] < gd.oc_turn_off_thre[i]:
+                gd.oc[i] = False
 
     @staticmethod
     def processPose_grab():

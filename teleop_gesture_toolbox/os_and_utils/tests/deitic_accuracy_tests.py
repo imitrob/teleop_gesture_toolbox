@@ -54,7 +54,7 @@ def main():
                 rc.roscm.send_g_data()
                 f = ml.md.frames[-1]
                 if f.l.visible and f.l.grab_strength < 0.1:
-                    id_obj = dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_poses)
+                    id_obj = dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_positions_real)
                 '''if i % 10 == 0 and id_obj is not None: # every second
                     p = sl.scene.object_poses[id_obj]
                     p.orientation.x = 0.0
@@ -63,7 +63,7 @@ def main():
                     p.orientation.w = 0.0
                     p.position.z = 0.2
                     rc.roscm.r.go_to_pose(pose=p)'''
-            rate.sleep()
+            time.sleep(0.06)
             i += 1
     except KeyboardInterrupt:
         pass

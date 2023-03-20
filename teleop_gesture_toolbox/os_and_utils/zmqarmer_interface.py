@@ -92,7 +92,7 @@ class ZMQArmerInterface():
         self.cosyposesocket.send_string("scene_camera")
         msg = self.cosyposesocket.recv()
         state = pickle.loads(msg)
-        print(state['objects'])
+        #print(state['objects'])
 
         return state['objects']
 
@@ -148,7 +148,7 @@ if __name__ == "__main__":
     r.open_gripper()
 
 
-    print(r.get_joints())
+    #print(r.get_joints())
     time.sleep(5)
     r.go_to_pose([0.5, 0.0, 0.4, -1.0, 0.0, 0.0, 0.0])
     r.go_to_pose([0.5, 0.0, 0.4, -1.0, 0.0, 0.0, 0.0])

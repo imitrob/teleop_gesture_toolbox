@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 import numpy as np
-"""
+""" Plotting the results
 PLOT FUNCTION
 
 !!!

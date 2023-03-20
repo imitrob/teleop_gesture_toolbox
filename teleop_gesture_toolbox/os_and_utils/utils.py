@@ -37,7 +37,7 @@ class GlobalPaths():
         self.ws_folder = THIS_FILE_TMP.split('/')[-1]
 
         MG_PATH = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..'))
-        self.teleop_gesture_toolbox_path = MG_PATH+'/src/'
+        self.teleop_gesture_toolbox_path = MG_PATH+'/teleop_gesture_toolbox/'
         self.learn_path = MG_PATH+'/include/data/learning/'
         self.data_export_path = MG_PATH+'/include/data/export/'
         self.graphics_path = MG_PATH+'/include/graphics/'
@@ -163,3 +163,37 @@ class cc:
     E = '\033[0m'
     B = '\033[1m'
     U = '\033[4m'
+
+# Handy functions
+def extq(q):
+    ''' Extracts Quaternion object
+    Parameters:
+        q (Quaternion()): From geometry_msgs.msg
+    Returns:
+        x,y,z,w (Floats tuple[4]): Quaternion extracted
+    '''
+    if (isinstance(q, dict) and 'w' in q.keys()):
+        return q['x'], q['y'], q['z'], q['w']
+    else:
+        return q.x, q.y, q.z, q.w
+
+def extv(v):
+    ''' Extracts Point/Vector3 to Cartesian values
+    Parameters:
+        v (Point() or Vector3() or dict with 'x'..'z' in keys): From geometry_msgs.msg or dict
+    Returns:
+        [x,y,z] (Floats tuple[3]): Point/Vector3 extracted
+    '''
+    if (isinstance(v, dict) and 'x' in v.keys()):
+        return v['x'], v['y'], v['z']
+    else:
+        return v.x, v.y, v.z
+
+def extp(p):
+    ''' Extracts pose
+    Paramters:
+        p (Pose())
+    Returns:
+        list (Float[7])
+    '''
+    return p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w

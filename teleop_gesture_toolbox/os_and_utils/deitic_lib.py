@@ -58,6 +58,7 @@ class DeiticLib():
             distances_from_line.append(norm_distance)
 
         if np.min(distances_from_line) > max_dist: return None, np.min(distances_from_line)
+        #print(f"[DEICTIC DEBUG] {np.argmin(distances_from_line)}, {np.min(distances_from_line)}, test_points {test_points}")
         return np.argmin(distances_from_line), np.min(distances_from_line)
 
     def main_deitic_fun(self, f, h, object_poses, plot_line=True):
@@ -68,7 +69,17 @@ class DeiticLib():
         '''
         if len(object_poses) == 0: return None
 
+        if h == 'lr':
+            if f.l.visible:
+                h = 'l'
+            elif f.r.visible:
+                h = 'r'
+            else:
+                print("[WARNING] Deictic has no visible hand!")
+                h = 'l'
+
         hand = getattr(f, h)
+
         p1, p2 = np.array(hand.palm_position()), np.array(hand.palm_position())+np.array(hand.direction())
         #p1, p2 = np.array(hand.fingers[1].bones[3].prev_joint()), np.array(hand.fingers[1].bones[3].next_joint())
         p1s = np.array(tfm.transformLeapToBase__CornerConfig(p1))
@@ -76,7 +87,7 @@ class DeiticLib():
         v = 1000*(p2s-p1s)
         line_points = [list(p1s), list(p2s+v)]
 
-        if isinstance(object_poses[0], (list, tuple)):
+        if isinstance(object_poses[0], (list, tuple, np.ndarray)):
             object_positions = [[pose[0],pose[1],pose[2]] for pose in object_poses]
         else:
             object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in object_poses]
