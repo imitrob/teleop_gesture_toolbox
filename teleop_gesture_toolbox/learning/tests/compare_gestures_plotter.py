@@ -4,15 +4,13 @@
 2. Loads data from saved files
 3. Can compare data via plot
 
-!!!
-Needs polishing to new versions
-!!!
+- 'gl.gd.l.dynamic.info.names' needs to be
 '''
 from importlib import reload
 import numpy as np
 import sys; sys.path.append('../..')
 import os_and_utils.settings as settings; settings.init()
-import gestures_lib as gl; gl.init()
+from gesture_classification import gestures_lib as gl; gl.init()
 
 ### Reads data from input observaitons for detections
 import rclpy
@@ -24,7 +22,7 @@ class SimpleSubscriber(Node):
     def __init__(self):
         super().__init__("SimpleSubscriber__Plotter")
 
-        self.create.subscriber(DetectionObservations, '/teleop_gesture_toolbox/dynamic_detection_observations', handle_observations_msg)
+        self.create_subscription(DetectionObservations, '/teleop_gesture_toolbox/dynamic_detection_observations', self.handle_observations_msg, 5)
 
         self.received_gestures_data = []
 
@@ -42,8 +40,8 @@ X, Y = DatasetLoader({'n':5, 'scene_frame':1, 'normalize':1}).load_dynamic(setti
 
 ### plot both
 from os_and_utils.visualizer_lib import VisualizerLib, ScenePlot
-import learning.timewarp_lib
-fdtw = learning.timewarp_lib.fastdtw_()
+from gesture_classification import timewarp_lib
+fdtw = timewarp_lib.fastdtw_()
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -79,16 +77,13 @@ fdtw.X_ProMP = np.array([[[ 9.34916240e-03, -3.22637994e-04,  5.70740635e-02],
         [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
         [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00]]])
 
-Paths_Waypoints = [(fdtw.X_ProMP[i], {}) for i in range(5)]
 ScenePlot.my_plot([], Paths_Waypoints, boundbox=False, leap=False)
-my_plot([], Paths_Waypoints, boundbox=False, leap=False, filename='modelling_swipes', size=(8,8), legend=gl.gd.Gs_dynamic)
+
+ScenePlot.my_plot([], Paths_Waypoints, boundbox=False, leap=False, filename='modelling_swipes', size=(8,8), legend=['sw_down', 'sw_right', 'sw_left', 'sw_up', 'no_gest'])
 
 
 
 
-ss.received_gestures_data[-1:]
-id = 0
-gl.gd.dynamic_info().names[id]
 if True:
     fdtw.X_ProMP2 = np.array([[[ 9.34916240e-03, -3.22637994e-04,  5.70740635e-02],
         [ 3.20322835e-03, -5.31848569e-04,  1.16234503e-02],
@@ -142,16 +137,16 @@ if True:
         [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
         [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00]]])
 
-ScenePlot.my_plot([], [(fdtw.X_ProMP2[0], {}), (fdtw.X_ProMP2[1], {}), (fdtw.X_ProMP2[2], {}), (fdtw.X_ProMP2[3], {}), (fdtw.X_ProMP2[4], {})], boundbox=False, leap=False)
-ScenePlot.my_plot([], [(fdtw.X_ProMP3[0], {}), (fdtw.X_ProMP3[1], {}), (fdtw.X_ProMP3[2], {}), (fdtw.X_ProMP3[3], {}), (fdtw.X_ProMP3[4], {})], boundbox=False, leap=False)
+ScenePlot.my_plot([], fdtw.X_ProMP2, boundbox=False, leap=False)
+ScenePlot.my_plot([], fdtw.X_ProMP3, boundbox=False, leap=False)
 id = 3
-gl.gd.dynamic_info().names[id]
-ScenePlot.my_plot(X[Y==id][0:3], [(fdtw.X_ProMP[id], {})], boundbox=True, leap=False)
+X
+ScenePlot.my_plot(X[Y==id][0:3], fdtw.X_ProMP[id], boundbox=True, leap=False)
 
+
+
+''' From received gesture data '''
 ScenePlot.my_plot([], ss.received_gestures_data[-3:-2], boundbox=True, leap=False)
-
-
-
 
 id = 0
 gl.gd.dynamic_info().names[id]
@@ -159,6 +154,8 @@ ScenePlot.my_plot([fdtw.X_ProMP[id]], ss.received_gestures_data[-3:-2], boundbox
 id = 3
 gl.gd.dynamic_info().names[id]
 ScenePlot.my_plot([fdtw.X_ProMP[id]], ss.received_gestures_data[-3:-2], boundbox=True, leap=False)
+
+
 
 fdtw.sample(x=x[0][0].flatten(), y=y, print_out=True, format='inverse_array')
 
@@ -178,14 +175,6 @@ dist = np.zeros([len(counts),])
 for i in range(0,len(counts)):
     dist[i], _ = fastdtw(fdtw.X_ProMP[3], fdtw.X_ProMP[i], radius=1, dist=euclidean)
 dist
-
-fdtw.X_ProMP[0]
-fdtw.X_ProMP[3]
-ss.received_gestures_data[-3:-2]
-
-x[0][0][:,1] = np.array([0.,0.,0.,0.,0.])
-x[0][0][:,0]
-x[0][0]
 
 X_test = np.array([[[ 0.0, 0.0,  0.05], # 'swipe_down'
     [ 0.0,  0.0,  0.025],
