@@ -82,7 +82,7 @@ class AnotherWindowPlot(QWidget):
     def set_n_series(self, n_series):
         self.n_series = n_series
 
-    def update_plot(self, l_hand_type='static', r_hand_type='dynamic', gs_filter=['grab', 'point', 'two', 'three', 'five', 'swipe_up','swipe_down', 'nothing_dyn'], options='log', linewidth=2.0):
+    def update_plot(self, l_hand_type='static', r_hand_type='dynamic', gs_filter=['closed_hand', 'opened_hand','grab', 'point', 'two', 'three', 'five', 'swipe_up','swipe_down', 'nothing_dyn'], options='log', linewidth=2.0):
         ''' Might be little messy when constructing plot data
             Takes data from ml.md and gl.gd
         Parameters:
@@ -124,6 +124,7 @@ class AnotherWindowPlot(QWidget):
             right_values = right_values_
         # TEMP:
         if 'log' in options and r_hand_type:
+            #print(f"right_values : {right_values} :: {r_hand_type}, {bool(r_hand_type)}")
             right_values = np.array(right_values)
             right_values = (np.log(right_values)-right_values.min())/(right_values.max()-right_values.min())
 
@@ -460,7 +461,7 @@ class Example(QMainWindow):
         self.dir_queue = []
 
         self.lblStatus = QLabel('Status bar', self)
-        self.lblStatus.setGeometry(LEFT_MARGIN+130+ICON_SIZE, TOP_MARGIN+32, 500, 200)
+        self.lblStatus.setGeometry(LEFT_MARGIN+130+ICON_SIZE, TOP_MARGIN+32, 1000, 400)
 
         self.comboInteractiveSceneChanges = QComboBox(self)
         self.comboInteractiveSceneChanges.addItem("Scene 1 Drawer")
@@ -824,6 +825,9 @@ class Example(QMainWindow):
         # Various
         self.paint_sequence = 0
 
+        self.static_gs_names_descs = gl.gd.static_info().names
+        self.dynamic_gs_names_descs = gl.gd.dynamic_info().names
+
 
     def real_or_sim_datapull__btnstate(self,b):
         if b.text() == "Gestures/GUI":
@@ -1069,11 +1073,14 @@ class Example(QMainWindow):
         self.movePageGoPoseEdits[6].setText(str(ml.md.goal_pose.orientation.w))
 
     def movePageDoActionFun(self):
+        print("UI LIB: ",ml.RealRobotActionLib,self.movePageDoActionComboPicked,self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked)
         getattr(ml.RealRobotActionLib,self.movePageDoActionComboPicked)((self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked))
 
     def movePageDoActionRefreshObjectsFun(self):
+        print("[Refresh] 1/4 Update scene")
         ml.RealRobotConvenience.update_scene()
 
+        print("[Refresh] 2/4 comboMovePagePickObjects")
         if rc.roscm.is_real:
             ml.RealRobotConvenience.update_scene()
         if sl.scene is not None:
@@ -1089,13 +1096,15 @@ class Example(QMainWindow):
             for n,object in enumerate(sl.scene.O):
                 self.comboMovePagePickObject2.addItem(object)
 
+        print("[Refresh] 3/4 Predictions handle")
         static_predictions, dynamic_predictions = ml.md.predict_handle()
-
+        print("[Refresh] 4/4 Static and dynamic predictions")
         for n,btn in enumerate(self.buttonsActivateStaticGestures):
             btn.setText(f"{gl.gd.Gs_static[n]}\n{static_predictions[n]}")
+            #self.static_gs_names_descs[n] = f"{gl.gd.Gs_static[n]}\n{static_predictions[n]}"
         for n,btn in enumerate(self.buttonsActivateDynamicGestures):
             btn.setText(f"{gl.gd.Gs_dynamic[n]}\n{dynamic_predictions[n]}")
-
+            #self.dynamic_gs_names_descs[n] = f"{gl.gd.Gs_dynamic[n]}\n{dynamic_predictions[n]}"
 
     def movePageDoActionGenActionButtonFun(self):
         ''' Generate User intent from data gathered using data from GUI
@@ -1382,7 +1391,7 @@ class Example(QMainWindow):
         main_livin = (time.time()-ml.md.last_time_livin) < 1.0
         spinner_livin = (time.time()-rc.roscm.last_time_livin) < 1.0
 
-        textStatus += f"main: {'o' if main_livin else 'x'}, spin: {'o' if spinner_livin else 'x'}"
+        textStatus += f"{'real' if rc.roscm.is_real else 'sim'} main: {'o' if main_livin else 'x'}, spin: {'o' if spinner_livin else 'x'}"
         textStatus += f" {[g[1] for g in gl.gd.gestures_queue]}"
         textStatus += f"\n{sl.scene}"
         if ml.md.goal_pose and ml.md.goal_joints:
@@ -1396,6 +1405,7 @@ class Example(QMainWindow):
             qp.drawEllipse(LEFT_MARGIN+130+ICON_SIZE*2, h-10-ICON_SIZE, ICON_SIZE/2,ICON_SIZE/2)
             qp.setBrush(QBrush(Qt.black, Qt.NoBrush))
         self.lblInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*5,ICON_SIZE)
+        textStatus = ''
         self.lblStatus.setText(textStatus)
 
         self.lbl3.setText("Det.: "+settings.get_hand_mode()['l'])
@@ -1449,9 +1459,9 @@ class Example(QMainWindow):
 
             ''' Left side lane - Gestures '''
             static_gs_file_images = gl.gd.static_info().filenames
-            static_gs_names = gl.gd.static_info().names
+            #static_gs_names = gl.gd.static_info().names
             dynamic_gs_file_images = gl.gd.dynamic_info().filenames
-            dynamic_gs_names = gl.gd.dynamic_info().names
+            #dynamic_gs_names = gl.gd.dynamic_info().names
             for n, i in enumerate(static_gs_file_images):
                 image_filename = settings.paths.graphics_path+i
                 image_filename = f"{image_filename[:-4]}_left{image_filename[-4:]}"
@@ -1463,9 +1473,9 @@ class Example(QMainWindow):
                     if gl.gd.l.static[-1][n].activated:
                         qp.drawRect(LEFT_MARGIN,TOP_MARGIN_GESTURES+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                     qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE-gl.gd.l.static[-1][n].probability*ICON_SIZE))
-
-                    if ml.md.real_or_sim_datapull == True:
-                        qp.drawText(LEFT_MARGIN+ICON_SIZE+5, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, static_gs_names[n])
+            for n, i in enumerate(static_gs_file_images):
+                if ml.md.real_or_sim_datapull == True:
+                    qp.drawText(LEFT_MARGIN+ICON_SIZE+5, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, self.static_gs_names_descs[n])
             '''
             if gl.gd.r.static.relevant():
                 for n, i in enumerate(static_gs_file_images):
@@ -1500,8 +1510,9 @@ class Example(QMainWindow):
                     if gl.gd.r.dynamic[-1][n].activated:
                         qp.drawRect(w-RIGHT_MARGIN,TOP_MARGIN_GESTURES+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
                     qp.drawLine(w-RIGHT_MARGIN-2, TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE, w-RIGHT_MARGIN-2, int(TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE-probabilities[n]*ICON_SIZE))
-                    if ml.md.real_or_sim_datapull == True:
-                        qp.drawText(w-RIGHT_MARGIN-90, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, dynamic_gs_names[n])
+            for n, i in enumerate(dynamic_gs_file_images):
+                if ml.md.real_or_sim_datapull == True:
+                    qp.drawText(w-RIGHT_MARGIN-90, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, self.dynamic_gs_names_descs[n])
             for n,dyng in enumerate(self.buttonsActivateDynamicGestures):
                 dyng.setGeometry(w-RIGHT_MARGIN-100, TOP_MARGIN_GESTURES+n*ICON_SIZE, ICON_SIZE+20, ICON_SIZE)
 

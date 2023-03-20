@@ -77,6 +77,7 @@ class ROSComm(Node):
     def __init__(self, robot_interface='no-interface'):
         super().__init__('ros_comm_main')
         self.robot_interface = robot_interface
+        self.is_real = True
 
         # Saving the joint_states
         ''' Coppelia Sim Feedbacks '''
@@ -104,7 +105,7 @@ class ROSComm(Node):
         # Goal pose publisher
         self.ee_pose_goals_pub = self.create_publisher(EEPoseGoals,'/ee_pose_goals', 5)
 
-        self.create_subscription(rosm.Frame, '/hand_frame', ROSComm.hand_frame_callback, 10)
+        self.examplesub = self.create_subscription(rosm.Frame, '/hand_frame', ROSComm.hand_frame_callback, 10)
 
         if settings.launch_gesture_detection:
             self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/static_detection_solutions', self.save_static_detection_solutions_callback, 10)
@@ -120,8 +121,8 @@ class ROSComm(Node):
         self.gesture_solution_pub = self.create_publisher(String, '/teleop_gesture_toolbox/filtered_gestures', 5)
 
         self.call_tree_singlerun_cli = self.create_client(BTreeSingleCall, '/btree_onerun')
-        while not self.call_tree_singlerun_cli.wait_for_service(timeout_sec=1.0):
-            print('Behaviour tree not available, waiting again...')
+        #while not self.call_tree_singlerun_cli.wait_for_service(timeout_sec=1.0):
+        #    print('Behaviour tree not available, waiting again...')
 
         self.save_hand_record_cli = self.create_client(SaveHandRecord, '/save_hand_record')
         if not self.save_hand_record_cli.wait_for_service(timeout_sec=1.0):
@@ -184,7 +185,7 @@ class ROSComm(Node):
 
     @withsem
     def create_rate_(self, rate):
-        self.create_rate(rate)
+        return self.create_rate(rate)
 
     @withsem
     def get_time(self):
@@ -207,13 +208,14 @@ class ROSComm(Node):
     def init_real_interface__zmqarmer__panda(self):
         assert ZMQArmerInterface is not None, "ZMQArmerInterface failed to load!"
 
-        #self.r = ZMQArmerInterface()
-        self.r = ZMQArmerInterfaceWithSem(rossem)
+        self.r = ZMQArmerInterface()
+        #self.r = ZMQArmerInterfaceWithSem(rossem)
 
     def spin_once(self, sem=True):
         if sem:
             if DEBUGSEMAPHORE: print("ACQ - spinner")
             with rossem:
+                if DEBUGSEMAPHORE: print("*")
                 self.last_time_livin = time.time()
                 rclpy.spin_once(roscm)
             if DEBUGSEMAPHORE: print("---")
@@ -263,6 +265,7 @@ class ROSComm(Node):
     def hand_frame_callback(data):
         ''' Hand data received by ROS msg is saved
         '''
+        #print("new data")
         f = Frame()
         f.import_from_ros(data)
         ml.md.frames.append(f)

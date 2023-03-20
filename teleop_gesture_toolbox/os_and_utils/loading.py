@@ -13,10 +13,8 @@ import pickle
 import sys,os
 from copy import deepcopy
 '''
-#from leapmotion import frame_lib; frame_lib.__name__ = 'frame_lib'; frame_lib.__spec__.name = 'frame_lib'
-if __name__ == '__main__':
-    sys.path.append("..")
-    sys.path.append("../leapmotion")
+sys.path.append("..")
+sys.path.append("../leapmotion")
 sys.path.append("leapmotion")
 import frame_lib
 '''
@@ -298,7 +296,7 @@ class DatasetLoader():
         print(f"shape 1 {np.array(X).shape} y {np.array(Y).shape}")
         X,Y = self.to_2D(X,Y)
         print(f"shape 2 {np.array(X).shape} y {np.array(Y).shape}")
-        X,Y = self.postprocessing(X,Y)
+        #X,Y = self.postprocessing(X,Y)
         print(f"shape 3 {X.shape} y {Y.shape}")
         X,Y = self.discard(X,Y)
         print(f"shape 4 {X.shape} y {Y.shape}")
@@ -316,11 +314,6 @@ class DatasetLoader():
         Y = np.delete(Y,discards)
         print(f"[Loading] Discarted {len(discards)} records")
         return X,Y
-
-    #import numpy as np
-    #A = np.array([0,1,2,3,4,5,6])
-    #B = [1,3,5]
-    #np.delete(A,B)
 
     def postprocessing(self, X, Y):
 
@@ -570,5 +563,5 @@ if __name__ == '__main__':
     import gesture_classification.gestures_lib as gl; gl.init()
 
     dataloader_args = {'normalize':1, 'n':5, 'scene_frame':1, 'inverse':1}
-    DatasetLoader(dataloader_args).load(settings.paths.learn_path, gl.gd.Gs_dynamic, new=True)
+    #DatasetLoader(dataloader_args).load_dynamic(settings.paths.learn_path, gl.gd.Gs_dynamic, new=True)
     DatasetLoader({'input_definition_version':1}).load_static(settings.paths.learn_path, gl.gd.Gs_static, new=True)
