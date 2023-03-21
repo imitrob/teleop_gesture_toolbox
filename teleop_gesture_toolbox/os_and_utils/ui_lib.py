@@ -402,6 +402,7 @@ class Example(QMainWindow):
         settings.WindowState = 0
         self.GesturesViewState = False
         self.PlotterWindow = False
+        self.textStatusEnabled = True
         self.MoveViewState = True
         self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn = True
 
@@ -635,7 +636,10 @@ class Example(QMainWindow):
         viewPlotWindowAction.setStatusTip('View plot window')
         viewPlotWindowAction.setChecked(False)
         viewPlotWindowAction.triggered.connect(self.togglePlotWindow)
-
+        viewPlotLblStatus = QAction('View info', self, checkable=True)
+        viewPlotLblStatus.setStatusTip('View info')
+        viewPlotLblStatus.setChecked(True)
+        viewPlotLblStatus.triggered.connect(self.toggleLblStatus)
 
         ## Menu items -> Go to page
         viewGoToInfoAction = QAction('Info page', self)
@@ -724,6 +728,7 @@ class Example(QMainWindow):
         viewMenu.addAction(viewOptionsAction)
         viewMenu.addAction(viewMoveOptionsAction)
         viewMenu.addAction(viewPlotWindowAction)
+        viewMenu.addAction(viewPlotLblStatus)
         pageMenu.addAction(viewGoToInfoAction)
         pageMenu.addAction(viewGoToControlAction)
         pageMenu.addAction(viewGoToMoveAction)
@@ -845,6 +850,12 @@ class Example(QMainWindow):
         else:
             self.PlotterWindow = False
             self.plot_window = None
+
+    def toggleLblStatus(self, state):
+        if state:
+            self.textStatusEnabled = True
+        else:
+            self.textStatusEnabled = False
 
     def updateLeftRightPanel(self, leftPanelNames=None, rightPanelNames=None):
         ''' Update names on left or right panel
@@ -1388,25 +1399,26 @@ class Example(QMainWindow):
         qp = QPainter()
         qp.begin(self)
         textStatus = ""
+
         main_livin = (time.time()-ml.md.last_time_livin) < 1.0
         spinner_livin = (time.time()-rc.roscm.last_time_livin) < 1.0
 
-        textStatus += f"{'real' if rc.roscm.is_real else 'sim'} main: {'o' if main_livin else 'x'}, spin: {'o' if spinner_livin else 'x'}"
-        textStatus += f" {[g[1] for g in gl.gd.gestures_queue]}"
-        textStatus += f"\n{sl.scene}"
-        if ml.md.goal_pose and ml.md.goal_joints:
-            structures_str = [structure.object_stack for structure in ml.md.structures]
-            textStatus += f"eef: {str(round(ml.md.eef_pose.position.x,2))} {str(round(ml.md.eef_pose.position.y,2))} {str(round(ml.md.eef_pose.position.z,2))}\ng p: {str(round(ml.md.goal_pose.position.x,2))} {str(round(ml.md.goal_pose.position.y,2))} {str(round(ml.md.goal_pose.position.z,2))}\ng q:{str(round(ml.md.goal_pose.orientation.x,2))} {str(round(ml.md.goal_pose.orientation.y,2))} {str(round(ml.md.goal_pose.orientation.z,2))} {str(round(ml.md.goal_pose.orientation.w,2))}\nAttached: {ml.md.attached}\nbuild_mode {ml.md.build_mode}\nobject_touch and focus_id {ml.md.object_focus_id} {ml.md.object_focus_id}\nStructures: {str(structures_str)}\n"
-        if ml.md.present():
-            textStatus += f"fps: {round(ml.md.frames[-1].fps)}, id: {ml.md.frames[-1].seq}"
+        if self.textStatusEnabled:
+            textStatus += f"{'real' if rc.roscm.is_real else 'sim'} main: {'o' if main_livin else 'x'}, spin: {'o' if spinner_livin else 'x'}"
+            textStatus += f" {[g[1] for g in gl.gd.gestures_queue]}"
+            textStatus += f"\n{sl.scene}"
+            if ml.md.goal_pose and ml.md.goal_joints:
+                structures_str = [structure.object_stack for structure in ml.md.structures]
+                textStatus += f"eef: {str(round(ml.md.eef_pose.position.x,2))} {str(round(ml.md.eef_pose.position.y,2))} {str(round(ml.md.eef_pose.position.z,2))}\ng p: {str(round(ml.md.goal_pose.position.x,2))} {str(round(ml.md.goal_pose.position.y,2))} {str(round(ml.md.goal_pose.position.z,2))}\ng q:{str(round(ml.md.goal_pose.orientation.x,2))} {str(round(ml.md.goal_pose.orientation.y,2))} {str(round(ml.md.goal_pose.orientation.z,2))} {str(round(ml.md.goal_pose.orientation.w,2))}\nAttached: {ml.md.attached}\nbuild_mode {ml.md.build_mode}\nobject_touch and focus_id {ml.md.object_focus_id} {ml.md.object_focus_id}\nStructures: {str(structures_str)}\n"
+            if ml.md.present():
+                textStatus += f"fps: {round(ml.md.frames[-1].fps)}, id: {ml.md.frames[-1].seq}"
+        self.lblStatus.setText(textStatus)
 
         if self.recording:
             qp.setBrush(QBrush(Qt.red, Qt.SolidPattern))
             qp.drawEllipse(LEFT_MARGIN+130+ICON_SIZE*2, h-10-ICON_SIZE, ICON_SIZE/2,ICON_SIZE/2)
             qp.setBrush(QBrush(Qt.black, Qt.NoBrush))
         self.lblInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*5,ICON_SIZE)
-        textStatus = ''
-        self.lblStatus.setText(textStatus)
 
         self.lbl3.setText("Det.: "+settings.get_hand_mode()['l'])
         self.lbl4.setText("Det.: "+settings.get_hand_mode()['r'])
