@@ -41,14 +41,14 @@ class MoveData():
         - States (joints, velocity, eff, ... )
         '''
 
-        bfr_len = 1000 #settings.configRecording['BufferLen']
+        self.bfr_len = 1000 #settings.configRecording['BufferLen']
         ''' Leap Controller data saved as circullar buffer '''
-        self.frames = collections.deque(maxlen=bfr_len)
+        self.frames = collections.deque(maxlen=self.bfr_len)
         ''' '''
-        self.goal_pose_array = collections.deque(maxlen=bfr_len)
-        self.eef_pose_array = collections.deque(maxlen=bfr_len)
+        self.goal_pose_array = collections.deque(maxlen=self.bfr_len)
+        self.eef_pose_array = collections.deque(maxlen=self.bfr_len)
 
-        self.joint_states = collections.deque(maxlen=bfr_len)
+        self.joint_states = collections.deque(maxlen=self.bfr_len)
 
         ## Current/Active robot data at the moment
         self.goal_joints = None
@@ -171,16 +171,21 @@ class MoveData():
 
         self.actions_done = []
 
-    def any_hand_stable(self):
-        if self.stopped(h='r') or self.stopped(h='l'):
+    def any_hand_stable(self, time=1.0):
+        if self.stopped(h='r', time=time) or self.stopped(h='l', time=time):
             return True
         return False
 
-    def stopped(self, h):
-        test_frames = [-1, -10, -20, -30]
+    def stopped(self, h, time=1.0):
+        frames_stopped = self.frames[-1].fps * time
+        frames_stopped = np.clip(len(self.frames)-2, 1, frames_stopped)
+        test_frames = np.linspace(1,frames_stopped,5, dtype=int)
         for f in test_frames:
             #print(f"frame: {f}, stable: {getattr(self.frames[f], h).stable}")
-            if not getattr(self.frames[f], h).stable:
+            ho = self.frames[-f].get_hand(h)
+            if ho is None:
+                return False
+            if not ho.stable:
                 return False
         return True
 
@@ -339,16 +344,15 @@ class MoveData():
             rc.roscm.r.go_to_pose(self.goal_pose)
 
         if self.mode == 'gesture':
-            if self.present(): # If any hand visible
+            if self.present() and not self.any_hand_stable(time=1.0): # Hand visible and not hand stable 2 sec.
                 # Send gesture data based on hand mode
-                if self.frames and settings.gesture_detection_on:
+                if settings.gesture_detection_on:
                     rc.roscm.send_g_data()
             else:
                 if len(gl.gd.gestures_queue) > 0:
                     self.evaluate_episode = True
-
-            # Handle gesture activation
             '''
+            # Handle gesture activation
             if len(gl.gd.gestures_queue) > 0:
                 action = gl.gd.gestures_queue.pop()
                 #rc.roscm.gesture_solution_publish(String(data=action[1]))

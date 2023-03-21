@@ -816,12 +816,11 @@ class GestureDataDetection():
         else: return
         fah = getattr(fa,h)
 
-        fah._oc_
         fingers = 0
         # TODO: load from config
         THRE = [0.95, 0.7, 0.7, 0.7, 0.7]
         for i in range(5):
-            if fah._oc_[i] > THRE[i]:
+            if fah.oc[i] > THRE[i]:
                 fingers += 1
         return fingers
 
@@ -837,7 +836,7 @@ class GestureDataDetection():
         fah = getattr(fa,h)
 
         # Thumbs up gesture
-        if fah._oc_[1] < 0.3 and fah.oc[2] < 0.3 and fah.oc[3] < 0.3 and fah.oc[4] < 0.3:
+        if fah.oc[1] < 0.3 and fah.oc[2] < 0.3 and fah.oc[3] < 0.3 and fah.oc[4] < 0.3:
             return True
         else:
             return False
@@ -855,7 +854,7 @@ class GestureDataDetection():
         fah = getattr(fa,h)
 
         # Thumbs up gesture
-        if fah._oc_[1] > 0.3 and fah.oc[2] > 0.3 and fah.oc[3] > 0.3 and fah.oc[4] > 0.3:
+        if fah.oc[1] > 0.3 and fah.oc[2] > 0.3 and fah.oc[3] > 0.3 and fah.oc[4] > 0.3:
             return True
         else:
             return False
