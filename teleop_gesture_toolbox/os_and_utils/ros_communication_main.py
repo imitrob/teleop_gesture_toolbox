@@ -22,7 +22,7 @@ from teleop_gesture_toolbox.msg import EEPoseGoals, JointAngles
 from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
 
-from leapmotion.frame_lib import Frame
+from hand_processing.frame_lib import Frame
 import teleop_gesture_toolbox.msg as rosm
 from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
 import threading

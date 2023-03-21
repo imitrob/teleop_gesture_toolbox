@@ -54,7 +54,7 @@ if __name__ == '__main__':
     nn = pymc_sampler.init(nn)
 
     ''' Update '''
-    sys.path.append(f"leapmotion")
+    sys.path.append(f"hand_processing")
     from os_and_utils import visualizer_lib as vis
     frames = np.load(settings.paths.learn_path+'/closed_hand/1.npy', allow_pickle=True)
     hand_line_figs = [vis.HandPlot.generate_hand_lines(frame, 'l', alpha=0.3) for frame in frames]

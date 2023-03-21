@@ -43,7 +43,7 @@ ros2 launch teleop_gesture_toolbox backend.launch
 ```
 - This launches:
   1. Leap software backend (Shell command: `sudo leapd`)
-  2. Leap Motion Controller ROS publisher (`ros2 run teleop_gesture_toolbox leap_run.py`) (Script: `leapmotion/leap.py`)
+  2. Leap Motion Controller ROS publisher (`ros2 run teleop_gesture_toolbox leap_run.py`) (Script: `hand_processing/leap.py`)
   3. Static gestures detection (`ros2 run teleop_gesture_toolbox static_sample_thread_run.py`) (`gesture_classification/main_sample_thread.py`)
   4. Dynamic gestures detection (`ros2 run teleop_gesture_toolbox dynamic_sample_thread_run.py`) (`gesture_classification/dynamic_sample_thread.py`)
   5. Coppelia Sim simulator with Panda robot from *Coppelia Sim ROS interface package* (`ros2 run coppelia_sim_ros_interface server_run.py`) (`coppelia_sim_ros_server.py`)

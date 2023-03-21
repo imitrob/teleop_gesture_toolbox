@@ -54,9 +54,34 @@ class Frame():
         else:
             self.leapgestures = LeapGestures()
 
+    def which_visible(self):
+        if self.l.visible and self.r.visible: return 'both'
+        elif self.l.visible: return 'l'
+        else: return 'r'
+
+    def get_visible(self, pref='l'):
+        if self.l.visible and self.r.visible: return getattr(self, pref)
+        elif self.l.visible: return self.l
+        else: return self.r
+
+    def get_hand(self, h):
+        if h == 'lr': return self.get_visible()
+        elif h == 'l':
+            if not self.l.visible: return None
+            return self.l
+        elif h == 'r':
+            if not self.r.visible: return None
+            return self.r
+        else: raise Exception("Cannot happen")
+
+    def present(self):
+        ''' Any hand present? '''
+        return (self.l.visible or self.r.visible)
+
     def stamp(self):
         return self.sec+self.nanosec*1e-9
 
+    ''' Imports + Print '''
     def import_from_hi5(self, frame):
         (gloves, left_tracker, right_tracker, id ) = frame
 
@@ -290,6 +315,14 @@ class Frame():
 
         return frame
 
+    def __getattr__(self, attr):
+        if self.l.visible:
+            return getattr(self.l, attr)
+        elif self.r.visible:
+            return getattr(self.r, attr)
+        else:
+            return None
+
 
 class Hand():
     ''' Advanced variables of hand derived from hand object
@@ -338,7 +371,8 @@ class Hand():
         self.bone_angles = []
         self.finger_distances = []
 
-        self.oc = None
+        self.oc_ = None
+        self.oca_ = None
 
     def palm_pose(self):
         if ROS_IMPORT:
@@ -561,17 +595,36 @@ class Hand():
     def palm_direction(self):
         return self.direction()
 
-    @property
-    def _oc_(self):
-        return self.oc
+    def palm_thumb_direction(self):
+        return np.cross(self.palm_normal(), self.palm_direction())
+
+    def palm_thumb_angle(self, wrt='xy'):
+        if wrt == 'xy':
+            palm_direction = self.palm_thumb_direction()
+            xy = list(palm_thumb_direction[0:2])
+            xy.reverse()
+            return np.rad2deg(np.arctan2(*xy))
+        else: raise NotImplementedError()
 
     @property
     def oc(self):
-        if self.oc is None:
+        if self.oc_ is None:
             self.prepare_open_fingers()
-            self.oc
+            return self.oc_
         else:
-            return self.oc
+            return self.oc_
+
+    @property
+    def oc_activates(self):
+        return self.oca
+
+    @property
+    def oca(self):
+        if self.oca_ is None:
+            self.prepare_open_fingers()
+            return self.oca_
+        else:
+            return self.oca_
 
     def get_open_fingers(self):
         ''' Stand of each finger, for deterministic gesture detection
@@ -595,8 +648,8 @@ class Hand():
             oc_turn_on_thre = settings.yaml_config_gestures['oc_turn_on_thre']
         else:
             oc_turn_on_thre = [0.8] * 5
-        self.oc = self.get_open_fingers()
-        self.oc_activates = [self.oc[i]>oc_turn_on_thre[i] for i in range(5)]
+        self.oc_ = self.get_open_fingers()
+        self.oca_ = [self.oc_[i]>oc_turn_on_thre[i] for i in range(5)]
 
     def get_position_tip_of_fingers(self):
         # shape = 5 (fingers) x 3 (Cartesian position)
@@ -680,7 +733,6 @@ class Hand():
             self.finger_distances.append(np.sqrt(np.sum(np.power(np.array(comb[0]) - np.array(comb[1]),2))))
             self.finger_distances_old.extend(np.array(comb[0]) - np.array(comb[1]))
 
-
     def get_learning_data(self, definition=1):
         ''' Return Vector of Observation Parameters
         '''
@@ -714,6 +766,25 @@ class Hand():
 
     def get_single_learning_data_dynamic(self, definition=0):
         return self.palm_position()
+
+    ''' Deterministic static gestures recognition '''
+    def gd_static_grab(self):
+        return  not self.oca[0] and not self.oca[1] and not self.oca[2] and not self.oca[3] and not self.oca[4]
+    def gd_static_thumbsup(self):
+        return      self.oca[0] and not self.oca[1] and not self.oca[2] and not self.oca[3] and not self.oca[4]
+    def gd_static_point(self):
+        return                          self.oca[1] and not self.oca[2] and not self.oca[3] and not self.oca[4]
+    def gd_static_two(self):
+        return (not self.oca[0] and     self.oca[1] and     self.oca[2] and not self.oca[3] and not self.oca[4]) \
+            or (    self.oca[0] and     self.oca[1] and not self.oca[2] and not self.oca[3] and not self.oca[4])
+    def gd_static_three(self):
+        return (not self.oca[0] and     self.oca[1] and     self.oca[2] and     self.oca[3] and not self.oca[4]) \
+            or (    self.oca[0] and     self.oca[1] and     self.oca[2] and not self.oca[3] and not self.oca[4])
+    def gd_static_four(self):
+        return (not self.oca[0] and     self.oca[1] and     self.oca[2] and     self.oca[3] and     self.oca[4]) \
+            or (    self.oca[0] and     self.oca[1] and     self.oca[2] and     self.oca[3] and not self.oca[4])
+    def gd_static_five(self):
+        return      self.oca[0] and     self.oca[1] and     self.oca[2] and     self.oca[3] and     self.oca[4]
 
 
 class Vector():

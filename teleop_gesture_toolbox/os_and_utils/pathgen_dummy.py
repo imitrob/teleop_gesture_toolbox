@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from os_and_utils import settings
 
-sys.path.append('leapmotion') # .../src/leapmotion
+sys.path.append('hand_processing') # .../src/hand_processing
 #from loading import HandDataLoader, DatasetLoader
 from os_and_utils.loading import HandDataLoader, DatasetLoader
 

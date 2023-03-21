@@ -3,7 +3,7 @@ Plot saved data of 'opened_hand','closed_hand' gestures
 '''
 import sys; sys.path.append("../..")
 from os_and_utils import settings; settings.init()
-sys.path.append(settings.paths.teleop_gesture_toolbox_path+'/leapmotion')
+sys.path.append(settings.paths.teleop_gesture_toolbox_path+'/hand_processing')
 import numpy as np
 from os_and_utils import visualizer_lib as vis
 

@@ -14,11 +14,11 @@ import sys,os
 from copy import deepcopy
 '''
 sys.path.append("..")
-sys.path.append("../leapmotion")
-sys.path.append("leapmotion")
+sys.path.append("../hand_processing")
+sys.path.append("hand_processing")
 import frame_lib
 '''
-import leapmotion.frame_lib as frame_lib
+import hand_processing.frame_lib as frame_lib
 
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import scale

@@ -1,5 +1,9 @@
 #!/usr/bin/env python
-''' Sends gesture data and receive results in GUI
+''' Up-to-Date Pipeline
+argv[1] = 'nogui'
+argv[1] = 'ros1armer' - real (default), 'coppelia' - sim
+argv[1] = 'tester'
+argv[2] = 'drawer'
 '''
 import sys, os, time, threading
 sys.path.append(os.path.join(os.path.abspath(__file__), "..", '..', 'python3.9', 'site-packages', 'teleop_gesture_toolbox'))
@@ -41,8 +45,7 @@ def main():
     ml.RealRobotActionLib.cautious = True
     path_gen = PathGenDummy()
 
-
-    #sl.scenes.make_scene_from_yaml('pickplace')
+    # Scene initialization
     if len(sys.argv) > 2 and sys.argv[2] == 'drawer':
         s = Scene(init='drawer', random=False)
         s.r.eef_position = np.array([2,2,2])
@@ -53,107 +56,20 @@ def main():
         s.r.eef_position = np.array([2,2,2])
         sl.scene = s
 
+    # Trigger testing
+    if len(sys.argv) > 1 and sys.argv[1] == 'tester': test_toolbox_features()
 
-    """
-    def test_rot_ap(rot_angle):
-        rot_angle = -rot_angle
-        ''' Bounding - Safety feature '''
-        rot_angle = np.clip(rot_angle, -30, 0)
-        x,y,z,w = [0.,1.,0.,0.]
-        q = UnitQuaternion(sm.base.troty(rot_angle, 'deg') @ UnitQuaternion([w, x,y,z])).vec_xyzs
-        ml.md.goal_pose = Pose(position=Point(x=0.5, y=0.0, z=0.3), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
-        print(ml.md.goal_pose)
-        ml.RealRobotConvenience.move_sleep()
-    '''
-    test_rot_ap(0.0)
-    input("Asdoinan1")
-    test_rot_ap(10.0)
-    input("Asdoinan2")
-    test_rot_ap(20.0)
-    input("Asdoinan3")
-    test_rot_ap(0.0)
-    input("Asdoinan4")
-    '''
-    while not ml.md.frames: time.sleep(0.1)
-    while True:
-        ''' when hand stabilizes, it takes the measurement '''
-        prev_rot = np.inf
-        final_rot = np.inf
-        while True:
-            if not ml.md.l_present(): time.sleep(1); continue
-            direction_vector = np.cross(ml.md.frames[-1].l.palm_normal(), ml.md.frames[-1].l.palm_direction())
-            xy = list(direction_vector[0:2])
-            xy.reverse()
-            rot = np.rad2deg(np.arctan2(*xy))
-            print(f"{rot}")
-            test_rot_ap(rot)
-
-            if abs(rot - prev_rot) < 5:
-                 final_rot = (rot + prev_rot)/2
-                 break
-            prev_rot = rot
-        print(f"final rot: {final_rot}")
-        test_rot_ap(0.0)
-        time.sleep(2.0)
-    input("ASdaiosnsoidniosnidsoinsdnasd")
-    """
-    if False:
-        time.sleep(5.)
-        try:
-            while rclpy.ok():
-                print("=== New query ===")
-                object_name_1 = None
-                print("= 1. Object 1 ")
-                s=ml.RealRobotConvenience.update_scene()
-                if ml.md.real_or_sim_datapull:
-                    object_name_1 = ml.RealRobotConvenience.get_target_objects(1, s)[0]
-                else: # Fake data from GUI
-                    object_name_1 = ml.md.comboMovePagePickObject1Picked
-
-                print("= 2. Gather action gestures ")
-                while len(gl.gd.gestures_queue) == 0:
-                    while not ml.md.present():
-                        time.sleep(0.1)
-                    while ml.md.present():
-                        ml.md.main_handle_step(path_gen=path_gen)
-                        time.sleep(0.01)
-
-                print("= 3. Execution ")
-                episode_evaluation_and_execution(s=ml.RealRobotConvenience.update_scene(), gesture_sentence_type = '1st-object-action-rest', object_name_1=object_name_1)
-                gl.gd.gestures_queue.clear()
-                ml.md.evaluate_episode = False
-                print("Move hand out to end the episode!")
-                while ml.md.present():
-                    time.sleep(0.1)
-
-        except KeyboardInterrupt:
-            pass
-
-    '''
-    while True:
-        print("Testing feedback approvement!")
-        gl.gd.approve_handle(f"Do you agree? (y/n)", type='number')
-    '''
-
-    #  print(s)
-    #test_toolbox_features()
-    gesture_sentence_type = 'action-objects'
     try:
         while rclpy.ok():
-
-
+            # Collect action gestures
             ml.md.main_handle_step(path_gen=path_gen)
             time.sleep(0.01)
-            if gesture_sentence_type == 'action-objects':
 
-                if ml.md.evaluate_episode:
-                    episode_evaluation_and_execution(s=ml.RealRobotConvenience.update_scene(), gesture_sentence_type = 'action-objects')
-                    gl.gd.gestures_queue.clear()
-                    ml.md.evaluate_episode = False
-                    print("Move hand out to end the episode!")
-                    while ml.md.present():
-                        time.sleep(0.1)
+            # Evaluate when action gesturing ends
+            if ml.md.evaluate_episode:
+                GestureSentence.episode_evaluation_and_execution(s=ml.RealRobotConvenience.update_scene())
 
+            '''
             elif gesture_sentence_type == '1st-object-action-rest':
                 object_name_1 = None
                 if ml.md.real_or_sim_datapull:
@@ -168,11 +84,6 @@ def main():
                     time.sleep(0.01)
 
                 episode_evaluation_and_execution(s=ml.RealRobotConvenience.update_scene(), gesture_sentence_type = '1st-object-action-rest')
-                gl.gd.gestures_queue.clear()
-                ml.md.evaluate_episode = False
-                print("Move hand out to end the episode!")
-                while ml.md.present():
-                    time.sleep(0.1)
 
             elif gesture_sentence_type == 'adaptive':
                 object_names = []
@@ -191,65 +102,68 @@ def main():
                         object_names.append(object_name_1)
 
                 adaptive_episode_evaluation_and_execution(s, object_names)
-
+            '''
     except KeyboardInterrupt:
         pass
 
 
-def episode_evaluation_and_execution(s, gesture_sentence_type, object_name_1=None):
-    ''' Get focus point first
-    '''
-    ''' SIMPLIFICATION choose last only '''
+class GestureSentence():
+    @staticmethod
+    def clearing():
+        gl.gd.gestures_queue.clear()
+        ml.md.evaluate_episode = False
+        print("Move hand out to end the episode!")
+        while ml.md.present():
+            time.sleep(0.1)
 
-    if gesture_sentence_type == 'action-objects':
+    @staticmethod
+    def process_gesture_queue():
+        ''' SIMPLIFICATION choose last only '''
         gl.gd.gestures_queue = [gl.gd.gestures_queue[-1]]
+
         if gl.gd.approve_handle(f"Action gesture: {gl.gd.gestures_queue[-1][1]}, continue? (y/n)") == 'n':
+            GestureSentence.clearing()
             return None
 
+    @staticmethod
+    def get_target_objects__wrapper(n, s):
         object_name_1 = None
         if ml.md.real_or_sim_datapull:
-            object_name_1 = ml.RealRobotConvenience.get_target_objects(1, s)[0]
+            return ml.RealRobotConvenience.get_target_objects(n, s)[0]
         else: # Fake data from GUI
-            object_name_1 = ml.md.comboMovePagePickObject1Picked
+            return ml.md.comboMovePagePickObject1Picked
 
-    ''' No objects on scene '''
-    if object_name_1 == 'q':
-        return None
+    @staticmethod
+    def target_object_to_focus_point(object_name_1, s):
+        ''' Object not given -> use eef position '''
+        if object_name_1 is None or object_name_1 == 'n':
+            s = ml.RealRobotConvenience.update_scene()
+            focus_point = s.objects[0].position_real
+            #focus_point = s.r.eef_position_real
+        else:
+            if s.get_object_by_name(object_name_1) is None:
+                print(f"{cc.W}Object target is not in the scene!{cc.E}, object name: {object_name_1} objects: {s.O}")
+                GestureSentence.clearing()
+                return
+            focus_point = s.get_object_by_name(object_name_1).position_real
+        return focus_point
 
-    ''' Object not given -> use eef position '''
-    if object_name_1 is None or object_name_1 == 'n':
-        s = ml.RealRobotConvenience.update_scene()
-        focus_point = s.objects[0].position_real
-        #focus_point = s.r.eef_position_real
-        #print("object_name_1 none", focus_point, " object_name_1", object_name_1)
-    else:
-        #print("object_name_1", object_name_1, object_name_1 is None, type(object_name_1))
-        if s.get_object_by_name(object_name_1) is None:
-            print(f"{cc.W}Object target is not in the scene!{cc.E}, object name: {object_name_1} objects: {s.O}")
-            return
-        focus_point = s.get_object_by_name(object_name_1).position_real
+    @staticmethod
+    def btsingle_call__wrapper(focus_point, s):
+        sr = s.to_ros(SceneRos())
+        sr.focus_point = np.array(focus_point, dtype=float)
+        print(f"[INFO] Aggregated gestures: {list(gl.gd.gestures_queue)}")
 
-    ''' # TODO: Distinguish between 'object' and 'location'
-    '''
-    sr = s.to_ros(SceneRos())
-    sr.focus_point = np.array(focus_point, dtype=float)
-    print(f"[INFO] Aggregated gestures: {list(gl.gd.gestures_queue)}")
+        time.sleep(0.01)
 
-    time.sleep(0.01)
+        req = BTreeSingleCall.Request()
+        req.gestures = gl.gd.gestures_queue_to_ros(GesturesRos())
 
-    req = BTreeSingleCall.Request()
-    req.gestures = gl.gd.gestures_queue_to_ros(GesturesRos())
+        req.scene = sr
 
-    req.scene = sr
+        return rc.roscm.call_tree_singlerun(req)
 
-    target_action_sequence = rc.roscm.call_tree_singlerun(req)
-
-    ex = ''
-    if len(target_action_sequence) > 1:
-        ex = gl.gd.approve_handle(f"{cc.OK}BTree generated {len(target_action_sequence)} actions!{cc.E}, execute? (y/n)")
-
-    target_actions = [ta.target_action for ta in target_action_sequence]
-
+    @staticmethod
     def load_reamining_object_names(s, target_action):
         if ml.md.real_or_sim_datapull:
             num_of_objects = getattr(ml.RealRobotActionLib, target_action+"_deictic_params")
@@ -260,6 +174,7 @@ def episode_evaluation_and_execution(s, gesture_sentence_type, object_name_1=Non
         else: # Fake data from GUI
             return [ml.md.comboMovePagePickObject2Picked]
 
+    @staticmethod
     def test_rot_ap(rot_angle):
         rot_angle = -rot_angle
         ''' Bounding - Safety feature '''
@@ -270,7 +185,7 @@ def episode_evaluation_and_execution(s, gesture_sentence_type, object_name_1=Non
         ml.md.goal_pose = Pose(position=Point(x=0.5, y=0.0, z=0.3), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
         ml.RealRobotConvenience.move_sleep()
 
-
+    @staticmethod
     def load_auxiliary_parameters(s, target_action, num_of_auxiliary_params):
         if num_of_auxiliary_params in ['', 'q', 'r']:
             return
@@ -290,7 +205,7 @@ def episode_evaluation_and_execution(s, gesture_sentence_type, object_name_1=Non
             xy.reverse()
             rot = np.rad2deg(np.arctan2(*xy))
             print(f"{rot}")
-            test_rot_ap(rot)
+            GestureSentence.test_rot_ap(rot)
 
             if abs(rot - prev_rot) < 5:
                  final_rot = (rot + prev_rot)/2
@@ -298,52 +213,144 @@ def episode_evaluation_and_execution(s, gesture_sentence_type, object_name_1=Non
             prev_rot = rot
         print(f"final rot: {final_rot}")
         ap = {'rotation': final_rot}
-        test_rot_ap(0.0)
+        GestureSentence.test_rot_ap(0.0)
         return ap
 
-
-
-    for n,t in enumerate(target_action_sequence):
-        if ex == 'n' and len(target_action_sequence) != n+1: continue
-        target_action = t.target_action
-        target_objects = [t.target_object]
-        ''' SIMPLIFICATION: remaining object targets obtained from last generated action '''
-        if len(target_action_sequence) == n+1:
-            num_of_objects_ = gl.gd.approve_handle(f"Show how many other objects? ", type='number')
-            if num_of_objects_ == '':
-                rem_objs = load_reamining_object_names(s, target_actions[-1])
-            else:
-                rem_objs = ml.RealRobotConvenience.get_target_objects(int(num_of_objects_), s)
-            target_objects = [object_name_1] + rem_objs
-
-        ''' '''
-        num_of_auxiliary_params = gl.gd.approve_handle(f"Show how many metric parameters? ", type='number')
-        ap = load_auxiliary_parameters(s, target_actions[-1], num_of_auxiliary_params)
-
+    @staticmethod
+    def execute_action_update(s, target_action, target_objects, ap, n, n_actions):
         ''' TODO: Add checking with multmultipleiple objects '''
         if len(target_objects) == 1 and not s.check_semantic_feasibility(target_action, target_objects[0]):
             print(f"{cc.W}Action is not feasible to do!{cc.E}")
-            print(f"{target_action}: target_action, {target_objects}: target_objects, scene {s}")
-            y = gl.gd.approve_handle(f"Execute anyway (y/n)")
-            if y == 'n':
-                return
 
-        print(f"{cc.H}[{n}] Execute action(s): {target_action}, {target_objects}? (y) {cc.E }")
-        #if ml.RealRobotActionLib.cautious:
-        #    print(f"{cc.W}Returning{cc.E}")
-        #    return
+        print(f"{cc.H}[{n}/{n_actions}] Execute action(s): {target_action}, {target_objects}? (y) {cc.E }")
 
         if not (target_action in dir(ml.RealRobotActionLib)):
             print(f"{cc.W}Action not defined{cc.E}")
+            GestureSentence.clearing()
             return
 
+        ''' Execute in real '''
         print(f"{cc.H}Executing{cc.E}")
         getattr(ml.RealRobotActionLib, target_action)(target_objects, ap)
 
-        Actions.do(sl.scene, (target_action, target_objects[0]), ignore_location=True)
+        ''' Update semantic scene '''
+        Actions.do(sl.scene, (target_action, target_objects[0]))
+        # just for record
         ml.md.actions_done.append((target_action, target_objects))
 
+
+    @staticmethod
+    def episode_evaluation_and_execution(s, object_name_1=None):
+        '''
+        '''
+        GestureSentence.process_gesture_queue()
+
+        object_name_1 = GestureSentence.get_target_objects__wrapper(1, s)
+        # DEPRECATED
+        #if object_name_1 == 'q': # No objects on the scene
+        #    GestureSentence.clearing()
+        #    return None
+
+        focus_point = GestureSentence.target_object_to_focus_point(object_name_1, s)
+
+        ''' # TODO: Distinguish between 'object' and 'location'
+        '''
+        target_action_sequence = GestureSentence.btsingle_call__wrapper(focus_point, s)
+        print(f"{cc.OK}BTree generated {len(target_action_sequence)} actions!{cc.E}")
+        target_actions = [ta.target_action for ta in target_action_sequence]
+
+        n_actions = len(target_action_sequence)
+        ''' Fix preconditions '''
+        for n,t in enumerate(target_action_sequence[:-1]):
+            target_action = t.target_action
+            target_objects = [t.target_object]
+
+            GestureSentence.execute_action_update(s, target_action, target_objects, None, n, n_actions)
+
+        ''' Execute last action '''
+        target_action = target_action_sequence[-1].target_action
+        target_objects = [target_action_sequence[-1].target_object]
+
+        num_of_objects_ = gl.gd.approve_handle(f"Show how many other objects? ", type='number')
+        if num_of_objects_ == '':
+            rem_objs = GestureSentence.load_reamining_object_names(s, target_actions[-1])
+        else:
+            rem_objs = ml.RealRobotConvenience.get_target_objects(int(num_of_objects_), s)
+        target_objects = [object_name_1] + rem_objs
+
+        num_of_auxiliary_params = gl.gd.approve_handle(f"Show how many metric parameters? ", type='number')
+        ap = GestureSentence.load_auxiliary_parameters(s, target_actions[-1], num_of_auxiliary_params)
+
+        GestureSentence.execute_action_update(s, target_action, target_objects, ap, n_actions, n_actions)
+
+        ''' Clear queue '''
+        GestureSentence.clearing()
+
+
 def test_toolbox_features():
+    for i in range(3):
+        print(f"[{i}/3] Testing feedback approvement!")
+        gl.gd.approve_handle(f"Do you agree? (y/n)")
+
+    for i in range(3):
+        print(f"[{i}/3] Testing feedback continue!")
+        gl.gd.approve_handle(f"Continue. (y)", type='y')
+
+    for i in range(3):
+        print(f"[{i}/3] Testing feedback!")
+        gl.gd.approve_handle(f"How many? (number)", type='number')
+
+
+    y = input(f"[Tester] Test rotation auxiliary parameter:")
+    def test_rot_ap(rot_angle):
+        rot_angle = -rot_angle
+        ''' Bounding - Safety feature '''
+        rot_angle = np.clip(rot_angle, -30, 0)
+        x,y,z,w = [0.,1.,0.,0.]
+        q = UnitQuaternion(sm.base.troty(rot_angle, 'deg') @ UnitQuaternion([w, x,y,z])).vec_xyzs
+        ml.md.goal_pose = Pose(position=Point(x=0.5, y=0.0, z=0.3), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+        print(ml.md.goal_pose)
+        ml.RealRobotConvenience.move_sleep()
+
+    input("[0/4] 0° >>>")
+    test_rot_ap(0.0)
+    input("[1/4] 10° >>>")
+    test_rot_ap(10.0)
+    input("[2/4] 20° >>>")
+    test_rot_ap(20.0)
+    input("[3/4] 0° >>>")
+    test_rot_ap(0.0)
+
+    input("[4/4] Leap measure >>>")
+
+    while not ml.md.frames: time.sleep(0.1)
+    while True:
+        ''' when hand stabilizes, it takes the measurement '''
+        prev_rot = np.inf
+        final_rot = np.inf
+        while True:
+            # Any Hand visible on the scene
+            if not ml.md.present(): time.sleep(1); continue
+
+            # Hand has thumbsup gesture
+            if not ml.md.frames[-1].gd_static_thumbsup(): time.sleep(1); continue
+
+            # Get Angle in XY projection
+            angle = ml.md.frames[-1].palm_thumb_angle()
+
+
+            print(f"Rotation angle: {angle}")
+            test_rot_ap(angle)
+
+            if abs(angle - prev_rot) < 5:
+                 final_rot = (angle + prev_rot)/2
+                 break
+            prev_rot = angle
+        print(f"final angle: {final_rot}")
+        test_rot_ap(0.0)
+        time.sleep(2.0)
+    input("ASdaiosnsoidniosnidsoinsdnasd")
+
     s = Scene(init='drawer', random=False)
     s.r.eef_position = np.array([2,2,2])
     s.drawer.position = np.array([2,0,0])
