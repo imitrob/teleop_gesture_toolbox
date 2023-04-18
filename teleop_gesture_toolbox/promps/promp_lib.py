@@ -1,7 +1,7 @@
 '''
 ProMP lib can generate dynamic motion primitives, static ones and its combinaitons
 
-Gesture ID is mapped to MotionPrimitive ID (gesture_config.yaml)
+Gesture ID is mapped to MotionPrimitive ID (main_config.yaml)
 Gesture ID -> Movement of hand (classification)
 MotionPrimitive ID -> Can generate - Dynamic motion primitive
                                    - Static motion primitive
@@ -23,7 +23,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from copy import deepcopy
 import rclpy
-from rclpy.node import Node
 from itertools import combinations, product
 
 if __name__ == '__main__':
@@ -32,13 +31,12 @@ if __name__ == '__main__':
 else:
     from os_and_utils import settings
 
-sys.path.append('leapmotion') # .../src/leapmotion
+sys.path.append('hand_processing') # .../src/hand_processing
 #from loading import HandDataLoader, DatasetLoader
 from os_and_utils.loading import HandDataLoader, DatasetLoader
 
 
 from os_and_utils.transformations import Transformations as tfm
-from os_and_utils.utils_ros import extv
 from os_and_utils.visualizer_lib import VisualizerLib, ScenePlot
 from os_and_utils.path_def import Waypoint
 
@@ -76,8 +74,8 @@ if __name__ == '__main__':
     from os_and_utils.ros_communication_main import ROSComm
 
 from os_and_utils.parse_yaml import ParseYAML
-from os_and_utils.utils import get_object_of_closest_distance
-from os_and_utils.utils_ros import samePoses, extv
+from os_and_utils.utils import get_object_of_closest_distance, extv
+from os_and_utils.utils_ros import samePoses
 
 def main(id, X=None, vars={}):
     return generate_path(id=id, X=X, vars=vars)
@@ -137,7 +135,7 @@ class ProMPGenerator():
             trajectory ([n][x,y,z]): n ~ 100 (?) It is ProMP output path (When static MP -> returns None)
             waypoints (dict{} of Waypoint() instances), where index is time (0-1) of trajectory execution
         '''
-        # Uses gesture_config.yaml
+        # Uses main_config.yaml
         id_primitive = map_to_primitive_gesture(id)
         if id_primitive is None: return None
         print(f"Generating path for id {id} to {id_primitive}")
@@ -166,6 +164,8 @@ def map_to_primitive_gesture(id_gesture):
     ''' Mapping hand gesture ID to robot primitive gesture ID
     '''
     mapping = settings.get_gesture_mapping()
+    assert mapping is not {}, "Mapping is {} empty dict"
+
     try:
         mapping[id_gesture]
     except KeyError:
@@ -515,7 +515,7 @@ if __name__ == '__main__':
     sim = CoppeliaROSInterface()
     pose.position = Point(0.3, 0.0, 0.5)
     sim.go_to_pose(pose, blocking=True)
-    sl.scenes.make_scene(sim, 'pickplace')
+    sl.scenes.make_scene_from_yaml(sim, 'pickplace')
 
 
     def execute(pathwaypoints):
@@ -523,7 +523,7 @@ if __name__ == '__main__':
         pose.position = Point(0.3, 0.0, 0.5)
         pose.orientation = Quaternion(0.7071067811865476, 0.7071067811865476, 0.0, 0.0)
         sim.go_to_pose(pose, blocking=True)
-        sl.scenes.make_scene(sim, 'pickplace')
+        sl.scenes.make_scene_from_yaml(sim, 'pickplace')
         time.sleep(2)
 
         path, waypoints = pathwaypoints

@@ -19,14 +19,12 @@ from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_mo
 def main():
     path_generator = None
     path_generator = ProMPGenerator(promp='sebasutp')
-    sl.scenes.make_scene('pickplace3')
-    with rc.rossem:
-        rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
+    sl.scenes.make_scene_from_yaml('pickplace3')
+    rate = rc.roscm.create_rate_(settings.yaml_config_gestures['misc']['rate'])
     try:
         while rclpy.ok():
             if ml.md.frames and settings.gesture_detection_on:
-                with rc.rossem:
-                    ml.md.main_handle_step(path_generator)
+                ml.md.main_handle_step(path_generator)
             rate.sleep()
     except KeyboardInterrupt:
         pass
@@ -36,8 +34,7 @@ def main():
 
 def spinning_threadfn():
     while rclpy.ok():
-        with rc.rossem:
-            rclpy.spin_once(rc.roscm)
+        rc.roscm.spin_once()
         time.sleep(0.001)
 
 if __name__ == '__main__':

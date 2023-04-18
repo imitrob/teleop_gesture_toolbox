@@ -493,10 +493,3 @@ if __name__ == '__main__':
     fdtw.method = 'random'; fdtw.sample(x=fdtw.X[id], y=fdtw.Y[id], print_out=True)
     fdtw.method = 'euclidean'; fdtw.sample(x=fdtw.X[id], y=fdtw.Y[id], print_out=True)
     fdtw.method = 'promp'; fdtw.sample(x=fdtw.X[id], y=fdtw.Y[id], print_out=True)
-
-
-
-
-
-
-#

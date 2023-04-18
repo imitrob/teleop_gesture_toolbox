@@ -19,16 +19,17 @@ from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_mo
 
 def main():
     path_generator = None
-    path_generator = ProMPGenerator(promp='sebasutp')
-    sl.scenes.make_scene('pickplace3')
+    #path_generator = ProMPGenerator(promp='sebasutp')
+    sl.scenes.make_scene_from_yaml('pickplace3')
 
-    with rc.rossem:
-        rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
+    print("Static network file: ", gl.gd.static_network_file)
+    print("Static network info: ", gl.gd.static_network_info)
+
+    rate = rc.roscm.create_rate_(settings.yaml_config_gestures['misc']['rate'])
     try:
         while rclpy.ok():
             if ml.md.frames and settings.gesture_detection_on:
-                with rc.rossem:
-                    ml.md.main_handle_step(path_generator)
+                ml.md.main_handle_step(path_generator)
                 if ml.md.frames:
                     f = ml.md.frames[-1]
                     if f.l.visible and f.l.grab_strength < 0.1:
@@ -36,11 +37,10 @@ def main():
                     if not f.l.visible:
                         dl.dd.enable() # enabled focusing on new object
                     if f.l.visible and f.l.grab_strength > 0.9:
-                        with rc.rossem:
-                            if f.l.pinch_strength > 0.9:
-                                rc.roscm.r.pick_object(sl.scene.object_names[ml.md.object_focus_id])
-                            elif f.l.pinch_strength < 0.1:
-                                rc.roscm.r.release_object()
+                        if f.l.pinch_strength > 0.9:
+                            rc.roscm.r.pick_object(object=sl.scene.object_names[ml.md.object_focus_id])
+                        elif f.l.pinch_strength < 0.1:
+                            rc.roscm.r.release_object()
 
             rate.sleep()
     except KeyboardInterrupt:
@@ -51,8 +51,7 @@ def main():
 
 def spinning_threadfn():
     while rclpy.ok():
-        with rc.rossem:
-            rclpy.spin_once(rc.roscm)
+        rc.roscm.spin_once()
         time.sleep(0.001)
 
 if __name__ == '__main__':

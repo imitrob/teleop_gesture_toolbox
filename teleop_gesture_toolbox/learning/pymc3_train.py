@@ -978,7 +978,7 @@ class Experiments():
         print("Accuracies test: ", self.accuracies)
         print("Accuracies train: ", self.accuracies_train)
 
-    def loadAndEvaluate(self):
+    def loadAndEvaluate(self, args):
         ''' Loads network file and evaluate it
         '''
         accuracies, accuracies_train = [], []
@@ -1397,6 +1397,7 @@ if __name__ == '__main__':
 
         #train_args = {'input_definition_version':1, 'split':0.8, 'take_every':4, 'iter':[50000], 'n_hidden':[25], 'save_as':'PyMC3-main-set-3'}
         train_args = {'input_definition_version':1, 'split':0.3, 'take_every':10, 'iter':[3000], 'n_hidden':[50], 'save_as': args.output}
+        train_args = {'input_definition_version':1, 'split':0.3, 'take_every':10, 'iter':[70000], 'n_hidden':[20], 'save_as': args.output}
 
         if args.seed_wrapper:
             e.seed_wrapper(experiment, args=train_args)

@@ -45,13 +45,13 @@ class NNWrapper():
                 if not os.path.isfile(network_path+"network"+str(i)+".pkl"):
                     n_network = str(i)
                     break
-            name = "network"+str(n_network)
+            name = f"network{n_network}"
         else:
             # Get rid of extension if included
             if name[-4:] == '.pkl':
                 name = name[:-4]
             if os.path.isfile(network_path+name+".pkl"):
-                print("File "+name+" exists, network is rewritten!")
+                print(f"File {name} exists, network is rewritten!")
 
         wrapper = NNWrapper(X_train, approx, neural_network, Gs=Gs, type=type, engine=engine, args=args, accuracy=accuracy, record_keys=record_keys, filenames=filenames)
         with open(network_path+name+'.pkl', 'wb') as output:
@@ -79,8 +79,9 @@ if __name__ == '__main__':
     import sys; sys.path.append('..')
     from os_and_utils import settings; settings.init()
     network_name = 'PyMC3-main-set-3.pkl'
-    network_name = 'network0.pkl'
+    network_name = 'new_network.pkl'
     nw = NNWrapper.load_network(settings.paths.network_path, network_name)
+
     nw.accuracy
     nw.args
     nw.type

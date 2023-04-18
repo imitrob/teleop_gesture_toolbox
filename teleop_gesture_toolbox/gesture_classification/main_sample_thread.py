@@ -10,8 +10,10 @@ PATH = os.path.dirname(os.path.realpath(__file__))
 sys.path.insert(1, PATH)
 sys.path.insert(1, os.path.abspath(os.path.join(PATH, '..')))
 # for ros2 run, which has current working directory in ~/<colcon_ws>
+'''
+>>> sys.path.append(f"{os.path.expanduser('~')}/ros2_ws/src/teleop_gesture_toolbox/teleop_gesture_toolbox")
+'''
 sys.path.append("install/teleop_gesture_toolbox/lib/python3.9/site-packages/teleop_gesture_toolbox")
-
 import os_and_utils.settings as settings; settings.init()
 
 import numpy as np
@@ -127,16 +129,12 @@ class ClassificationSampler(Node):
         else:
             print(f"[Sample thread] file ({network}) not found")
 
-class TmpRosNode(Node):
-    def __init__(self):
-        super().__init__("tmp_reading_parameters_node")
-
 def main():
     if len(sys.argv) > 1 and sys.argv[1] in ['static', 'dynamic']:
         type = sys.argv[1]
     else:
         rclpy.init()
-        rosnode = TmpRosNode()
+        rosnode = Node("tmp_reading_parameters_node")
         if rosnode.has_parameter('/project_config/type'):
             type = rosnode.get_parameter('/project_config/type')
         else:
@@ -158,5 +156,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-
-#

@@ -13,22 +13,17 @@ import os_and_utils.ui_lib as ui
 import os_and_utils.ros_communication_main as rc; rc.init()
 
 def main():
-    with rc.rossem:
-        rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate']) # Hz
+    rate = rc.roscm.create_rate_(settings.yaml_config_gestures['misc']['rate']) # Hz
     while rclpy.ok():
         # Send gesture data based on hand mode
-        with rc.rossem:
-            if ml.md.frames and settings.gesture_detection_on:
-                rc.roscm.send_g_data()
+        if ml.md.frames and settings.gesture_detection_on:
+            rc.roscm.send_g_data()
 
-        if len(gl.gd.actions_queue) > 0:
-            action = gl.gd.actions_queue.pop()
-            print(action[1])
-        # Need arrived data in gl.gd.l[0.0].static.prob
+        if len(gl.gd.gestures_queue) > 0:
+            action = gl.gd.gestures_queue.pop()
+            if action[1] != "no_moving": print(action[1])
         rate.sleep()
     print("quit")
-
-
 
 if __name__ == '__main__':
     ''' Default main has three threads: 1. ROS spin, 2. GUI (optional), 3. main

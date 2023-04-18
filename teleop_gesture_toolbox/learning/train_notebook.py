@@ -106,15 +106,15 @@ if True:
 
     Gs = []
     keys = gestures_data_loaded.keys()
-    Gs_set = gestures_data_loaded['using_set']
+    Gs_set = gestures_data_loaded['using_config']
     configRecognition = gestures_data_loaded['Recognition']
-    del gestures_data_loaded['using_set']; del gestures_data_loaded['Recording']; del gestures_data_loaded['configGestures']; del gestures_data_loaded['Recognition']
+    del gestures_data_loaded['using_config']; del gestures_data_loaded['Recording']; del gestures_data_loaded['configGestures']; del gestures_data_loaded['Recognition']
 
     # Check if yaml file is setup properly
     try:
         gestures_data_loaded[Gs_set]
     except:
-        raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
+        raise Exception("Error in gesture_recording.yaml, using_config variable, does not point to any available set below!")
     try:
         gestures_data_loaded[Gs_set].keys()
     except:

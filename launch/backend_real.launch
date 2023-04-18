@@ -6,9 +6,6 @@
 
   <node pkg="teleop_gesture_toolbox" exec="leap_run.py" output="screen"/>
 
-  <node pkg="coppelia_sim_ros_interface" exec="server_run.py" output="screen"/>
-
   <node pkg="context_based_gesture_operation" exec="btree.py" output="screen"/>
-  <!--<node pkg="teleop_gesture_toolbox" exec="main_coppelia_run.py" output="screen"/>-->
 
 </launch>

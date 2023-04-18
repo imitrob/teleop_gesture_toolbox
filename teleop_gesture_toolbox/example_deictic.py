@@ -28,31 +28,28 @@ from os_and_utils.transformations import Transformations as tfm
 
 
 def main():
-    sl.scenes.make_scene('pickplace3')
+    sl.scenes.make_scene_from_yaml('pickplace3')
 
-    with rc.rossem:
-        rc.roscm.r.add_or_edit_object(name="leap", pose=tfm.transformLeapToBase__CornerConfig_translation, color='c', shape='cube', size=[0.03, 0.1, 0.01])
-        rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate'])
+
+    rc.roscm.r.add_or_edit_object(name="leap", pose=tfm.transformLeapToBase__CornerConfig_translation, color='c', shape='cube', size=[0.03, 0.1, 0.01], dynamic='false', collision='false')
     try:
         while rclpy.ok():
             if ml.md.frames and settings.gesture_detection_on:
-                with rc.rossem:
-                    #ml.md.main_handle_step(path_generator)
-                    rc.roscm.send_g_data()
+                #ml.md.main_handle_step(path_generator)
+                rc.roscm.send_g_data()
                 if ml.md.frames:
                     f = ml.md.frames[-1]
                     if f.l.visible and f.l.grab_strength < 0.1:
-                        dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_poses)
+                        dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_positions_real)
                     if not f.l.visible:
                         dl.dd.enable() # enabled focusing on new object
                     if f.l.visible and f.l.grab_strength > 0.9:
-                        with rc.rossem:
-                            if f.l.pinch_strength > 0.9:
-                                rc.roscm.r.pick_object(sl.scene.object_names[ml.md.object_focus_id])
-                            elif f.l.pinch_strength < 0.1:
-                                rc.roscm.r.release_object()
+                        if f.l.pinch_strength > 0.9:
+                            rc.roscm.r.pick_object(object=sl.scene.object_names[ml.md.object_focus_id])
+                        elif f.l.pinch_strength < 0.1:
+                            rc.roscm.r.release_object()
 
-            rate.sleep()
+            time.sleep(0.01)
     except KeyboardInterrupt:
         pass
 
@@ -61,8 +58,7 @@ def main():
 
 def spinning_threadfn():
     while rclpy.ok():
-        with rc.rossem:
-            rclpy.spin_once(rc.roscm)
+        rc.roscm.spin_once()
         time.sleep(0.001)
 
 if __name__ == '__main__':

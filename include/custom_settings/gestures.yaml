@@ -1,4 +1,4 @@
-# Used set is set in gesture_config.yaml
+# Used set is set in main_config.yaml
 
 # record_keyboard (use lowercase) record_key for recording
 # NOTE: Gesture names are lowercased when importing
@@ -61,13 +61,24 @@ main_set:
     record_key: w
     filename: swipe_up.png
     time_visible_threshold: 3
-  no_gesture:
+  no_moving:
     record_key: n
-    filename: no_gesture.png
+    filename: no_moving.png
   kick:
     mp: true
   touch:
     mp: true
+  down_grab:
+    compound: true
+    activation_gestures:
+     - swipe_down
+     - grab
+  steady_point:
+    compound: true
+    activation_gestures:
+     - no_moving
+     - point
+
 
 set_1_static:
   grab:
@@ -218,9 +229,9 @@ new_gesture_set:
     filename: swipe_right.png
     record_key: 4
 
-  no_gesture:
+  no_moving:
     record_key: n
-    filename: no_gesture.png
+    filename: no_moving.png
 
   touch_:
     type: mp

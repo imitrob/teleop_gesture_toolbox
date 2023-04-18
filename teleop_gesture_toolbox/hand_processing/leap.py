@@ -253,5 +253,9 @@ def main():
     controller.remove_listener(listener)
 
 if __name__ == "__main__":
-    main()
+    while True:
+        try:
+            main()
+        except:
+            print("Leap error -> running again!")
     print("[leap] Exit")

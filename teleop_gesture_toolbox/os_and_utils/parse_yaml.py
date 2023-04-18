@@ -1,10 +1,9 @@
 import yaml, random
 import numpy as np
-from os_and_utils.utils import ordered_load, isarray, isnumber
-
+from os_and_utils.utils import ordered_load, isarray, isnumber, extv, extq
+from copy import deepcopy
 # ROS dependency only to some functions
 try:
-    from os_and_utils.utils_ros import extv, extq
     from geometry_msgs.msg import Pose, Point, Quaternion
 except:
     pass
@@ -33,8 +32,8 @@ class ParseYAML():
 
             if object[key] in ['', 'none']:
                 return ''
-            elif not any(x in object[key] for x in ['.obj','.dae']):
-                raise Exception("Mesh file not in right format, check YAML file!")
+            #elif not any(x in object[key] for x in ['.obj','.dae', '.ply']):
+            #    raise Exception("Mesh file not in right format, check YAML file!")
             else:
                 return object[key]
         else:
@@ -61,6 +60,24 @@ class ParseYAML():
                 return object[key]
         else:
             return ''
+
+    @staticmethod
+    def parseSemanticType(object):
+        keys = ['semantic_type']
+        if any(x in object.keys() for x in keys):
+            key = None
+            for i in keys:
+                if i in object.keys():
+                    key = i
+
+            if object[key] in ['']:
+                return 'object'
+            elif object[key] in ['object', 'drawer', 'cup']:
+                return object[key]
+            else:
+                raise Exception("semantic_type not defined!")
+        else:
+            return 'object'
 
     @staticmethod
     def parseInertiaTransform(object):
@@ -276,6 +293,7 @@ class ParseYAML():
         ''' Parse pose from YAML file
             1. pose is string: saves from poses.yaml file
         '''
+
         rosPose = Pose()
         if type(pose_vec) == str:
             if pose_vec not in poses_data.keys():
@@ -285,13 +303,13 @@ class ParseYAML():
             q = poses_data[pose_vec]['pose']['orientation']
             rosPose.orientation = Quaternion(x=q['x'],y=q['y'],z=q['z'],w=q['w'])
         else:
-            rosPose.position = ParseYAML.parsePosition(pose_vec, poses_data)
+            rosPose.position = ParseYAML.parsePositionOrSize(pose_vec, poses_data)
             rosPose.orientation = ParseYAML.parseOrientation(pose_vec, poses_data)
         return rosPose
 
 
     @staticmethod
-    def parsePosition(pose_vec, poses_data, key='position'):
+    def parsePositionOrSize(pose_vec, poses_data, key='position'):
         '''
             1. position is {'x':0,'y':0,'z':0} or [0,0,0]
             2. position is {'x':[0,1], 'y':[0,1], 'z':[0,1]}
@@ -302,6 +320,8 @@ class ParseYAML():
         # Check if exists:
         if key in pose_vec.keys():
             position = pose_vec[key]
+        elif key == 'size':
+            position = [1.0,1.0,1.0]
         else:
             print("[WARN*] Position not specified in YAML, Maybe TODO: to defaulf value of env")
             position = [0.5,0.0,0.5]
@@ -352,6 +372,8 @@ class ParseYAML():
             return 'dynamic'
         elif 'mp' in gesture and (gesture['mp'] == 'true' or gesture['mp'] == True):
             return 'mp'
+        elif 'compound' in gesture and (gesture['compound'] == 'true' or gesture['compound'] == True):
+            return 'compound'
         else:
             return 'dynamic'
 
@@ -454,8 +476,22 @@ class ParseYAML():
         return gesture
 
     @staticmethod
+    def parseCompoundGesture(gesture):
+        if 'var_len' not in gesture.keys():
+            gesture['var_len']=1
+
+        if 'thresholds' in gesture.keys():
+            pass # gesture['thresholds'] = gesture['thresholds']
+
+        # # TODO:
+        #if 'time_visible_threshold' not in gesture.keys():
+        #    gesture['time_visible_threshold'] = None
+
+        return gesture
+
+    @staticmethod
     def load_gesture_config_file(custom_settings_yaml):
-        with open(custom_settings_yaml+"gesture_config.yaml", 'r') as stream:
+        with open(custom_settings_yaml+"main_config.yaml", 'r') as stream:
             gesture_config = ordered_load(stream, yaml.SafeLoader)
         return gesture_config
 
@@ -477,7 +513,7 @@ class ParseYAML():
 
         keys = gestures_data_loaded.keys()
 
-        Gs_set = gesture_config['using_set']
+        Gs_set = gesture_config['using_config']
 
         Gs = []
         GsK = []
@@ -485,7 +521,7 @@ class ParseYAML():
         try:
             gestures_data_loaded[Gs_set]
         except:
-            raise Exception("Error in gesture_recording.yaml, using_set variable, does not point to any available set below!")
+            raise Exception("Error in gesture_recording.yaml, using_config variable, does not point to any available set below!")
         try:
             gestures_data_loaded[Gs_set].keys()
         except:

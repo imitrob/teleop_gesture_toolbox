@@ -4,45 +4,6 @@ from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
 from visualization_msgs.msg import MarkerArray, Marker
 from std_msgs.msg import Int8, Float64MultiArray
 
-# Handy functions
-def extq(q):
-    ''' Extracts Quaternion object
-    Parameters:
-        q (Quaternion()): From geometry_msgs.msg
-    Returns:
-        x,y,z,w (Floats tuple[4]): Quaternion extracted
-    '''
-    if type(q) == type(Quaternion()):
-        return q.x, q.y, q.z, q.w
-    elif (isinstance(q, dict) and 'w' in q.keys()):
-        return q['x'], q['y'], q['z'], q['w']
-    else: raise Exception("extq input arg q: Not Quaternion or dict with 'x'..'w' keys!")
-
-
-def extv(v):
-    ''' Extracts Point/Vector3 to Cartesian values
-    Parameters:
-        v (Point() or Vector3() or dict with 'x'..'z' in keys): From geometry_msgs.msg or dict
-    Returns:
-        [x,y,z] (Floats tuple[3]): Point/Vector3 extracted
-    '''
-    if type(v) == type(Point()) or type(v) == type(Vector3()):
-        return v.x, v.y, v.z
-    elif (isinstance(v, dict) and 'x' in v.keys()):
-        return v['x'], v['y'], v['z']
-    else: raise Exception("extv input arg v: Not Point or Vector3 or dict!")
-
-
-def extp(p):
-    ''' Extracts pose
-    Paramters:
-        p (Pose())
-    Returns:
-        list (Float[7])
-    '''
-    assert type(p) == type(Pose()), "extp input arg p: Not Pose type!"
-    return p.position.x, p.position.y, p.position.z, p.orientation.x, p.orientation.y, p.orientation.z, p.orientation.w
-
 def samePoses(pose1, pose2, accuracy=0.05):
     ''' Checks if two type poses are near each other
         (Only for cartesian (xyz), not orientation wise)

@@ -31,9 +31,13 @@ except ModuleNotFoundError: settings = None
 class Frame():
     ''' Advanced variables derived from frame object
     '''
-    def __init__(self, frame=None, leapgestures=None):
+    def __init__(self, frame=None, leapgestures=None, import_device_if_available='leap'):
         if frame:
-            self.import_from_leap(frame)
+            if import_device_if_available == 'leap':
+                self.import_from_leap(frame)
+            elif import_device_if_available == 'hi5':
+                self.import_from_hi5(frame)
+            else: raise Exception(f"import_device_if_available {import_device_if_available} not implemented!")
         else:
             # Stamp
             self.seq = 0 # ID of frame
@@ -50,8 +54,61 @@ class Frame():
         else:
             self.leapgestures = LeapGestures()
 
+    def which_visible(self):
+        if self.l.visible and self.r.visible: return 'both'
+        elif self.l.visible: return 'l'
+        else: return 'r'
+
+    def get_visible(self, pref='l'):
+        if self.l.visible and self.r.visible: return getattr(self, pref)
+        elif self.l.visible: return self.l
+        else: return self.r
+
+    def get_hand(self, h):
+        if h == 'lr': return self.get_visible()
+        elif h == 'l':
+            if not self.l.visible: return None
+            return self.l
+        elif h == 'r':
+            if not self.r.visible: return None
+            return self.r
+        else: raise Exception("Cannot happen")
+
+    def present(self):
+        ''' Any hand present? '''
+        return (self.l.visible or self.r.visible)
+
     def stamp(self):
         return self.sec+self.nanosec*1e-9
+
+    ''' Imports + Print '''
+    def import_from_hi5(self, frame):
+        (gloves, left_tracker, right_tracker, id ) = frame
+
+        #if left_tracker is None or right_tracker is None:
+        #    print("left_tracker or right_tracker not received yet!")
+        #    return None
+
+        ''' Note, if gloves and tracker stamps are near each other I don't need
+        to synchronize the data and keep multiple stamps
+        '''
+        #if abs(gloves.header.stamp.sec - left_tracker.header.stamp.sec) > 0.05:
+        #    if abs(left_tracker.header.stamp.sec - right_tracker.header.stamp.sec) > 0.05:
+        #        print("trackers and gloves are not synchronized, need to implement syncing in hi5.py")
+        #        return None
+
+        self.seq = id
+        self.fps = 10.
+        self.sec = gloves.header.stamp.sec
+        self.nanosec = gloves.header.stamp.nanosec
+        self.hands = 2
+
+        left_tracker.pose
+        right_tracker.pose
+        hand = ('left', gloves.left_hand, gloves.left_thumb, gloves.left_index, gloves.left_middle, gloves.left_ring, gloves.left_pinky)
+        self.l = Hand(hand, import_device_if_available='hi5')
+        hand = ('right', gloves.right_hand, gloves.right_thumb, gloves.right_index, gloves.right_middle, gloves.right_ring, gloves.right_pinky)
+        self.r = Hand(hand, import_device_if_available='hi5')
 
     def import_from_leap(self, frame):
         self.seq = frame.id
@@ -258,14 +315,25 @@ class Frame():
 
         return frame
 
+    def __getattr__(self, attr):
+        if self.l.visible:
+            return getattr(self.l, attr)
+        elif self.r.visible:
+            return getattr(self.r, attr)
+        else:
+            return None
+
 
 class Hand():
     ''' Advanced variables of hand derived from hand object
     '''
-    def __init__(self, hand=None):
+    def __init__(self, hand=None, import_device_if_available='leap'):
         if hand:
             # Import Hand data from Leap Motion hand object
-            self.import_from_leap(hand)
+            if import_device_if_available == 'leap':
+                self.import_from_leap(hand)
+            elif import_device_if_available == 'hi5':
+                self.import_from_hi5(hand)
         else:
             self.visible = False
             self.id = 0
@@ -302,6 +370,16 @@ class Hand():
         self.wrist_angles = []
         self.bone_angles = []
         self.finger_distances = []
+
+        self.oc_ = None
+        self.oca_ = None
+        self.touch12_ = None
+        self.touch23_ = None
+        self.touch34_ = None
+        self.touch45_ = None
+        self.touch13_ = None
+        self.touch14_ = None
+        self.touch15_ = None
 
     def palm_pose(self):
         if ROS_IMPORT:
@@ -372,6 +450,52 @@ class Hand():
         self.arm_basis = [Vector(x=v1[0], y=v1[1], z=v1[2]),
                           Vector(x=v2[0], y=v2[1], z=v2[2]),
                           Vector(x=v3[0], y=v3[1], z=v3[2])]
+
+    def import_from_hi5(self, hnd):
+        self.visible = True
+        if hnd[0] == 'left':
+            self.id = 0 # Hi5 has only two hands at one session
+            self.is_left = True
+            self.is_right = False
+        elif hnd[0] == 'right':
+            self.id = 1 # Hi5 has only two hands at one session
+            self.is_left = False
+            self.is_right = True
+        self.is_valid = True # We suppose Hi5 gloves are always valid
+        self.confidence = 1.0 # We don't have Hi5 gloves confidence measure
+        # needs to be computed separately
+        self.grab_strength = 0.0 #hand.grab_strength
+        self.pinch_strength = 0.0 #hand.pinch_strength
+
+
+        # hnd[1] is type Pose
+        self.palm_position = Vector([hnd[1].position.x, hnd[1].position.y, hnd[1].position.z])
+        palm_q = (hnd[1].orientation.x, hnd[1].orientation.y, hnd[1].orientation.z, hnd[1].orientation.w)
+        d = transform_quaternion_to_direction_vector(palm_q)
+        self.direction = Vector(x=d[0], y=d[1], z=d[2])
+        n = transform_quaternion_to_normal_vector(palm_q)
+        self.palm_normal = Vector(x=n[0], y=n[1], z=n[2])
+
+        self.palm_velocity = Vector() # Not implemented
+        self.basis = [Vector(), Vector(), Vector()] # Not implemented
+        self.sphere_center = Vector() # Not implemented
+        self.sphere_radius = -1. # Not implemented
+        self.stabilized_palm_position = Vector() # Not implemented
+
+        self.fingers = [Finger(hnd[2], import_device_if_available='hi5'),
+                        Finger(hnd[3], import_device_if_available='hi5'),
+                        Finger(hnd[4], import_device_if_available='hi5'),
+                        Finger(hnd[5], import_device_if_available='hi5'),
+                        Finger(hnd[6], import_device_if_available='hi5')]
+
+        self.palm_width = -1. # Is not known
+        self.time_visible = -1. # Is not known
+        self.wrist_position = Vector() # Is not known
+        self.elbow_position = Vector() # Is not known
+        self.arm_valid = False # Doesn't measure arm/elbow
+        self.arm_width = -1. # Is not known
+        self.arm_direction = Vector() # Is not known
+        self.arm_basis = [Vector(), Vector(), Vector()] # Is now known
 
     def import_from_ros(self, hnd):
         self.visible = hnd.visible
@@ -475,6 +599,40 @@ class Hand():
     def point_direction(self):
         return self.fingers[1].bones[3].direction()
 
+    def palm_direction(self):
+        return self.direction()
+
+    def palm_thumb_direction(self):
+        return np.cross(self.palm_normal(), self.palm_direction())
+
+    def palm_thumb_angle(self, wrt='xy'):
+        if wrt == 'xy':
+            palm_direction = self.palm_thumb_direction()
+            xy = list(palm_thumb_direction[0:2])
+            xy.reverse()
+            return np.rad2deg(np.arctan2(*xy))
+        else: raise NotImplementedError()
+
+    @property
+    def oc(self):
+        if self.oc_ is None:
+            self.prepare_open_fingers()
+            return self.oc_
+        else:
+            return self.oc_
+
+    @property
+    def oc_activates(self):
+        return self.oca
+
+    @property
+    def oca(self):
+        if self.oca_ is None:
+            self.prepare_open_fingers()
+            return self.oca_
+        else:
+            return self.oca_
+
     def get_open_fingers(self):
         ''' Stand of each finger, for deterministic gesture detection
         Returns:
@@ -497,8 +655,8 @@ class Hand():
             oc_turn_on_thre = settings.yaml_config_gestures['oc_turn_on_thre']
         else:
             oc_turn_on_thre = [0.8] * 5
-        self.oc = self.get_open_fingers()
-        self.oc_activates = [self.oc[i]>oc_turn_on_thre[i] for i in range(5)]
+        self.oc_ = self.get_open_fingers()
+        self.oca_ = [self.oc_[i]>oc_turn_on_thre[i] for i in range(5)]
 
     def get_position_tip_of_fingers(self):
         # shape = 5 (fingers) x 3 (Cartesian position)
@@ -520,24 +678,67 @@ class Hand():
         '''
         position_tip_of_fingers = self.get_position_tip_of_fingers()
         touches = {}
-        touches['12'] = np.sum(np.power(np.subtract(position_tip_of_fingers[1], position_tip_of_fingers[0]),2))/1000
-        touches['23'] = np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[1]),2))/1000
-        touches['34'] = np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[2]),2))/1000
-        touches['45'] = np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[3]),2))/1000
-        touches['13'] = np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[0]),2))/1000
-        touches['14'] = np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[0]),2))/1000
-        touches['15'] = np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[0]),2))/1000
+        touches['12'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[1], position_tip_of_fingers[0]),2)))/1000
+        touches['23'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[1]),2)))/1000
+        touches['34'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[2]),2)))/1000
+        touches['45'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[3]),2)))/1000
+        touches['13'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[0]),2)))/1000
+        touches['14'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[0]),2)))/1000
+        touches['15'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[0]),2)))/1000
         return touches
 
     def prepare_finger_distance_combinations(self):
         touches = self.get_finger_distance_combinations()
-        self.touch12 = touches['12']
-        self.touch23 = touches['23']
-        self.touch34 = touches['34']
-        self.touch45 = touches['45']
-        self.touch13 = touches['13']
-        self.touch14 = touches['14']
-        self.touch15 = touches['15']
+        self.touch12_ = touches['12']
+        self.touch23_ = touches['23']
+        self.touch34_ = touches['34']
+        self.touch45_ = touches['45']
+        self.touch13_ = touches['13']
+        self.touch14_ = touches['14']
+        self.touch15_ = touches['15']
+
+    @property
+    def touch12(self):
+        if self.touch12_ is not None:
+            return self.touch12_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch23(self):
+        if self.touch23_ is not None:
+            return self.touch23_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch34(self):
+        if self.touch34_ is not None:
+            return self.touch34_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch45(self):
+        if self.touch45_ is not None:
+            return self.touch45_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch13(self):
+        if self.touch13_ is not None:
+            return self.touch13_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch14(self):
+        if self.touch14_ is not None:
+            return self.touch14_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch15(self):
+        if self.touch15_ is not None:
+            return self.touch15_
+        else:
+            self.prepare_finger_distance_combinations()
 
     def prepare_learning_data(self):
         ''' Data will be saved inside object
@@ -582,7 +783,6 @@ class Hand():
             self.finger_distances.append(np.sqrt(np.sum(np.power(np.array(comb[0]) - np.array(comb[1]),2))))
             self.finger_distances_old.extend(np.array(comb[0]) - np.array(comb[1]))
 
-
     def get_learning_data(self, definition=1):
         ''' Return Vector of Observation Parameters
         '''
@@ -603,15 +803,38 @@ class Hand():
         Returns:
             stop (Bool)
         '''
-        if self.palm_velocity[0]/1000 < threshold and self.palm_velocity[1]/1000 < threshold and self.palm_velocity[2]/1000 < threshold:
+        if self.visible and np.max(self.palm_velocity())/1000 < threshold:
             return True
         return False
+
+    @property
+    def stable(self):
+        return self.is_stop()
 
     def get_learning_data_static(self, definition=0):
         return self.get_learning_data(definition=definition)
 
     def get_single_learning_data_dynamic(self, definition=0):
         return self.palm_position()
+
+    ''' Deterministic static gestures recognition '''
+    def gd_static_grab(self):
+        return  not self.oca[0] and not self.oca[1] and not self.oca[2] and not self.oca[3] and not self.oca[4]
+    def gd_static_thumbsup(self):
+        return      self.oca[0] and not self.oca[1] and not self.oca[2] and not self.oca[3] and not self.oca[4]
+    def gd_static_point(self):
+        return                          self.oca[1] and not self.oca[2] and not self.oca[3] and not self.oca[4]
+    def gd_static_two(self):
+        return (not self.oca[0] and     self.oca[1] and     self.oca[2] and not self.oca[3] and not self.oca[4]) \
+            or (    self.oca[0] and     self.oca[1] and not self.oca[2] and not self.oca[3] and not self.oca[4])
+    def gd_static_three(self):
+        return (not self.oca[0] and     self.oca[1] and     self.oca[2] and     self.oca[3] and not self.oca[4]) \
+            or (    self.oca[0] and     self.oca[1] and     self.oca[2] and not self.oca[3] and not self.oca[4])
+    def gd_static_four(self):
+        return (not self.oca[0] and     self.oca[1] and     self.oca[2] and     self.oca[3] and     self.oca[4]) \
+            or (    self.oca[0] and     self.oca[1] and     self.oca[2] and     self.oca[3] and not self.oca[4])
+    def gd_static_five(self):
+        return      self.oca[0] and     self.oca[1] and     self.oca[2] and     self.oca[3] and     self.oca[4]
 
 
 class Vector():
@@ -657,10 +880,13 @@ def angle_between_two_angles(vector_1, vector_2):
 
 
 class Bone():
-    def __init__(self, bone=None):
+    def __init__(self, bone=None, import_device_if_available='leap'):
         if bone:
             # Import Finger data from Leap Motion finger object
-            self.import_from_leap(bone)
+            if import_device_if_available == 'leap':
+                self.import_from_leap(bone)
+            elif import_device_if_available == 'hi5':
+                self.import_from_hi5(bone)
         else:
             self.basis = [Vector(),Vector(),Vector()]
             self.direction = Vector()
@@ -690,6 +916,22 @@ class Bone():
         self.length = bone.length
         self.width = bone.width
 
+    def import_from_hi5(self, bone):
+        # bone is type Pose
+        v = bone.position.x, bone.position.y, bone.position.z
+        self.next_joint = Vector(x=v[0], y=v[1], z=v[2])
+        self.prev_joint = Vector(x=v[0], y=v[1], z=v[2])
+        self.center = Vector(x=v[0], y=v[1], z=v[2])
+
+        q = bone.orientation.x, bone.orientation.y, bone.orientation.z, bone.orientation.w
+        d = transform_quaternion_to_direction_vector(q)
+        self.direction = Vector(x=v[0], y=v[1], z=v[2])
+
+        self.basis = [Vector(), Vector(), Vector()] # not implemented
+        self.is_valid = True
+        self.length = -1. # Is not known
+        self.width = -1. # Is not known
+
     def import_from_ros(self, bn):
         v1 = bn.basis[0:3]
         v2 = bn.basis[3:6]
@@ -710,10 +952,13 @@ class Bone():
         self.width = bn.width
 
 class Finger():
-    def __init__(self, finger=None):
+    def __init__(self, finger=None, import_device_if_available='leap'):
         if finger:
             # Import Finger data from Leap Motion finger object
-            self.import_from_leap(finger)
+            if import_device_if_available == 'leap':
+                self.import_from_leap(finger)
+            elif import_device_if_available == 'hi5':
+                self.import_from_hi5(finger)
         else:
             self.bones = [Bone(), # Metacarpal
                           Bone(), # Proximal
@@ -725,6 +970,12 @@ class Finger():
                       Bone(finger.bone(1)),
                       Bone(finger.bone(2)),
                       Bone(finger.bone(3))]
+
+    def import_from_hi5(self, finger):
+        self.bones = [Bone(),
+                      Bone(),
+                      Bone(),
+                      Bone(finger, import_device_if_available='hi5')]
 
     def import_from_ros(self, bns):
         self.bones[0].import_from_ros(bns[0])
@@ -809,4 +1060,21 @@ class LeapGesturesScreentap():
         self.direction = [0.,0.,0.]
         self.position = [0.,0.,0.]
         self.state = 0
-#
+
+# ----------------------------------------------
+
+def transform_quaternion_to_direction_vector(q):
+    x,y,z,w = q
+    V = [0.,0.,0.]
+    V[0] = 2 * (x * z - w * y)
+    V[1] = 2 * (y * z + w * x)
+    V[2] = 1 - 2 * (x * x + y * y)
+    return V
+
+def transform_quaternion_to_normal_vector(q):
+    x,y,z,w = q
+    V = [0.,0.,0.]
+    V[0] = 2 * (x*y - w*z)
+    V[1] = 1 - 2 * (x*x + z*z)
+    V[2] = 2 * (y*z + w*x)
+    return V

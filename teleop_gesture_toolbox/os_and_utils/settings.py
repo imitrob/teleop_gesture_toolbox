@@ -39,7 +39,9 @@ def init(change_working_directory=True):
     yaml_config_recording = ParseYAML.load_recording_file(paths.custom_settings_yaml)
 
     ## Fixed Conditions
-    global position_mode, orientation_mode, print_path_trace
+    global position_mode, orientation_mode, print_path_trace, hand_sensor
+    hand_sensor = yaml_config_gestures['hand_sensor']
+
     # ORIENTATION_MODE options:
     #   - 'fixed', eef has fixed eef orientaion based on chosen environment (md.ENV)
     orientation_mode = 'fixed'
@@ -69,53 +71,47 @@ def init(change_working_directory=True):
     record_with_keys = False # Bool, Enables recording with keys in UI
     print("[Settings] Workspace folder is set to: " + paths.ws_folder)
 
-def get_network_file(type='static'):
-    main_set_name = yaml_config_gestures['using_set']
-    chosen_set = yaml_config_gestures['sets'][main_set_name]
-    chosen_set['gestures']
-    try:
-        network_set_name = chosen_set['network_set']
-        yaml_config_gestures['network_sets'][network_set_name][f'{type}_network_file']
-    except KeyError:
-        return None
 
-    return yaml_config_gestures['network_sets'][network_set_name][f'{type}_network_file']
+    global feedback_mode, feedback_modes
+    feedback_modes = ['keyboard', 'gesture', 'all-at-once']
+    feedback_mode = 'gesture'
+
+
+    main_config_name = yaml_config_gestures['using_config']
+    chosen_config = yaml_config_gestures['available_configurations'][main_config_name]
+
+    global action_execution
+    if 'action_execution' in chosen_config.keys():
+        action_execution = chosen_config['action_execution']
+    else:
+        action_execution = True
+
+def get_network_file(type='static'):
+    main_config_name = yaml_config_gestures['using_config']
+    chosen_config = yaml_config_gestures['available_configurations'][main_config_name]
+
+    chosen_config[f'{type}_network_file']
+    return chosen_config[f'{type}_network_file']
 
 def get_detection_approach(type='static'):
-    main_set_name = yaml_config_gestures['using_set']
-    chosen_set = yaml_config_gestures['sets'][main_set_name]
-    chosen_set['gestures']
-    try:
-        network_set_name = chosen_set['network_set']
-    except KeyError:
-        return None
+    main_config_name = yaml_config_gestures['using_config']
+    chosen_config = yaml_config_gestures['available_configurations'][main_config_name]
 
-    try:
-        return yaml_config_gestures['network_sets'][network_set_name][f'{type}_detection_approach']
-    except KeyError:
-        return None
+    chosen_config[f'{type}_detection_approach']
+    return chosen_config[f'{type}_detection_approach']
 
 def get_hand_mode():
-    main_set_name = yaml_config_gestures['using_set']
-    chosen_set = yaml_config_gestures['sets'][main_set_name]
-    chosen_set = {}
-    try:
-        hand_mode_set_name = chosen_set['hand_mode_sets']
-    except KeyError:
-        ''' Assign default option '''
-        default_mode_set = {
-            'l': 'static',
-            'r': 'dynamic'
-            }
-        return default_mode_set
+    main_config_name = yaml_config_gestures['using_config']
+    chosen_config = yaml_config_gestures['available_configurations'][main_config_name]
 
-    return dict(yaml_config_gestures['hand_mode_sets'][hand_mode_set_name])
+    chosen_config['hand_mode_l']; chosen_config['hand_mode_r']
+    return {'l': chosen_config['hand_mode_l'], 'r': chosen_config['hand_mode_r']}
 
 def get_gesture_mapping():
-    main_set_name = yaml_config_gestures['using_set']
-    chosen_set = yaml_config_gestures['sets'][main_set_name]
+    main_config_name = yaml_config_gestures['using_config']
+    chosen_config = yaml_config_gestures['available_configurations'][main_config_name]
     try:
-        mapping_set_name = chosen_set['mapping_sets']
+        mapping_set_name = chosen_config['mapping']
     except KeyError:
         return {}
-    return dict(yaml_config_gestures['mapping_sets'][mapping_set_name])
+    return dict(yaml_config_gestures['mappings'][mapping_set_name])

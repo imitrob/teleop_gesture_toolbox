@@ -1,6 +1,5 @@
 *.pyc
-include/data/trained_networks/netw*
-include/data/trained_networks/PyMC3*
+include/data/trained_networks/
 include/data/learning/
 include/data/export
 include/data/netw
@@ -10,3 +9,4 @@ include/third_party/UCB/data
 include/third_party/promp/examples/strike*
 include/third_party/promps_python/data/
 __pycache__
+teleop_gesture_toolbox/os_and_utils/.ipynb_checkpoints/*

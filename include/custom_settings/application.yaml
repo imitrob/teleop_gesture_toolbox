@@ -9,10 +9,11 @@ BAR_MARGIN: 40
 LeftPanelMaxIterms: 15
 RightPanelMaxIterms: 15
 
-WindowSize: [900, 600] # Small window
-WindowXY: [1080, 2000] # 0 - X left, 2000 - Y down
+WindowSize: [900, 800] # Small window
+WindowXY: [0, 2000] # 0 - X left, 2000 - Y down
 Scale: 2000
 
+# DEPRECATED and not working
 ConfigurationPage:
   Rows: 2
   Columns: 4
