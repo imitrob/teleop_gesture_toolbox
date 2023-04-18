@@ -1,4 +1,4 @@
-# Teleoperation gesture toolbox v0.01
+# Teleoperation gesture toolbox v0.02
 
 Python gesture toolbox for teleoperating robotic arm. The toolbox covers both static and dynamic gestures in several representations, including ProMP.
 
