@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import numpy as np
 import sys, zmq, time
+from zmq.error import Again as zmqErrorAgain, ZMQError
 import pickle
 import json
 import cv2
@@ -37,7 +38,7 @@ class ZMQArmerInterface():
         limit_per_call: max meters/radians per fn call - useful, when publishing goal with frequency
         '''
         if isinstance(pose, (list,tuple,np.ndarray)) and len(pose) == 3:
-            pose = pose[0:3] + [0.,1.,0.,0.]
+            pose = pose[0:3] + [1.,0.,0.,0.]
         elif isinstance(pose, (list,tuple,np.ndarray)) and len(pose) == 7:
             pass #pose = pose
         else:
@@ -90,7 +91,22 @@ class ZMQArmerInterface():
 
     def get_object_positions(self):
         self.cosyposesocket.send_string("scene_camera")
+        
         msg = self.cosyposesocket.recv()
+        '''
+        contin = True
+        i = 0
+        while contin:
+            try:
+                msg = self.cosyposesocket.recv(flags=1)
+                success = False
+            except (zmqErrorAgain, ZMQError):
+                i+=1
+                if i > 100000:
+                    print("CosyPose Unavailable")
+                    i = 0
+        '''
+
         state = pickle.loads(msg)
         #print(state['objects'])
 
@@ -150,12 +166,12 @@ if __name__ == "__main__":
 
     #print(r.get_joints())
     time.sleep(5)
-    r.go_to_pose([0.5, 0.0, 0.4, -1.0, 0.0, 0.0, 0.0])
-    r.go_to_pose([0.5, 0.0, 0.4, -1.0, 0.0, 0.0, 0.0])
-    r.go_to_pose([0.5, 0.0, 0.4, -1.0, 0.0, 0.0, 0.0])
-    r.go_to_pose([0.5, 0.0, 0.4, -1.0, 0.0, 0.0, 0.0])
-    r.go_to_pose([0.5, 0.0, 0.4, -1.0, 0.0, 0.0, 0.0])
-    r.go_to_pose([0.5, 0.0, 0.4, -1.0, 0.0, 0.0, 0.0])
+    r.go_to_pose([0.5, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0])
+    r.go_to_pose([0.5, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0])
+    r.go_to_pose([0.5, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0])
+    r.go_to_pose([0.5, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0])
+    r.go_to_pose([0.5, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0])
+    r.go_to_pose([0.5, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0])
 
     time.sleep(5)
     #r.close_gripper()

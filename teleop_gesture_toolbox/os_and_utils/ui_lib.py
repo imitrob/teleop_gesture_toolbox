@@ -32,6 +32,8 @@ from os.path import expanduser, isfile, isdir
 from os_and_utils.transformations import Transformations as tfm
 from os_and_utils.utils import point_by_ratio
 from os_and_utils.transformations_utils import is_hand_inside_ball
+from gesture_classification.sentence_creation import GestureSentence
+from collections import Counter
 
 try:
     from sklearn.metrics import confusion_matrix
@@ -428,6 +430,7 @@ class Example(QMainWindow):
             i.setVisible(False)
 
         self.comboPlayNLive = QComboBox(self)
+        self.comboPlayNLive.addItem("Gest. control ad.")
         self.comboPlayNLive.addItem("Gest. control")
         self.comboPlayNLive.addItem("Play path")
         self.comboPlayNLive.activated[str].connect(self.onComboPlayNLiveChanged)
@@ -463,6 +466,10 @@ class Example(QMainWindow):
 
         self.lblStatus = QLabel('Status bar', self)
         self.lblStatus.setGeometry(LEFT_MARGIN+130+ICON_SIZE, TOP_MARGIN+32, 1000, 400)
+        self.lblSentenceStatus = QLabel('Sentence Status bar', self)
+        self.lblSentenceStatus.setGeometry(LEFT_MARGIN, 10, 1000, 50)
+        self.lblCompoundGesturesStatus = QLabel('Compound Gestures status', self)
+        self.lblCompoundGesturesStatus.setGeometry(LEFT_MARGIN, 700, 800, 50)
 
         self.comboInteractiveSceneChanges = QComboBox(self)
         self.comboInteractiveSceneChanges.addItem("Scene 1 Drawer")
@@ -491,7 +498,7 @@ class Example(QMainWindow):
 
         # Move Page
         lbls = ['Pos. X:', 'Pos. Y:', 'Pos. Z:', 'Ori. X:', 'Ori. Y:', 'Ori. Z:', 'Ori. W:', 'Gripper:']
-        lblsVals = ['0.0', '0.0', '1.0', '0.0', '0.0', '0.0', '1.0', '0.0']
+        lblsVals = ['0.5', '0.0', '0.3', '1.0', '0.0', '0.0', '0.0', '0.0']
         self.movePageGoPoseLabels = []
         self.movePageGoPoseEdits = []
         for i in range(0,7):
@@ -571,7 +578,7 @@ class Example(QMainWindow):
         self.comboMovePagePickObject2Picked = None
 
         self.comboMovePageDoAction = QComboBox(self)
-        for n,action in enumerate(ml.RealRobotActionLib.get_available_actions()):
+        for n,action in enumerate(ml.rral.get_available_actions()):
             self.comboMovePageDoAction.addItem(action)
         self.comboMovePageDoAction.activated[str].connect(self.movePageDoActionComboFun)
         self.comboMovePageDoAction.setGeometry(LEFT_MARGIN+500, TOP_MARGIN+120,ICON_SIZE*2,int(ICON_SIZE/2))
@@ -758,6 +765,8 @@ class Example(QMainWindow):
         '''
         self.AllVisibleObjects = []
         self.AllVisibleObjects.append(ObjectQt('lblStatus',self.lblStatus,0,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('lblSentenceStatus',self.lblSentenceStatus,0,view_group=['MoveViewState','gesture_ad']))
+        self.AllVisibleObjects.append(ObjectQt('lblCompoundGesturesStatus',self.lblCompoundGesturesStatus,0,view_group=['MoveViewState','gesture_ad']))
         for n,obj in enumerate(self.lblRightPanelNamesObj):
             self.AllVisibleObjects.append(ObjectQt('lblRightPanelNamesObj'+str(n),obj,0,view_group=['GesturesViewState']))
         self.AllVisibleObjects.append(ObjectQt('lbl1',self.lbl1,0,view_group=['GesturesViewState']))
@@ -1084,8 +1093,8 @@ class Example(QMainWindow):
         self.movePageGoPoseEdits[6].setText(str(ml.md.goal_pose.orientation.w))
 
     def movePageDoActionFun(self):
-        print("UI LIB: ",ml.RealRobotActionLib,self.movePageDoActionComboPicked,self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked)
-        getattr(ml.RealRobotActionLib,self.movePageDoActionComboPicked)((self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked))
+        print("UI LIB: ",ml.rral,self.movePageDoActionComboPicked,self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked)
+        getattr(ml.rral,self.movePageDoActionComboPicked)((self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked))
 
     def movePageDoActionRefreshObjectsFun(self):
         print("[Refresh] 1/4 Update scene")
@@ -1112,10 +1121,10 @@ class Example(QMainWindow):
         print("[Refresh] 4/4 Static and dynamic predictions")
         for n,btn in enumerate(self.buttonsActivateStaticGestures):
             btn.setText(f"{gl.gd.Gs_static[n]}\n{static_predictions[n]}")
-            #self.static_gs_names_descs[n] = f"{gl.gd.Gs_static[n]}\n{static_predictions[n]}"
+            self.static_gs_names_descs[n] = f"{gl.gd.Gs_static[n]}\n{static_predictions[n]}"
         for n,btn in enumerate(self.buttonsActivateDynamicGestures):
             btn.setText(f"{gl.gd.Gs_dynamic[n]}\n{dynamic_predictions[n]}")
-            #self.dynamic_gs_names_descs[n] = f"{gl.gd.Gs_dynamic[n]}\n{dynamic_predictions[n]}"
+            self.dynamic_gs_names_descs[n] = f"{gl.gd.Gs_dynamic[n]}\n{dynamic_predictions[n]}"
 
     def movePageDoActionGenActionButtonFun(self):
         ''' Generate User intent from data gathered using data from GUI
@@ -1136,7 +1145,7 @@ class Example(QMainWindow):
         # Empty the queue
         gl.gd.gestures_queue.clear()
 
-        num_of_objects = getattr(ml.RealRobotActionLib, target_action+"_deictic_params")
+        num_of_objects = getattr(ml.rral, target_action+"_deictic_params")
         object_names = ml.RealRobotConvenience.get_target_objects(num_of_objects, s)
 
         return target_action, object_names
@@ -1147,9 +1156,9 @@ class Example(QMainWindow):
 
 
         print(f"Episode evaluated! ta: {action}, to: {object_names}")
-        if action in dir(ml.RealRobotActionLib):
+        if action in dir(ml.rral):
             print("Action is defined! -> executing")
-            getattr(ml.RealRobotActionLib,action)(object_names)
+            getattr(ml.rral,action)(object_names)
         else:
             print("Action not defined")
             gl.gd.gestures_queue.clear()
@@ -1200,8 +1209,10 @@ class Example(QMainWindow):
             ml.md.mode = 'live'
         elif text=="Play path":
             ml.md.mode = 'play'
-        elif text=="Gesture based":
+        elif text=="Gest. control":
             ml.md.mode = 'gesture'
+        elif text=="Gest. control ad.":
+            ml.md.mode = 'gesture_ad'
     def onComboPickPlayTrajChanged(self, text):
         ml.md.changePlayPath(text)
     def onComboLiveModeChanged(self, text):
@@ -1253,6 +1264,7 @@ class Example(QMainWindow):
             ((ml.md.mode=='live') if 'live' in obj.view_group else True) and \
             ((ml.md.mode=='play') if 'play' in obj.view_group else True) and \
             ((ml.md.mode=='gesture') if 'gesture' in obj.view_group else True) and \
+            ((ml.md.mode=='gesture_ad') if 'gesture_ad' in obj.view_group else True) and \
             ((ml.md.real_or_sim_datapull==False) if 'GUI_datapull' in obj.view_group else True):
                 obj.qt.setVisible(True)
             else:
@@ -1405,7 +1417,7 @@ class Example(QMainWindow):
 
         if self.textStatusEnabled:
             textStatus += f"{'real' if rc.roscm.is_real else 'sim'} main: {'o' if main_livin else 'x'}, spin: {'o' if spinner_livin else 'x'}"
-            textStatus += f" {[g[1] for g in gl.gd.gestures_queue]}"
+            textStatus += f" {GestureSentence.get_most_probable_sta_dyn([g[1] for g in gl.gd.gestures_queue],2)}"
             textStatus += f"\n{sl.scene}"
             if ml.md.goal_pose and ml.md.goal_joints:
                 structures_str = [structure.object_stack for structure in ml.md.structures]
@@ -1413,6 +1425,20 @@ class Example(QMainWindow):
             if ml.md.present():
                 textStatus += f"fps: {round(ml.md.frames[-1].fps)}, id: {ml.md.frames[-1].seq}"
         self.lblStatus.setText(textStatus)
+
+        if ml.md.mode in ['gesture', 'gesture_ad']:
+            sd = ['', '', '', ''] # string decorator based on which gesture type is active
+            if ml.md.act_prev_tmp[0] == 'deictic': sd[1] = '*'
+            elif ml.md.act_prev_tmp[0] == 'measurement_distance': sd[2] = '*'
+            elif ml.md.act_prev_tmp[0] == 'action': sd[0] = '*'
+            textSentenceStatus = f'Sentence:\t{sd[0]}A: {GestureSentence.process_gesture_queue(gl.gd.gestures_queue)}{sd[0]}\t{sd[1]}D: {gl.gd.target_objects}{sd[1]}\t{sd[2]}AP: {gl.gd.ap}{sd[2]}'
+            self.lblSentenceStatus.setText(textSentenceStatus)
+
+            compound_gestures = gl.gd.c[-1]
+            textCompoundGesturesStatus = ''
+            if compound_gestures is not None:
+                textCompoundGesturesStatus = f'{list(zip(gl.gd.c.info.names,compound_gestures.activates))}'
+            self.lblCompoundGesturesStatus.setText(textCompoundGesturesStatus)
 
         if self.recording:
             qp.setBrush(QBrush(Qt.red, Qt.SolidPattern))
@@ -1487,8 +1513,10 @@ class Example(QMainWindow):
                     qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE-gl.gd.l.static[-1][n].probability*ICON_SIZE))
             for n, i in enumerate(static_gs_file_images):
                 if ml.md.real_or_sim_datapull == True:
-                    qp.drawText(LEFT_MARGIN+ICON_SIZE+5, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, self.static_gs_names_descs[n])
+                    qrect=QRect(LEFT_MARGIN+ICON_SIZE+5, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, 500, 300)
+                    qp.drawText(qrect, 0, self.static_gs_names_descs[n])
             '''
+            
             if gl.gd.r.static.relevant():
                 for n, i in enumerate(static_gs_file_images):
                     image_filename = settings.paths.graphics_path+i
@@ -1524,7 +1552,8 @@ class Example(QMainWindow):
                     qp.drawLine(w-RIGHT_MARGIN-2, TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE, w-RIGHT_MARGIN-2, int(TOP_MARGIN_GESTURES+(n+1)*ICON_SIZE-probabilities[n]*ICON_SIZE))
             for n, i in enumerate(dynamic_gs_file_images):
                 if ml.md.real_or_sim_datapull == True:
-                    qp.drawText(w-RIGHT_MARGIN-90, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, self.dynamic_gs_names_descs[n])
+                    qrect=QRect(w-RIGHT_MARGIN-90, TOP_MARGIN_GESTURES+n*ICON_SIZE+10, 500, 300)
+                    qp.drawText(qrect, 0, self.dynamic_gs_names_descs[n])
             for n,dyng in enumerate(self.buttonsActivateDynamicGestures):
                 dyng.setGeometry(w-RIGHT_MARGIN-100, TOP_MARGIN_GESTURES+n*ICON_SIZE, ICON_SIZE+20, ICON_SIZE)
 
@@ -1658,75 +1687,6 @@ class Example(QMainWindow):
 
         qp.end()
 
-    def saveConfigPageValues(self, m, n, value):
-        # Items on the list
-        # ['Gripper open', 'Applied force', 'Work reach', 'Shift start x', 'Speed', 'Scene change', 'mode', 'Path']
-        settings.VariableValues[m, n] = value
-        if m == 0:
-            if   n == 0:
-                ml.md.gripper = value
-            elif n == 1:
-                ml.md.applied_force = value
-            elif n == 2:
-                ml.md.SCALE = value/50
-            elif n == 3:
-                ml.md.ENV['start'].x = value/100
-        elif m == 1:
-            if   n == 0:
-                ml.md.speed = value
-            elif n == 1:
-                scenes = settings.getSceneNames()
-                v = int(len(scenes)/125. * value)
-                if v >= len(scenes):
-                    v = len(scenes)-1
-                sl.scene.make_scene_from_yaml(scene=scenes[v])
-            elif n == 2:
-                modes = ml.md.modes()
-                v = int(len(modes)/125. * value)
-                if v >= len(modes):
-                    v = len(modes)-1
-                ml.md.mode = modes[v]
-            elif n == 3:
-                paths = settings.getPathNames()
-                v = int(len(paths)/125. * value)
-                if v >= len(paths):
-                    v = len(paths)-1
-                settings.mo.changePlayPath(path_=paths[v])
-
-    def readConfigPageValues(self, m, n):
-        string = None
-        if m == 0:
-            if   n == 0:
-                value = ml.md.gripper
-            elif n == 1:
-                value = ml.md.applied_force
-            elif n == 2:
-                value = ml.md.scale*50
-            elif n == 3:
-                value = ml.md.ENV['start'].x*100
-        elif m == 1:
-            if   n == 0:
-                value = ml.md.speed
-            elif n == 1:
-                if sl.scene:
-                    scenes = sl.scenes.names()
-                    value = scenes.index(sl.scene.name)
-                    string = sl.scene.name
-                else: value = 0
-            elif n == 2:
-                modes = ml.md.modes()
-                value = modes.index(ml.md.mode)
-                string = ml.md.mode
-            elif n == 3:
-                value = ml.md.picked_path
-                paths = sl.paths.names()
-                string = paths[value]
-
-        settings.VariableValues[m, n] = float(value)
-        if not string:
-            string = str(value)
-        return value, string
-
 
     def cursor_enabled(self):
         ''' Checks if enough samples are made
@@ -1855,15 +1815,6 @@ def main():
     app = QApplication(sys.argv)
     ex = Example()
     sys.exit(app.exec_())
-
-''' DEPRECATED
-def ui_thread_launch():
-
-    if self.get_parameter("/gtoolbox_config/launch_ui", 'false') == "true":
-        thread_ui = Thread(target = main)
-        thread_ui.daemon=True
-        thread_ui.start()
-'''
 
 
 if __name__ == '__main__':

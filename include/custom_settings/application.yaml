@@ -13,6 +13,7 @@ WindowSize: [900, 800] # Small window
 WindowXY: [0, 2000] # 0 - X left, 2000 - Y down
 Scale: 2000
 
+# DEPRECATED and not working
 ConfigurationPage:
   Rows: 2
   Columns: 4

@@ -32,12 +32,13 @@ from context_based_gesture_operation.msg import Gestures as GesturesRos
 from context_based_gesture_operation.srv import BTreeSingleCall
 from teleop_gesture_toolbox.srv import ChangeNetwork, SaveHandRecord
 
-''' Experimental '''
 DEBUGSEMAPHORE = False
-EXPERIMENTAL = False
-if EXPERIMENTAL:
+
+try:
     from spatialmath import UnitQuaternion
     import roboticstoolbox as rtb
+except ModuleNotFoundError:
+    rtb = None
 
 try:
     import coppelia_sim_ros_interface
@@ -79,27 +80,6 @@ class ROSComm(Node):
         self.robot_interface = robot_interface
         self.is_real = True
 
-        # Saving the joint_states
-        ''' Coppelia Sim Feedbacks '''
-        if settings.simulator == 'coppelia':
-            self.create_subscription(JointState, "joint_states_coppelia", self.joint_states_callback, 10)
-
-            self.create_subscription(Pose, '/pose_eef', self.coppelia_eef, 10)
-            self.create_subscription(Vector3, '/coppelia/camera_angle', self.camera_angle, 10)
-            if coppelia_sim_ros_interface is not None:
-                self.create_subscription(ObjectInfo, '/coppelia/object_info', self.object_info_callback, 10)
-        #else:
-        #    self.create_subscription(JointState, "joint_states", self.joint_states, 10)
-
-        ''' Real Panda Feedbacks'''
-        if EXPERIMENTAL:
-            if settings.simulator == 'real':
-                self.create_subscription(Pose, '/joint_states', self.joint_states_callback, 10)
-                self.pose_eef_pub = self.create_publisher(Pose, '/pose_eef', 10)
-
-            self.joint_states_n = 0
-            self.model = rtb.models.Panda()
-
         # Saving relaxedIK output
         #self.create_subscription(JointAngles, '/joint_angle_solutions', self.ik, 10)
         # Goal pose publisher
@@ -114,9 +94,9 @@ class ROSComm(Node):
             self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/dynamic_detection_solutions', self.save_dynamic_detection_solutions_callback, 10)
             self.dynamic_detection_observations_pub = self.create_publisher(DetectionObservations, '/teleop_gesture_toolbox/dynamic_detection_observations', 5)
 
-        self.controller = self.create_publisher(Float64MultiArray, '/teleop_gesture_toolbox/target', 5)
-        #self.ik_bridge = IK_bridge()
         self.hand_mode = settings.get_hand_mode()
+        #self.controller = self.create_publisher(Float64MultiArray, '/teleop_gesture_toolbox/target', 5)
+        #self.ik_bridge = IK_bridge()
 
         self.gesture_solution_pub = self.create_publisher(String, '/teleop_gesture_toolbox/filtered_gestures', 5)
 
@@ -131,18 +111,32 @@ class ROSComm(Node):
 
         self.r = None
         if 'coppelia' in robot_interface:
+            self.create_subscription(JointState, "joint_states_coppelia", self.joint_states_callback, 10)
+
+            self.create_subscription(Pose, '/pose_eef', self.coppelia_eef, 10)
+            self.create_subscription(Vector3, '/coppelia/camera_angle', self.camera_angle, 10)
+            if coppelia_sim_ros_interface is not None:
+                self.create_subscription(ObjectInfo, '/coppelia/object_info', self.object_info_callback, 10)
+
             self.init_coppelia_interface()
             self.is_real = False
 
         if 'real' in robot_interface:
+            self.create_subscription(JointState, "joint_states", self.joint_states_callback, 10)
+
             self.init_real_interface__pymoveit2__panda()
             self.is_real = True
 
         if 'ros1armer' in robot_interface:
+            self.create_subscription(JointState, "joint_states", self.joint_states_callback, 10)
+
             self.init_real_interface__zmqarmer__panda()
             self.is_real = True
 
         self.last_time_livin = time.time()
+
+        if rtb is not None:
+            self.rtb_model = rtb.models.Panda()
 
     @withsem
     def save_hand_record(self, dir):
@@ -240,7 +234,6 @@ class ROSComm(Node):
                 #sl.scene.object_poses[object_id] = data.pose
                 o = sl.scene.get_object_by_name(data.name)
                 o.position_real = np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z])
-                o.position = sl.scene.pos_real_to_grid(np.array([data.pose.position.x, data.pose.position.y, data.pose.position.z]))
                 o.quaternion = np.array([data.pose.orientation.x, data.pose.orientation.y, data.pose.orientation.z, data.pose.orientation.w])
 
             else:
@@ -280,37 +273,17 @@ class ROSComm(Node):
         '''
         ml.md.joint_states.append(data)
 
-        if settings.robot == 'iiwa':
-            if data.name[0][1] == '1': # r1 robot
-                ml.md.joints = data.position # Position = Angles [rad]
-                ml.md.velocity = data.velocity # [rad/s]
-                ml.md.effort = data.effort # [Nm]
-            ''' Enable second robot arm
-            elif data.name[0][1] == '2': # r2 robot
-                r2_joint_pos = data.position # Position = Angles [rad]
-                r2_joint_vel = data.velocity # [rad/s]
-                r2_joint_eff = data.effort # [Nm]
-                float(data.header.stamp.to_sec())
-            '''
-        elif settings.robot == 'panda':
-            ml.md.joints = data.position[-7:] # Position = Angles [rad]
-            ml.md.velocity = data.velocity[-7:] # [rad/s]
-            ml.md.effort = data.effort[-7:] # [Nm]
 
-        else: raise Exception("Wrong robot name!")
+    def custom_fkine(self):
+        fk_se3 = self.rtb_model.fkine(self.joints)
+        p = fk_se3.t
+        q = UnitQuaternion(fk_se3).vec_xyzs
+        return Pose(position = Point(x=p[0], y=p[1], z=p[2]), orientation = Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
 
-        if EXPERIMENTAL:
-            self.joint_states_n+=1
-            if self.joint_states_n%10 == 0 and self.r is not None:# and settings.simulator == 'real':
-                fk_se3 = self.model.fkine(ml.md.joints)
-                p = fk_se3.t
-                q = UnitQuaternion(fk_se3).vec_xyzs
-
-                rkpose = Pose(position = Point(x=p[0], y=p[1], z=p[2]), orientation = Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
-                p2 = np.array([ml.md.eef_pose.position.x, ml.md.eef_pose.position.y, ml.md.eef_pose.position.z])
-                print(p.round(2), p2.round(2), np.allclose(p, p2, atol=1e-2))
-                #ml.md.eef_pose = rkpose
-                #self.pose_eef_pub.publish(rkpose)
+    def eef_pose_correct(self):
+        pose = self.custom_fkine()
+        p2 = np.array([self.eef_pose.position.x, self.eef_pose.position.y, self.eef_pose.position.z])
+        print(p.round(2), p2.round(2), np.allclose(p, p2, atol=1e-2))
 
 
     @staticmethod
@@ -322,7 +295,7 @@ class ROSComm(Node):
         gl.gd.new_record(data, type='dynamic')
 
     @withsem
-    def send_g_data(self):
+    def send_g_data(self, dynamic_detection_window=1.5):
         ''' Sends appropriate gesture data as ROS msg
             Launched node for static/dynamic detection.
         '''
@@ -361,11 +334,18 @@ class ROSComm(Node):
             send_dynamic_g_data_bool = hand_mode is not None and 'dynamic' in hand_mode[key] and len(ml.md.frames) > time_samples and gl.gd.dynamic_network_info is not None
             if send_dynamic_g_data_bool:
                 args = gl.gd.dynamic_network_info
-                if getattr(ml.md, key+'_present')() and getattr(ml.md.frames[-1], key).grab_strength < 0.5:
+                if getattr(ml.md, key+'_present')():# and getattr(ml.md.frames[-1], key).grab_strength < 0.5:
                     try:
-                        ''' Warn when low FPS '''
-                        n = ml.md.frames[-1].fps
-                        if n < 5: print("Warning: FPS =", n)
+                        '''  '''
+                        n = 1
+                        visibles = []
+                        while True:
+                            ttt = ml.md.frames[-1].stamp() - ml.md.frames[-n].stamp()
+                            visibles.append( ml.md.frames[-n].visible )
+                            if ttt > 1.5: break
+                            n += 1
+                        if not np.array(visibles).all():
+                            return
 
                         ''' Creates timestamp indexes starting with [-1, -x, ...] '''
                         time_samples_series = [-1]
@@ -384,9 +364,9 @@ class ROSComm(Node):
                         data_composition = data_composition_
 
                         ''' Check if the length of composed data is aorund 1sec '''
-                        if 0.7 >= ml.md.frames[-1].stamp() - ml.md.frames[int(-n)].stamp() >= 1.3:
-                            print("WARNING: data frame composed is not 1sec long")
-
+                        ttt = ml.md.frames[-1].stamp() - ml.md.frames[int(time_samples_series[0])].stamp()
+                        if not (0.7 <= ttt <= 2.0):
+                            print(f"WARNING: data frame composed is {ttt} long")
                         ''' Subtract middle path point from all path points '''
 
                         #if 'normalize' in args:

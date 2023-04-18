@@ -1,9 +1,7 @@
 #!/usr/bin/env python
 ''' Up-to-Date Pipeline
-argv[1] = 'nogui'
-argv[1] = 'ros1armer' - real (default), 'coppelia' - sim
-argv[2] = 'drawer'
 '''
+raise Exception("CHECKUP NEEDED")
 import sys, os, time, threading
 sys.path.append(os.path.join(os.path.abspath(__file__), "..", '..', 'python3.9', 'site-packages', 'teleop_gesture_toolbox'))
 import numpy as np
@@ -41,7 +39,7 @@ from spatialmath import UnitQuaternion
 import spatialmath as sm
 
 def main():
-    ml.RealRobotActionLib.cautious = True
+    ml.rral.cautious = True
     path_gen = PathGenDummy()
 
     # Scene initialization

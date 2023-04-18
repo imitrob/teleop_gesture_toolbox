@@ -373,6 +373,13 @@ class Hand():
 
         self.oc_ = None
         self.oca_ = None
+        self.touch12_ = None
+        self.touch23_ = None
+        self.touch34_ = None
+        self.touch45_ = None
+        self.touch13_ = None
+        self.touch14_ = None
+        self.touch15_ = None
 
     def palm_pose(self):
         if ROS_IMPORT:
@@ -671,24 +678,67 @@ class Hand():
         '''
         position_tip_of_fingers = self.get_position_tip_of_fingers()
         touches = {}
-        touches['12'] = np.sum(np.power(np.subtract(position_tip_of_fingers[1], position_tip_of_fingers[0]),2))/1000
-        touches['23'] = np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[1]),2))/1000
-        touches['34'] = np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[2]),2))/1000
-        touches['45'] = np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[3]),2))/1000
-        touches['13'] = np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[0]),2))/1000
-        touches['14'] = np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[0]),2))/1000
-        touches['15'] = np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[0]),2))/1000
+        touches['12'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[1], position_tip_of_fingers[0]),2)))/1000
+        touches['23'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[1]),2)))/1000
+        touches['34'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[2]),2)))/1000
+        touches['45'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[3]),2)))/1000
+        touches['13'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[2], position_tip_of_fingers[0]),2)))/1000
+        touches['14'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[3], position_tip_of_fingers[0]),2)))/1000
+        touches['15'] = np.sqrt(np.sum(np.power(np.subtract(position_tip_of_fingers[4], position_tip_of_fingers[0]),2)))/1000
         return touches
 
     def prepare_finger_distance_combinations(self):
         touches = self.get_finger_distance_combinations()
-        self.touch12 = touches['12']
-        self.touch23 = touches['23']
-        self.touch34 = touches['34']
-        self.touch45 = touches['45']
-        self.touch13 = touches['13']
-        self.touch14 = touches['14']
-        self.touch15 = touches['15']
+        self.touch12_ = touches['12']
+        self.touch23_ = touches['23']
+        self.touch34_ = touches['34']
+        self.touch45_ = touches['45']
+        self.touch13_ = touches['13']
+        self.touch14_ = touches['14']
+        self.touch15_ = touches['15']
+
+    @property
+    def touch12(self):
+        if self.touch12_ is not None:
+            return self.touch12_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch23(self):
+        if self.touch23_ is not None:
+            return self.touch23_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch34(self):
+        if self.touch34_ is not None:
+            return self.touch34_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch45(self):
+        if self.touch45_ is not None:
+            return self.touch45_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch13(self):
+        if self.touch13_ is not None:
+            return self.touch13_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch14(self):
+        if self.touch14_ is not None:
+            return self.touch14_
+        else:
+            self.prepare_finger_distance_combinations()
+    @property
+    def touch15(self):
+        if self.touch15_ is not None:
+            return self.touch15_
+        else:
+            self.prepare_finger_distance_combinations()
 
     def prepare_learning_data(self):
         ''' Data will be saved inside object

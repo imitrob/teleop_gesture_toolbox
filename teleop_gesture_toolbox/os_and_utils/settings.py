@@ -76,6 +76,16 @@ def init(change_working_directory=True):
     feedback_modes = ['keyboard', 'gesture', 'all-at-once']
     feedback_mode = 'gesture'
 
+
+    main_config_name = yaml_config_gestures['using_config']
+    chosen_config = yaml_config_gestures['available_configurations'][main_config_name]
+
+    global action_execution
+    if 'action_execution' in chosen_config.keys():
+        action_execution = chosen_config['action_execution']
+    else:
+        action_execution = True
+
 def get_network_file(type='static'):
     main_config_name = yaml_config_gestures['using_config']
     chosen_config = yaml_config_gestures['available_configurations'][main_config_name]

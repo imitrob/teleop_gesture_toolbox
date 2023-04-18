@@ -9,6 +9,7 @@ from geometry_msgs.msg import Quaternion, Pose, PoseStamped, Point, Vector3
 from os_and_utils.utils import ordered_load, point_by_ratio, get_cbgo_path, cc
 import os_and_utils.scenes as sl
 import gesture_classification.gestures_lib as gl
+from gesture_classification.sentence_creation import GestureSentence
 from os_and_utils.transformations import Transformations as tfm
 from promps.promp_lib import map_to_primitive_gesture, get_id_motionprimitive_type
 from os_and_utils.path_def import Waypoint
@@ -29,7 +30,6 @@ from context_based_gesture_operation.msg import Scene as SceneRos
 from context_based_gesture_operation.msg import Gestures as GesturesRos
 from context_based_gesture_operation.srv import BTreeSingleCall
 
-
 class MoveData():
     def __init__(self, init_goal_pose=True, init_env='table'):
         '''
@@ -42,26 +42,19 @@ class MoveData():
         '''
 
         self.bfr_len = 1000 #settings.configRecording['BufferLen']
-        ''' Leap Controller data saved as circullar buffer '''
-        self.frames = collections.deque(maxlen=self.bfr_len)
+        ''' Leap Controller hand data saved as circullar buffer '''
+        self.hand_frames = collections.deque(maxlen=self.bfr_len)
         ''' '''
         self.goal_pose_array = collections.deque(maxlen=self.bfr_len)
         self.eef_pose_array = collections.deque(maxlen=self.bfr_len)
-
+        ''' JointStates topic '''
         self.joint_states = collections.deque(maxlen=self.bfr_len)
 
         ## Current/Active robot data at the moment
         self.goal_joints = None
-        self.goal_pose = None
-        self.eef_rot = 0.0 #None # 7th joint rotation [rad] (overwrites joints)
+        self.eef_rot = 0.0 # 7th joint rotation [rad] (overwrites joints)
         self.eef_rot_scene = 0.0
-        self.joints = None
-        self.velocity = None
-        self.effort = None
         self.eef_pose = Pose()
-        # Goal joints -> RelaxedIK output
-        # Goal pose -> RelaxedIK input
-        # joints -> JointStates topic
         # eef_pose -> from joint_states
 
 
@@ -100,7 +93,7 @@ class MoveData():
         # TODO: load from YAML
         self.camera_orientation = Vector3(x=0.,y=0.,z=0.)
 
-        self.mode = 'gesture' # 'play'/'live'/'gesture'
+        self.mode = 'gesture_ad' # 'play'/'live'/'gesture'/'gesture_ad'
         ''' Scaling factor: if self.mode=='live' '''
         self.scale = 2
         ## interactive
@@ -128,15 +121,6 @@ class MoveData():
         self.gripper = 0.
         self.speed = 5
         self.applied_force = 10
-
-        ### Live mode: gesture data
-        self.gestures_goal_pose = Pose()
-        self.gestures_goal_pose.position = self.ENV['start']
-        self.gestures_goal_pose.orientation = self.ENV['ori']
-        self.gestures_goal_stride = 0.1
-        self.gestures_goal_rot_stride = np.pi/8
-        # The copy of goal_pose in form of active trajectory
-        self._goal = None
 
         ''' Constant for updating trajectories for real manipulator '''
         self.traj_update_horizon = 0.6
@@ -170,6 +154,29 @@ class MoveData():
         self.evaluate_episode = False
 
         self.actions_done = []
+        ### EXPERIMENTAL
+        self.act_prev_tmp = ['', '', [], []]
+
+    @property
+    def frames(self):
+        ''' Over-load option for getting hand data'''
+        return self.hand_frames
+
+    @property
+    def goal_pose(self):
+        return self.goal_pose_array[-1]
+    @goal_pose.setter
+    def goal_pose(self, goal_pose):
+        self.goal_pose_array.append(goal_pose)
+    @property
+    def joints(self):
+        return self.joint_states[-1].position[-7:] # Position = Angles [rad]
+    @property
+    def velocity(self):
+        return self.joint_states[-1].velocity[-7:] # [rad/s]
+    @property
+    def effort(self):
+        return self.joint_states[-1].effort[-7:] # [Nm]
 
     def any_hand_stable(self, time=1.0):
         if self.stopped(h='r', time=time) or self.stopped(h='l', time=time):
@@ -226,64 +233,8 @@ class MoveData():
     def modes(self):
         return ['play', 'live', 'alternative']
 
-    def get_random_position(self):
-        ''' Get random position (ret pose obj) within environment based on md.ENV['max'|'min'] boundaries
-            Orientation is set to default md.ENV['ori']
-
-        Returns:
-            Pose (Pose()): Random pose
-        '''
-        x_len = self.ENV['max'].x - self.ENV['min'].x
-        y_len = self.ENV['max'].y - self.ENV['min'].y
-        z_len = self.ENV['max'].z - self.ENV['min'].z
-
-        x = random.random()
-        y = random.random()
-        z = random.random()
-
-        x_ = self.ENV['min'].x + x_len * x
-        y_ = self.ENV['min'].y + y_len * y
-        z_ = self.ENV['min'].z + z_len * z
-
-        pose = Pose()
-        pose.position = Point(x=x_, y=y_, z=z_)
-        pose.orientation = self.ENV['ori']
-        return pose
-
-    def get_random_joints(self, settings):
-        ''' Returns random robot joints within bounds
-
-        Returns:
-            Joints (Float[7]): Robot joints float array based on configuration in settings
-        '''
-        joints_diff = np.array(settings.upper_lim) - np.array(settings.lower_lim)
-        joints_diff_rand = [joints_diff[i] * random.random() for i in range(len(settings.upper_lim))]
-        return np.add(settings.lower_lim, joints_diff_rand)
-
-    def point_in_env(self, point):
-        if self.ENV['min'].x <= point[0] <= self.ENV['max'].x:
-          if self.ENV['min'].y <= point[1] <= self.ENV['max'].y:
-            if self.ENV['min'].z <= point[2] <= self.ENV['max'].z:
-                return True
-        return False
-
-    def changePlayPath(self, path_=None):
-        for n, path in enumerate(sl.paths):
-            if not path_ or path.name == path_: # pick first path if path_ not given
-                sl.scenes.make_scene_from_yaml(path.scene)
-                self.picked_path = n
-                self.ENV = self.ENV_DAT[path.ENV]
-                self.HoldValue = 0
-                self.currentPose = 0
-                self.goal_pose = deepcopy(sl.paths[1].poses[1])
-                break
 
     def changeLiveMode(self, text):
-        # Reset Gestures
-        self.gestures_goal_pose = Pose()
-        self.gestures_goal_pose.position = deepcopy(self.ENV['start'])
-        self.gestures_goal_pose.orientation.w = 1.0
-
         self.live_mode = text
 
     def live_handle_step(self, mod=3, scale=1.0, local_live_mode=None):
@@ -295,8 +246,6 @@ class MoveData():
         if self.l_present():
             if self.seq % mod == 0:
                 self.grasp_on_basic_grab_gesture(hnds=['l'])
-
-
 
     def main_handle_step(self, path_gen, mod=3, action_execution=True):
         self.last_time_livin = time.time()
@@ -350,14 +299,14 @@ class MoveData():
                     rc.roscm.send_g_data()
             else:
                 if len(gl.gd.gestures_queue) > 0:
-                    self.evaluate_episode = True
+                    GestureSentence.episode_evaluation_and_execution(s=RealRobotConvenience.update_scene())
             '''
             # Handle gesture activation
             if len(gl.gd.gestures_queue) > 0:
                 action = gl.gd.gestures_queue.pop()
                 #rc.roscm.gesture_solution_publish(String(data=action[1]))
                 if action_execution:
-                    if action[1] in ['nothing_dyn', 'no_gesture']:
+                    if action[1] in ['nothing_dyn', 'no_moving']:
                         pass #print(f"===================== ACTION {action[1]} ========================")
                     else:
                         print(f"===================== ACTION {action[1]} ========================")
@@ -374,6 +323,13 @@ class MoveData():
             if self.frames and action_execution:
                 self.handle_action_update()
             '''
+        if self.mode == 'gesture_ad':
+            if self.present(): # Hand visible
+                # Send gesture data based on hand mode
+                if settings.gesture_detection_on:
+                    rc.roscm.send_g_data()
+            GestureSentence.adaptive_eee(path_gen, s=RealRobotConvenience.update_scene())
+
         # Update focus target
         if self.seq % (settings.yaml_config_gestures['misc']['rate'] * 2) == 0: # every sec
             if sl.scene and len(sl.scene.object_poses) > 0:
@@ -399,7 +355,6 @@ class MoveData():
                 #print(self.frames[-1].l.get_learning_data(definition=1))
 
         self.seq += 1
-
 
     def handle_action_update(self):
         ''' Edited for only left hand classification and right hand metrics
@@ -530,7 +485,6 @@ class MoveData():
             DirectTeleoperation.drawing_mode_with_collision_detection_step(a,self,h,scale=scale,local_live_mode=local_live_mode)
         else: raise Exception(f"Wrong parameter type ({type}) not in ['simple','absolute','relative']")
 
-
     def grasp_on_grab_gesture(self, hnds=['l']):
         for h in hnds:
             if getattr(gl.gd, h).static.relevant():
@@ -567,11 +521,14 @@ class MoveData():
             dynamic_predictions.append(self.predict_handle__(s, gesture))
         return static_predictions, dynamic_predictions
 
-
     def predict_handle__(self, s, gesture):
         object_name_1 = None
+        
         if self.real_or_sim_datapull:
-            object_name_1 = RealRobotConvenience.get_target_objects(1, s)[0]
+            if len(gl.gd.target_objects) > 0:
+                object_name_1 = gl.gd.target_objects[0]
+            else:
+                object_name_1 = None
         else: # Fake data from GUI
             object_name_1 = self.comboMovePagePickObject1Picked
 
@@ -596,16 +553,28 @@ class MoveData():
         sr.focus_point = np.array(focus_point, dtype=float)
         req.scene = sr
 
-        #print("BT run")
+        #print(f"BT run {sr.focus_point}")
         target_action_sequence = rc.roscm.call_tree_singlerun(req)
         #print("BT fin")
         if len(target_action_sequence)>0:
             if len(target_action_sequence)==1:
-                return f"{target_action_sequence[-1].target_action}\n{target_action_sequence[-1].target_object}"
+                return f"a:{target_action_sequence[-1].target_action}\no:{target_action_sequence[-1].target_object}"
             else:
-                return f"{len(target_action_sequence)},{target_action_sequence[-1].target_action}\n{target_action_sequence[-1].target_object}"
+                return f"a:{len(target_action_sequence)},{target_action_sequence[-1].target_action}\no:{target_action_sequence[-1].target_object}"
         else:
             return f"none"
+
+    ''' Play Paths '''
+    def changePlayPath(self, path_=None):
+        for n, path in enumerate(sl.paths):
+            if not path_ or path.name == path_: # pick first path if path_ not given
+                sl.scenes.make_scene_from_yaml(path.scene)
+                self.picked_path = n
+                self.ENV = self.ENV_DAT[path.ENV]
+                self.HoldValue = 0
+                self.currentPose = 0
+                self.goal_pose = deepcopy(sl.paths[1].poses[1])
+                break
 
 class DirectTeleoperation():
     """ TODO: Add remaining function to th
@@ -653,7 +622,7 @@ class DirectTeleoperation():
                 self.eef_rot = deepcopy(self.eef_rot_scene)
                 self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
 
-            q = UnitQuaternion([0.0,0.0,1.0,0.0])
+            q = UnitQuaternion([0.0,1.0,0.0,0.0])
             rot = sm.SO3(q.R) * sm.SO3.Rz(self.eef_rot)
             qx,qy,qz,qw = UnitQuaternion(rot).vec_xyzs
             self.goal_pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
@@ -705,7 +674,7 @@ class DirectTeleoperation():
                 self.eef_rot = deepcopy(self.eef_rot_scene)
                 self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
 
-                q = UnitQuaternion([0.0,0.0,1.0,0.0])
+                q = UnitQuaternion([0.0,1.0,0.0,0.0])
                 rot = sm.SO3(q.R) * sm.SO3.Rz(self.eef_rot)
                 qx,qy,qz,qw = UnitQuaternion(rot).vec_xyzs
                 self.goal_pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
@@ -846,7 +815,7 @@ class RealRobotConvenience():
     @staticmethod
     def testMovements():
         sleep_time = 0.5
-        md.goal_pose = Pose(position=Point(x=0.5, y=0.0, z=0.3), orientation=Quaternion(x=0.0, y=1.0, z=0.0, w=0.0))
+        md.goal_pose = Pose(position=rral.position_home_ros, orientation=rral.ori_ros)
         rc.roscm.r.go_to_pose(md.goal_pose)
         '''
         patience = 8 # s
@@ -858,7 +827,7 @@ class RealRobotConvenience():
                 return
         print(np.linalg.norm(np.array([md.eef_pose.position.x, md.eef_pose.position.y, md.eef_pose.position.z])-np.array([md.goal_pose.position.x, md.goal_pose.position.y, md.goal_pose.position.z])))
         '''
-        gl.gd.approve_handle("Now marking objects!", type='y')
+        gl.gd.misc_gesture_handle("Now marking objects!", type='y')
         RealRobotConvenience.mark_objects(s=RealRobotConvenience.update_scene())
 
 
@@ -938,12 +907,15 @@ class RealRobotConvenience():
             s = cbgo.srcmodules.Scenes.Scene(init='', objects=static_objects, random=False)
             s.r = robot_data
 
-            objects = rc.roscm.r.get_object_positions()
-            if objects is None: objects = []
+            if not settings.action_execution:
+                objects = None
+            else:
+                objects = rc.roscm.r.get_object_positions()
 
+            if objects is None: objects = []
             for object in objects:
                 # blacklist - ghost objects
-                if ycb_data.COSYPOSE2NAME[object['label']] in ['foam brick', 'foam_brick']:
+                if ycb_data.COSYPOSE2NAME[object['label']] in ['foam brick', 'foam_brick', 'scissors']:
                     continue
                 type = (ycb_data.NAME2TYPE[ycb_data.COSYPOSE2NAME[object['label']]]).capitalize()
 
@@ -951,10 +923,17 @@ class RealRobotConvenience():
                 o.quaternion = np.array(object['pose'][1])
 
                 s.objects.append(o)
+            #if not settings.action_execution:
+            #    o = cbgo.srcmodules.Objects.Object(name='object', position=np.array((2,2,0)))
+            #    s.objects.append(o)
+            #    o = cbgo.srcmodules.Objects.Object(name='object1', position=np.array((2,0,0)))
+            #    s.objects.append(o)
+
             #print("Updating Scene REAL!:", s)
             sl.scene = s
             return s
         else:
+            '''
             if sl.scene is None:
                 s = None
                 s = cbgo.srcmodules.Scenes.Scene(init='', objects=[], random=False)
@@ -962,7 +941,7 @@ class RealRobotConvenience():
 
             position = [md.eef_pose.position.x, md.eef_pose.position.y, md.eef_pose.position.z]
 
-            sl.scene.r.eef_position = sl.scene.pos_real_to_grid(position)
+            sl.scene.r.eef_position_real = position
             while md.actions_done != []:
                 target_action, target_objects = md.actions_done.pop(0)
 
@@ -972,6 +951,7 @@ class RealRobotConvenience():
                     raise NotImplementedError("Not implemented")
                     ConditionedActions.do(sl.scene, (target_action, target_objects[0]), out=True, ignore_location=True)
             #print("Updating Scene SIMULATOR!:", sl.scene)
+            '''
             return sl.scene
 
     @staticmethod
@@ -981,7 +961,7 @@ class RealRobotConvenience():
         for object in s.objects:
             q = RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name)
             p = object.position_real + np.array([0.,0.,0.3])
-            gl.gd.approve_handle(f"p: {p}, q {q}", type='y')
+            gl.gd.misc_gesture_handle(f"p: {p}, q {q}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
 
@@ -995,6 +975,8 @@ class RealRobotConvenience():
     def get_quaternion_eef(q_, name):
         ''' Based on CosyPose, where each object (name) has OFFSET
         '''
+        if not settings.action_execution or not rc.roscm.is_real: return np.array([1.,0.,0.,0.])
+
         assert sm is not None, "spatialmath package couldn't be imported!"
         try:
             offset_z_rot = ycb_data.OFFSETS_Z_ROT[name.replace("_"," ")]
@@ -1002,7 +984,7 @@ class RealRobotConvenience():
             print(f"get_quaternion_eef - Not found object name: {name}")
             offset_z_rot = 0.
 
-        q = UnitQuaternion([0.0,0.0,1.0,0.0])
+        q = UnitQuaternion([0.0,1.0,0.0,0.0]) # w,x,y,z
         q_2 = UnitQuaternion([q_[3], *q_[0:3]])
 
         rot = sm.SO3(q.R) * sm.SO3.Rz(q_2.rpy()[2]-np.pi/2+offset_z_rot)
@@ -1015,10 +997,26 @@ class RealRobotConvenience():
             print(f"name of object {nameobj} not found")
             return
         q_final = RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name)
-
         p = object.position_real
+
         md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.3), orientation=Quaternion(x=q_final[0],y=q_final[1],z=q_final[2],w=q_final[3]))
         RealRobotConvenience.move_sleep()
+
+
+    @staticmethod
+    def get_target_object_non_blocking(s, hand='lr'):
+        def most_frequent(List):
+            return max(set(List), key = List.count)
+
+        _, nameobj_ = RealRobotConvenience.deictic(hand)
+        if nameobj_ is None:
+            print("No objects on scene!")
+            return 'q'
+
+        RealRobotConvenience.go_on_top_of_object(nameobj_, s)
+        #print(f"Might pick: {cc.H}{nameobj_}{cc.E}")
+
+        return nameobj_
 
     @staticmethod
     def get_target_objects(num_of_objects, s, hand='lr'):
@@ -1030,26 +1028,30 @@ class RealRobotConvenience():
         while ret != 'y':
             name_object_final = None
             for i in range(num_of_objects):
-                #if gl.gd.approve_handle(f"Start deictic for {num_of_objects} object, (n) to return") == 'n': return 'n'
+                #if gl.gd.misc_gesture_handle(f"Start deictic for {num_of_objects} object, (n) to return") == 'n': return 'n'
                 print(f"Start deictic for {num_of_objects} object")
                 nameobj_list = []
                 time.sleep(2.0)
                 while not md.present():
                     time.sleep(0.1)
-                while md.present():
+                do_once = True
+                while do_once or (md.present() and not md.any_hand_stable(time=1.0)):
+                    do_once = False
                     _, nameobj_ = RealRobotConvenience.deictic(hand)
                     if nameobj_ is None:
                         print("No objects on scene!")
                         return 'q'
 
-                    print(f"{i}, {nameobj_}")
+                    if num_of_objects == 1: print(nameobj_)
+                    else: print(f"{i}, {nameobj_}")
                     RealRobotConvenience.go_on_top_of_object(nameobj_, s)
                     nameobj_list.append(nameobj_)
 
                 name_object_final = most_frequent(nameobj_list)
-                print(f"Object {i} picked: {name_object_final}")
 
-            #ret = gl.gd.approve_handle(f"RIGHT object (y - good / n - again)")
+                if num_of_objects == 1: print(f"Picked: {cc.H}{name_object_final}{cc.E}")
+                else: print(f"{i}. picked: {cc.H}{name_object_final}{cc.E}")
+
             ret = 'y'
 
             if ret == 'n': continue
@@ -1061,16 +1063,15 @@ class RealRobotConvenience():
             raise Exception("approve handle returned undefined symbol")
 
         if object_names == []: return object_names
-        if isinstance(object_names, str):
-            print(f"DEBUG 1 object_names [{object_names}]")
-            return [object_names]
-        if isinstance(object_names[-1], str):
-            print(f"DEBUG 2 object_names [{object_names}] picks last")
+        elif isinstance(object_names[-1], str):
             return object_names
+
+        if isinstance(object_names, str):
+            raise Exception(f"Object_names is string not array [{object_names}]")
+            return [object_names]
         if isinstance(object_names[-1][-1], str):
-            print(f"DEBUG 3 object_names [{object_names}] picks last")
+            raise(f"DEBUG 3 Object_names is double array not single not array [{object_names}]")
             return object_names[-1]
-        raise Exception("TODO")
 
     @staticmethod
     def correction_by_teleop():
@@ -1088,8 +1089,8 @@ class RealRobotConvenience():
 
     @staticmethod
     def check_or_return(p,q):
-        if RealRobotActionLib.cautious:
-            y = gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)} (y/n)", type='y')
+        if rral.cautious:
+            y = gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)} (y/n)", type='y')
             if y == 'n':
                 return y
 
@@ -1110,11 +1111,28 @@ class RealRobotActionLib():
     After every Move, there Behaviour Tree might be called to check the state
     of the system. Conditions which are needed may be written down for checking.
     '''
-    cautious = True
+    def __init__(self):
+        self.ori = np.array([1.0, 0.0, 0.0, 0.0])
+        self.cautious = True
+
+        self.position_home = np.array([0.5, 0.0, 0.3])
+
+    @property
+    def orientation(self):
+        return self.ori
+    @property
+    def ori_ros(self):
+        return Quaternion(x=self.ori[0], y=self.ori[1], z=self.ori[2], w=self.ori[3])
+    @property
+    def orientation_ros(self):
+        return self.ori_ros
+    @property
+    def position_home_ros(self):
+        return Point(x=self.position_home[0], y=self.position_home[1], z=self.position_home[2])
 
     @staticmethod
     def get_available_actions():
-        actions = dir(RealRobotActionLib)
+        actions = dir(rral)
         # Discard the standard functions (__...__)
         actions_ = []
         discard_functions = ["get_available_actions", "get_offset_for_name", "check_object_args", 'cautious']
@@ -1149,6 +1167,7 @@ class RealRobotActionLib():
     def smart_execute(init_fun, move_funcs):
         print("[Exec] Init")
         object = init_fun()
+        if object is None: return None
 
         n = 0
         while n <= len(move_funcs)-1:
@@ -1164,127 +1183,119 @@ class RealRobotActionLib():
 
     ''' Robotic Actions Definitions '''
     place_deictic_params = 0
-    @staticmethod
     @printout
-    def place(object_names=None, ap=None):
+    def place(self, object_names=None, ap=None):
         ''' Place the object on random free place
         '''
         def init():
             s = RealRobotConvenience.update_scene()
             p = s.get_random_position_in_scene(constraint='on_ground,x-cond,free')
             pr = s.position_real(p)
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"[Place] position grid: {p}, position real: {pr}", type='y')
+            if rral.cautious: gl.gd.misc_gesture_handle(f"[Place] position grid: {p}, position real: {pr}", type='y')
             return pr
         def move_1(pr):
             ''' above location '''
             pr[2] += 0.2
-            q = np.array([0.,1.,0.,0.])
-            r = RealRobotConvenience.check_or_return(pr, q)
+            r = RealRobotConvenience.check_or_return(pr, self.ori)
             if r == 'r': return r
-            md.goal_pose = Pose(position=Point(x=pr[0], y=pr[1], z=pr[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+            md.goal_pose = Pose(position=Point(x=pr[0], y=pr[1], z=pr[2]), orientation=self.ori_ros)
             RealRobotConvenience.move_sleep()
         def move_2(pr):
             ''' above closer to location '''
             pr[2] += (-0.2+0.07)
-            q = np.array([0.,1.,0.,0.])
-            r = RealRobotConvenience.check_or_return(pr, q)
+            r = RealRobotConvenience.check_or_return(pr, self.ori)
             if r == 'r': return r
-            md.goal_pose = Pose(position=Point(x=pr[0], y=pr[1], z=pr[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
+            md.goal_pose = Pose(position=Point(x=pr[0], y=pr[1], z=pr[2]), orientation=self.ori_ros)
             RealRobotConvenience.move_sleep()
             # gripper move 1
             rc.roscm.r.release_object()
 
-        RealRobotActionLib.smart_execute(init, [move_1, move_2])
-
+        rral.smart_execute(init, [move_1, move_2])
 
     move_up_deictic_params = 0
-    @staticmethod
     @printout
-    def move_up(object_names=None, ap=None):
+    def move_up(self, object_names=None, ap=None):
         def init():
             s = RealRobotConvenience.update_scene()
             p = s.r.eef_position_real
             return p
         def move_1(p):
-            md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.2), orientation=Quaternion(x=0.0,y=1.0,z=0.0,w=0.0))
+            md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.2), orientation=self.ori_ros)
             RealRobotConvenience.move_sleep()
 
-        RealRobotActionLib.smart_execute(init, [move_1])
+        rral.smart_execute(init, [move_1])
 
     move_left_deictic_params = 0
-    @staticmethod
     @printout
-    def move_left(object_names=None, ap=None):
+    def move_left(self, object_names=None, ap=None):
         def init():
             s = RealRobotConvenience.update_scene()
             p = s.r.eef_position_real
             return p
         def move_1(p):
-            md.goal_pose = Pose(position=Point(x=p[0], y=p[1]-0.2, z=p[2]), orientation=Quaternion(x=0.0,y=1.0,z=0.0,w=0.0))
+            md.goal_pose = Pose(position=Point(x=p[0], y=p[1]-0.2, z=p[2]), orientation=self.ori_ros)
             RealRobotConvenience.move_sleep()
 
         # special condidition
         s = RealRobotConvenience.update_scene()
-        if object_names is not None and object_names[0] == 'drawer':
+        print(f"object_names {object_names}")
+        if object_names is not None and object_names != [] and object_names[0] == 'drawer':
             print("Close Drawer")
-            RealRobotActionLib.close(object_names=object_names)
+            rral.close(object_names=object_names)
         else:
             print("Move Left")
-            RealRobotActionLib.smart_execute(init, [move_1])
+            rral.smart_execute(init, [move_1])
 
     move_right_deictic_params = 0
-    @staticmethod
     @printout
-    def move_right(object_names=None, ap=None):
+    def move_right(self, object_names=None, ap=None):
         def init():
             s = RealRobotConvenience.update_scene()
             p = s.r.eef_position_real
             return p
         def move_1(p):
-            md.goal_pose = Pose(position=Point(x=p[0], y=p[1]+0.2, z=p[2]), orientation=Quaternion(x=0.0,y=1.0,z=0.0,w=0.0))
+            md.goal_pose = Pose(position=Point(x=p[0], y=p[1]+0.2, z=p[2]), orientation=self.ori_ros)
             RealRobotConvenience.move_sleep()
 
         # special condidition
         s = RealRobotConvenience.update_scene()
-        if object_names is not None and object_names[0] == 'drawer':
+        print(f"object_names {object_names}")
+        [] == []
+        if object_names is not None and object_names != [] and object_names[0] == 'drawer':
             print(f"Open Drawer")
-            RealRobotActionLib.open(object_names=object_names)
+            rral.open(object_names=object_names)
         else:
             print(f"Move Right")
-            RealRobotActionLib.smart_execute(init, [move_1])
+            rral.smart_execute(init, [move_1])
 
     move_backdown_deictic_params = 0
-    @staticmethod
     @printout
-    def move_backdown(object_names=None, ap=None):
+    def move_backdown(self, object_names=None, ap=None):
         def init():
             s = RealRobotConvenience.update_scene()
             p = s.r.eef_position_real
             return p
         def move_1(p):
-            md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]-0.2), orientation=Quaternion(x=0.0,y=1.0,z=0.0,w=0.0))
+            md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]-0.2), orientation=self.ori_ros)
             RealRobotConvenience.move_sleep()
 
-        RealRobotActionLib.smart_execute(init, [move_1])
+        rral.smart_execute(init, [move_1])
 
     move_down_deictic_params = 0
-    @staticmethod
-    def move_down(object_names=None, ap=None):
-        RealRobotActionLib.move_backdown(object_names=object_names)
+    def move_down(self, object_names=None, ap=None):
+        rral.move_backdown(object_names=object_names)
 
-    push_deictic_params = 0
-    @staticmethod
-    def push(object_names=None, ap=None):
+    push_deictic_params = 1
+    def push(self, object_names=None, ap=None):
         ''' TODO: '''
-        RealRobotActionLib.rotate(object_names=object_names, ap=ap)
+        raise Exception("Action is not implemented!")
 
     pick_up_deictic_params = 1
-    @staticmethod
     @printout
-    def pick_up(object_names, ap=None):
+    def pick_up(self, object_names, ap=None):
         def init():
             ''' check vars - objs, update scene '''
-            if RealRobotActionLib.check_object_args(object_names, RealRobotActionLib.pick_up_deictic_params): return
+            if rral.check_object_args(object_names, rral.pick_up_deictic_params): return None
             objname = object_names[0]
 
             s = RealRobotConvenience.update_scene()
@@ -1309,7 +1320,7 @@ class RealRobotActionLib():
                 object.position_real[1] = md.goal_pose.position.y
         def move_2(object):
             ''' Move to object grasp point'''
-            of = RealRobotActionLib.get_offset_for_name(object.name)
+            of = rral.get_offset_for_name(object.name)
             p = deepcopy(np.array(object.position_real))
             p[2]+=of
             q = deepcopy(np.array(RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name)))
@@ -1324,38 +1335,37 @@ class RealRobotActionLib():
             md.goal_pose.position.z += 0.04
             RealRobotConvenience.move_sleep()
 
-        RealRobotActionLib.smart_execute(init, [move_1, move_2, move_3])
+        rral.smart_execute(init, [move_1, move_2, move_3])
 
-    @staticmethod
-    def put(object_names=None, ap=None):
+    put_deictic_params = 1
+    def put(self, object_names=None, ap=None):
         ''' Same meaning as put_on '''
-        RealRobotActionLib.put_on(object_names, ap=ap)
+        rral.put_on(object_names, ap=ap)
 
     put_on_deictic_params = 1
-    @staticmethod
     @printout
-    def put_on(object_names, ap=None):
+    def put_on(self, object_names, ap=None):
         def init():
             ''' If two objects given, 1. pick up - object 1, 2. put on - object 2 '''
 
-            if not RealRobotActionLib.check_object_args(object_names, 2):
+            if not rral.check_object_args(object_names, 2):
                 s = RealRobotConvenience.update_scene()
                 print(s)
-                if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Put (2 objects): {object_names[0]} {object_names[1]}", type='y')
+                if rral.cautious: gl.gd.misc_gesture_handle(f"Put (2 objects): {object_names[0]} {object_names[1]}", type='y')
 
                 print(f"Pouring 2 step action - 1. pick up {object_names[0]}")
-                RealRobotActionLib.pick_up(object_names=[object_names[0]])
+                rral.pick_up(object_names=[object_names[0]])
 
                 print(f"Pouring 2 step action - 2. put on {object_names[1]}")
                 objname2 = object_names[1]
                 return s.get_object_by_name(objname2)
 
-            elif RealRobotActionLib.check_object_args(object_names, RealRobotActionLib.put_on_deictic_params): return
+            elif rral.check_object_args(object_names, rral.put_on_deictic_params): return
             objname = object_names[0]
 
             s = RealRobotConvenience.update_scene()
             object = s.get_object_by_name(objname)
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Put on object {objname}", type='y')
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Put on object {objname}", type='y')
             return object
         def move_1(object):
             p = deepcopy(object.position_real)
@@ -1370,7 +1380,7 @@ class RealRobotActionLib():
             if not RealRobotConvenience.correction_by_teleop():
                 return 'q'
         def move_2(object):
-            of = RealRobotActionLib.get_offset_for_name(object.name)
+            of = rral.get_offset_for_name(object.name)
             p = deepcopy(object.position_real)
             q = deepcopy(RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name))
             p[2]+=of
@@ -1382,15 +1392,14 @@ class RealRobotActionLib():
             RealRobotConvenience.move_sleep()
             rc.roscm.r.release_object()
 
-        RealRobotActionLib.smart_execute(init, [move_1, move_2])
+        rral.smart_execute(init, [move_1, move_2])
 
     replace_deictic_params = 2
-    @staticmethod
     @printout
-    def replace(object_names, ap=None):
+    def replace(self, object_names, ap=None):
         raise Exception("FIX to new version!")
         def init():
-            if RealRobotActionLib.check_object_args(object_names, RealRobotActionLib.replace_deictic_params): return
+            if rral.check_object_args(object_names, rral.replace_deictic_params): return
             objname = object_names[0]
             objname2 = object_names[1]
 
@@ -1419,15 +1428,14 @@ class RealRobotActionLib():
             RealRobotConvenience.move_sleep()
             rc.roscm.r.release_object()
 
-        RealRobotActionLib.smart_execute(init, [move_1, move_2])
+        rral.smart_execute(init, [move_1, move_2])
 
     put_on_fake_deictic_params = 2
-    @staticmethod
     @printout
-    def put_on_fake(object_names, ap=None):
+    def put_on_fake(self, object_names, ap=None):
         raise Exception("Fix to new version!")
         def init():
-            if RealRobotActionLib.check_object_args(object_names, RealRobotActionLib.put_on_fake_deictic_params): return
+            if rral.check_object_args(object_names, rral.put_on_fake_deictic_params): return
             objname = object_names[0]
             objname2 = object_names[1]
 
@@ -1445,44 +1453,42 @@ class RealRobotActionLib():
                 mindist = d
         print("bestobj: ", bestobj)
         def move_1(object):
-            RealRobotActionLib.pick_up(objname='mustard bottle')
+            rral.pick_up(objname='mustard bottle')
         def move_2(object):
-            RealRobotActionLib.move_backdown(objname='mustard bottle')
+            rral.move_backdown(objname='mustard bottle')
             rc.roscm.r.release_object()
         def move_3(object):
-            RealRobotActionLib.pick_up(objname=objname)
+            rral.pick_up(objname=objname)
         def move_4(object):
-            RealRobotActionLib.put_on(objname=objname2)
+            rral.put_on(objname=objname2)
 
-        RealRobotActionLib.smart_execute(init, [move_1, move_2, move_3, move_4])
-
+        rral.smart_execute(init, [move_1, move_2, move_3, move_4])
 
     pour_deictic_params = 1
-    @staticmethod
     @printout
-    def pour(object_names, ap=None):
+    def pour(self, object_names, ap=None):
         def init():
             ''' If two objects given, 1. pick up - object 1, 2. pour - object 2 '''
 
-            if not RealRobotActionLib.check_object_args(object_names, 2):
+            if not rral.check_object_args(object_names, 2):
                 s = RealRobotConvenience.update_scene()
                 print(s)
-                if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Pouring (2 objects): {object_names[0]} {object_names[1]}", type='y')
+                if rral.cautious: gl.gd.misc_gesture_handle(f"Pouring (2 objects): {object_names[0]} {object_names[1]}", type='y')
 
                 print(f"Pouring 2 step action - 1. pick up {object_names[0]}")
-                RealRobotActionLib.pick_up(object_names=[object_names[0]])
+                rral.pick_up(object_names=[object_names[0]])
 
                 print(f"Pouring 2 step action - 2. pour {object_names[1]}")
                 objname2 = object_names[1]
                 return s.get_object_by_name(objname2)
 
-            elif RealRobotActionLib.check_object_args(object_names, RealRobotActionLib.pour_deictic_params): return
+            elif rral.check_object_args(object_names, rral.pour_deictic_params): return
 
             objname = object_names[0]
 
             s = RealRobotConvenience.update_scene()
             print(s)
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Pouring: {objname}", type='y')
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Pouring: {objname}", type='y')
             return s.get_object_by_name(objname)
         def move_1(object):
             p = object.position_real + np.array([0.,0.,0.15])
@@ -1524,17 +1530,16 @@ class RealRobotActionLib():
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
 
-        RealRobotActionLib.smart_execute(init, [move_1, move_2, move_3])
+        rral.smart_execute(init, [move_1, move_2, move_3])
 
     rotate_deictic_params = 0
-    @staticmethod
     @printout
-    def rotate(object_names, ap=None):
+    def rotate(self, object_names, ap=None):
         def init():
-            if RealRobotActionLib.check_object_args(object_names, RealRobotActionLib.rotate_deictic_params): return
+            if rral.check_object_args(object_names, rral.rotate_deictic_params): return
             s = RealRobotConvenience.update_scene()
             print(s)
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Rotating", type='y')
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Rotating", type='y')
         def move_1(object):
             p = sl.scene.r.eef_position_real
             q = sl.scene.r.eef_rotation
@@ -1549,106 +1554,104 @@ class RealRobotActionLib():
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
 
-        RealRobotActionLib.smart_execute(init, [move_1])
+        rral.smart_execute(init, [move_1])
 
     open_deictic_params = 1
-    @staticmethod
     @printout
-    def open(object_names, ap=None):
+    def open(self, object_names, ap=None):
         def init():
-            if RealRobotActionLib.check_object_args(object_names, RealRobotActionLib.open_deictic_params): return
+            if rral.check_object_args(object_names, rral.open_deictic_params): return
             objname = object_names[0]
 
             s = RealRobotConvenience.update_scene()
             print(s)
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Opening: {objname}", type='y')
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Opening: {objname}", type='y')
             return s.get_object_by_name(objname)
         def move_0(object):
             # array([ 0.6, -0.3,  0. ])
             p = object.position_real + np.array([-0.05,0.1,0.3])
-            q = np.array([1.0,0.0,0.0,0.0])
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
+            q = self.ori
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             rc.roscm.r.release_object()
             RealRobotConvenience.move_sleep()
 
         def move_2(object):
             p = object.position_real + np.array([-0.05,0.1,0.17])
-            q = np.array([1.0,0.0,0.0,0.0])
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
+            q = self.ori
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
             rc.roscm.r.pick_object(object=object.name)
-            #RealRobotActionLib.pick_up(objname=object.name)
+            #rral.pick_up(objname=object.name)
             time.sleep(2.0)
         def move_3(object):
             p = object.position_real + np.array([-0.05,0.3,0.20])
-            q = np.array([1.0,0.0,0.0,0.0])
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
+            q = self.ori
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
             rc.roscm.r.release_object()
             time.sleep(2.0)
         def move_4(object):
             p = object.position_real + np.array([-0.05,0.3,0.25])
-            q = np.array([1.0,0.0,0.0,0.0])
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
+            q = self.ori
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
 
-        RealRobotActionLib.smart_execute(init, [move_0, move_2, move_3, move_4])
+        rral.smart_execute(init, [move_0, move_2, move_3, move_4])
 
     open_deictic_params = 1
-    @staticmethod
     @printout
-    def close(object_names, ap=None):
+    def close(self, object_names, ap=None):
         def init():
-            if RealRobotActionLib.check_object_args(object_names, RealRobotActionLib.open_deictic_params): return
+            if rral.check_object_args(object_names, rral.open_deictic_params): return
             objname = object_names[0]
 
             s = RealRobotConvenience.update_scene()
             print(s)
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Closing: {objname}", type='y')
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Closing: {objname}", type='y')
             return s.get_object_by_name(objname)
         def move_1(object):
             p = object.position_real + np.array([-0.05,0.3,0.3])
-            q = np.array([1.0,0.0,0.0,0.0])
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
+            q = self.ori
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             rc.roscm.r.release_object()
             RealRobotConvenience.move_sleep()
 
         def move_2(object):
             p = object.position_real + np.array([-0.05,0.3,0.17])
-            q = np.array([1.0,0.0,0.0,0.0])
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
+            q = self.ori
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
             rc.roscm.r.pick_object(object=object.name)
-            #RealRobotActionLib.pick_up(objname=object.name)
+            #rral.pick_up(objname=object.name)
             time.sleep(2.0)
         def move_4(object):
             p = object.position_real + np.array([-0.05,0.1,0.20])
-            q = np.array([1.0,0.0,0.0,0.0])
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
+            q = self.ori
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
             rc.roscm.r.release_object()
             time.sleep(2.0)
         def move_5(object):
             p = object.position_real + np.array([-0.05,0.1,0.25])
-            q = np.array([1.0,0.0,0.0,0.0])
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
+            q = self.ori
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
         def move_6(object):
             p = object.position_real + np.array([-0.05,0.0,0.3])
-            q = np.array([1.0,0.0,0.0,0.0])
-            if RealRobotActionLib.cautious: gl.gd.approve_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
+            q = self.ori
+            if rral.cautious: gl.gd.misc_gesture_handle(f"Check p: {p.round(2)}, q: {q.round(2)}", type='y')
             md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]), orientation=Quaternion(x=q[0],y=q[1],z=q[2],w=q[3]))
             RealRobotConvenience.move_sleep()
 
-        RealRobotActionLib.smart_execute(init, [move_1, move_2, move_4, move_5, move_6])
+        rral.smart_execute(init, [move_1, move_2, move_4, move_5, move_6])
 
 class Structure():
     '''
@@ -1657,10 +1660,6 @@ class Structure():
     ||| <- id=1
     ||| <- id=0
     wall order: (right direction from id=0 which is base obj)
-    (space between blocks is not representative)
-        ||| <- id=6
-      ||| ||| <- id=3,5
-    ||| ||| ||| <- id=1,2,4
 
     Example building stack with base object with id=0:
     id_0_position = structure = Structure(type='wall', id=0, size=0.04) # [0.,0.,0.]
@@ -1711,7 +1710,6 @@ class Structure():
 
     def get_position(self, id):
         if self.type == 'stack': return list(np.array(self.get_relative_position_stack(id=id)) + np.array(self.base_position))
-        elif self.type == 'wall': return list(np.array(self.get_relative_position_wall(id=id)) + np.array(self.base_position))
         else: raise Exception(f"Structure type '{self.type}' not found !")
 
     def get_relative_position_stack(self, id):
@@ -1719,45 +1717,9 @@ class Structure():
         n_block = self.get_n_block_based_on_object_id(id)
         return [0.,0., n_block * self.object_size]
 
-    def get_relative_position_wall(self, id):
-        ''' new wall position '''
-        n_block = self.get_n_block_based_on_object_id(id)
-
-        space_between_blocks = self.object_size / 4
-        z_step = self.object_size
-        x_step = self.object_size + space_between_blocks
-        x_odd = x_step/2
-
-        if n_block == 0:
-            return [0.,0.,0.]
-        elif n_block == 1:
-            return [x_step, 0., 0.]
-        elif n_block == 2:
-            return [x_odd, 0., z_step]
-        elif n_block == 3:
-            return [2*x_step, 0., 0.]
-        elif n_block == 4:
-            return [x_odd+x_step, 0., z_step]
-        elif n_block == 5:
-            return [x_odd*2, 0., 2*z_step]
-        elif n_block == 6:
-            return [3*x_step, 0., 0.]
-        elif n_block == 7:
-            return [x_odd+2*x_step, 0., z_step]
-        elif n_block == 8:
-            return [x_odd*2, 0., 2*z_step]
 
 
 def init():
-    global md
+    global md, rral
     md = MoveData()
-
-
-
-
-
-
-
-
-
-#
+    rral = RealRobotActionLib()

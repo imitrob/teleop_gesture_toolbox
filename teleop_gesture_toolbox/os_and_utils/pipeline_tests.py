@@ -103,7 +103,7 @@ class GGPipeline():
         while True:
             next_target_action = b_tree.pick_next_action(...)
 
-            getattr(ml.RealRobotActionLib,action)(object_names)
+            getattr(ml.rral,action)(object_names)
             if next_target_action is None: break
 
         return "Done"

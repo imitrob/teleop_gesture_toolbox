@@ -17,7 +17,6 @@ import os_and_utils.deitic_lib as dl
 from os_and_utils.utils import cc, get_cbgo_path
 from os_and_utils.pathgen_dummy import PathGenDummy
 from gesture_classification.sentence_creation import GestureSentence
-from os_and_utils.tests.toolbox_tester import test_toolbox
 
 sys.path.append(get_cbgo_path())
 from context_based_gesture_operation.srcmodules.Actions import Actions
@@ -26,15 +25,15 @@ from context_based_gesture_operation.srcmodules.Scenes import Scene
 def test_toolbox():
     for i in range(3):
         print(f"[{i}/3] Testing feedback approvement!")
-        gl.gd.approve_handle(f"Do you agree? (y/n)")
+        gl.gd.misc_gesture_handle(f"Do you agree? (y/n)")
 
     for i in range(3):
         print(f"[{i}/3] Testing feedback continue!")
-        gl.gd.approve_handle(f"Continue. (y)", type='y')
+        gl.gd.misc_gesture_handle(f"Continue. (y)", type='y')
 
     for i in range(3):
         print(f"[{i}/3] Testing feedback!")
-        gl.gd.approve_handle(f"How many? (number)", type='number')
+        gl.gd.misc_gesture_handle(f"How many? (number)", type='number')
 
 
     y = input(f"[Tester] Test rotation auxiliary parameter:")
@@ -97,11 +96,11 @@ def test_toolbox():
     y = input(f"[Tester] Open Drawer: {s}")
     target_action = 'open'
     target_objects = ['drawer']
-    getattr(ml.RealRobotActionLib, target_action)(target_objects)
+    getattr(ml.rral, target_action)(target_objects)
     y = input(f"[Tester] Close Drawer: {s}")
     target_action = 'close'
     target_objects = ['drawer']
-    getattr(ml.RealRobotActionLib, target_action)(target_objects)
+    getattr(ml.rral, target_action)(target_objects)
 
     '''
     y = input("[Tester] Close & Open the gripper")

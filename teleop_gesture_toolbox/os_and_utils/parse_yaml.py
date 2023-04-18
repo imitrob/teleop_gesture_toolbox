@@ -372,6 +372,8 @@ class ParseYAML():
             return 'dynamic'
         elif 'mp' in gesture and (gesture['mp'] == 'true' or gesture['mp'] == True):
             return 'mp'
+        elif 'compound' in gesture and (gesture['compound'] == 'true' or gesture['compound'] == True):
+            return 'compound'
         else:
             return 'dynamic'
 
@@ -471,6 +473,20 @@ class ParseYAML():
             gesture['record_key']= gesture['key']
         elif 'record_key' not in gesture.keys():
             gesture['record_key']=""
+        return gesture
+
+    @staticmethod
+    def parseCompoundGesture(gesture):
+        if 'var_len' not in gesture.keys():
+            gesture['var_len']=1
+
+        if 'thresholds' in gesture.keys():
+            pass # gesture['thresholds'] = gesture['thresholds']
+
+        # # TODO:
+        #if 'time_visible_threshold' not in gesture.keys():
+        #    gesture['time_visible_threshold'] = None
+
         return gesture
 
     @staticmethod

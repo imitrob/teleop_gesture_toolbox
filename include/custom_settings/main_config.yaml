@@ -1,6 +1,6 @@
 # Picks set from configurations:
 # Each set chooses the suitable gestures, mappings, etc..
-using_config: main_set
+using_config: main_set_compound_tester
 
 available_configurations:
   main_set:
@@ -13,6 +13,20 @@ available_configurations:
     dynamic_network_file: promp
     hand_mode_l: static
     hand_mode_r: dynamic
+    action_execution: True
+    
+  main_set_compound_tester:
+    gestures: main_set
+    mapping: main_map
+
+    static_detection_approach: PyMC3
+    dynamic_detection_approach: DTW
+    static_network_file: PyMC3-main-set-3.pkl
+    dynamic_network_file: promp
+    hand_mode_l: static+dynamic
+    hand_mode_r: dynamic+static
+    action_execution: True
+
   set_1_static:
     gestures: set_1_static
     mapping: set_1_static
@@ -80,7 +94,7 @@ mappings:
     swipe_left: nothing
     swipe_up: go_to_home
     round: touch
-    no_gesture: nothing
+    no_moving: nothing
     # write about
     # solve RLBench task, push buttons in an order
   set0:
@@ -113,22 +127,3 @@ mappings:
     opened_hand: gripper
     swipe_down: touch
     swipe_front_right: kick
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#

@@ -1,9 +1,11 @@
 #!/usr/bin/env python
 ''' Up-to-Date Pipeline
-argv[1] = 'nogui'
-argv[1] = 'ros1armer' - real (default), 'coppelia' - sim
-argv[1] = 'tester'
-argv[2] = 'drawer'
+When run with python: Checks if given arguments exists
+argv: 'noui'
+argv: 'ros1armer' - real (default), 'coppelia' - sim
+argv: 'tester'
+argv: 'drawer'
+argv: 'no_action_execution'
 '''
 import sys, os, time, threading
 sys.path.append(os.path.join(os.path.abspath(__file__), "..", '..', 'python3.9', 'site-packages', 'teleop_gesture_toolbox'))
@@ -17,9 +19,9 @@ import os_and_utils.scenes as sl; sl.init()
 import gesture_classification.gestures_lib as gl; gl.init()
 import os_and_utils.ui_lib as ui
 ''' Real setup or Coppelia sim or default (Real setup) '''
-if len(sys.argv)>1 and sys.argv[1] == 'ros1armer': import os_and_utils.ros_communication_main as rc; rc.init('ros1armer')
-elif len(sys.argv)>1 and sys.argv[1] == 'coppelia': import os_and_utils.ros_communication_main as rc; rc.init('coppelia')
-else: import os_and_utils.ros_communication_main as rc; rc.init('ros1armer')
+if 'ros1armer' in sys.argv: import os_and_utils.ros_communication_main as rc; rc.init('ros1armer')
+elif 'coppelia' in sys.argv: import os_and_utils.ros_communication_main as rc; rc.init('coppelia')
+else: import os_and_utils.ros_communication_main as rc; rc.init('coppelia')
 import os_and_utils.deitic_lib as dl; dl.init()
 
 from os_and_utils.utils import cc, get_cbgo_path
@@ -32,13 +34,24 @@ from context_based_gesture_operation.srcmodules.Actions import Actions
 from context_based_gesture_operation.srcmodules.Scenes import Scene
 
 def main():
-    ml.RealRobotActionLib.cautious = True
+    if 'no_action_execution' in sys.argv: 
+        settings.action_execution = False
+    if 'action_exeuction' in sys.argv:
+        settings.action_execution = True
+
+    if not settings.action_execution: print(f"\n{cc.W}Action execution is turned off!{cc.E}")
+
+    if 'cautious' in sys.argv:
+        ml.rral.cautious = True
+    if 'incautious' in sys.argv:
+        ml.rral.cautious = False
+    
     path_gen = PathGenDummy()
 
     # Scene initialization
-    if len(sys.argv) > 2 and sys.argv[2] == 'drawer':
+    if 'drawer' in sys.argv:
         s = Scene(init='drawer', random=False)
-        s.r.eef_position = np.array([2,2,2])
+        s.r.eef_position = np.array([2, 2, 2])
         s.drawer.position = np.array([2.,0.,0.])
         sl.scene = s
     else:
@@ -47,18 +60,14 @@ def main():
         sl.scene = s
 
     # Trigger testing
-    if len(sys.argv) > 1 and sys.argv[1] == 'tester': test_toolbox()
+    if 'tester' in sys.argv: test_toolbox()
 
     try:
         while rclpy.ok():
             # Collect action gestures
             ml.md.main_handle_step(path_gen=path_gen)
             time.sleep(0.01)
-
-            # Evaluate when action gesturing ends
-            if ml.md.evaluate_episode:
-                GestureSentence.episode_evaluation_and_execution(s=ml.RealRobotConvenience.update_scene())
-
+            
     except KeyboardInterrupt:
         pass
 
@@ -70,7 +79,7 @@ def spinning_threadfn():
 if __name__ == '__main__':
     ''' Default main has three threads: 1. ROS spin, 2. GUI (optional), 3. main
     '''
-    if len(sys.argv)>1 and sys.argv[1] == 'noui': settings.launch_ui = False
+    if 'noui' in sys.argv: settings.launch_ui = False
     # Spin in a separate thread
     spinning_thread = threading.Thread(target=spinning_threadfn, args=(), daemon=True)
     spinning_thread.start()

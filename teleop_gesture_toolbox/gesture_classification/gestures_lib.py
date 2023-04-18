@@ -24,7 +24,7 @@ from os_and_utils.nnwrapper import NNWrapper
 if __name__ == '__main__': settings.init()
 import os_and_utils.move_lib as ml
 if __name__ == '__main__': ml.init()
-from os_and_utils.utils import cc
+from os_and_utils.utils import cc, CustomDeque
 
 from os_and_utils.parse_yaml import ParseYAML
 
@@ -58,6 +58,10 @@ class GestureDataAtTime():
 
         self.activated = False
         self.action_activated = False
+
+class CompoundGestureDataAtTime():
+    def __init__(self, activated):
+        self.activated = activated
 
 class GestureMorphClass(object):
     ''' Super cool class
@@ -97,83 +101,96 @@ class GestureMorphClass(object):
             objs.append(getattr(self,attr))
         return iter(objs)
 
-    def __getattr__(self, attr):
-        if attr == 'n':
-            return len(self.get_all_attributes())
-        elif attr == 'names':
-            return self.get_all_attributes()
-        elif attr == 'record_keys':
-            attrs = self.get_all_attributes()
-            filenames = []
-            for attr in attrs:
-                filenames.append(getattr(self,attr).record_key)
-            return filenames
-        elif attr == 'filenames':
-            attrs = self.get_all_attributes()
-            filenames = []
-            for attr in attrs:
-                filenames.append(getattr(self,attr).filename)
-            return filenames
-        elif attr == 'biggest_probability':
-            attrs = self.get_all_attributes()
-            for attr in attrs:
-                if getattr(self,attr).biggest_probability == True:
-                    return attr
-            return 'Does not have biggest_probability set to True'
-        elif attr == 'biggest_probability_id':
-            attrs = self.get_all_attributes()
-            for n,attr in enumerate(attrs):
-                if getattr(self,attr).biggest_probability == True:
-                    return n
-            return 'Does not have biggest_probability set to True'
-        elif attr == 'probabilities':
-            attrs = self.get_all_attributes()
-            ret = []
-            for attr in attrs:
-                ret.append(getattr(self,attr).probability)
-            return ret
-        elif attr == 'probabilities_norm':
-            attrs = self.get_all_attributes()
-            ret = []
-            for attr in attrs:
-                ret.append(getattr(self,attr).probability)
-            return NormalizeData(ret)
-        elif attr == 'activates':
-            attrs = self.get_all_attributes()
-            ret = []
-            for attr in attrs:
-                ret.append(getattr(self,attr).activated)
-            return ret
-        elif attr == 'activate_id':
-            attrs = self.get_all_attributes()
-            for n,attr in enumerate(attrs):
-                if getattr(self,attr).activated:
-                    return n
-            return None
-        elif attr == 'action_activate_id':
-            attrs = self.get_all_attributes()
-            for n,attr in enumerate(attrs):
-                if getattr(self,attr).action_activated:
-                    return n
-            return None
-        elif attr == 'activate_name':
-            attrs = self.get_all_attributes()
-            for attr in attrs:
-                if getattr(self,attr).activated:
-                    return attr
-            return None
-        elif attr == 'above_threshold':
-            attrs = self.get_all_attributes()
-            ret = []
-            for attr in attrs:
-                ret.append(getattr(self,attr).above_threshold)
-            return ret
-        elif attr == 'thresholds':
-            attrs = self.get_all_attributes()
-            ret = []
-            for attr in attrs:
-                ret.append(getattr(self,attr).thresholds)
-            return ret
+    @property
+    def n(self):
+        return len(self.get_all_attributes())
+    @property
+    def names(self):
+        return self.get_all_attributes()
+    @property
+    def record_keys(self):
+        attrs = self.get_all_attributes()
+        filenames = []
+        for attr in attrs:
+            filenames.append(getattr(self,attr).record_key)
+        return filenames
+    @property
+    def filenames(self):
+        attrs = self.get_all_attributes()
+        filenames = []
+        for attr in attrs:
+            filenames.append(getattr(self,attr).filename)
+        return filenames
+    @property
+    def biggest_probability(self):
+        attrs = self.get_all_attributes()
+        for attr in attrs:
+            if getattr(self,attr).biggest_probability == True:
+                return attr
+        return 'Does not have biggest_probability set to True'
+    @property
+    def biggest_probability_id(self):
+        attrs = self.get_all_attributes()
+        for n,attr in enumerate(attrs):
+            if getattr(self,attr).biggest_probability == True:
+                return n
+        return 'Does not have biggest_probability set to True'
+    @property
+    def probabilities(self):
+        attrs = self.get_all_attributes()
+        ret = []
+        for attr in attrs:
+            ret.append(getattr(self,attr).probability)
+        return ret
+    @property
+    def probabilities_norm(self):
+        attrs = self.get_all_attributes()
+        ret = []
+        for attr in attrs:
+            ret.append(getattr(self,attr).probability)
+        return NormalizeData(ret)
+    @property
+    def activates(self):
+        attrs = self.get_all_attributes()
+        ret = []
+        for attr in attrs:
+            ret.append(getattr(self,attr).activated)
+        return ret
+    @property
+    def activate_id(self):
+        attrs = self.get_all_attributes()
+        for n,attr in enumerate(attrs):
+            if getattr(self,attr).activated:
+                return n
+        return None
+    @property
+    def action_activate_id(self):
+        attrs = self.get_all_attributes()
+        for n,attr in enumerate(attrs):
+            if getattr(self,attr).action_activated:
+                return n
+        return None
+    @property
+    def activate_name(self):
+        attrs = self.get_all_attributes()
+        for attr in attrs:
+            if getattr(self,attr).activated:
+                return attr
+        return None
+    @property
+    def above_threshold(self):
+        attrs = self.get_all_attributes()
+        ret = []
+        for attr in attrs:
+            ret.append(getattr(self,attr).above_threshold)
+        return ret
+    @property
+    def thresholds(self):
+        attrs = self.get_all_attributes()
+        ret = []
+        for attr in attrs:
+            ret.append(getattr(self,attr).thresholds)
+        return ret
 
     def __getitem__(self, index):
         all_gesutres = self.get_all_attributes()
@@ -200,7 +217,6 @@ class GHeader():
         self.seq = seq
         self.approach = approach
 
-
 class GestureMorphClassStamped(GestureMorphClass):
     def __init__(self, data, Gs):
         ''' New detection record
@@ -218,6 +234,16 @@ class GestureMorphClassStamped(GestureMorphClass):
         for n,g in enumerate(Gs):
             # gl.gd.l.static[<time>].<g> = GestureDataAtTime(probability, biggest_probability)
             setattr(self, g, GestureDataAtTime(data.probabilities.data[n], data.id == n))
+
+class CompoundGestureMorphClassStamped(GestureMorphClass):
+    def __init__(self, sensor_seq, compound_gestures, cgs_activated):
+        ''' New compound detection record '''
+        super().__init__()
+        self.header = GHeader(time.time(), sensor_seq, 'compound')
+
+        for g,activated in zip(compound_gestures,cgs_activated):
+            # gl.gd.c[<time>].<g> = True/False
+            setattr(self, g, CompoundGestureDataAtTime(activated))
 
 class StaticInfo():
     def __init__(self, name, data=None):
@@ -257,6 +283,14 @@ class DynamicInfo():
         else: # Default value
             self.time_visible_threshold = 8.0
 
+class CompoundInfo():
+    def __init__(self, name, data=None):
+        data = ParseYAML.parseCompoundGesture(data)
+        # info
+        self.name = name
+
+        self.activation_gestures = data['activation_gestures']
+
 class MotionPrimitiveInfo():
     def __init__(self, name, data=None):
         data = ParseYAML.parseDynamicGesture(data)
@@ -290,11 +324,16 @@ class TemplateGs():
                     for i in range(len(local_data.Gs)):
                         data = { 'record_key': local_data.record_keys[i], 'filename': local_data.filenames[i] }
                         setattr(self.info, local_data.Gs[i], DynamicInfo(name=local_data.Gs[i], data=data))
+                elif local_data.type == 'compound':
+                    for i in range(len(local_data.Gs)):
+                        data = { 'record_key': local_data.record_keys[i], 'filename': local_data.filenames[i] }
+                        setattr(self.info, local_data.Gs[i], CompoundInfo(name=local_data.Gs[i], data=data))
         else:
             # fill the self.info with gesutre in yaml file: self.info.<g1>. ...
             configGestures = ParseYAML.load_gesture_config_file(settings.paths.custom_settings_yaml)
             gestures = ParseYAML.load_gestures_file(settings.paths.custom_settings_yaml, ret='obj')
-            GsSet = gestures[configGestures['using_config']]
+            gesture_set_name = configGestures['available_configurations'][configGestures['using_config']]['gestures']
+            GsSet = gestures[gesture_set_name]
             for gesture in GsSet:
                 type_ = ParseYAML.parseGestureType(GsSet[gesture])
                 if type == type_:
@@ -304,6 +343,9 @@ class TemplateGs():
                         setattr(self.info, gesture, DynamicInfo(name=gesture, data=GsSet[gesture]))
                     elif type == 'mp':
                         setattr(self.info, gesture, MotionPrimitiveInfo(name=gesture, data=GsSet[gesture]))
+                    elif type == 'compound':
+                        setattr(self.info, gesture, CompoundInfo(name=gesture, data=GsSet[gesture]))
+
 
         self.data_queue = collections.deque(maxlen=300)
 
@@ -327,7 +369,7 @@ class TemplateGs():
             2. index == float -> search as time
         '''
         if isinstance(index, float):
-            # times are values and index are pointing to gesture_queue
+            # times are values and index are pointing to gestures_queue
             times = self.get_times()
             closest_index = self.find_nearest(times, index)
             return self.data_queue[closest_index]
@@ -362,9 +404,9 @@ class TemplateGs():
             except IndexError: return
                 #print(f"Index {index} not found from len {len(self.data_queue)}")
 
-    def __getattr__(self, attr):
-        if attr == 'n':
-            return len(self.data_queue)
+    @property
+    def n(self):
+        return len(self.data_queue)
 
     def __getstate__(self): return self.__dict__
     def __setstate__(self, d): self.__dict__.update(d)
@@ -372,9 +414,6 @@ class TemplateGs():
     def relevant(self, last_secs=1.0):
         ''' Searches gestures_queue, and returns the last gesture record, None if no records in that time were made
         '''
-        '''if ROS:
-            abs_time = rc.roscm.get_time() - last_secs
-        else:'''
         abs_time = time.time() - last_secs
 
         #abs_time = time.time() - last_secs
@@ -383,6 +422,9 @@ class TemplateGs():
             return self.data_queue[-1]
         else:
             return None
+
+    def get_activation_gestures_dict(self):
+        return {item.name: item.activation_gestures for item in self.info[:]}
 
 class StaticGs(TemplateGs):
     def __init__(self, type='static', local_data=None):
@@ -394,6 +436,10 @@ class DynamicGs(TemplateGs):
 
 class MotionPrimitiveGs(TemplateGs):
     def __init__(self, type='mp', local_data=None):
+        super().__init__(type, local_data=local_data)
+
+class CompoundGs(TemplateGs):
+    def __init__(self, type='compound', local_data=None):
         super().__init__(type, local_data=local_data)
 
 class GestureDataHand():
@@ -414,15 +460,19 @@ class GestureDataDetection():
         if not silent:
             print(f"Static gestures: {self.static_info().names}, \nDynamic gestures {self.dynamic_info().names}\nMotionPrimitive ids {self.l.mp.info.names}")
         ## TODO: Additional names for additional gestures computed by comparing left and right hand
-        self.combs = None
+        self.c = CompoundGs()
 
         # TEMP g data:
         self.experimental_move_in_axis_toggle = [False, False, False]
 
         self.gestures_queue = collections.deque(maxlen=50)
+        self.gestures_queue_proc = []
+        #only for adaptive option, why? because objects in other modes doesn't have to be saved and they are in pipeline passed
+        self.target_objects = []
+        self.ap = []
 
         self.static_network_info, self.dynamic_network_info = self.load_netork_info()
-        # Auxiliary
+        # Misc
         self.last_seq = 0
         self.rate = settings.yaml_config_gestures['misc']['rate']
         self.activate_length=None # for export only
@@ -436,6 +486,10 @@ class GestureDataDetection():
         # Gesture prediction
         self.static_gesture_action_prediction = [""] * self.static_info().n
         self.dynamic_gesture_action_prediction = [""] * self.dynamic_info().n
+
+        ## experimental
+        self.evidence_gesture_type_to_activate = CustomDeque(maxlen=40)
+        self.evidence_gesture_type_to_activate_last_added = 0.0
 
     def static_info(self):
         ''' Note: info is saved both in self.l and self.r as the same
@@ -467,23 +521,24 @@ class GestureDataDetection():
 
         return static_network_info, dynamic_network_info
 
-    def relevant(self, time_now, hand='r', type='static', relevant_time=1.0):
+    def relevant(self, hand='r', type='static', relevant_time=1.0, records=1):
         ''' Returns solutions based on hand and type if not older than relevant_time
         '''
-        '''if ROS:
-            t = rc.roscm.get_time()
-        else: '''
         t = time.time()
-
-        self_h = getattr(self, hand)
-        self_h_type = getattr(self_h, type)
-        try:
-            if self_h_type.n > 0 and (t-self_h_type[-1].stamp) < relevant_time:
-                return self_h_type[-1]
-            else:
-                return None
-        except:
-            return None
+        if type == 'compound':
+            self_h_type = self.c
+        else:
+            self_h = getattr(self, hand)
+            self_h_type = getattr(self_h, type)
+        if True:
+            gs = []
+            i = 1
+            while self_h_type.n > i and (t-self_h_type[-i].header.stamp) < relevant_time:
+                gs.append(self_h_type[-i])
+                if i > records:
+                    break
+                i+=1
+            return gs
 
 
     def gesture_change_srv(self, local_data):
@@ -496,33 +551,54 @@ class GestureDataDetection():
 
         self.static_network_info, self.dynamic_network_info = self.load_netork_info()
 
-    def __getattr__(self, attr):
-        if attr == 'Gs':
-            Gs = self.l.static.info.names
-            Gs.extend(self.l.dynamic.info.names)
-            return Gs
-        elif attr == 'GsExt':
-            Gs = self.l.static.info.names
-            Gs.extend(self.l.dynamic.info.names)
-            Gs.extend(self.l.mp.info.names)
-            return Gs
-        elif attr == 'Gs_static':
-            return self.l.static.info.names
-        elif attr == 'Gs_dynamic':
-            return self.l.dynamic.info.names
-        elif attr == 'Gs_keys':
-            Gs = self.l.static.info.record_keys
-            Gs.extend(self.l.dynamic.info.record_keys)
-            return Gs
-        elif attr == 'GsExt_keys':
-            Gs = self.l.static.info.record_keys
-            Gs.extend(self.l.dynamic.info.record_keys)
-            Gs.extend(self.l.mp.info.record_keys)
-            return Gs
-        elif attr == 'Gs_keys_static':
-            return self.l.static.info.record_keys
-        elif attr == 'Gs_keys_dynamic':
-            return self.l.dynamic.info.record_keys
+    @property
+    def Gs(self):
+        Gs = self.l.static.info.names
+        Gs.extend(self.l.dynamic.info.names)
+        return Gs
+
+    @property
+    def GsExt(self):
+        Gs = self.l.static.info.names
+        Gs.extend(self.l.dynamic.info.names)
+        Gs.extend(self.l.mp.info.names)
+        return Gs
+
+    @property
+    def Gs_static(self):
+        return self.l.static.info.names
+
+    @property
+    def Gs_dynamic(self):
+        return self.l.dynamic.info.names
+
+    @property
+    def Gs_keys(self):
+        Gs = self.l.static.info.record_keys
+        Gs.extend(self.l.dynamic.info.record_keys)
+        return Gs
+
+    @property
+    def GsExt_keys(self):
+        Gs = self.l.static.info.record_keys
+        Gs.extend(self.l.dynamic.info.record_keys)
+        Gs.extend(self.l.mp.info.record_keys)
+        return Gs
+
+    @property
+    def Gs_keys_static(self):
+        return self.l.static.info.record_keys
+
+    @property
+    def Gs_keys_dynamic(self):
+        return self.l.dynamic.info.record_keys
+
+    def get_gesture_type(self, gesture):
+        if gesture in self.Gs_static:
+            return 'static'
+        elif gesture in self.Gs_dynamic:
+            return 'dynamic'
+        else: raise Exception(f"gesture {gesture} not known!")
 
     def __getstate__(self): return self.__dict__
     def __setstate__(self, d): self.__dict__.update(d)
@@ -549,6 +625,8 @@ class GestureDataDetection():
 
         # Add logic
         self.prepare_postprocessing(data.header.frame_id, type, data.sensor_seq)
+
+        self.handle_compound_gestures(data.sensor_seq)
     '''
     LOGIC
     '''
@@ -604,13 +682,61 @@ class GestureDataDetection():
                             g.action_activated = True
                             self.gestures_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag))
 
-    def gestures_queue_to_ros(self, rostemplate):
+    def load_all_relevant_gestures(self, compound=True, relevant_time=0.5, records=3):
+        l_s = self.relevant(hand='l', type='static', relevant_time=relevant_time, records=records)
+        l_d = self.relevant(hand='l', type='dynamic', relevant_time=relevant_time, records=records)
+        r_s = self.relevant(hand='r', type='static', relevant_time=relevant_time, records=records)
+        r_d = self.relevant(hand='r', type='dynamic', relevant_time=relevant_time, records=records)
+        # has unfitting type !
+        if compound: c = self.relevant(type='compound', relevant_time=relevant_time, records=records)
+        relevant = []
+        if l_s is not None: relevant.extend(l_s)
+        if l_d is not None: relevant.extend(l_d)
+        if r_s is not None: relevant.extend(r_s)
+        if r_d is not None: relevant.extend(r_d)
+        if compound and c is not None: relevant.extend(c)
+
+        return relevant
+
+    def load_all_relevant_activated_gestures(self, relevant_time=0.5, records=3):
+        relevant = self.load_all_relevant_gestures(relevant_time=relevant_time, records=records)
+        # get activated
+        activated_gestures = []
+        for g in relevant:
+            if g is not None and g.activate_name is not None:
+                activated_gestures.append(g.activate_name)
+
+        return activated_gestures
+
+    def handle_compound_gestures(self, sensor_seq):
+        ''' Load compound gesture definitions '''
+        compound_gestures = self.c.get_activation_gestures_dict()
+
+        ''' Load recent activated gestures '''
+        activated_gestures = self.load_all_relevant_activated_gestures()
+
+        ''' Check if fulfilled '''
+        cgs_activated = []
+        for cgk in compound_gestures.keys():
+            cg = compound_gestures[cgk]
+            cgs_activated.append(True)
+            for cgi in cg:
+                if not (cgi in activated_gestures):
+                    cgs_activated[-1] = False
+
+        if np.array(cgs_activated).any():
+            self.c.data_queue.append(CompoundGestureMorphClassStamped(sensor_seq, compound_gestures.keys(), cgs_activated))
+
+    def gestures_queue_to_ros(self, gestures_queue=None, rostemplate=None):
         '''
         GesturesRos()
         '''
         rostemplate.probabilities.data = list(np.array(np.zeros(len(self.Gs)), dtype=float))
-        for g in self.gestures_queue:
-            rostemplate.probabilities.data[self.Gs.index(g[1])] = 1.0
+        if gestures_queue is None:
+            print(f"gesture_queue was none, adding {self.gestures_queue}") 
+            gestures_queue = self.gestures_queue
+        for g in gestures_queue:
+            rostemplate.probabilities.data[self.Gs.index(g)] = 1.0
 
         return rostemplate
 
@@ -748,13 +874,14 @@ class GestureDataDetection():
         return networks
 
     @staticmethod
-    def capture_gesture_moment(DEBUG=False):
-        if DEBUG: print("[[1]] finish episode")
-        while ml.md.present():
-            time.sleep(0.01)
-        if DEBUG: print("[[2]] approvement init")
-        while not ml.md.present():
-            time.sleep(0.01)
+    def capture_gesture_moment(DEBUG=False, hand_move_out=True):
+        if hand_move_out:
+            if DEBUG: print("[[1]] finish episode")
+            while ml.md.present():
+                time.sleep(0.01)
+            if DEBUG: print("[[2]] approvement init")
+            while not ml.md.present():
+                time.sleep(0.01)
         if DEBUG: print("[[3]] make hand stable")
         while not ml.md.any_hand_stable():
             time.sleep(0.01)
@@ -764,14 +891,16 @@ class GestureDataDetection():
 
 
     @staticmethod
-    def approve_handle(printer, type='y/n'):
+    def misc_gesture_handle(printer, type='y/n', new_episode=True):
+        if new_episode:
+            while not ml.md.frames: time.sleep(0.1)
         print(f"{cc.OKCYAN}{printer}{cc.E}")
         if settings.feedback_mode == 'keyboard':
             y = input()
             return y
         elif settings.feedback_mode == 'gesture':
 
-            gd.capture_gesture_moment()
+            gd.capture_gesture_moment(hand_move_out=False)
 
             if type == 'y/n':
                 while True:
@@ -826,7 +955,7 @@ class GestureDataDetection():
 
     @staticmethod
     def processPose_approvement():
-        while not ml.md.frames: time.sleep(0.1)
+
         fa = ml.md.frames[-1]
         if fa.r.visible:
             h = 'r'
@@ -843,7 +972,6 @@ class GestureDataDetection():
 
     @staticmethod
     def processPose_disapprovement():
-        if not ml.md.frames: return
 
         fa = ml.md.frames[-1]
         if fa.r.visible:
@@ -1153,8 +1281,5 @@ def init(silent=False):
 def main():
     init()
 
-
 if __name__ == '__main__':
     main()
-
-#
