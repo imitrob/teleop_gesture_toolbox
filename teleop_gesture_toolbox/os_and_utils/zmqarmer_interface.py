@@ -92,8 +92,7 @@ class ZMQArmerInterface():
     def release_object(self):
         self.set_gripper(position=1.0, action='release')
 
-    def get_object_positions(self, obj='obj_000004'):
-        print("wwtt")
+    def get_object_positions(self):
         objects = []
         for obj in settings.objects_on_scene: 
             name = list(ycb_data.COSYPOSE2NAME.keys())[list(ycb_data.COSYPOSE2NAME.values()).index(obj)]
