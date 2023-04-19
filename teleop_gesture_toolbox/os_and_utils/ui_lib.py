@@ -1097,12 +1097,11 @@ class Example(QMainWindow):
         getattr(ml.rral,self.movePageDoActionComboPicked)((self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked))
 
     def movePageDoActionRefreshObjectsFun(self):
-        print("[Refresh] 1/4 Update scene")
-        ml.RealRobotConvenience.update_scene()
+        print("[Refresh] 1/4 Update scene (auto call)")
+        # Updating scene called automatically
+        #ml.RealRobotConvenience.update_scene()
 
         print("[Refresh] 2/4 comboMovePagePickObjects")
-        if rc.roscm.is_real:
-            ml.RealRobotConvenience.update_scene()
         if sl.scene is not None:
             self.comboMovePagePickObject1.clear()
             self.comboMovePagePickObject1.addItem(None)

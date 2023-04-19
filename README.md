@@ -9,18 +9,20 @@ Tested on Linux Ubuntu 20.04.
 ### Dependencies
 
 - Conda, e.g. Miniconda [download](https://docs.conda.io/en/latest/miniconda.html)
-- [Coppelia Sim](https://www.coppeliarobotics.com/) simulator
-  - (Recommended) Use version 4.1 (PyRep can have problems with newer versions)
-  - Please install Coppelia Sim files to your home folder: `~/CoppeliaSim` (as shown below):
-```
-cd ~
-wget --no-check-certificate https://www.coppeliarobotics.com/files/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
-tar -xf CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
-mv CoppeliaSim_Edu_V4_1_0_Ubuntu20_04 CoppeliaSim
-rm CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
-cd CoppeliaSim
-rm libsimExtROS2Interface.so # Official ROS2 interface needs to be disabled
-```
+- Some robotic backend:
+  - Real Panda Robot (we might publish our controller API in the future), or
+  - [Coppelia Sim](https://www.coppeliarobotics.com/) simulator (default)
+    - (Recommended) Use version 4.1 (PyRep can have problems with newer versions)
+    - Please install Coppelia Sim files to your home folder: `~/CoppeliaSim` (as shown below):
+  ```
+  cd ~
+  wget --no-check-certificate https://www.coppeliarobotics.com/files/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+  tar -xf CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+  mv CoppeliaSim_Edu_V4_1_0_Ubuntu20_04 CoppeliaSim
+  rm CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
+  cd CoppeliaSim
+  rm libsimExtROS2Interface.so # Official ROS2 interface needs to be disabled
+  ```
 
 - [Leap Motion Controller](https://www.ultraleap.com/product/leap-motion-controller/) as a hand sensor ([install](include/scripts/leap_motion_install.sh))
 
@@ -71,16 +73,17 @@ ros2 run coppelia_sim_ros_interface example_run.py
 - In dropdown menu pick the `Gesture based` item
 ```Shell
 source ~/activate_teleop.sh
-ros2 run teleop_gesture_toolbox example_grec.py
+ros2 run teleop_gesture_toolbox example_gestures_only.py
 ```
 
-#### Run GUI/Manager (with connection to Coppelia Sim)
+#### Run main script
 
-- Starts a GUI with demo (TODO: needs some tuning)
+- Starts a GUI with demo
 ```Shell
-source ~/activate_teleop.sh
-ros2 run teleop_gesture_toolbox main_coppelia.py
+cd <teleop_gesture_toolbox>/teleop_gesture_toolbox
+python main_iros23.py 
 ```
+- Run with different backends: `python main_iros23.py coppelia` or `python main_iros23.py ros1armer`
 
 ## Recognizers
 

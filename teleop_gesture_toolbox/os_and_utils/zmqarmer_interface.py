@@ -9,6 +9,9 @@ import pickle
 import spatialmath as sm
 from spatialmath import UnitQuaternion
 
+import os_and_utils.settings as settings
+import os_and_utils.ycb_data as ycb_data
+
 class ZMQArmerInterface():
     def __init__(self):
         ## GoToPose
@@ -89,28 +92,36 @@ class ZMQArmerInterface():
     def release_object(self):
         self.set_gripper(position=1.0, action='release')
 
-    def get_object_positions(self):
-        self.cosyposesocket.send_string("scene_camera")
+    def get_object_positions(self, obj='obj_000004'):
+        print("wwtt")
+        objects = []
+        for obj in settings.objects_on_scene: 
+            name = list(ycb_data.COSYPOSE2NAME.keys())[list(ycb_data.COSYPOSE2NAME.values()).index(obj)]
         
-        msg = self.cosyposesocket.recv()
-        '''
-        contin = True
-        i = 0
-        while contin:
-            try:
-                msg = self.cosyposesocket.recv(flags=1)
-                success = False
-            except (zmqErrorAgain, ZMQError):
-                i+=1
-                if i > 100000:
-                    print("CosyPose Unavailable")
-                    i = 0
-        '''
+            #t1 = time.time()
+            self.cosyposesocket.send_string(f"tf,{name}")
+            
+            msg = self.cosyposesocket.recv()
+            #print(f"time: {time.time()-t1}")
+            '''
+            contin = True
+            i = 0
+            while contin:
+                try:
+                    msg = self.cosyposesocket.recv(flags=1)
+                    success = False
+                except (zmqErrorAgain, ZMQError):
+                    i+=1
+                    if i > 100000:
+                        print("CosyPose Unavailable")
+                        i = 0
+            '''
 
-        state = pickle.loads(msg)
-        #print(state['objects'])
-
-        return state['objects']
+            state = pickle.loads(msg)
+            #print("STATE ", state)
+            objects.append(state['objects'][0])
+        #print("FINAL:",objects)
+        return objects
 
         cv2.imshow('image', cv2.cvtColor(state['image'], cv2.COLOR_BGR2RGB))
         cv2.waitKey()

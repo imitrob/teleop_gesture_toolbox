@@ -333,8 +333,10 @@ class MoveData():
         # Update focus target
         if self.seq % (settings.yaml_config_gestures['misc']['rate'] * 2) == 0: # every sec
             if sl.scene and len(sl.scene.object_poses) > 0:
-
-                rc.roscm.r.add_or_edit_object(name='Focus_target', pose=sl.scene.objects[self.object_focus_id].position_real, timeout=0.2)
+                try:
+                    rc.roscm.r.add_or_edit_object(name='Focus_target', pose=sl.scene.objects[self.object_focus_id].position_real, timeout=0.2)
+                except IndexError:
+                    print("Detections warning, check objects!")
 
 
 
@@ -1342,7 +1344,7 @@ class RealRobotActionLib():
         ''' Same meaning as put_on '''
         rral.put_on(object_names, ap=ap)
 
-    put_on_deictic_params = 1
+    put_on_deictic_params = 2
     @printout
     def put_on(self, object_names, ap=None):
         def init():
@@ -1464,7 +1466,7 @@ class RealRobotActionLib():
 
         rral.smart_execute(init, [move_1, move_2, move_3, move_4])
 
-    pour_deictic_params = 1
+    pour_deictic_params = 2
     @printout
     def pour(self, object_names, ap=None):
         def init():
@@ -1503,8 +1505,8 @@ class RealRobotActionLib():
             p = object.position_real + np.array([0.,0.,0.10])
             q = RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name)
             ''' Rotate to pour finished pose '''
-            if 'rotation' in ap.keys():
-                rot_angle = -ap['rotation']
+            if len(ap) != 0:
+                rot_angle = -ap[0]
                 ''' Bounding - Safety feature '''
                 rot_angle = np.clip(rot_angle, -30, 0)
                 print(f"Rotation as Auxiliary parameter: {rot_angle} [deg] (might be clipped)")
