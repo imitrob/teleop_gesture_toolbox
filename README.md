@@ -9,7 +9,7 @@ Tested on Linux Ubuntu 20.04.
 ### Dependencies
 
 - Conda, e.g. Miniconda [download](https://docs.conda.io/en/latest/miniconda.html)
-- Some robotic backend:
+- Choose any robotic backend:
   - Real Panda Robot (we might publish our controller API in the future), or
   - [Coppelia Sim](https://www.coppeliarobotics.com/) simulator (default)
     - (Recommended) Use version 4.1 (PyRep can have problems with newer versions)
@@ -42,6 +42,8 @@ Tested on Linux Ubuntu 20.04.
 ```Shell
 source ~/activate_teleop_backend.sh
 ros2 launch teleop_gesture_toolbox backend.launch
+# OR (Launch without Coppelia Sim)
+ros2 launch teleop_gesture_toolbox backend_real.launch
 ```
 - This launches:
   1. Leap software backend (Shell command: `sudo leapd`)
@@ -51,8 +53,7 @@ ros2 launch teleop_gesture_toolbox backend.launch
   5. Coppelia Sim simulator with Panda robot from *Coppelia Sim ROS interface package* (`ros2 run coppelia_sim_ros_interface server_run.py`) (`coppelia_sim_ros_server.py`)
 
 - **Note**: You can run nodes separately via `ros2 run <package> <python file>` as shown
-- **Note**: If you can't see the Leap Motion Controller Near-infrared lights, run `sudo leapd`
-
+- Launch Leap Motion Controller using `sudo leapd`
 
 ### Examples
 
@@ -81,9 +82,13 @@ ros2 run teleop_gesture_toolbox example_gestures_only.py
 - Starts a GUI with demo
 ```Shell
 cd <teleop_gesture_toolbox>/teleop_gesture_toolbox
-python main_iros23.py 
+python main_iros23.py ros1armer
 ```
 - Run with different backends: `python main_iros23.py coppelia` or `python main_iros23.py ros1armer`
+- Run without robotic action execution: `python main_iros23.py ros1armer no_action_execution` to evaluate gesture sequence without execution.
+- Run without checking each robot move: `python main_iros23.py ros1armer incautious`.
+**Note:** You can combine arguments.
+- Run only testing: `python main_iros23.py ros1armer tester`.
 
 ## Recognizers
 

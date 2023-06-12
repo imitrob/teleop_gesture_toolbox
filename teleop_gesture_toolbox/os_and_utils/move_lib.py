@@ -925,10 +925,10 @@ class RealRobotConvenience():
             s = cbgo.srcmodules.Scenes.Scene(init='', objects=static_objects, random=False)
             s.r = robot_data
 
-            if not settings.action_execution:
-                objects = None
-            else:
-                objects = rc.roscm.r.get_object_positions()
+            #if not settings.action_execution:
+            #    objects = None
+            #else:
+            objects = rc.roscm.r.get_object_positions()
 
             if objects is None: objects = []
             for object in objects:
@@ -993,7 +993,7 @@ class RealRobotConvenience():
     def get_quaternion_eef(q_, name):
         ''' Based on CosyPose, where each object (name) has OFFSET
         '''
-        if not settings.action_execution or not rc.roscm.is_real: return np.array([1.,0.,0.,0.])
+        if not rc.roscm.is_real: return np.array([1.,0.,0.,0.])
 
         assert sm is not None, "spatialmath package couldn't be imported!"
         try:
