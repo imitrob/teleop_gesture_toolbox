@@ -18,10 +18,10 @@ import os_and_utils.move_lib as ml; ml.init()
 import os_and_utils.scenes as sl; sl.init()
 import gesture_classification.gestures_lib as gl; gl.init()
 import os_and_utils.ui_lib as ui
-''' Real setup or Coppelia sim or default (Real setup) '''
+''' Real setup or Coppelia sim '''
 if 'ros1armer' in sys.argv: import os_and_utils.ros_communication_main as rc; rc.init('ros1armer')
 elif 'coppelia' in sys.argv: import os_and_utils.ros_communication_main as rc; rc.init('coppelia')
-else: import os_and_utils.ros_communication_main as rc; rc.init('coppelia')
+else: raise Exception("Choose interface")
 import os_and_utils.deitic_lib as dl; dl.init()
 
 from os_and_utils.utils import cc, get_cbgo_path

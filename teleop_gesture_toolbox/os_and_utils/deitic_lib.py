@@ -58,7 +58,7 @@ class DeiticLib():
             distances_from_line.append(norm_distance)
 
         if np.min(distances_from_line) > max_dist: return None, np.min(distances_from_line)
-        #print(f"[DEICTIC DEBUG] {np.argmin(distances_from_line)}, {np.min(distances_from_line)}, test_points {test_points}")
+        print(f"[Deictic] Chosen: {np.argmin(distances_from_line)}, {np.min(distances_from_line)}, {distances_from_line}")
         return np.argmin(distances_from_line), np.min(distances_from_line)
 
     def main_deitic_fun(self, f, h, object_poses, plot_line=True):
@@ -77,7 +77,8 @@ class DeiticLib():
             else:
                 print("[WARNING] Deictic has no visible hand!")
                 h = 'l'
-
+        if not isinstance(h, str): 
+            print(f"h is not string, h is {type(h)}")
         hand = getattr(f, h)
 
         p1, p2 = np.array(hand.palm_position()), np.array(hand.palm_position())+np.array(hand.direction())

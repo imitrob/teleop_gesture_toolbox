@@ -1,6 +1,6 @@
 # Picks set from configurations:
 # Each set chooses the suitable gestures, mappings, etc..
-using_config: main_set_compound_tester
+using_config: main_set
 
 available_configurations:
   main_set:

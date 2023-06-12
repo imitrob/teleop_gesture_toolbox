@@ -79,7 +79,7 @@ class ROSComm(Node):
         super().__init__('ros_comm_main')
         self.robot_interface = robot_interface
         self.is_real = True
-
+        print(f"[ROScomm] On {robot_interface}")
         # Saving relaxedIK output
         #self.create_subscription(JointAngles, '/joint_angle_solutions', self.ik, 10)
         # Goal pose publisher

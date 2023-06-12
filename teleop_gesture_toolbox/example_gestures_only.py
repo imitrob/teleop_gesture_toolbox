@@ -12,8 +12,11 @@ import gesture_classification.gestures_lib as gl; gl.init()
 import os_and_utils.ui_lib as ui
 import os_and_utils.ros_communication_main as rc; rc.init()
 
+from std_msgs.msg import String
+
 def main():
     rate = rc.roscm.create_rate_(settings.yaml_config_gestures['misc']['rate']) # Hz
+    gspub = rc.roscm.create_publisher(String, "/gesture_sentence", 5)
     while rclpy.ok():
         # Send gesture data based on hand mode
         if ml.md.frames and settings.gesture_detection_on:
@@ -22,6 +25,7 @@ def main():
         if len(gl.gd.gestures_queue) > 0:
             action = gl.gd.gestures_queue.pop()
             if action[1] != "no_moving": print(action[1])
+            gspub.publish(String(data=action[1]))
         rate.sleep()
     print("quit")
 

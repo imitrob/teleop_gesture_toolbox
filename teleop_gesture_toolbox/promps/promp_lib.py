@@ -195,7 +195,7 @@ def choose_the_object():
     #object_id = get_object_of_closest_distance(objects_in_scenes, pose_in_scene)
     object_id = ml.md.object_focus_id
     if object_id < sl.scene.n:
-        position = extv(sl.scene.object_poses[object_id].position)
+        position = sl.scene.object_poses[object_id][0:3]
         return object_id, position
     else:
         ## TODO:

@@ -19,11 +19,13 @@ from promps.promp_lib import ProMPGenerator, map_to_primitive_gesture, get_id_mo
 
 def main():
     path_generator = None
-    #path_generator = ProMPGenerator(promp='sebasutp')
+    path_generator = ProMPGenerator(promp='sebasutp')
     sl.scenes.make_scene_from_yaml('pickplace3')
 
-    print("Static network file: ", gl.gd.static_network_file)
-    print("Static network info: ", gl.gd.static_network_info)
+    #static_network_file = settings.get_network_file(type='static')
+    #dynamic_network_file = 
+    #print("Static network file: ", settings.get_network_file(type='static'))
+    #print("Static network info: ", gl.gd.static_network_info)
 
     rate = rc.roscm.create_rate_(settings.yaml_config_gestures['misc']['rate'])
     try:

@@ -516,6 +516,7 @@ class GestureSentence():
                     if object_name_1 not in ['q']:
                         ml.md.act_prev_tmp[0] = activated_gesture_type_action
                         ml.md.act_prev_tmp[2].append(object_name_1)
+                        print(f"{cc.H}Added obj {object_name_1}{cc.E}")
 
             elif activated_gesture_type_action == 'approvement':
 
@@ -549,5 +550,6 @@ class GestureSentence():
                     else:
                         GestureSentence.adaptive_episode_evaluation_and_execution(s=ml.RealRobotConvenience.update_scene(), \
                         gestures_queue_proc=gl.gd.gestures_queue_proc, object_names=gl.gd.target_objects, ap=gl.gd.ap)
+                    
             # Whenever hand is not seen clearing
             GestureSentence.clearing_silent()

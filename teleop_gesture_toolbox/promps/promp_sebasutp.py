@@ -84,7 +84,15 @@ def construct_promp_trajectory(Xpalm):
 
     return robot_promp
 
-def sample_promp_trajectory_waypoints(robot_promp, waypoints):
+def sample_promp_trajectory_waypoints(robot_promp, waypoints={}):
+    '''
+    waypoints = {
+        t: [x,y,z],
+        ...
+    } # t = 0-1
+    waypoints optional parameter
+    '''
+    
     n_samples = 1 # Number of samples to draw
     plot_dof = 3 # Degree of freedom to plot
     sample_time = [np.linspace(0,1,200) for i in range(n_samples)]
@@ -106,6 +114,9 @@ def sample_promp_trajectory_waypoints(robot_promp, waypoints):
 
 
 def construct_promp_trajectory_waypoints(Xpalm, waypoints={}):
+    '''
+    
+    '''
     robot_promp = construct_promp_trajectory(Xpalm)
 
     #robot_promp.condition(t=0.5, T=1, q=[0.5, 0.15, 0.04], Sigma_q=[[0.3, 0.3, 0.3], [0.3, 0.3, 0.3], [0.3, 0.3, 0.3]], ignore_Sy=False)

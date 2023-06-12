@@ -6,6 +6,6 @@
 
   <node pkg="teleop_gesture_toolbox" exec="leap_run.py" output="screen"/>
 
-  <node pkg="context_based_gesture_operation" exec="btree.py" output="screen"/>
+  <node pkg="teleop_gesture_toolbox" exec="example_gestures_only.py" output="screen"/>
 
 </launch>

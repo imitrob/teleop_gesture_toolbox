@@ -5,12 +5,15 @@ from zmq.error import Again as zmqErrorAgain, ZMQError
 import pickle
 import json
 import cv2
-import pickle
-import spatialmath as sm
-from spatialmath import UnitQuaternion
 
-import os_and_utils.settings as settings
-import os_and_utils.ycb_data as ycb_data
+try:
+    import os_and_utils.settings as settings
+except ModuleNotFoundError:
+    settings = None
+try:
+    import os_and_utils.ycb_data as ycb_data
+except ModuleNotFoundError:
+    ycb_data = None
 
 class ZMQArmerInterface():
     def __init__(self):
@@ -53,7 +56,7 @@ class ZMQArmerInterface():
 
     def go_to_joints(self, j, wait=True, limit_per_call=999):
         '''
-        limit_per_call: max radians per fn call - useful, when publishing goal with frequency
+        limit_per_call: max radians per fn call - useful, when publis125,hing goal with frequency
         '''
         raise Exception("Not implemented!")
 
@@ -94,33 +97,42 @@ class ZMQArmerInterface():
 
     def get_object_positions(self):
         objects = []
-        for obj in settings.objects_on_scene: 
-            name = list(ycb_data.COSYPOSE2NAME.keys())[list(ycb_data.COSYPOSE2NAME.values()).index(obj)]
-        
-            #t1 = time.time()
-            self.cosyposesocket.send_string(f"tf,{name}")
-            
-            msg = self.cosyposesocket.recv()
-            #print(f"time: {time.time()-t1}")
-            '''
-            contin = True
-            i = 0
-            while contin:
-                try:
-                    msg = self.cosyposesocket.recv(flags=1)
-                    success = False
-                except (zmqErrorAgain, ZMQError):
-                    i+=1
-                    if i > 100000:
-                        print("CosyPose Unavailable")
-                        i = 0
-            '''
+        if settings is not None:
+            for obj in settings.objects_on_scene: 
+                name = list(ycb_data.COSYPOSE2NAME.keys())[list(ycb_data.COSYPOSE2NAME.values()).index(obj)]
+                
+                #t1 = time.time()
+                self.cosyposesocket.send_string(f"tf,{name}")
+                
+                msg = self.cosyposesocket.recv()
+                #print(f"time: {time.time()-t1}")
+                '''
+                contin = True
+                i = 0
+                while contin:
+                    try:
+                        msg = self.cosyposesocket.recv(flags=1)
+                        success = False
+                    except (zmqErrorAgain, ZMQError):
+                        i+=1
+                        if i > 100000:
+                            print("CosyPose Unavailable")
+                            i = 0
+                '''
 
+                state = pickle.loads(msg)
+                #print("STATE ", state)
+                if len(state['objects']) > 0:
+                    objects.append(state['objects'][0])
+            #print("FINAL:",objects)
+            return objects
+        else:
+            self.cosyposesocket.send_string(f"panda_,{name}")
+                
+            msg = self.cosyposesocket.recv()
             state = pickle.loads(msg)
-            #print("STATE ", state)
             objects.append(state['objects'][0])
-        #print("FINAL:",objects)
-        return objects
+            return objects
 
         cv2.imshow('image', cv2.cvtColor(state['image'], cv2.COLOR_BGR2RGB))
         cv2.waitKey()

@@ -582,11 +582,25 @@ class Example(QMainWindow):
             self.comboMovePageDoAction.addItem(action)
         self.comboMovePageDoAction.activated[str].connect(self.movePageDoActionComboFun)
         self.comboMovePageDoAction.setGeometry(LEFT_MARGIN+500, TOP_MARGIN+120,ICON_SIZE*2,int(ICON_SIZE/2))
-        self.movePageDoActionComboPicked = 0
+        self.movePageDoActionComboPicked = None
 
         self.movePageDoActionButton = QPushButton('Do Action', self)
         self.movePageDoActionButton.clicked.connect(self.movePageDoActionFun)
         self.movePageDoActionButton.setGeometry(LEFT_MARGIN+500, TOP_MARGIN+160,ICON_SIZE*2,int(ICON_SIZE/2))
+
+        ## Some predefined actions
+        self.movePageCustomAction1 = QPushButton('Pick-up SPAM', self)
+        self.movePageCustomAction1.clicked.connect(self.doSuperAction1)
+        self.movePageCustomAction1.setGeometry(LEFT_MARGIN+500, TOP_MARGIN+200,ICON_SIZE*2,int(ICON_SIZE/2))
+        self.movePageCustomAction2 = QPushButton('Pick-up Tomato Can', self)
+        self.movePageCustomAction2.clicked.connect(self.doSuperAction2)
+        self.movePageCustomAction2.setGeometry(LEFT_MARGIN+500, TOP_MARGIN+240,ICON_SIZE*2,int(ICON_SIZE/2))
+        self.movePageCustomAction3 = QPushButton('Put to Bowl', self)
+        self.movePageCustomAction3.clicked.connect(self.doSuperAction3)
+        self.movePageCustomAction3.setGeometry(LEFT_MARGIN+500, TOP_MARGIN+280,ICON_SIZE*2,int(ICON_SIZE/2))
+        self.movePageCustomAction4 = QPushButton('Pour to Bowl', self)
+        self.movePageCustomAction4.clicked.connect(self.doSuperAction4)
+        self.movePageCustomAction4.setGeometry(LEFT_MARGIN+500, TOP_MARGIN+320,ICON_SIZE*2,int(ICON_SIZE/2))
 
         self.movePageDoActionAuxiliaryParameter1Label = QLabel(self)
         self.movePageDoActionAuxiliaryParameter1Label.setText("Aux. param. 1")
@@ -714,6 +728,8 @@ class Example(QMainWindow):
         inputPlotJointsAction.triggered.connect(self.thread_inputPlotJointsAction)
         inputPlotPosesAction = QAction('Plot poses path now', self)
         inputPlotPosesAction.triggered.connect(self.thread_inputPlotPosesAction)
+        inputTestDeictic = QAction('Deictic test real', self)
+        inputTestDeictic.triggered.connect(ml.RealRobotConvenience.test_deictic)
 
         self.buttonsActivateStaticGestures = []
         for index,g in enumerate(gl.gd.Gs_static):
@@ -748,6 +764,7 @@ class Example(QMainWindow):
         testingMenu.addAction(inputPlotJointsAction)
         testingMenu.addAction(inputPlotPosesAction)
         testingMenu.addAction(self.confusion_mat_action)
+        testingMenu.addAction(inputTestDeictic)
         leapmotionMenu.addAction(record_with_keys_action)
         leapmotionMenu.addMenu(self.network_menu)
         leapmotionMenu.addAction(download_networks_action)
@@ -820,6 +837,12 @@ class Example(QMainWindow):
 
         self.AllVisibleObjects.append(ObjectQt('comboMovePageDoAction',self.comboMovePageDoAction,2,view_group=['MoveViewState']))
         self.AllVisibleObjects.append(ObjectQt('movePageDoActionButton',self.movePageDoActionButton,2,view_group=['MoveViewState']))
+        
+        self.AllVisibleObjects.append(ObjectQt('movePageCustomAction1',self.movePageCustomAction1,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageCustomAction2',self.movePageCustomAction2,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageCustomAction3',self.movePageCustomAction3,2,view_group=['MoveViewState']))
+        self.AllVisibleObjects.append(ObjectQt('movePageCustomAction4',self.movePageCustomAction4,2,view_group=['MoveViewState']))
+        
         self.AllVisibleObjects.append(ObjectQt('movePageDoActionRefreshObjects',self.movePageDoActionRefreshObjects,0,view_group=['MoveViewState']))
 
         self.AllVisibleObjects.append(ObjectQt('comboMovePagePickObject1',self.comboMovePagePickObject1,0,view_group=['GesturesViewState', 'GUI_datapull']))
@@ -1093,8 +1116,22 @@ class Example(QMainWindow):
         self.movePageGoPoseEdits[6].setText(str(ml.md.goal_pose.orientation.w))
 
     def movePageDoActionFun(self):
-        print("UI LIB: ",ml.rral,self.movePageDoActionComboPicked,self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked)
-        getattr(ml.rral,self.movePageDoActionComboPicked)((self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked))
+        #o1, o2 = self.comboMovePagePickObject1Picked, self.comboMovePagePickObject2Picked
+        o1, o2 = 'tomato soup can', None
+        print("UI LIB: ",ml.rral,self.movePageDoActionComboPicked,o1,o2)
+        ml.md.todoactionqueue.append((self.movePageDoActionComboPicked,o1,o2))
+
+    def doSuperAction1(self):
+        ml.md.todoactionqueue.append(("pick_up",'potted meat can',None))
+
+    def doSuperAction2(self):
+        ml.md.todoactionqueue.append(("pick_up",'tomato soup can',None))
+
+    def doSuperAction3(self):
+        ml.md.todoactionqueue.append(("put_on",'bowl',None))
+
+    def doSuperAction4(self):
+        ml.md.todoactionqueue.append(("pour",'bowl',None))
 
     def movePageDoActionRefreshObjectsFun(self):
         print("[Refresh] 1/4 Update scene (auto call)")

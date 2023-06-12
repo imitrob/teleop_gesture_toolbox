@@ -88,7 +88,7 @@ def init(change_working_directory=True):
 
     # Compatible objects
     global objects_on_scene
-    objects_on_scene = ['tomato soup can', 'potted meat can', 'bowl', 'mustard bottle', 'foam brick', 'sugar box', 'mug']
+    objects_on_scene = ['tomato soup can', 'potted meat can', 'bowl']#, 'mustard bottle', 'foam brick', 'sugar box', 'mug']
 
 def get_network_file(type='static'):
     main_config_name = yaml_config_gestures['using_config']

@@ -40,6 +40,7 @@ install(PROGRAMS
     ${EXAMPLES_DIR}/example_gestures_only.py
     ${EXAMPLES_DIR}/main_workshop_demo.py
     ${EXAMPLES_DIR}/main.py
+    ${EXAMPLES_DIR}/example_gestures_only_small.py
     DESTINATION lib/${PROJECT_NAME}
 )
 

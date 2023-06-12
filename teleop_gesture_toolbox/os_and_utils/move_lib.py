@@ -156,6 +156,7 @@ class MoveData():
         self.actions_done = []
         ### EXPERIMENTAL
         self.act_prev_tmp = ['', '', [], []]
+        self.todoactionqueue = []
 
     @property
     def frames(self):
@@ -324,6 +325,13 @@ class MoveData():
                 self.handle_action_update()
             '''
         if self.mode == 'gesture_ad':
+            # This is for action execution added manually from GUI
+            if len(self.todoactionqueue) > 0:
+                action, o1, o2 = self.todoactionqueue.pop()
+                getattr(rral,action)((o1,o2))
+
+                return 
+            # ----
             if self.present(): # Hand visible
                 # Send gesture data based on hand mode
                 if settings.gesture_detection_on:
@@ -624,7 +632,7 @@ class DirectTeleoperation():
                 self.eef_rot = deepcopy(self.eef_rot_scene)
                 self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
 
-            q = UnitQuaternion([0.0,1.0,0.0,0.0])
+            q = UnitQuaternion([0.0,0.0,1.0,0.0])
             rot = sm.SO3(q.R) * sm.SO3.Rz(self.eef_rot)
             qx,qy,qz,qw = UnitQuaternion(rot).vec_xyzs
             self.goal_pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
@@ -635,7 +643,7 @@ class DirectTeleoperation():
 
 
     @staticmethod
-    def drawing_mode_with_collision_detection_step(a, self, h, scale=1.0, local_live_mode=None):
+    def drawing_mode_with_collision_detection_step(a, self, h, scale=0.5, local_live_mode=None):
         live_mode = self.live_mode
         if local_live_mode is not None: live_mode = local_live_mode
         if a:
@@ -676,7 +684,7 @@ class DirectTeleoperation():
                 self.eef_rot = deepcopy(self.eef_rot_scene)
                 self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
 
-                q = UnitQuaternion([0.0,1.0,0.0,0.0])
+                q = UnitQuaternion([0.0,0.0,1.0,0.0])
                 rot = sm.SO3(q.R) * sm.SO3.Rz(self.eef_rot)
                 qx,qy,qz,qw = UnitQuaternion(rot).vec_xyzs
                 self.goal_pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
@@ -693,7 +701,7 @@ class DirectTeleoperation():
         return object_name, object_distance_to_bb
 
     @staticmethod
-    def damping_compute(position, objects):
+    def damping_compute(position, objects, table_safety=0.03):
         '''
         Parameters:
             eef (Vector[3]): xyz of eef position
@@ -701,11 +709,11 @@ class DirectTeleoperation():
         Return:
             damping (0 - 1): rate
 
-        Linear damping with parameter 0.1m
+        Linear damping with parameter table_safety [m]
         '''
 
         def t__(position):
-            return np.clip(10 * (position[2]-0.1), 0, 1)
+            return np.clip(10 * (position[2]-table_safety), 0, 1)
 
         def o__(position, p):
             d = np.linalg.norm(position - p[0:3])
@@ -881,7 +889,13 @@ class RealRobotConvenience():
 
     @staticmethod
     def test_deictic(hand='lr'):
+        if not isinstance(hand, str):
+            print("!!! WARN defaulting hand to 'lr'")
+            hand = 'lr'
         print("Test deictic started")
+        # save and change mode
+        mode_tmp = md.mode
+        md.mode = ''
         try:
             while True:
                 time.sleep(0.5)
@@ -894,6 +908,8 @@ class RealRobotConvenience():
         except KeyboardInterrupt:
             print("KeyboardInterrupt: Test deictic ended\n\n")
 
+        # retrive mode
+        md.mode = mode_tmp
 
     @staticmethod
     def update_scene():
@@ -921,7 +937,7 @@ class RealRobotConvenience():
                     continue
                 type = (ycb_data.NAME2TYPE[ycb_data.COSYPOSE2NAME[object['label']]]).capitalize()
 
-                o = getattr(cbgo.srcmodules.Objects, type)(name=ycb_data.COSYPOSE2NAME[object['label']], position_real=np.array(object['pose'][0]))
+                o = getattr(cbgo.srcmodules.Objects, type)(name=ycb_data.COSYPOSE2NAME[object['label']], position_real=np.array(object['pose'][0]), random=False)
                 o.quaternion = np.array(object['pose'][1])
 
                 s.objects.append(o)
@@ -986,7 +1002,7 @@ class RealRobotConvenience():
             print(f"get_quaternion_eef - Not found object name: {name}")
             offset_z_rot = 0.
 
-        q = UnitQuaternion([0.0,1.0,0.0,0.0]) # w,x,y,z
+        q = UnitQuaternion([0.0,0.0,1.0,0.0]) # w,x,y,z
         q_2 = UnitQuaternion([q_[3], *q_[0:3]])
 
         rot = sm.SO3(q.R) * sm.SO3.Rz(q_2.rpy()[2]-np.pi/2+offset_z_rot)
@@ -1344,7 +1360,7 @@ class RealRobotActionLib():
         ''' Same meaning as put_on '''
         rral.put_on(object_names, ap=ap)
 
-    put_on_deictic_params = 2
+    put_on_deictic_params = 1
     @printout
     def put_on(self, object_names, ap=None):
         def init():
@@ -1369,9 +1385,13 @@ class RealRobotActionLib():
             object = s.get_object_by_name(objname)
             if rral.cautious: gl.gd.misc_gesture_handle(f"Put on object {objname}", type='y')
             return object
-        def move_1(object):
+        def move_1(object, z_offset=0.15):
+            '''
+            Parameters:
+            z_offset: When bigger box is on the scene put bigger e.g. z_offset=0.35
+            '''
             p = deepcopy(object.position_real)
-            p[2]+=0.35
+            p[2]+=z_offset
             q = deepcopy(RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name))
 
             r = RealRobotConvenience.check_or_return(p, q)
@@ -1385,6 +1405,7 @@ class RealRobotActionLib():
             of = rral.get_offset_for_name(object.name)
             p = deepcopy(object.position_real)
             q = deepcopy(RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name))
+            print("of: ", of)
             p[2]+=of
 
             r = RealRobotConvenience.check_or_return(p, q)
@@ -1466,7 +1487,7 @@ class RealRobotActionLib():
 
         rral.smart_execute(init, [move_1, move_2, move_3, move_4])
 
-    pour_deictic_params = 2
+    pour_deictic_params = 1
     @printout
     def pour(self, object_names, ap=None):
         def init():
