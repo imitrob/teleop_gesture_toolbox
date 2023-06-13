@@ -1,0 +1,5 @@
+string pose_name
+---
+int8 result
+---
+int8 status

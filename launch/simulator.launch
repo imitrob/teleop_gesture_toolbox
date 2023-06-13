@@ -1,0 +1,69 @@
+DEPRECATED
+<!--<launch>
+  <!-- Launch simulator.launch first, followed by demo.launch on second term -->
+
+  <!-- !!!!! IMPORTANT - MAKE SURE YOU SOURCE GIVEN PKG !!!!! -->
+  <!-- !!!!!           - source and THEN build this pkg -->
+  <!-- iiwa simulator -> from gitlab.ciirc.cvut.cz/capek -->
+  <!-- panda real -> from gitlab.ciirc.cvut.cz/rop/panda -->
+  <!-- panda gazebo simulator -> from github.com/justagist/panda_simulator -->
+  <!-- panda coppelia simulator -> source teleop_gesture_toolbox pkg -->
+
+  <!-- These params will be merged with panda_description/config/testbed.yaml file somehow -->
+  <!--<arg name="robot" default="panda" />--> <!-- 'panda'/('iiwa' not tested) -->
+  <!--<arg name="gripper" default="none" />--> <!-- 'none'/'franka_hand'/'franka_hand_with_camera'-->
+  <!--<arg name="simulator" default="coppelia" />--> <!-- 'real'/'gazebo'/'coppelia' -->
+  <!--<arg name="visualize" default="false" />-->
+
+  <!-- Probably do not change below -->
+  <!-- ############################ -->
+  <group if="$(eval arg('gripper') == 'none')">
+    <arg name="load_gripper" default="false" />
+  </group>
+  <group if="$(eval arg('gripper') != 'none')">
+    <arg name="load_gripper" default="true" />
+  </group>
+
+  <group if="$(eval arg('gripper') == 'none')">
+    <arg name="config_file_name" value="relaxedIK.config" />
+    <param name="config_file_name" value="$(arg config_file_name)"/>
+  </group>
+  <group if="$(eval arg('gripper') == 'franka_hand')">
+    <arg name="config_file_name" value="relaxedIK_panda_gripper_withhandjoint.config" />
+    <param name="config_file_name" value="$(arg config_file_name)"/>
+  </group>
+  <group if="$(eval arg('gripper') == 'franka_hand_with_camera')">
+    <arg name="config_file_name" value="relaxedIK_custom_gripper_withjointhand.config" />
+    <param name="config_file_name" value="$(arg config_file_name)"/>
+  </group>
+
+  <!-- put parameters to the server-->
+  <!--<param name="mirracle_config/robot" type="str" value="$(arg robot)" />
+  <param name="mirracle_config/gripper" type="str" value="$(arg gripper)" />
+  <param name="mirracle_config/simulator" type="str" value="$(arg simulator)" />
+  <param name="mirracle_config/visualize" type="str" value="$(arg visualize)" />-->
+
+  <group if="$(eval arg('robot') == 'iiwa')">
+    <!--<group if="$(eval arg('simulator') == '<TODO>')">-->
+    <include file="$(find capek_launch)/launch/virtual_robot.launch" />
+    <!-- </group> -->
+  </group>
+
+  <group if="$(eval arg('robot') == 'panda')">
+    <group if="$(eval arg('simulator') == 'gazebo')">
+      <include file="$(find panda_gazebo)/launch/panda_world.launch">
+        <arg name="load_gripper" default="false"/>
+        <arg name="start_moveit" default="true"/>
+      </include>
+    </group>
+    <group if="$(eval arg('simulator') == 'real')">
+      <include file="$(find panda_launch)/launch/start_robot.launch" />
+    </group>
+    <group if="$(eval arg('simulator') == 'coppelia')">
+      <include file="$(find teleop_gesture_toolbox)/launch/context_silent.launch" />
+      <node pkg="teleop_gesture_toolbox" name="coppelia_test" type="coppelia_sim.py" output="screen"/>
+    </group>
+
+  </group>
+
+</launch>

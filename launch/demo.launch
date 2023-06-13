@@ -1,0 +1,80 @@
+<launch>
+  <!-- Launch simulator.launch first, followed by demo.launch on second term -->
+
+  <arg name="ik_solver" default="relaxed_ik" /> <!-- 'relaxed_ik'/'pyrep' -->
+  <arg name="launch_ui" default="true" />
+  <arg name="launch_leap" default='true' />
+  <arg name="launch_gesture_detection" default="true" />
+  <arg name="robot" default="panda" /> <!-- 'panda'/('iiwa' not tested) -->
+  <arg name="gripper" default="franka_hand" /> <!-- 'none'/'franka_hand'/'franka_hand_with_camera'-->
+  <arg name="simulator" default="coppelia" /> <!-- 'real'/'gazebo'/'coppelia' -->
+  <arg name="visualize" default="false" />
+
+  <arg name="ik_topic" default="" /> <!-- Custom IK topic name used, if ik_solver is set to custom solver-->
+
+  <arg name="scene_file_none" default="scene_panda.ttt" />
+  <arg name="scene_file_franka_hand" default="scene_panda_franka_gripper_pickplace.ttt" />
+  <arg name="scene_file_franka_hand_with_camera" default="scene_panda_custom_gripper.ttt" />
+
+  <!-- relaxedIK config file names -->
+  <arg name="relaxed_ik_config_file_name_none" value="relaxedIK_panda.config" />
+  <arg name="relaxed_ik_config_file_name_franka_hand" value="relaxedIK_panda_franka_hand.config" />
+  <arg name="relaxed_ik_config_file_name_franka_hand_with_camera" value="relaxedIK_panda_franka_hand_with_gripper.config" />
+
+  <!-- Probably do not change below -->
+  <!-- ############################ -->
+  <param name="mirracle_config/launch_ui" type="str" value="$(arg launch_ui)" />
+  <param name="mirracle_config/launch_leap" type="str" value="$(arg launch_leap)" />
+  <param name="mirracle_config/launch_gesture_detection" type="str" value="$(arg launch_gesture_detection)" />
+  <param name="mirracle_config/robot" type="str" value="$(arg robot)" />
+  <param name="mirracle_config/gripper" type="str" value="$(arg gripper)" />
+  <param name="mirracle_config/simulator" type="str" value="$(arg simulator)" />
+  <param name="mirracle_config/visualize" type="str" value="$(arg visualize)" />
+  <param name="mirracle_config/ik_solver" type="str" value="$(arg ik_solver)" />
+  <param name="mirracle_config/ik_topic" type="str" value="$(arg ik_topic)" />
+
+  <param name="enable_statistics" type="str" value="true" />
+
+  <group if="$(eval arg('gripper') == 'none')">
+    <arg name="load_gripper" default="false" />
+  </group>
+  <group if="$(eval arg('gripper') != 'none')">
+    <arg name="load_gripper" default="true" />
+  </group>
+
+  <group if="$(eval arg('gripper') == 'none')">
+    <param name="config_file_name" value="$(arg relaxed_ik_config_file_name_none)"/>
+    <param name="/mirracle_config/config_file_scene" value="$(arg scene_file_none)" />
+  </group>
+  <group if="$(eval arg('gripper') == 'franka_hand')">
+    <param name="config_file_name" value="$(arg relaxed_ik_config_file_name_franka_hand)"/>
+    <param name="/mirracle_config/config_file_scene" value="$(arg scene_file_franka_hand)" />
+  </group>
+  <group if="$(eval arg('gripper') == 'franka_hand_with_camera')">
+    <param name="config_file_name" value="$(arg relaxed_ik_config_file_name_franka_hand_with_camera)"/>
+    <param name="/mirracle_config/config_file_scene" value="$(arg scene_file_franka_hand_with_camera)" />
+  </group>
+
+  <!--<group if="$(eval arg('simulator') == 'coppelia')">
+    <include file="$(find coppelia_sim_ros_interface)/launch/coppelia_ros.launch" />
+    <node pkg="coppelia_sim_ros_interface" name="coppelia_sim" type="coppelia_sim_ros_interface.py" output="screen"/>
+  </group>-->
+
+  <!-- There will be pick to three .config files no gripper/gripper/custom gripper -->
+  <!--<group if="$(eval arg('ik_solver') == 'relaxed_ik')">
+    <node pkg="relaxed_ik" type="relaxed_ik_node.py" name="relaxed_ik_node" output="screen"/>
+  </group>-->
+
+  <group if="$(arg launch_leap)">
+    <node pkg="teleop_gesture_toolbox" name="leap" type="leap.py" output="screen"/>
+  </group>
+
+  <node pkg="teleop_gesture_toolbox" name="apply_scene_service" type="apply_scene_service.py" output="screen"/>
+  <node pkg="teleop_gesture_toolbox" name="main" type="main.py" output="screen"/>
+  <arg name="type" default="static" />
+  <param name="mirracle_config/type" type="str" value="$(arg type)" />
+  <node pkg="teleop_gesture_toolbox" name="static_sample" type="main_sample_thread.py" output="screen"/>
+  <arg name="type" default="dynamic" />
+  <param name="mirracle_config/type" type="str" value="$(arg type)" />
+  <node pkg="teleop_gesture_toolbox" name="dynamic_sample" type="main_sample_thread.py" output="screen"/>
+</launch>
