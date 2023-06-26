@@ -58,20 +58,20 @@ def test_toolbox():
 
     input("[4/4] Leap measure >>>")
 
-    while not ml.md.frames: time.sleep(0.1)
+    while not gl.gd.hand_frames: time.sleep(0.1)
     while True:
         ''' when hand stabilizes, it takes the measurement '''
         prev_rot = np.inf
         final_rot = np.inf
         while True:
             # Any Hand visible on the scene
-            if not ml.md.present(): time.sleep(1); continue
+            if not gl.gd.present(): time.sleep(1); continue
 
             # Hand has thumbsup gesture
-            if not ml.md.frames[-1].gd_static_thumbsup(): time.sleep(1); continue
+            if not gl.gd.hand_frames[-1].gd_static_thumbsup(): time.sleep(1); continue
 
             # Get Angle in XY projection
-            angle = ml.md.frames[-1].palm_thumb_angle()
+            angle = gl.gd.hand_frames[-1].palm_thumb_angle()
 
 
             print(f"Rotation angle: {angle}")

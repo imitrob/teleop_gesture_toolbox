@@ -23,7 +23,7 @@ def main():
     rate = rc.roscm.create_rate_(settings.yaml_config_gestures['misc']['rate'])
     try:
         while rclpy.ok():
-            if ml.md.frames and settings.gesture_detection_on:
+            if gl.gd.hand_frames and settings.gesture_detection_on:
                 ml.md.main_handle_step(path_generator)
             rate.sleep()
     except KeyboardInterrupt:

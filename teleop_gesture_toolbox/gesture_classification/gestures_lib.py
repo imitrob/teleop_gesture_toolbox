@@ -455,6 +455,11 @@ class GestureDataDetection():
     ''' The main class: gl.gd
     '''
     def __init__(self, silent=False):
+        self.bfr_len = 1000
+        ''' Leap Controller hand data saved as circullar buffer '''
+        self.hand_frames = collections.deque(maxlen=self.bfr_len)
+        ''' '''
+
         self.l = GestureDataHand()
         self.r = GestureDataHand()
         if not silent:
@@ -490,6 +495,63 @@ class GestureDataDetection():
         ## experimental
         self.evidence_gesture_type_to_activate = CustomDeque(maxlen=40)
         self.evidence_gesture_type_to_activate_last_added = 0.0
+
+    @property
+    def frames(self):
+        ''' Over-load option for getting hand data'''
+        return self.hand_frames
+    
+    def any_hand_stable(self, time=1.0):
+        if self.stopped(h='r', time=time) or self.stopped(h='l', time=time):
+            return True
+        return False
+
+    def stopped(self, h, time=1.0):
+        frames_stopped = self.frames[-1].fps * time
+        frames_stopped = np.clip(len(self.frames)-2, 1, frames_stopped)
+        test_frames = np.linspace(1,frames_stopped,5, dtype=int)
+        for f in test_frames:
+            #print(f"frame: {f}, stable: {getattr(self.frames[f], h).stable}")
+            ho = self.frames[-f].get_hand(h)
+            if ho is None:
+                return False
+            if not ho.stable:
+                return False
+        return True
+
+    def present(self):
+        return self.r_present() or self.l_present()
+
+    def r_present(self):
+        if self.frames and self.frames[-1] and self.frames[-1].r and self.frames[-1].r.visible:
+            return True
+        return False
+
+    def l_present(self):
+        if self.frames and self.frames[-1] and self.frames[-1].l and self.frames[-1].l.visible:
+            return True
+        return False
+
+    def get_frame_window_of_last_secs(self, stamp, N_secs):
+        ''' Select frames chosen with stamp and last N_secs
+        '''
+        n = 0
+        #     stamp-N_secs       stamp
+        # ----|-------N_secs------|
+        # ---*************************- <-- chosen frames
+        #              <~~~while~~~  |
+        #                           self.frames[-1].stamp()
+        for i in range(-1, -len(self.frames),-1):
+            if stamp-N_secs > self.frames[i].stamp():
+                n=i
+                break
+        print(f"len(self.frames) {len(self.frames)}, n {n}")
+
+        # return frames time window
+        frames = []
+        for i in range(-1, n, -1):
+            frames.append(self.frames[i])
+        return frames
 
     def static_info(self):
         ''' Note: info is saved both in self.l and self.r as the same
@@ -606,7 +668,7 @@ class GestureDataDetection():
     def new_record(self, data, type='static'):
         ''' New gesture data arrived and will be saved
         '''
-        if ml.md.frames[-1].seq-data.sensor_seq > 100:
+        if self.hand_frames[-1].seq-data.sensor_seq > 100:
             print(f"[Warning] Program cannot compute gs in time, probably rate is too big! (or fake data are used)")
 
         # choose hand with data.header.frame_id
@@ -748,7 +810,7 @@ class GestureDataDetection():
 
         last_secs = settings.yaml_config_gestures['misc']['relevant_time']
 
-        frames = ml.md.get_frame_window_of_last_secs(stamp, last_secs)
+        frames = self.get_frame_window_of_last_secs(stamp, last_secs)
 
         # go through frames and get vars
         for frame in frames:
@@ -877,13 +939,13 @@ class GestureDataDetection():
     def capture_gesture_moment(DEBUG=False, hand_move_out=True):
         if hand_move_out:
             if DEBUG: print("[[1]] finish episode")
-            while ml.md.present():
+            while gl.gd.present():
                 time.sleep(0.01)
             if DEBUG: print("[[2]] approvement init")
-            while not ml.md.present():
+            while not gl.gd.present():
                 time.sleep(0.01)
         if DEBUG: print("[[3]] make hand stable")
-        while not ml.md.any_hand_stable():
+        while not gd.any_hand_stable():
             time.sleep(0.01)
         if DEBUG: print("[[4]] 1 sec")
         time.sleep(1.0)
@@ -893,7 +955,7 @@ class GestureDataDetection():
     @staticmethod
     def misc_gesture_handle(printer, type='y/n', new_episode=True):
         if new_episode:
-            while not ml.md.frames: time.sleep(0.1)
+            while not gd.hand_frames: time.sleep(0.1)
         print(f"{cc.OKCYAN}{printer}{cc.E}")
         if settings.feedback_mode == 'keyboard':
             y = input()
@@ -936,8 +998,8 @@ class GestureDataDetection():
 
     @staticmethod
     def number_gesture():
-        while not ml.md.frames: time.sleep(0.1)
-        fa = ml.md.frames[-1]
+        while not gd.hand_frames: time.sleep(0.1)
+        fa = gd.hand_frames[-1]
         if fa.r.visible:
             h = 'r'
         elif fa.l.visible:
@@ -956,7 +1018,7 @@ class GestureDataDetection():
     @staticmethod
     def processPose_approvement():
 
-        fa = ml.md.frames[-1]
+        fa = gd.hand_frames[-1]
         if fa.r.visible:
             h = 'r'
         elif fa.l.visible:
@@ -973,7 +1035,7 @@ class GestureDataDetection():
     @staticmethod
     def processPose_disapprovement():
 
-        fa = ml.md.frames[-1]
+        fa = gd.hand_frames[-1]
         if fa.r.visible:
             h = 'r'
         elif fa.l.visible:
@@ -1210,7 +1272,7 @@ class GestureDataDetection():
         minthre = 400
         maxthre = 100
         gg_toggle_tmp = deepcopy(self.experimental_move_in_axis_toggle)
-        fa = ml.md.frames[-1]
+        fa = gd.hand_frames[-1]
         if fa.r.visible:
             if abs(fa.r.palm_velocity()[0]) > minthre and fa.r.palm_velocity()[1] < maxthre and fa.r.palm_velocity()[2] < maxthre:
                 self.experimental_move_in_axis_toggle[0] = True
@@ -1273,9 +1335,21 @@ class GestureDataDetection():
             else:
                 g.toggle[2] = False
 
+class SentenceData():
+    def __init__(self):
+        # Gesture Type in Previous Sequence 
+        self.previous_gesture_observed_data = ['', '', [], []]
+        self.evaluate_episode = False
+
+        #self.last_selected_object = 'small red box'
+        
+
 def init(silent=False):
-    global gd
+    global gd, sd
     gd = GestureDataDetection(silent=silent)
+    sd = SentenceData()
+
+
 
 #### For testing purposes
 def main():

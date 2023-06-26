@@ -63,7 +63,7 @@ class DeiticLib():
 
     def main_deitic_fun(self, f, h, object_poses, plot_line=True):
         ''' has dependencies
-        f (Frame): ml.md.frames[-1] (take last detection frame)
+        f (Frame): gl.gd.hand_frames[-1] (take last detection frame)
         h (string): hand - 'l' left, 'r', right
         object_poses (): sl.scene.object_poses
         '''

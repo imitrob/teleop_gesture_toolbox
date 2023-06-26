@@ -14,7 +14,7 @@ def main():
     rate = rc.roscm.create_rate(settings.yaml_config_gestures['misc']['rate']) # Hz
     while rclpy.ok():
         # Send gesture data based on hand mode
-        if ml.md.frames and settings.gesture_detection_on:
+        if gl.gd.hand_frames and settings.gesture_detection_on:
             rc.roscm.send_g_data()
 
         if len(gl.gd.gestures_queue) > 0:

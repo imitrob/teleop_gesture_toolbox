@@ -67,18 +67,18 @@ def main():
 
             print("= 2. Gather action gestures ")
             while len(gl.gd.gestures_queue) == 0:
-                while not ml.md.present():
+                while not gl.gd.present():
                     time.sleep(0.1)
-                while ml.md.present():
+                while gl.gd.present():
                     ml.md.main_handle_step(path_gen=path_gen)
                     time.sleep(0.01)
 
             print("= 3. Execution ")
             episode_evaluation_and_execution(s=ml.RealRobotConvenience.update_scene(), gesture_sentence_type = '1st-object-action-rest', object_name_1=object_name_1)
             gl.gd.gestures_queue.clear()
-            ml.md.evaluate_episode = False
+            gl.sd.evaluate_episode = False
             print("Move hand out to end the episode!")
-            while ml.md.present():
+            while gl.gd.present():
                 time.sleep(0.1)
 
     except KeyboardInterrupt:

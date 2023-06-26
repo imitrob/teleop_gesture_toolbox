@@ -42,9 +42,7 @@ class MoveData():
         '''
 
         self.bfr_len = 1000 #settings.configRecording['BufferLen']
-        ''' Leap Controller hand data saved as circullar buffer '''
-        self.hand_frames = collections.deque(maxlen=self.bfr_len)
-        ''' '''
+
         self.goal_pose_array = collections.deque(maxlen=self.bfr_len)
         self.eef_pose_array = collections.deque(maxlen=self.bfr_len)
         ''' JointStates topic '''
@@ -151,17 +149,12 @@ class MoveData():
         self.comboMovePagePickObject2Picked = None
 
         self.last_time_livin = time.time()
-        self.evaluate_episode = False
 
         self.actions_done = []
         ### EXPERIMENTAL
-        self.act_prev_tmp = ['', '', [], []]
         self.todoactionqueue = []
 
-    @property
-    def frames(self):
-        ''' Over-load option for getting hand data'''
-        return self.hand_frames
+
 
     @property
     def goal_pose(self):
@@ -179,58 +172,6 @@ class MoveData():
     def effort(self):
         return self.joint_states[-1].effort[-7:] # [Nm]
 
-    def any_hand_stable(self, time=1.0):
-        if self.stopped(h='r', time=time) or self.stopped(h='l', time=time):
-            return True
-        return False
-
-    def stopped(self, h, time=1.0):
-        frames_stopped = self.frames[-1].fps * time
-        frames_stopped = np.clip(len(self.frames)-2, 1, frames_stopped)
-        test_frames = np.linspace(1,frames_stopped,5, dtype=int)
-        for f in test_frames:
-            #print(f"frame: {f}, stable: {getattr(self.frames[f], h).stable}")
-            ho = self.frames[-f].get_hand(h)
-            if ho is None:
-                return False
-            if not ho.stable:
-                return False
-        return True
-
-    def present(self):
-        return self.r_present() or self.l_present()
-
-    def r_present(self):
-        if self.frames and self.frames[-1] and self.frames[-1].r and self.frames[-1].r.visible:
-            return True
-        return False
-
-    def l_present(self):
-        if self.frames and self.frames[-1] and self.frames[-1].l and self.frames[-1].l.visible:
-            return True
-        return False
-
-    def get_frame_window_of_last_secs(self, stamp, N_secs):
-        ''' Select frames chosen with stamp and last N_secs
-        '''
-        n = 0
-        #     stamp-N_secs       stamp
-        # ----|-------N_secs------|
-        # ---*************************- <-- chosen frames
-        #              <~~~while~~~  |
-        #                           self.frames[-1].stamp()
-        for i in range(-1, -len(self.frames),-1):
-            if stamp-N_secs > self.frames[i].stamp():
-                n=i
-                break
-        print(f"len(self.frames) {len(self.frames)}, n {n}")
-
-        # return frames time window
-        frames = []
-        for i in range(-1, n, -1):
-            frames.append(self.frames[i])
-        return frames
-
     def modes(self):
         return ['play', 'live', 'alternative']
 
@@ -240,11 +181,11 @@ class MoveData():
 
     def live_handle_step(self, mod=3, scale=1.0, local_live_mode=None):
         if self.seq % mod == 0:
-            if self.r_present():
+            if gl.gd.r_present():
                 self.do_live_mode(h='r', type='drawing with collision detection', link_gesture='grab', scale=scale, local_live_mode=local_live_mode)
             else:
                 self.live_mode_drawing = False
-        if self.l_present():
+        if gl.gd.l_present():
             if self.seq % mod == 0:
                 self.grasp_on_basic_grab_gesture(hnds=['l'])
 
@@ -294,7 +235,7 @@ class MoveData():
             rc.roscm.r.go_to_pose(self.goal_pose)
 
         if self.mode == 'gesture':
-            if self.present() and not self.any_hand_stable(time=1.0): # Hand visible and not hand stable 2 sec.
+            if gl.gd.present() and not gl.gd.any_hand_stable(time=1.0): # Hand visible and not hand stable 2 sec.
                 # Send gesture data based on hand mode
                 if settings.gesture_detection_on:
                     rc.roscm.send_g_data()
@@ -332,7 +273,7 @@ class MoveData():
 
                 return 
             # ----
-            if self.present(): # Hand visible
+            if gl.gd.present(): # Hand visible
                 # Send gesture data based on hand mode
                 if settings.gesture_detection_on:
                     rc.roscm.send_g_data()
@@ -349,7 +290,7 @@ class MoveData():
 
 
         # TODO: Possibility to print some info
-        if False and self.present(): # If any hand visible
+        if False and gl.gd.present(): # If any hand visible
             # 2. Info + Save plot data
             print(f"fps {self.frames[-1].fps}, id {self.frames[-1].seq}")
             print(f"actions queue {[act[1] for act in gl.gd.gestures_queue]}")
@@ -1050,10 +991,10 @@ class RealRobotConvenience():
                 print(f"Start deictic for {num_of_objects} object")
                 nameobj_list = []
                 time.sleep(2.0)
-                while not md.present():
+                while not gl.gd.present():
                     time.sleep(0.1)
                 do_once = True
-                while do_once or (md.present() and not md.any_hand_stable(time=1.0)):
+                while do_once or (gl.gd.present() and not gl.gd.any_hand_stable(time=1.0)):
                     do_once = False
                     _, nameobj_ = RealRobotConvenience.deictic(hand)
                     if nameobj_ is None:
@@ -1095,9 +1036,9 @@ class RealRobotConvenience():
     def correction_by_teleop():
         if rc.roscm.is_real:
             print(f"{cc.H}Teleop started{cc.E}")
-            while not md.present():
+            while not gl.gd.present():
                 time.sleep(0.1)
-            while md.present():
+            while gl.gd.present():
                 t = time.time()
                 while time.time()-t < 5.0:
                     md.live_handle_step(mod=1, scale=0.03, local_live_mode='no_eef_rotation')

@@ -30,12 +30,12 @@ def main():
     rate = rc.roscm.create_rate_(settings.yaml_config_gestures['misc']['rate'])
     try:
         while rclpy.ok():
-            if ml.md.frames and settings.gesture_detection_on:
+            if gl.gd.hand_frames and settings.gesture_detection_on:
                 ml.md.main_handle_step(path_generator)
-                if ml.md.frames:
-                    f = ml.md.frames[-1]
+                if gl.gd.hand_frames:
+                    f = gl.gd.hand_frames[-1]
                     if f.l.visible and f.l.grab_strength < 0.1:
-                        dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_poses)
+                        dl.dd.main_deitic_fun(gl.gd.hand_frames[-1], 'l', sl.scene.object_poses)
                     if not f.l.visible:
                         dl.dd.enable() # enabled focusing on new object
                     if f.l.visible and f.l.grab_strength > 0.9:

@@ -34,13 +34,13 @@ def main():
     rc.roscm.r.add_or_edit_object(name="leap", pose=tfm.transformLeapToBase__CornerConfig_translation, color='c', shape='cube', size=[0.03, 0.1, 0.01], dynamic='false', collision='false')
     try:
         while rclpy.ok():
-            if ml.md.frames and settings.gesture_detection_on:
+            if gl.gd.hand_frames and settings.gesture_detection_on:
                 #ml.md.main_handle_step(path_generator)
                 rc.roscm.send_g_data()
-                if ml.md.frames:
-                    f = ml.md.frames[-1]
+                if gl.gd.hand_frames:
+                    f = gl.gd.hand_frames[-1]
                     if f.l.visible and f.l.grab_strength < 0.1:
-                        dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_positions_real)
+                        dl.dd.main_deitic_fun(gl.gd.hand_frames[-1], 'l', sl.scene.object_positions_real)
                     if not f.l.visible:
                         dl.dd.enable() # enabled focusing on new object
                     if f.l.visible and f.l.grab_strength > 0.9:

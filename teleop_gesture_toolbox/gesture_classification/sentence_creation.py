@@ -31,26 +31,26 @@ class GestureSentence():
     def clearing():
         gl.gd.gestures_queue.clear()
         gl.gd.gestures_queue_proc = []
-        ml.md.evaluate_episode = False
+        gl.sd.evaluate_episode = False
 
         gl.gd.target_objects = []
         gl.gd.ap = []
 
         print("Move hand out to end the episode!")
-        while ml.md.present():
+        while gl.gd.present():
             time.sleep(0.1)
     
     @staticmethod
     def clearing_silent():
         gl.gd.gestures_queue.clear()
         gl.gd.gestures_queue_proc = []
-        ml.md.evaluate_episode = False
+        gl.sd.evaluate_episode = False
 
         gl.gd.target_objects = []
         gl.gd.ap = []
 
     @staticmethod
-    def process_gesture_queue(gestures_queue):
+    def process_gesture_queue(gestures_queue,ignored_gestures=['point', 'no_moving', 'five', 'pinch']):
         ''' gestures_queue has combinations of
         Parameters:
             gesture_queue (String[]): Activated action gestures within episode
@@ -62,7 +62,7 @@ class GestureSentence():
         total_count = len(gestures_queue)
         if total_count <= 0: return []
         gestures_queue = [g[1] for g in gestures_queue]
-        sta, dyn = GestureSentence.get_most_probable_sta_dyn(gestures_queue,2)
+        sta, dyn = GestureSentence.get_most_probable_sta_dyn(gestures_queue,2,ignored_gestures)
 
         '''
         precision = {}
@@ -75,10 +75,10 @@ class GestureSentence():
         return gestures_queue
 
     @staticmethod
-    def get_most_probable_sta_dyn(gesture_queue, n):
+    def get_most_probable_sta_dyn(gesture_queue, n, ignored_gestures=['point', 'no_moving', 'five', 'pinch']):
         static_gestures, dynamic_gestures = [], []
 
-        ignore_gestures = ['point', 'no_moving', 'five', 'pinch']
+        
         #gesture_queue = ['apple','apple','banana','banana','banana', 'coco', 'coco', 'coco','coco']
         counts = Counter(gesture_queue)
         #print("o1", gesture_queue)
@@ -91,9 +91,9 @@ class GestureSentence():
 
             gt = gl.gd.get_gesture_type(gesture_name)
             #print("o3", gt == 'dynamic', len(dynamic_gestures) < n, gesture_name not in ignore_gestures)
-            if gt == 'static' and len(static_gestures) < n and gesture_name not in ignore_gestures:
+            if gt == 'static' and len(static_gestures) < n and gesture_name not in ignored_gestures:
                 static_gestures.append(gesture_name)
-            elif gt == 'dynamic' and len(dynamic_gestures) < n and gesture_name not in ignore_gestures:
+            elif gt == 'dynamic' and len(dynamic_gestures) < n and gesture_name not in ignored_gestures:
                 dynamic_gestures.append(gesture_name)
             else: continue
         #print("o4", dynamic_gestures)
@@ -103,14 +103,18 @@ class GestureSentence():
 
 
     @staticmethod
-    def get_target_objects__wrapper(n, s):
+    def get_target_objects__wrapper(n, s, mode):
+        if mode == 'modular': raise Exception("Not implemented")
         object_name_1 = None
         if ml.md.real_or_sim_datapull:
             return ml.RealRobotConvenience.get_target_objects(n, s)[0]
         else: # Fake data from GUI
             return ml.md.comboMovePagePickObject1Picked
     @staticmethod
-    def get_target_object__wrapper_non_blocking(s):
+    def get_target_object__wrapper_non_blocking(s, mode):
+        if mode == 'modular':
+            # Access variable from main? -> not the best solution
+            return gl.sd.last_selected_object
         object_name_1 = None
         if ml.md.real_or_sim_datapull:
             return ml.RealRobotConvenience.get_target_object_non_blocking(s)
@@ -192,8 +196,8 @@ class GestureSentence():
             prev_rot = np.inf
             final_rot = np.inf
             while True:
-                if not ml.md.present(): time.sleep(1); continue
-                direction_vector = np.cross(ml.md.frames[-1].palm_normal(), ml.md.frames[-1].palm_direction())
+                if not gl.gd.present(): time.sleep(1); continue
+                direction_vector = np.cross(gl.gd.hand_frames[-1].palm_normal(), gl.gd.hand_frames[-1].palm_direction())
                 xy = list(direction_vector[0:2])
                 xy.reverse()
                 rot = np.rad2deg(np.arctan2(*xy))
@@ -214,8 +218,8 @@ class GestureSentence():
             prev_dist = np.inf
             final_dist = np.inf
             while True:
-                if not ml.md.present(): time.sleep(1); continue
-                dist = ml.md.frames[-1].touch12
+                if not gl.gd.present(): time.sleep(1); continue
+                dist = gl.gd.hand_frames[-1].touch12
                 print(f"{dist}")
                 if robot_feedback:
                     GestureSentence.test_dist_ap(dist)
@@ -233,7 +237,7 @@ class GestureSentence():
     @staticmethod
     def load_auxiliary_parameter_non_blocking(s, type='rotation', robot_feedback=True):
         if type == 'rotation':
-            direction_vector = np.cross(ml.md.frames[-1].palm_normal(), ml.md.frames[-1].palm_direction())
+            direction_vector = np.cross(gl.gd.hand_frames[-1].palm_normal(), gl.gd.hand_frames[-1].palm_direction())
             xy = list(direction_vector[0:2])
             xy.reverse()
             rot = np.rad2deg(np.arctan2(*xy))
@@ -246,7 +250,7 @@ class GestureSentence():
             if robot_feedback: GestureSentence.test_rot_ap(0.0)
         elif type == 'distance':
 
-            dist = ml.md.frames[-1].touch12
+            dist = gl.gd.hand_frames[-1].touch12
             if robot_feedback:
                 GestureSentence.test_dist_ap(dist)
             else:
@@ -463,59 +467,62 @@ class GestureSentence():
 
 
     @staticmethod
-    def adaptive_eee(path_gen, s, object_pick_method='last'):
+    def adaptive_eee(path_gen=None, s=None, object_pick_method='last', blocking=False, mode='modular', ignored_gestures=['point', 'no_moving', 'five', 'pinch']):
         ''' Episode evaluation & execution
         Parameters:
             object_pick_method ('last','max'): Aggregated objects list selected by user, option how to choose
+            blocking (bool): Alternative function for getting objects or auxiliary parameters - waits for confirmation
+            mode (str): '' - original, 'modular' - get object positions from topic?
+            ignored_gestures (list): Gestures which belong to type activation category: e.g. point for deictic gesture type, pinch for mearusing gesture type, etc. 
         '''
+        
         # Episode started
-        if ml.md.present():
-
+        if gl.gd.present():
+            
             ## WHEN THE OPTION IS NON BLOCKING THIS MAY NOT FIND ANY GESTURES
             activated_gestures = gl.gd.load_all_relevant_activated_gestures(relevant_time=2.0, records=3)
 
             activated_gesture_type = GestureSentence.get_adaptive_gesture_type(activated_gestures)
 
-            blocking = False
             activated_gesture_type_action = GestureSentence.activated_gesture_type_to_action(activated_gesture_type, blocking=blocking)
 
             ''' When no longer Gesture type activated -> save the accumulated data '''
-            if ml.md.act_prev_tmp[0] != 'deictic' and ml.md.act_prev_tmp[2] != []:
+            if gl.sd.previous_gesture_observed_data[0] != 'deictic' and gl.sd.previous_gesture_observed_data[2] != []:
 
                 if object_pick_method == 'max':
-                    gl.gd.target_objects.append(max(ml.md.act_prev_tmp[2]))
+                    gl.gd.target_objects.append(max(gl.sd.previous_gesture_observed_data[2]))
                 elif object_pick_method == 'last':
-                    gl.gd.target_objects.append(ml.md.act_prev_tmp[2][-1])
+                    gl.gd.target_objects.append(gl.sd.previous_gesture_observed_data[2][-1])
                 else: raise Exception()
 
-                print(f"{cc.H}Added obj {Counter(ml.md.act_prev_tmp[2])}{cc.E}")
-                ml.md.act_prev_tmp[2] = []
+                print(f"{cc.H}Added obj {Counter(gl.sd.previous_gesture_observed_data[2])}{cc.E}")
+                gl.sd.previous_gesture_observed_data[2] = []
 
-            if ml.md.act_prev_tmp[0] != 'measurement_distance' and ml.md.act_prev_tmp[3] != []:
-                gl.gd.ap.append(get_dist_by_extremes(np.array(ml.md.act_prev_tmp[3])))
-                print(f"{cc.H}Added dist {get_dist_by_extremes(np.array(ml.md.act_prev_tmp[3]))}{cc.E}")
+            if gl.sd.previous_gesture_observed_data[0] != 'measurement_distance' and gl.sd.previous_gesture_observed_data[3] != []:
+                gl.gd.ap.append(get_dist_by_extremes(np.array(gl.sd.previous_gesture_observed_data[3])))
+                print(f"{cc.H}Added dist {get_dist_by_extremes(np.array(gl.sd.previous_gesture_observed_data[3]))}{cc.E}")
 
-                ml.md.act_prev_tmp[3] = []
+                gl.sd.previous_gesture_observed_data[3] = []
 
             object_name_1 = None
             if activated_gesture_type_action == 'deictic':
 
                 if blocking:
-                    object_name_1 = GestureSentence.get_target_objects__wrapper(1, s)
+                    object_name_1 = GestureSentence.get_target_objects__wrapper(1, s, mode)
                     gl.gd.target_objects.append(object_name_1)
                     print(f"{cc.H}Added obj {object_name_1}{cc.E}")
                 else:
-                    object_name_1 = GestureSentence.get_target_object__wrapper_non_blocking(s)
+                    object_name_1 = GestureSentence.get_target_object__wrapper_non_blocking(s, mode)
 
                     '''
-                    if ml.md.any_hand_stable(time=1000):
+                    if gl.gd.any_hand_stable(time=1000):
                         gl.gd.target_objects.append(object_name_1)
                         print(f"{cc.H}Added obj {object_name_1}{cc.E}")
-                        ml.md.act_prev_tmp = [activated_gesture_type_action, 'written', object_name_1]
+                        gl.sd.previous_gesture_observed_data = [activated_gesture_type_action, 'written', object_name_1]
                     else:'''
                     if object_name_1 not in ['q']:
-                        ml.md.act_prev_tmp[0] = activated_gesture_type_action
-                        ml.md.act_prev_tmp[2].append(object_name_1)
+                        gl.sd.previous_gesture_observed_data[0] = activated_gesture_type_action
+                        gl.sd.previous_gesture_observed_data[2].append(object_name_1)
                         print(f"{cc.H}Added obj {object_name_1}{cc.E}")
 
             elif activated_gesture_type_action == 'approvement':
@@ -531,20 +538,24 @@ class GestureSentence():
                     gl.gd.ap.append(dist)
                 else:
                     dist = GestureSentence.load_auxiliary_parameter_non_blocking(s, type='distance', robot_feedback=False)
-                    ml.md.act_prev_tmp[0] = activated_gesture_type_action
-                    ml.md.act_prev_tmp[3].append(dist)
+                    gl.sd.previous_gesture_observed_data[0] = activated_gesture_type_action
+                    gl.sd.previous_gesture_observed_data[3].append(dist)
             else:
                 activated_gesture_type_action = 'action'
 
 
                 # Evaluate when action gesturing ends
-                ml.md.act_prev_tmp[0] = activated_gesture_type_action
+                gl.sd.previous_gesture_observed_data[0] = activated_gesture_type_action
         else:
             if len(gl.gd.gestures_queue) > 0:
                 time.sleep(0.5)
-                gl.gd.gestures_queue_proc = GestureSentence.process_gesture_queue(gl.gd.gestures_queue)
+                gl.gd.gestures_queue_proc = GestureSentence.process_gesture_queue(gl.gd.gestures_queue,ignored_gestures)
                 if len(gl.gd.gestures_queue_proc) > 0:
                     print(f"{cc.OK}EEE\t{gl.gd.gestures_queue_proc}\t{gl.gd.target_objects}\t{gl.gd.ap}{cc.E}")
+                    if mode == 'modular':
+                        print("Make publisher here !")
+                        GestureSentence.clearing()
+                        return 
                     if not settings.action_execution:
                         GestureSentence.clearing()
                     else:

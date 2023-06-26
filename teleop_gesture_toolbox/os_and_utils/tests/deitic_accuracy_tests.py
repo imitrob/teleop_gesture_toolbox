@@ -49,12 +49,12 @@ def main():
     id_obj = None
     try:
         while rclpy.ok():
-            if ml.md.frames:
+            if gl.gd.hand_frames:
                 #ml.md.main_handle_step(None)
                 rc.roscm.send_g_data()
-                f = ml.md.frames[-1]
+                f = gl.gd.hand_frames[-1]
                 if f.l.visible and f.l.grab_strength < 0.1:
-                    id_obj = dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_positions_real)
+                    id_obj = dl.dd.main_deitic_fun(gl.gd.hand_frames[-1], 'l', sl.scene.object_positions_real)
                 '''if i % 10 == 0 and id_obj is not None: # every second
                     p = sl.scene.object_poses[id_obj]
                     p.orientation.x = 0.0
@@ -126,11 +126,11 @@ def main():
     rate = rc.roscm.create_rate_(10)
     try:
         while rclpy.ok():
-            if ml.md.frames:
+            if gl.gd.hand_frames:
                 ml.md.main_handle_step(None)
-                f = ml.md.frames[-1]
+                f = gl.gd.hand_frames[-1]
                 if f.l.visible and f.l.grab_strength < 0.1:
-                    dl.dd.main_deitic_fun(ml.md.frames[-1], 'l', sl.scene.object_poses)
+                    dl.dd.main_deitic_fun(gl.gd.hand_frames[-1], 'l', sl.scene.object_poses)
 
             rate.sleep()
     except KeyboardInterrupt:

@@ -42,7 +42,7 @@ class ROSComm(Node):
         #print("new data")
         f = Frame()
         f.import_from_ros(data)
-        ml.md.frames.append(f)
+        gl.gd.hand_frames.append(f)
 
     @staticmethod
     def save_static_detection_solutions_callback(data):
@@ -56,14 +56,14 @@ class ROSComm(Node):
         ''' Sends appropriate gesture data as ROS msg
             Launched node for static/dynamic detection.
         '''
-        if len(ml.md.frames) == 0: return
+        if len(gl.gd.hand_frames) == 0: return
         hand_mode = self.hand_mode
 
         msg = DetectionObservations()
         msg.observations = Float64MultiArray()
-        msg.sensor_seq = ml.md.frames[-1].seq
-        msg.header.stamp.sec = ml.md.frames[-1].sec
-        msg.header.stamp.nanosec = ml.md.frames[-1].nanosec
+        msg.sensor_seq = gl.gd.hand_frames[-1].seq
+        msg.header.stamp.sec = gl.gd.hand_frames[-1].sec
+        msg.header.stamp.nanosec = gl.gd.hand_frames[-1].nanosec
 
         mad1 = MultiArrayDimension()
         mad1.label = 'time'
@@ -76,29 +76,29 @@ class ROSComm(Node):
             send_static_g_data_bool = hand_mode is not None and 'static' in hand_mode[key] and gl.gd.static_network_info is not None
             if send_static_g_data_bool:
                 if key == 'l':
-                    if ml.md.l_present():
-                        msg.observations.data = ml.md.frames[-1].l.get_learning_data_static(definition=args['input_definition_version'])
+                    if gl.gd.l_present():
+                        msg.observations.data = gl.gd.hand_frames[-1].l.get_learning_data_static(definition=args['input_definition_version'])
                         msg.header.frame_id = 'l'
                         self.static_detection_observations_pub.publish(msg)
                 elif key == 'r':
-                    if ml.md.r_present():
-                        msg.observations.data = ml.md.frames[-1].r.get_learning_data_static(definition=args['input_definition_version'])
+                    if gl.gd.r_present():
+                        msg.observations.data = gl.gd.hand_frames[-1].r.get_learning_data_static(definition=args['input_definition_version'])
                         msg.header.frame_id = 'r'
                         self.static_detection_observations_pub.publish(msg)
 
 
             time_samples = settings.yaml_config_gestures['misc_network_args']['time_samples']
-            send_dynamic_g_data_bool = hand_mode is not None and 'dynamic' in hand_mode[key] and len(ml.md.frames) > time_samples and gl.gd.dynamic_network_info is not None
+            send_dynamic_g_data_bool = hand_mode is not None and 'dynamic' in hand_mode[key] and len(gl.gd.hand_frames) > time_samples and gl.gd.dynamic_network_info is not None
             if send_dynamic_g_data_bool:
                 args = gl.gd.dynamic_network_info
-                if getattr(ml.md, key+'_present')():# and getattr(ml.md.frames[-1], key).grab_strength < 0.5:
+                if getattr(gl.gd, key+'_present')():# and getattr(gl.gd.hand_frames[-1], key).grab_strength < 0.5:
                     try:
                         '''  '''
                         n = 1
                         visibles = []
                         while True:
-                            ttt = ml.md.frames[-1].stamp() - ml.md.frames[-n].stamp()
-                            visibles.append( ml.md.frames[-n].visible )
+                            ttt = gl.gd.hand_frames[-1].stamp() - gl.gd.hand_frames[-n].stamp()
+                            visibles.append( gl.gd.hand_frames[-n].visible )
                             if ttt > 1.5: break
                             n += 1
                         if not np.array(visibles).all():
@@ -112,7 +112,7 @@ class ROSComm(Node):
                         ''' Compose data '''
                         data_composition = []
                         for time_sample in time_samples_series:
-                            data_composition.append(getattr(ml.md.frames[time_sample], key).get_single_learning_data_dynamic(definition=args['input_definition_version']))
+                            data_composition.append(getattr(gl.gd.hand_frames[time_sample], key).get_single_learning_data_dynamic(definition=args['input_definition_version']))
 
                         ''' Transform to Leap frame id '''
                         data_composition_ = []
@@ -121,7 +121,7 @@ class ROSComm(Node):
                         data_composition = data_composition_
 
                         ''' Check if the length of composed data is aorund 1sec '''
-                        ttt = ml.md.frames[-1].stamp() - ml.md.frames[int(time_samples_series[0])].stamp()
+                        ttt = gl.gd.hand_frames[-1].stamp() - gl.gd.hand_frames[int(time_samples_series[0])].stamp()
                         if not (0.7 <= ttt <= 2.0):
                             print(f"WARNING: data frame composed is {ttt} long")
                         ''' Subtract middle path point from all path points '''
@@ -163,7 +163,7 @@ class ROSComm(Node):
         rate = roscm.create_rate(freq)
 
         while rclpy.ok():
-            if ml.md.frames:
+            if gl.gd.hand_frames:
                 send_g_data(roscm, hand_mode, args)
 
             rate.sleep()

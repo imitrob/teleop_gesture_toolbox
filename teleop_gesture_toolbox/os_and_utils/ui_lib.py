@@ -202,8 +202,8 @@ class AnotherWindowPlot(QWidget):
         prev_on_hand_visible_right = False
         on_stamp_hand_visible_right = None
 
-        lenframes = len(ml.md.frames)
-        for n,frm in enumerate(ml.md.frames.copy()):
+        lenframes = len(gl.gd.hand_frames)
+        for n,frm in enumerate(gl.gd.hand_frames.copy()):
             # 1 inside ball left
             if is_hand_inside_ball(getattr(frm, 'l')):
                 if prev_on == False:
@@ -905,14 +905,14 @@ class Example(QMainWindow):
         ''' Get values for Right panel values
         '''
         values = []
-        values.append(round(ml.md.frames[-1].r.confidence,2))
-        values.append(round(ml.md.frames[-1].l.confidence,2))
+        values.append(round(gl.gd.hand_frames[-1].r.confidence,2))
+        values.append(round(gl.gd.hand_frames[-1].l.confidence,2))
         return values
 
     def getRightPanelActivates(self):
         activates = []
-        activates.append(ml.md.frames[-1].r.confidence > settings.yaml_config_gestures['min_confidence'])
-        activates.append(ml.md.frames[-1].l.confidence > settings.yaml_config_gestures['min_confidence'])
+        activates.append(gl.gd.hand_frames[-1].r.confidence > settings.yaml_config_gestures['min_confidence'])
+        activates.append(gl.gd.hand_frames[-1].l.confidence > settings.yaml_config_gestures['min_confidence'])
         return activates
 
     def mouseMoveEvent(self, event):
@@ -1199,7 +1199,6 @@ class Example(QMainWindow):
             print("Action not defined")
             gl.gd.gestures_queue.clear()
 
-        evaluate_episode = False
 
 
 
@@ -1222,7 +1221,7 @@ class Example(QMainWindow):
         print("[UI] Plot data exported!")
 
     def delete_plot_data(self):
-        ml.md.frames.clear()
+        gl.gd.hand_frames.clear()
         gl.gd.l.dynamic.data_queue.clear()
         gl.gd.r.dynamic.data_queue.clear()
         gl.gd.l.static.data_queue.clear()
@@ -1320,23 +1319,23 @@ class Example(QMainWindow):
         painter.setPen(QPen(Qt.red, 3))
 
         for h in ['l', 'r']:
-            if getattr(ml.md, h+'_present')():
-                pts = len(ml.md.frames)
+            if getattr(gl.gd, h+'_present')():
+                pts = len(gl.gd.hand_frames)
                 if pts > 10: pts = 10
                 for n in range(1,pts):
-                    #if ml.md.frames[-n-1].l.visible and ml.md.frames[-n].l.visible:
-                    if getattr(ml.md.frames[-n-1], h).visible and getattr(ml.md.frames[-n], h).visible:
+                    #if gl.gd.hand_frames[-n-1].l.visible and gl.gd.hand_frames[-n].l.visible:
+                    if getattr(gl.gd.hand_frames[-n-1], h).visible and getattr(gl.gd.hand_frames[-n], h).visible:
                         if settings.hand_sensor == 'leap':
-                            #p1 = tfm.transformLeapToUIsimple(ml.md.frames[-n].l.palm_pose())
-                            p1 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n], h).palm_pose())
-                            #p2 = tfm.transformLeapToUIsimple(ml.md.frames[-n-1].l.palm_pose())
-                            p2 = tfm.transformLeapToUIsimple(getattr(ml.md.frames[-n-1], h).palm_pose())
+                            #p1 = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-n].l.palm_pose())
+                            p1 = tfm.transformLeapToUIsimple(getattr(gl.gd.hand_frames[-n], h).palm_pose())
+                            #p2 = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-n-1].l.palm_pose())
+                            p2 = tfm.transformLeapToUIsimple(getattr(gl.gd.hand_frames[-n-1], h).palm_pose())
                         elif settings.hand_sensor == 'hi5':
-                            #p1 = tfm.transformLeapToUIsimple(ml.md.frames[-n].l.palm_pose())
-                            p1 = tfm.transformHi5ToUIsimple(getattr(ml.md.frames[-n], h).palm_pose())
-                            #p2 = tfm.transformLeapToUIsimple(ml.md.frames[-n-1].l.palm_pose())
-                            p2 = tfm.transformHi5ToUIsimple(getattr(ml.md.frames[-n-1], h).palm_pose())
-                        if is_hand_inside_ball(getattr(ml.md.frames[-n], h)):
+                            #p1 = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-n].l.palm_pose())
+                            p1 = tfm.transformHi5ToUIsimple(getattr(gl.gd.hand_frames[-n], h).palm_pose())
+                            #p2 = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-n-1].l.palm_pose())
+                            p2 = tfm.transformHi5ToUIsimple(getattr(gl.gd.hand_frames[-n-1], h).palm_pose())
+                        if is_hand_inside_ball(getattr(gl.gd.hand_frames[-n], h)):
                             painter.setPen(QPen(Qt.green, p1.position.z))
                             painter.drawLine(p1.position.x, p1.position.y, p2.position.x, p2.position.y)
                         else:
@@ -1345,7 +1344,7 @@ class Example(QMainWindow):
                             painter.drawLine(p1.position.x-10, p1.position.y+10, p2.position.x+10, p2.position.y-10)
 
         if gl.gd.r.static[-1] and self.cursor_enabled() and 'point' in gl.gd.r.static.info.names:
-            pose_c = tfm.transformLeapToUIsimple(ml.md.frames[-1].r.palm_pose())
+            pose_c = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-1].r.palm_pose())
             x_c,y_c = pose_c.position.x, pose_c.position.y
 
             rad = gl.gd.r.static[-1].point.time_visible*80
@@ -1367,9 +1366,9 @@ class Example(QMainWindow):
         if settings.hand_sensor == 'leap':
             for h in ['l', 'r']:
                 painter.setPen(QPen(Qt.black, 2))
-                #if ml.md.r_present():
-                if getattr(ml.md, h+'_present')():
-                    hand = getattr(ml.md.frames[-1], h)
+                #if gl.gd.r_present():
+                if getattr(gl.gd, h+'_present')():
+                    hand = getattr(gl.gd.hand_frames[-1], h)
                     palm = hand.palm_position()
                     wrist = hand.wrist_position()
 
@@ -1418,10 +1417,10 @@ class Example(QMainWindow):
                             x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
                             painter.drawLine(x, y, x_, y_)
 
-        elif settings.hand_sensor == 'hi5' and ml.md.frames:
+        elif settings.hand_sensor == 'hi5' and gl.gd.hand_frames:
             for h in ['l', 'r']:
                 painter.setPen(QPen(Qt.black, 2))
-                hand = getattr(ml.md.frames[-1], h)
+                hand = getattr(gl.gd.hand_frames[-1], h)
                 position_palm = hand.palm_position()
                 pose_palm = Pose()
                 pose_palm.position = Point(x=position_palm[0], y=position_palm[1], z=position_palm[2])
@@ -1453,20 +1452,20 @@ class Example(QMainWindow):
 
         if self.textStatusEnabled:
             textStatus += f"{'real' if rc.roscm.is_real else 'sim'} main: {'o' if main_livin else 'x'}, spin: {'o' if spinner_livin else 'x'}"
-            textStatus += f" {GestureSentence.get_most_probable_sta_dyn([g[1] for g in gl.gd.gestures_queue],2)}"
+            #textStatus += f" {GestureSentence.get_most_probable_sta_dyn([g[1] for g in gl.gd.gestures_queue],2)}"
             textStatus += f"\n{sl.scene}"
             if ml.md.goal_pose and ml.md.goal_joints:
                 structures_str = [structure.object_stack for structure in ml.md.structures]
                 textStatus += f"eef: {str(round(ml.md.eef_pose.position.x,2))} {str(round(ml.md.eef_pose.position.y,2))} {str(round(ml.md.eef_pose.position.z,2))}\ng p: {str(round(ml.md.goal_pose.position.x,2))} {str(round(ml.md.goal_pose.position.y,2))} {str(round(ml.md.goal_pose.position.z,2))}\ng q:{str(round(ml.md.goal_pose.orientation.x,2))} {str(round(ml.md.goal_pose.orientation.y,2))} {str(round(ml.md.goal_pose.orientation.z,2))} {str(round(ml.md.goal_pose.orientation.w,2))}\nAttached: {ml.md.attached}\nbuild_mode {ml.md.build_mode}\nobject_touch and focus_id {ml.md.object_focus_id} {ml.md.object_focus_id}\nStructures: {str(structures_str)}\n"
-            if ml.md.present():
-                textStatus += f"fps: {round(ml.md.frames[-1].fps)}, id: {ml.md.frames[-1].seq}"
+            if gl.gd.present():
+                textStatus += f"fps: {round(gl.gd.hand_frames[-1].fps)}, id: {gl.gd.hand_frames[-1].seq}"
         self.lblStatus.setText(textStatus)
 
         if ml.md.mode in ['gesture', 'gesture_ad']:
             sd = ['', '', '', ''] # string decorator based on which gesture type is active
-            if ml.md.act_prev_tmp[0] == 'deictic': sd[1] = '*'
-            elif ml.md.act_prev_tmp[0] == 'measurement_distance': sd[2] = '*'
-            elif ml.md.act_prev_tmp[0] == 'action': sd[0] = '*'
+            if gl.sd.previous_gesture_observed_data[0] == 'deictic': sd[1] = '*'
+            elif gl.sd.previous_gesture_observed_data[0] == 'measurement_distance': sd[2] = '*'
+            elif gl.sd.previous_gesture_observed_data[0] == 'action': sd[0] = '*'
             textSentenceStatus = f'Sentence:\t{sd[0]}A: {GestureSentence.process_gesture_queue(gl.gd.gestures_queue)}{sd[0]}\t{sd[1]}D: {gl.gd.target_objects}{sd[1]}\t{sd[2]}AP: {gl.gd.ap}{sd[2]}'
             self.lblSentenceStatus.setText(textSentenceStatus)
 
@@ -1494,34 +1493,34 @@ class Example(QMainWindow):
 
         if self.GesturesViewState:
             # up late
-            if ml.md.frames:
+            if gl.gd.hand_frames:
 
                 qp.drawLine(LEFT_MARGIN, TOP_MARGIN+(1)*ICON_SIZE+5,
                 LEFT_MARGIN+2*ICON_SIZE+2, TOP_MARGIN+(1)*ICON_SIZE+5)
                 # hand fingers
                 n = 0
-                if ml.md.frames[-1].l.confidence > settings.yaml_config_gestures['min_confidence']:
+                if gl.gd.hand_frames[-1].l.confidence > settings.yaml_config_gestures['min_confidence']:
                     qp.drawRect(LEFT_MARGIN,TOP_MARGIN+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
-                qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, TOP_MARGIN+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(TOP_MARGIN+(n+1)*ICON_SIZE-round(ml.md.frames[-1].l.confidence,2)*ICON_SIZE))
+                qp.drawLine(LEFT_MARGIN+ICON_SIZE+2, TOP_MARGIN+(n+1)*ICON_SIZE, LEFT_MARGIN+ICON_SIZE+2, int(TOP_MARGIN+(n+1)*ICON_SIZE-round(gl.gd.hand_frames[-1].l.confidence,2)*ICON_SIZE))
                 for i in range(0,5):
-                    if ml.md.frames[-1].l.oc_activates[i]:
+                    if gl.gd.hand_frames[-1].l.oc_activates[i]:
                         qp.drawPixmap(LEFT_MARGIN, TOP_MARGIN, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open_left.png"))
                     else:
                         qp.drawPixmap(LEFT_MARGIN, TOP_MARGIN, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed_left.png"))
 
                 qp.drawLine(w-RIGHT_MARGIN-ICON_SIZE, TOP_MARGIN+(1)*ICON_SIZE+5, w-RIGHT_MARGIN+ICON_SIZE+2, TOP_MARGIN+(1)*ICON_SIZE+5)
-                if ml.md.frames[-1].r.confidence > settings.yaml_config_gestures['min_confidence']:
+                if gl.gd.hand_frames[-1].r.confidence > settings.yaml_config_gestures['min_confidence']:
                     qp.drawRect(w-RIGHT_MARGIN,TOP_MARGIN+(n)*ICON_SIZE, ICON_SIZE, ICON_SIZE)
-                qp.drawLine(w-RIGHT_MARGIN+ICON_SIZE+2, TOP_MARGIN+(n+1)*ICON_SIZE, w-RIGHT_MARGIN+ICON_SIZE+2, int(TOP_MARGIN+(n+1)*ICON_SIZE-round(ml.md.frames[-1].r.confidence,2)*ICON_SIZE))
+                qp.drawLine(w-RIGHT_MARGIN+ICON_SIZE+2, TOP_MARGIN+(n+1)*ICON_SIZE, w-RIGHT_MARGIN+ICON_SIZE+2, int(TOP_MARGIN+(n+1)*ICON_SIZE-round(gl.gd.hand_frames[-1].r.confidence,2)*ICON_SIZE))
                 for i in range(0,5):
-                    if ml.md.frames[-1].r.oc_activates[i]:
+                    if gl.gd.hand_frames[-1].r.oc_activates[i]:
                         qp.drawPixmap(w-RIGHT_MARGIN, TOP_MARGIN, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"open.png"))
                     else:
                         qp.drawPixmap(w-RIGHT_MARGIN, TOP_MARGIN, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hand"+str(i+1)+"closed.png"))
 
                 ''' Direction of hand '''
                 for h, X in [('l', LEFT_MARGIN+ICON_SIZE), ('r', w-RIGHT_MARGIN-ICON_SIZE)]:
-                    point_direction = getattr(ml.md.frames[-1], h).point_direction()
+                    point_direction = getattr(gl.gd.hand_frames[-1], h).point_direction()
                     if point_direction[0] < 0.0:
                         qp.drawPixmap(X, TOP_MARGIN, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"arrow_right.png"))
                     if point_direction[0] > 0.0:
@@ -1624,18 +1623,18 @@ class Example(QMainWindow):
 
         if self.MoveViewState:
             if ml.md.mode == 'play':
-                if ml.md.frames and ml.md.frames[-1].l.visible:
-                    if ml.md.frames[-1].l.grab_strength:
+                if gl.gd.hand_frames and gl.gd.hand_frames[-1].l.visible:
+                    if gl.gd.hand_frames[-1].l.grab_strength:
                         qp.drawPixmap(w/2, ICON_SIZE+TOP_MARGIN, ICON_SIZE, ICON_SIZE, QPixmap(settings.paths.graphics_path+"hold.png"))
                         if ml.md.HoldPrevState == False:
-                            ml.md.HoldAnchor = ml.md.HoldValue - ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
-                        ml.md.HoldValue = ml.md.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
-                        #ml.md.HoldValue = ml.md.HoldAnchor + ml.md.frames[-1].l.palm_pose().position.x/2
+                            ml.md.HoldAnchor = ml.md.HoldValue - gl.gd.hand_frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
+                        ml.md.HoldValue = ml.md.HoldAnchor + gl.gd.hand_frames[-1].l.palm_pose().position.x/len(sl.paths[ml.md.picked_path].poses)
+                        #ml.md.HoldValue = ml.md.HoldAnchor + gl.gd.hand_frames[-1].l.palm_pose().position.x/2
                         if ml.md.HoldValue > 100: ml.md.HoldValue = 100
                         if ml.md.HoldValue < 0: ml.md.HoldValue = 0
 
                     # # TODO: Hard value
-                    ml.md.HoldPrevState = ml.md.frames[-1].l.grab_strength > 0.8
+                    ml.md.HoldPrevState = gl.gd.hand_frames[-1].l.grab_strength > 0.8
                 diff_pose_progress = 100/len(sl.paths[ml.md.picked_path].poses)
                 for i in range(0, len(sl.paths[ml.md.picked_path].poses)):
                     qp.fillRect(LEFT_MARGIN+diff_pose_progress*i*((w-40.0)/100.0), 30, 2, 20, Qt.black)
@@ -1649,7 +1648,7 @@ class Example(QMainWindow):
             for n, i in enumerate(self.lblRightPanelNamesObj):
                 i.setVisible(True)
                 i.move(w-RIGHT_MARGIN, int(TOP_MARGIN+n*ICON_SIZE/2))
-            if ml.md.present():
+            if gl.gd.present():
                 values, activates = self.getRightPanelValues(), self.getRightPanelActivates()
                 for n in range(len(values)):
                     obj = self.lblRightPanelValuesObj[n]
@@ -1662,12 +1661,12 @@ class Example(QMainWindow):
             # orientation
             '''
             if self.cursor_enabled():
-                roll, pitch, yaw = ml.md.frames[-1].r.palm_euler()
+                roll, pitch, yaw = gl.gd.hand_frames[-1].r.palm_euler()
                 x = np.cos(yaw)*np.cos(pitch)
                 y = np.sin(yaw)*np.cos(pitch)
                 z = np.sin(pitch)
 
-                last_pose_ = tfm.transformLeapToUIsimple(ml.md.frames[-1].r.palm_pose())
+                last_pose_ = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-1].r.palm_pose())
                 x_c,y_c = last_pose_.position.x, last_pose_.position.y
                 qp.setPen(QPen(Qt.blue, 4))
                 qp.drawLine(x_c, y_c, x_c+y*2*ICON_SIZE, y_c-z*2*ICON_SIZE)
@@ -1693,7 +1692,7 @@ class Example(QMainWindow):
         Y_BOUND = tuple(zip(Y_START, Y_END))
         # picking part
         if self.cursor_enabled():
-            last_pose_ = tfm.transformLeapToUIsimple(ml.md.frames[-1].r.palm_pose())
+            last_pose_ = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-1].r.palm_pose())
             x,y = last_pose_.position.x, last_pose_.position.y
         else:
             x,y = self.mousex, self.mousey
@@ -1727,19 +1726,19 @@ class Example(QMainWindow):
     def cursor_enabled(self):
         ''' Checks if enough samples are made
         '''
-        if ml.md.r_present() and len(ml.md.frames) >= 10:
+        if gl.gd.r_present() and len(gl.gd.hand_frames) >= 10:
             return True
         return False
 
     def timerEvent(self, event):
-        if ml.md.frames and self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn:
+        if gl.gd.hand_frames and self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn:
             self.OneTimeTurnOnGesturesViewStateOnLeapMotionSignIn = False
             self.GesturesViewState = True
             self.comboPlayNLive.addItem("Live hand")
 
         ''' DEPRECATED
-        if ml.md.frames and gl.gd.r.dynamic.info.names:
-            fa = ml.md.frames[-1]
+        if gl.gd.hand_frames and gl.gd.r.dynamic.info.names:
+            fa = gl.gd.hand_frames[-1]
             for i in gl.gd.r.dynamic[-1][0:4]: # circ, swipe, pin, touch
                 if i.time_visible > 0:
                     i.time_visible -= 0.1

@@ -930,7 +930,7 @@ def tester():
     X, Y = DatasetLoader(dataloader_args).load_static(settings.paths.learn_path, gl.gd.Gs_static)
     X
 
-    ml.md.frames[-1]
+    gl.gd.hand_frames[-1]
     HandPlot.hand_plot()
 
     ax = plt.axes(projection='3d')
