@@ -28,6 +28,7 @@ from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
 import threading
 
 from context_based_gesture_operation.msg import Scene as SceneRos
+from context_based_gesture_operation.msg import HRICommand
 from context_based_gesture_operation.msg import Gestures as GesturesRos
 from context_based_gesture_operation.srv import BTreeSingleCall
 from teleop_gesture_toolbox.srv import ChangeNetwork, SaveHandRecord
@@ -62,6 +63,10 @@ try:
     from os_and_utils.zmqarmer_interface import ZMQArmerInterface, ZMQArmerInterfaceWithSem
 except ModuleNotFoundError:
     ZMQArmerInterface = None
+
+from os_and_utils.utils import ordered_load, point_by_ratio, get_cbgo_path, cc
+sys.path.append(get_cbgo_path())
+import context_based_gesture_operation as cbgo
 
 def withsem(func):
     def inner(*args, **kwargs):
@@ -99,6 +104,9 @@ class ROSComm(Node):
         #self.ik_bridge = IK_bridge()
 
         self.gesture_solution_pub = self.create_publisher(String, '/teleop_gesture_toolbox/filtered_gestures', 5)
+        self.gesture_sentence_publisher_original = self.create_publisher(HRICommand, '/teleop_gesture_toolbox/gesture_sentence_original', 5)
+        self.gesture_sentence_publisher_mapped  = self.create_publisher(HRICommand, '/teleop_gesture_toolbox/action_sentence_mapped', 5)
+
 
         self.call_tree_singlerun_cli = self.create_client(BTreeSingleCall, '/btree_onerun')
         #while not self.call_tree_singlerun_cli.wait_for_service(timeout_sec=1.0):
@@ -421,8 +429,59 @@ class ROSComm(Node):
         else:
             raise Exception("[ERROR] NotImplementedError!")
 
-def init(robot_interface=''):
+
+
+import crow_interface.ontology_interface as ontology_interface 
+
+class MirracleSetupInterface(ROSComm):
+    ''' November 2023 '''
+
+    @staticmethod
+    def mocked_update_scene():
+        s = None
+        s = cbgo.srcmodules.Scenes.Scene(init='object', random=True)
+        sl.scene = s
+        return s
+
+
+    @staticmethod
+    def update_scene():
+        assert cbgo is not None, "move_lib.py script doesn't have access to context_based_gesture_operation package!"
+        if not roscm.is_real:
+            raise Exception("Crow Interface currently only for real setup")
+
+        static_objects = []
+        # if sl.scene is not None:
+        #     if 'drawer' in sl.scene.O:
+        #         static_objects.append( deepcopy(sl.scene.drawer) )
+
+        # robot_data = deepcopy(sl.scene.r)
+        s = None
+        s = cbgo.srcmodules.Scenes.Scene(init='', objects=static_objects, random=False)
+        # s.r = robot_data
+
+        objects = ontology_interface.get_objects_from_onto()
+
+        if objects is None: objects = []
+        # for object in objects:
+
+        #     type = (ycb_data.NAME2TYPE[ycb_data.COSYPOSE2NAME[object['label']]]).capitalize()
+
+        #     o = getattr(cbgo.srcmodules.Objects, type)(name=ycb_data.COSYPOSE2NAME[object['label']], position_real=np.array(object['pose'][0]), random=False)
+        #     o.quaternion = np.array(object['pose'][1])
+
+        #     s.objects.append(o)
+
+        sl.scene = s
+        return s
+
+def init(robot_interface='', setup='standalone'):
     global roscm, rossem
     rclpy.init(args=None)
     rossem = threading.Semaphore()
-    roscm = ROSComm(robot_interface=robot_interface)
+
+    if setup == 'standalone':
+        roscm = ROSComm(robot_interface=robot_interface)
+    elif setup == 'mirracle':
+        roscm = MirracleSetupInterface(robot_interface=robot_interface)
+    else: raise Exception()

@@ -437,10 +437,11 @@ class Example(QMainWindow):
         self.comboPlayNLive.setGeometry(LEFT_MARGIN+130, TOP_MARGIN-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
         self.comboPickPlayTraj = QComboBox(self)
-        for path in sl.paths:
-            self.comboPickPlayTraj.addItem(path.name)
-        self.comboPickPlayTraj.activated[str].connect(self.onComboPickPlayTrajChanged)
-        self.comboPickPlayTraj.setGeometry(LEFT_MARGIN+130+ICON_SIZE*2, TOP_MARGIN-10,ICON_SIZE*2,int(ICON_SIZE/2))
+        if hasattr(sl, 'paths'):
+            for path in sl.paths:
+                self.comboPickPlayTraj.addItem(path.name)
+            self.comboPickPlayTraj.activated[str].connect(self.onComboPickPlayTrajChanged)
+            self.comboPickPlayTraj.setGeometry(LEFT_MARGIN+130+ICON_SIZE*2, TOP_MARGIN-10,ICON_SIZE*2,int(ICON_SIZE/2))
 
         self.comboLiveMode = QComboBox(self)
         self.comboLiveMode.addItem("Default")
@@ -710,13 +711,13 @@ class Example(QMainWindow):
         self.confusion_mat_action.setToolTip('Plus Generate <b>Confusion</b> matrix')
         self.confusion_mat_action.triggered.connect(self.confustion_mat)
 
-
-        SCENES = sl.scenes.names()
-        for index, SCENE in enumerate(SCENES):
-            action = QAction('Scene '+str(index)+' '+SCENE, self)
-            action.triggered.connect(
-                lambda checked, index=index: self.goScene(index))
-            sceneMenu.addAction(action)
+        if hasattr(sl,'scenes'):
+            SCENES = sl.scenes.names()
+            for index, SCENE in enumerate(SCENES):
+                action = QAction('Scene '+str(index)+' '+SCENE, self)
+                action.triggered.connect(
+                    lambda checked, index=index: self.goScene(index))
+                sceneMenu.addAction(action)
 
         initTestAction = QAction('Initialization test', self)
         initTestAction.triggered.connect(self.thread_testInit)
@@ -803,7 +804,8 @@ class Example(QMainWindow):
 
         self.AllVisibleObjects.append(ObjectQt('comboPlayNLive',self.comboPlayNLive,0,view_group=['MoveViewState']))
 
-        self.AllVisibleObjects.append(ObjectQt('comboPickPlayTraj',self.comboPickPlayTraj,0,view_group=['MoveViewState', 'play']))
+        if hasattr(sl, 'paths'):
+            self.AllVisibleObjects.append(ObjectQt('comboPickPlayTraj',self.comboPickPlayTraj,0,view_group=['MoveViewState', 'play']))
         self.AllVisibleObjects.append(ObjectQt('btnPlayMove' ,self.btnPlayMove, 0,view_group=['MoveViewState', 'play']))
         self.AllVisibleObjects.append(ObjectQt('btnPlayMove2',self.btnPlayMove2,0,view_group=['MoveViewState', 'play']))
         self.AllVisibleObjects.append(ObjectQt('btnPlayMove3',self.btnPlayMove3,0,view_group=['MoveViewState', 'play']))
@@ -1463,9 +1465,9 @@ class Example(QMainWindow):
 
         if ml.md.mode in ['gesture', 'gesture_ad']:
             sd = ['', '', '', ''] # string decorator based on which gesture type is active
-            if gl.sd.previous_gesture_observed_data[0] == 'deictic': sd[1] = '*'
-            elif gl.sd.previous_gesture_observed_data[0] == 'measurement_distance': sd[2] = '*'
-            elif gl.sd.previous_gesture_observed_data[0] == 'action': sd[0] = '*'
+            if gl.sd.previous_gesture_observed_data_action == 'deictic': sd[1] = '*'
+            elif gl.sd.previous_gesture_observed_data_action == 'measurement_distance': sd[2] = '*'
+            elif gl.sd.previous_gesture_observed_data_action == 'action': sd[0] = '*'
             textSentenceStatus = f'Sentence:\t{sd[0]}A: {GestureSentence.process_gesture_queue(gl.gd.gestures_queue)}{sd[0]}\t{sd[1]}D: {gl.gd.target_objects}{sd[1]}\t{sd[2]}AP: {gl.gd.ap}{sd[2]}'
             self.lblSentenceStatus.setText(textSentenceStatus)
 

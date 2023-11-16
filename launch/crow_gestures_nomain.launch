@@ -6,6 +6,6 @@
 
   <node pkg="teleop_gesture_toolbox" exec="leap_run.py" output="screen"/>
 
-  <node pkg="teleop_gesture_toolbox" exec="gestures_detect_node.py" output="screen"/>
+  <!--<node pkg="teleop_gesture_toolbox" exec="gestures_detect_node.py" output="screen"/>-->
 
 </launch>

@@ -26,13 +26,18 @@ def main():
     #dynamic_network_file = 
     #print("Static network file: ", settings.get_network_file(type='static'))
     #print("Static network info: ", gl.gd.static_network_info)
+    ml.md.mode = 'do nothing'
 
     rate = rc.roscm.create_rate_(settings.yaml_config_gestures['misc']['rate'])
     try:
         while rclpy.ok():
             if gl.gd.hand_frames and settings.gesture_detection_on:
+                if gl.gd.present() and not gl.gd.any_hand_stable(time=1.0): # Hand visible and not hand stable 2 sec.
+                    # Send gesture data based on hand mode
+                    if settings.gesture_detection_on:
+                        rc.roscm.send_g_data()
                 ml.md.main_handle_step(path_generator)
-                if gl.gd.hand_frames:
+                if False: #gl.gd.hand_frames:
                     f = gl.gd.hand_frames[-1]
                     if f.l.visible and f.l.grab_strength < 0.1:
                         dl.dd.main_deitic_fun(gl.gd.hand_frames[-1], 'l', sl.scene.object_poses)

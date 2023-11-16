@@ -265,7 +265,7 @@ class MoveData():
             if self.frames and action_execution:
                 self.handle_action_update()
             '''
-        if self.mode == 'gesture_ad':
+        if self.mode == 'gesture_ad': # Adaptive
             # This is for action execution added manually from GUI
             if len(self.todoactionqueue) > 0:
                 action, o1, o2 = self.todoactionqueue.pop()
@@ -292,18 +292,18 @@ class MoveData():
         # TODO: Possibility to print some info
         if False and gl.gd.present(): # If any hand visible
             # 2. Info + Save plot data
-            print(f"fps {self.frames[-1].fps}, id {self.frames[-1].seq}")
+            print(f"fps {gl.gd.hand_frames[-1].fps}, id {gl.gd.hand_frames[-1].seq}")
             print(f"actions queue {[act[1] for act in gl.gd.gestures_queue]}")
-            print(f"point diretoin {self.frames[-1].l.point_direction()}")
+            print(f"point diretoin {gl.gd.hand_frames[-1].l.point_direction()}")
             # Printing presented here represent current mapping
             if gl.gd.r.dynamic.relevant():
                 print(f"Right Dynamic relevant info: Biggest prob. gesture: {gl.gd.r.dynamic.relevant().biggest_probability}")
-                #print(self.frames[-1].r.get_learning_data(definition=1))
+                #print(gl.gd.hand_frames[-1].r.get_learning_data(definition=1))
 
             if gl.gd.l.static.relevant():
                 print(f"Left Static relevant info: Biggest prob. gesture: {gl.gd.l.static.relevant().biggest_probability}")
 
-                #print(self.frames[-1].l.get_learning_data(definition=1))
+                #print(gl.gd.hand_frames[-1].l.get_learning_data(definition=1))
 
         self.seq += 1
 
@@ -318,19 +318,19 @@ class MoveData():
                     if id_primitive == 'gripper':# and getattr(self.frames[-1], 'r').visible:
                         wps = {1.0: Waypoint()}
                         #grr = 0.0 # float(input("Write gripper posiiton: "))
-                        #wps[1.0].gripper = grr #1-getattr(self.frames[-1], 'r').pinch_strength #h).pinch_strength
+                        #wps[1.0].gripper = grr #1-getattr(gl.gd.hand_frames[-1], 'r').pinch_strength #h).pinch_strength
                         if action_name in ['grab', 'closed_hand']:
                             wps[1.0].gripper = 0.0 #h).pinch_strength
                         elif action_name in ['thumbsup', 'opened_hand']:
                             wps[1.0].gripper = 1.0 #h).pinch_strength
 
-                        #wps[1.0].gripper = 1-getattr(self.frames[-1], 'l').grab_strength #h).pinch_strength
+                        #wps[1.0].gripper = 1-getattr(gl.gd.hand_frames[-1], 'l').grab_strength #h).pinch_strength
                         rc.roscm.r.execute_trajectory_with_waypoints(None, wps)
 
-                    if id_primitive == 'build_switch' and getattr(self.frames[-1], 'r').visible:
-                        xe,ye,_ = tfm.transformLeapToUIsimple(self.frames[-1].l.elbow_position(), out='list')
-                        xw,yw,_ = tfm.transformLeapToUIsimple(self.frames[-1].l.wrist_position(), out='list')
-                        xp,yp,_ = tfm.transformLeapToUIsimple(self.frames[-1].r.point_position(), out='list')
+                    if id_primitive == 'build_switch' and getattr(gl.gd.hand_frames[-1], 'r').visible:
+                        xe,ye,_ = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-1].l.elbow_position(), out='list')
+                        xw,yw,_ = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-1].l.wrist_position(), out='list')
+                        xp,yp,_ = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-1].r.point_position(), out='list')
 
                         min_dist, min_id = 99999, -1
                         distance_threshold = 1000
@@ -346,7 +346,7 @@ class MoveData():
                         if min_id != -1:
                             self.build_mode = self.build_modes[min_id]
 
-                    if id_primitive == 'focus':# and getattr(self.frames[-1], 'r').visible:
+                    if id_primitive == 'focus':# and getattr(gl.gd.hand_frames[-1], 'r').visible:
                         if action_name == 'point':
                             self.object_focus_id = 0
                         elif action_name == 'two':
@@ -355,7 +355,7 @@ class MoveData():
                             self.object_focus_id = 2
 
                         '''
-                        direction = getattr(self.frames[-1], 'r').point_direction() #h).pinch_strength
+                        direction = getattr(gl.gd.hand_frames[-1], 'r').point_direction() #h).pinch_strength
                         if direction[0] < 0: # user wants to move to next item
                             # check if previously direction was left, if so, self.current_threshold_to_flip_id will be zeroed
                             if self.current_threshold_to_flip_id < 0: self.current_threshold_to_flip_id = 0
@@ -390,7 +390,7 @@ class MoveData():
         '''
         for h in ['r']:
             if settings.get_detection_approach(type='dynamic') == 'deterministic':
-                if getattr(self.frames[-1], h).visible:
+                if getattr(gl.gd.hand_frames[-1], h).visible:
                     ## TEMP: Experimental
                     move = gl.gd.processGest_move_in_axis()
                     if move:
@@ -424,7 +424,7 @@ class MoveData():
         if now_actived_gesture and now_actived_gesture == link_gesture:
             a = True
         # Gesture is 'grab', it is not in list, but it is activated externally
-        elif link_gesture == 'grab' and getattr(self.frames[-1], h).grab_strength > 0.8:
+        elif link_gesture == 'grab' and getattr(gl.gd.hand_frames[-1], h).grab_strength > 0.8:
             a = True
         if type == 'absolute':
             DirectTeleoperation.absolute_teleop_step(a, self, h,scale=scale)
@@ -453,7 +453,7 @@ class MoveData():
 
     def grasp_on_basic_grab_gesture(self, hnds=['l']):
         for h in hnds:
-            grab_strength = getattr(self.frames[-1], h).grab_strength
+            grab_strength = getattr(gl.gd.hand_frames[-1], h).grab_strength
             if grab_strength > 0.5:
                 if not rc.roscm.is_real and sl.scene is not None and not (sl.scene.object_names is None) and self.object_focus_id is not None:
                     rc.roscm.r.pick_object(object=sl.scene.object_names[self.object_focus_id])
@@ -531,14 +531,14 @@ class DirectTeleoperation():
     """ TODO: Add remaining function to th
     """
     @staticmethod
-    def simple_teleop_step(self):
-        self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+    def simple_teleop_step(self, h='l'):
+        self.goal_pose = tfm.transformLeapToScene(getattr(gl.gd.hand_frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
         rc.roscm.r.go_to_pose(self.goal_pose)
 
     @staticmethod
     def absolute_teleop_step(a, self, h):
         if a:
-            self.goal_pose = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+            self.goal_pose = tfm.transformLeapToScene(getattr(gl.gd.hand_frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
             rc.roscm.r.go_to_pose(self.goal_pose)
 
     @staticmethod
@@ -548,10 +548,10 @@ class DirectTeleoperation():
     def drawing_teleop_step(a, self, h):
         if a:
 
-            mouse_3d = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+            mouse_3d = tfm.transformLeapToScene(getattr(gl.gd.hand_frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
 
             if self.live_mode == 'With eef rot':
-                x,y = self.frames[-1].r.direction()[0:2]
+                x,y = gl.gd.hand_frames[-1].r.direction()[0:2]
                 angle = np.arctan2(y,x)
 
             if not self.live_mode_drawing: # init anchor
@@ -589,10 +589,10 @@ class DirectTeleoperation():
         if local_live_mode is not None: live_mode = local_live_mode
         if a:
 
-            mouse_3d = tfm.transformLeapToScene(getattr(self.frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+            mouse_3d = tfm.transformLeapToScene(getattr(gl.gd.hand_frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
 
             if live_mode == 'With eef rot':
-                x,y = self.frames[-1].r.direction()[0:2]
+                x,y = gl.gd.hand_frames[-1].r.direction()[0:2]
                 angle = np.arctan2(y,x)
 
             if not self.live_mode_drawing: # init anchor
@@ -790,11 +790,15 @@ class RealRobotConvenience():
         return s
 
     @staticmethod
-    def deictic(hand='lr'):
-        s = RealRobotConvenience.update_scene()
+    def deictic(hand='lr', s=None):
+        if s is None:
+            s = RealRobotConvenience.update_scene()
+
         if s.object_positions_real == []: return None, None
-        idobj = dl.dd.main_deitic_fun(md.frames[-1], hand, s.object_positions_real, plot_line=False)
-        return idobj, s.object_names[idobj]
+        idobj, distances_from_line = dl.dd.main_deitic_fun(gl.gd.hand_frames[-1], hand, s.object_positions_real, plot_line=False)
+        assert len(s.object_names) == len(distances_from_line)
+        object_distances = list(zip(s.object_names, distances_from_line))
+        return idobj, s.object_names[idobj], object_distances
 
     @staticmethod
     def move_sleep():
@@ -840,7 +844,7 @@ class RealRobotConvenience():
         try:
             while True:
                 time.sleep(0.5)
-                _, nameobj = RealRobotConvenience.deictic(hand)
+                _, nameobj, _ = RealRobotConvenience.deictic(hand)
                 print(nameobj)
                 s = RealRobotConvenience.update_scene()
                 RealRobotConvenience.go_on_top_of_object(nameobj, s)
@@ -961,21 +965,39 @@ class RealRobotConvenience():
         md.goal_pose = Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.3), orientation=Quaternion(x=q_final[0],y=q_final[1],z=q_final[2],w=q_final[3]))
         RealRobotConvenience.move_sleep()
 
+    @staticmethod
+    def go_on_top_of_object_modular(nameobj, s):
+        object = s.get_object_by_name(nameobj)
+        if object is None:
+            print(f"name of object {nameobj} not found")
+            return
+        q_final = RealRobotConvenience.get_quaternion_eef(object.quaternion, object.name)
+        p = object.position_real
+
+        # HERE SEND POSE TO TOPIC
+        Pose(position=Point(x=p[0], y=p[1], z=p[2]+0.3), orientation=Quaternion(x=q_final[0],y=q_final[1],z=q_final[2],w=q_final[3]))
+        
+        # rc.roscm.
+
+        # RealRobotConvenience.move_sleep()
 
     @staticmethod
-    def get_target_object_non_blocking(s, hand='lr'):
+    def get_target_object_non_blocking(s, hand='lr', mode='original'):
         def most_frequent(List):
             return max(set(List), key = List.count)
 
-        _, nameobj_ = RealRobotConvenience.deictic(hand)
+        _, nameobj_, object_distances = RealRobotConvenience.deictic(hand, s)
         if nameobj_ is None:
             print("No objects on scene!")
             return 'q'
 
-        RealRobotConvenience.go_on_top_of_object(nameobj_, s)
-        #print(f"Might pick: {cc.H}{nameobj_}{cc.E}")
-
-        return nameobj_
+        if mode == 'original':
+            RealRobotConvenience.go_on_top_of_object(nameobj_, s)
+        elif mode == 'modular':
+            RealRobotConvenience.go_on_top_of_object_modular(nameobj_, s)
+        else: raise Exception()
+        
+        return nameobj_, object_distances
 
     @staticmethod
     def get_target_objects(num_of_objects, s, hand='lr'):
@@ -986,6 +1008,7 @@ class RealRobotConvenience():
         ret = 'n'
         while ret != 'y':
             name_object_final = None
+            object_distances_list = []
             for i in range(num_of_objects):
                 #if gl.gd.misc_gesture_handle(f"Start deictic for {num_of_objects} object, (n) to return") == 'n': return 'n'
                 print(f"Start deictic for {num_of_objects} object")
@@ -996,10 +1019,11 @@ class RealRobotConvenience():
                 do_once = True
                 while do_once or (gl.gd.present() and not gl.gd.any_hand_stable(time=1.0)):
                     do_once = False
-                    _, nameobj_ = RealRobotConvenience.deictic(hand)
+                    _, nameobj_, object_distances = RealRobotConvenience.deictic(hand)
+                    object_distances_list.append(object_distances)
                     if nameobj_ is None:
                         print("No objects on scene!")
-                        return 'q'
+                        return 'q', object_distances_list
 
                     if num_of_objects == 1: print(nameobj_)
                     else: print(f"{i}, {nameobj_}")
@@ -1021,16 +1045,16 @@ class RealRobotConvenience():
             #return [s.objects[int(ret)].name]
             raise Exception("approve handle returned undefined symbol")
 
-        if object_names == []: return object_names
+        if object_names == []: return object_names, object_distances_list
         elif isinstance(object_names[-1], str):
-            return object_names
+            return object_names, object_distances_list
 
         if isinstance(object_names, str):
             raise Exception(f"Object_names is string not array [{object_names}]")
-            return [object_names]
+            return [object_names], object_distances_list
         if isinstance(object_names[-1][-1], str):
             raise(f"DEBUG 3 Object_names is double array not single not array [{object_names}]")
-            return object_names[-1]
+            return object_names[-1], object_distances_list
 
     @staticmethod
     def correction_by_teleop():
@@ -1680,6 +1704,7 @@ class Structure():
         ''' new relative (to id=0) position is on top of all stacked objects '''
         n_block = self.get_n_block_based_on_object_id(id)
         return [0.,0., n_block * self.object_size]
+
 
 
 

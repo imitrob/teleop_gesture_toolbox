@@ -473,7 +473,9 @@ class GestureDataDetection():
         self.gestures_queue = collections.deque(maxlen=50)
         self.gestures_queue_proc = []
         #only for adaptive option, why? because objects in other modes doesn't have to be saved and they are in pipeline passed
+        # TODO: Make some unified structure from this
         self.target_objects = []
+        self.target_object_infos = []
         self.ap = []
 
         self.static_network_info, self.dynamic_network_info = self.load_netork_info()
@@ -689,6 +691,24 @@ class GestureDataDetection():
         self.prepare_postprocessing(data.header.frame_id, type, data.sensor_seq)
 
         self.handle_compound_gestures(data.sensor_seq)
+
+
+    def get_static_and_extended_probabilities_norm(self, hand_tag, frame_n=-1):
+        ret = []
+        hand = getattr(self,hand_tag)
+        gesture_static_timeframe = hand.static[frame_n]
+        if gesture_static_timeframe is not None:
+            ret.extend(gesture_static_timeframe.probabilities_norm)
+        else:
+            ret.extend([0.] * len(self.Gs_static))
+        gesture_dynamic_timeframe = hand.dynamic[frame_n]
+        if gesture_dynamic_timeframe is not None:
+            ret.extend(gesture_dynamic_timeframe.probabilities_norm)
+        else:
+            ret.extend([0.] * len(self.Gs_dynamic))
+
+        return ret
+
     '''
     LOGIC
     '''
@@ -711,6 +731,7 @@ class GestureDataDetection():
         gs = getattr(hand, type)
         latest_gs = gs[-1]
         probabilities = latest_gs.probabilities_norm
+        all_probs = self.get_static_and_extended_probabilities_norm(hand_tag)
         for n,g in enumerate(latest_gs):
             probability = probabilities[n]
             # 1. Probability over threshold
@@ -742,7 +763,7 @@ class GestureDataDetection():
                         (np.array([data[n].activated for data in gs[-activate_length-2:-1]]).all() and not np.array([data[n].action_activated for data in gs[-distance_length*2-2:-1]]).any())): # or gesture happening for a long time
                         if not np.array([data[n].action_activated for data in gs[-distance_length-2:-1]]).any():
                             g.action_activated = True
-                            self.gestures_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag))
+                            self.gestures_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag, all_probs))
 
     def load_all_relevant_gestures(self, compound=True, relevant_time=0.5, records=3):
         l_s = self.relevant(hand='l', type='static', relevant_time=relevant_time, records=records)
@@ -1338,7 +1359,13 @@ class GestureDataDetection():
 class SentenceData():
     def __init__(self):
         # Gesture Type in Previous Sequence 
-        self.previous_gesture_observed_data = ['', '', [], []]
+        # self.previous_gesture_observed_data = ['', '', [], []]
+
+        self.previous_gesture_observed_data_action = ''
+        self.previous_gesture_observed_data_ = ''
+        self.previous_gesture_observed_data_object_names = []
+        self.previous_gesture_observed_data_object_info = []
+        self.previous_gesture_observed_data_measurement_distance = []
         self.evaluate_episode = False
 
         #self.last_selected_object = 'small red box'

@@ -15,6 +15,8 @@ from os_and_utils.utils import cc, get_cbgo_path, reject_outliers, get_dist_by_e
 
 from context_based_gesture_operation.msg import Scene as SceneRos
 from context_based_gesture_operation.msg import Gestures as GesturesRos
+from context_based_gesture_operation.msg import HRICommand
+from context_based_gesture_operation.msg import Intent as IntentRos
 from context_based_gesture_operation.srv import BTreeSingleCall
 
 sys.path.append(get_cbgo_path())
@@ -27,6 +29,16 @@ import spatialmath as sm
 from collections import Counter
 
 class GestureSentence():
+    ''' Gesture Sentence Data globally stored in gestures_lib.GestureDetections (gl.gd)
+    gl.gd.gestures_queue - deque
+    gl.gd.gestures_queue_proc - processed queue
+    gl.sd.evaluate_episode 
+
+    gl.gd.target_objects (String[])
+    gl.gd.ap (Dict?)
+
+    '''
+
     @staticmethod
     def clearing():
         gl.gd.gestures_queue.clear()
@@ -73,9 +85,19 @@ class GestureSentence():
         if sta == [] and dyn == []: return []
         gestures_queue = [max([*sta, *dyn])]
         return gestures_queue
+    
+    @staticmethod
+    def process_gesture_probs_by_max(gesture_probs):
+        ''' max alongsize 0th axis '''
+        return np.max(gesture_probs, axis=0)
 
     @staticmethod
     def get_most_probable_sta_dyn(gesture_queue, n, ignored_gestures=['point', 'no_moving', 'five', 'pinch']):
+        ''' Gets the most 'n' occurings from static and dynamic gestures
+            - I sorts gestures_queue list into static and dynamic gesture lists
+        e.g. gesture_queue = ['apple','apple','banana','banana','banana', 'coco', 'coco', 'coco','coco']
+        Returns: for (n=2): ['coco','banana']
+        '''
         static_gestures, dynamic_gestures = [], []
 
         
@@ -112,12 +134,9 @@ class GestureSentence():
             return ml.md.comboMovePagePickObject1Picked
     @staticmethod
     def get_target_object__wrapper_non_blocking(s, mode):
-        if mode == 'modular':
-            # Access variable from main? -> not the best solution
-            return gl.sd.last_selected_object
         object_name_1 = None
         if ml.md.real_or_sim_datapull:
-            return ml.RealRobotConvenience.get_target_object_non_blocking(s)
+            return ml.RealRobotConvenience.get_target_object_non_blocking(s, mode=mode)
         else: # Fake data from GUI
             return ml.md.comboMovePagePickObject1Picked
 
@@ -201,7 +220,7 @@ class GestureSentence():
                 xy = list(direction_vector[0:2])
                 xy.reverse()
                 rot = np.rad2deg(np.arctan2(*xy))
-                print(f"{rot}")
+                print(f"ap rot: {rot}")
                 if robot_feedback:
                     GestureSentence.test_rot_ap(rot)
                 else:
@@ -295,7 +314,7 @@ class GestureSentence():
 
     @staticmethod
     def episode_evaluation_and_execution(s, object_name_1=None):
-        '''
+        ''' OLD
         '''
         gl.gd.gestures_queue_proc = GestureSentence.process_gesture_queue(gl.gd.gestures_queue)
         if gl.gd.misc_gesture_handle(f"Action gesture: {gl.gd.gestures_queue_proc[-1][1]}, continue? (y/n)") == 'n':
@@ -487,32 +506,43 @@ class GestureSentence():
             activated_gesture_type_action = GestureSentence.activated_gesture_type_to_action(activated_gesture_type, blocking=blocking)
 
             ''' When no longer Gesture type activated -> save the accumulated data '''
-            if gl.sd.previous_gesture_observed_data[0] != 'deictic' and gl.sd.previous_gesture_observed_data[2] != []:
+            if gl.sd.previous_gesture_observed_data_action != 'deictic' and gl.sd.previous_gesture_observed_data_object_names != []:
 
                 if object_pick_method == 'max':
-                    gl.gd.target_objects.append(max(gl.sd.previous_gesture_observed_data[2]))
+                    c = Counter(gl.sd.previous_gesture_observed_data_object_names)
+                    c_max = c.most_common(1)[0]
+                    gl.gd.target_objects.append(c_max)
+                    i = gl.sd.previous_gesture_observed_data_object_names.index(c_max)
+                    gl.gd.target_object_infos.append(gl.sd.previous_gesture_observed_data_object_info[i])
                 elif object_pick_method == 'last':
-                    gl.gd.target_objects.append(gl.sd.previous_gesture_observed_data[2][-1])
+                    gl.gd.target_objects.append(gl.sd.previous_gesture_observed_data_object_names[-1])
+                    gl.gd.target_object_infos.append(gl.sd.previous_gesture_observed_data_object_info[-1])
                 else: raise Exception()
 
-                print(f"{cc.H}Added obj {Counter(gl.sd.previous_gesture_observed_data[2])}{cc.E}")
-                gl.sd.previous_gesture_observed_data[2] = []
+                print(f"{cc.H}Added obj {Counter(gl.sd.previous_gesture_observed_data_object_names)}{cc.E}")
+                gl.sd.previous_gesture_observed_data_object_names = []
 
-            if gl.sd.previous_gesture_observed_data[0] != 'measurement_distance' and gl.sd.previous_gesture_observed_data[3] != []:
-                gl.gd.ap.append(get_dist_by_extremes(np.array(gl.sd.previous_gesture_observed_data[3])))
-                print(f"{cc.H}Added dist {get_dist_by_extremes(np.array(gl.sd.previous_gesture_observed_data[3]))}{cc.E}")
+            if gl.sd.previous_gesture_observed_data_action != 'measurement_distance' and gl.sd.previous_gesture_observed_data_measurement_distance != []:
+                gl.gd.ap.append(get_dist_by_extremes(np.array(gl.sd.previous_gesture_observed_data_measurement_distance)))
+                print(f"{cc.H}Added dist {get_dist_by_extremes(np.array(gl.sd.previous_gesture_observed_data_measurement_distance))}{cc.E}")
 
-                gl.sd.previous_gesture_observed_data[3] = []
+                gl.sd.previous_gesture_observed_data_measurement_distance = []
 
             object_name_1 = None
             if activated_gesture_type_action == 'deictic':
+                ''' Activated gesture enabled Deictic gesture mode.
+                    Here: We pick object(s)
 
+                when using blocking option:
+                    The program stays in get_target_objects__wrapper, until finds specified number of objects (usually 1)
+                '''
                 if blocking:
-                    object_name_1 = GestureSentence.get_target_objects__wrapper(1, s, mode)
+                    object_name_1, on1_info = GestureSentence.get_target_objects__wrapper(1, s, mode)
                     gl.gd.target_objects.append(object_name_1)
+                    gl.gd.target_objects_info.append(on1_info)
                     print(f"{cc.H}Added obj {object_name_1}{cc.E}")
                 else:
-                    object_name_1 = GestureSentence.get_target_object__wrapper_non_blocking(s, mode)
+                    object_name_1, on1_info = GestureSentence.get_target_object__wrapper_non_blocking(s, mode)
 
                     '''
                     if gl.gd.any_hand_stable(time=1000):
@@ -521,8 +551,9 @@ class GestureSentence():
                         gl.sd.previous_gesture_observed_data = [activated_gesture_type_action, 'written', object_name_1]
                     else:'''
                     if object_name_1 not in ['q']:
-                        gl.sd.previous_gesture_observed_data[0] = activated_gesture_type_action
-                        gl.sd.previous_gesture_observed_data[2].append(object_name_1)
+                        gl.sd.previous_gesture_observed_data_action = activated_gesture_type_action
+                        gl.sd.previous_gesture_observed_data_object_names.append(object_name_1)
+                        gl.sd.previous_gesture_observed_data_object_info.append(on1_info)
                         print(f"{cc.H}Added obj {object_name_1}{cc.E}")
 
             elif activated_gesture_type_action == 'approvement':
@@ -538,14 +569,14 @@ class GestureSentence():
                     gl.gd.ap.append(dist)
                 else:
                     dist = GestureSentence.load_auxiliary_parameter_non_blocking(s, type='distance', robot_feedback=False)
-                    gl.sd.previous_gesture_observed_data[0] = activated_gesture_type_action
-                    gl.sd.previous_gesture_observed_data[3].append(dist)
+                    gl.sd.previous_gesture_observed_data_action = activated_gesture_type_action
+                    gl.sd.previous_gesture_observed_data_measurement_distance.append(dist)
             else:
                 activated_gesture_type_action = 'action'
 
 
                 # Evaluate when action gesturing ends
-                gl.sd.previous_gesture_observed_data[0] = activated_gesture_type_action
+                gl.sd.previous_gesture_observed_data_action = activated_gesture_type_action
         else:
             if len(gl.gd.gestures_queue) > 0:
                 time.sleep(0.5)
@@ -553,7 +584,7 @@ class GestureSentence():
                 if len(gl.gd.gestures_queue_proc) > 0:
                     print(f"{cc.OK}EEE\t{gl.gd.gestures_queue_proc}\t{gl.gd.target_objects}\t{gl.gd.ap}{cc.E}")
                     if mode == 'modular':
-                        print("Make publisher here !")
+                        rc.roscm.gesture_sentence_publisher_original.publish(GestureSentence.export_original_to_HRICommand(s))
                         GestureSentence.clearing()
                         return 
                     if not settings.action_execution:
@@ -564,3 +595,56 @@ class GestureSentence():
                     
             # Whenever hand is not seen clearing
             GestureSentence.clearing_silent()
+
+    @staticmethod
+    def export_original_to_HRICommand(s):
+
+        detected_gestures_probs = [] # 2D (gesture activation, probabilities)
+        for detected_gesture in gl.gd.gestures_queue:
+            stamp, name, hand_tag, all_probs = detected_gesture
+            detected_gestures_probs.append(all_probs)
+
+        max_gesture_probs = GestureSentence.process_gesture_probs_by_max(detected_gestures_probs)
+
+        gesture_timestamp     = gl.gd.gestures_queue[-1][0]
+
+
+        gl.gd.ap # All detected auxiliary parameters
+
+
+        # get object names, this can be easily obtained from the function deictic this definitely was using that 
+        # from that I can easily get object classes 
+        if len(gl.gd.target_object_infos) > 0:
+            target_object_infos = list(gl.gd.target_object_infos[0])
+            target_object_infos = np.array(target_object_infos)
+        else:
+            target_object_infos = []
+        target_object_names = [o[0] for o in target_object_infos]
+        target_object_probs = [o[1] for o in target_object_infos]
+
+        object_types = []
+        for object_name in target_object_names:
+            object_types.append(s.get_object_by_name(object_name).type)
+
+        # Collect the data
+        sentence_as_dict = {
+            'gestures': gl.gd.Gs, # Gesture names 
+            'gesture_probs': max_gesture_probs, # Gesture probabilities 
+            'gesture_timestamp': gesture_timestamp, # One timestamp
+            # (Note: I can get timestamp for every activation)
+            'objects': target_object_names, # This should be all object names detected on the scene
+            'object_probs': target_object_probs, # This should be all object likelihoods 
+            # 'object_timestamps': None, # TODO
+            'object_classes': object_types, # Object type names as cbgo types 
+            # Each object type should reference to object class
+            # 'storages': [''], # TODO: some objects are storages, received by Ontology get function
+            # 'storage_probs': [],
+            # 'storage_timestamps': [],
+            'parameters': gl.gd.ap, 
+            # 'parameter_values': [], 
+            # 'parameter_timestamps': [],
+        }
+
+        return HRICommand(data=[str(sentence_as_dict)])
+
+

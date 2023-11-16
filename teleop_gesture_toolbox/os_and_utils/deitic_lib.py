@@ -59,7 +59,7 @@ class DeiticLib():
 
         if np.min(distances_from_line) > max_dist: return None, np.min(distances_from_line)
         print(f"[Deictic] Chosen: {np.argmin(distances_from_line)}, {np.min(distances_from_line)}, {distances_from_line}")
-        return np.argmin(distances_from_line), np.min(distances_from_line)
+        return np.argmin(distances_from_line), np.min(distances_from_line), distances_from_line
 
     def main_deitic_fun(self, f, h, object_poses, plot_line=True):
         ''' has dependencies
@@ -92,13 +92,13 @@ class DeiticLib():
             object_positions = [[pose[0],pose[1],pose[2]] for pose in object_poses]
         else:
             object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in object_poses]
-        idobj, _ = self.get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
+        idobj, _, distances_from_line = self.get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
 
         #if self.set_focus_logic(hand):
         if plot_line and rc is not None:
             rc.roscm.r.add_line(name='line1', points=line_points)
             rc.roscm.r.add_or_edit_object(name="Focus_target", pose=object_positions[idobj])
-        return idobj
+        return idobj, distances_from_line
 
     def set_focus_logic(self, hand):
         '''
