@@ -37,6 +37,13 @@ Tested on Linux Ubuntu 20.04.
 
 ## Launching
 
+### Launch as a module without robot backend
+
+```Shell
+source ~/activate.sh
+ros2 launch teleop_gesture_toolbox crow_gestures
+```
+
 ### Launch Backend
 
 ```Shell
