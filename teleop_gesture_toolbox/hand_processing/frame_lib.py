@@ -225,10 +225,10 @@ class Frame():
             rosm.Frame()
         except:
             try:
-                import teleop_gesture_toolbox.msg as rosm
+                import teleop_msgs.msg as rosm
             except:
                 raise Exception("ROS not imported")
-        # self frame_lib.Frame() -> frame teleop_gesture_toolbox.msg/Frame
+        # self frame_lib.Frame() -> frame teleop_msgs.msg/Frame
         frame = rosm.Frame()
         frame.fps = self.fps
         frame.hands = self.hands

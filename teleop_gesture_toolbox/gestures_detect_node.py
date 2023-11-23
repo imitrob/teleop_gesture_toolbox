@@ -14,6 +14,7 @@ import os_and_utils.deitic_lib as dl; dl.init()
 import os_and_utils.ui_lib as ui
 
 from std_msgs.msg import String
+from teleop_msgs.msg import HRICommand
 
 from gesture_classification.sentence_creation import GestureSentence
 from os_and_utils.move_lib import RealRobotConvenience
@@ -39,9 +40,11 @@ def main():
             rc.roscm.send_g_data()
             
         if len(gl.gd.gestures_queue) > 0:
-            GestureSentence.adaptive_eee(None, s=MirracleSetupInterface.mocked_update_scene(), mode='modular')
+            GestureSentence.adaptive_eee(None, s=MirracleSetupInterface.mocked_update_scene(), mode='modular', s_func=MirracleSetupInterface.mocked_update_scene)
         #print(f"{time.perf_counter()-t1}")
         #rate.sleep()
+        
+        rc.roscm.send_state()
     print("quit")
 
 def spinning_threadfn():

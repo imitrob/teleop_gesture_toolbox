@@ -25,9 +25,9 @@ from std_msgs.msg import String
 from os_and_utils.utils import cc, get_cbgo_path
 from os_and_utils.pathgen_dummy import PathGenDummy
 
-from context_based_gesture_operation.msg import Scene as SceneRos
-from context_based_gesture_operation.msg import Gestures as GesturesRos
-from context_based_gesture_operation.srv import BTreeSingleCall
+from teleop_msgs.msg import Scene as SceneRos
+from teleop_msgs.msg import Gestures as GesturesRos
+from teleop_msgs.srv import BTreeSingleCall
 from teleop_gesture_toolbox.srv import ChangeNetwork, SaveHandRecord
 
 sys.path.append(get_cbgo_path())

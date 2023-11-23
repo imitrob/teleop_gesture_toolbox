@@ -6,7 +6,7 @@ from std_msgs.msg import Int8, Float64MultiArray, Int32, Bool
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, Vector3, Vector3Stamped, QuaternionStamped
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
-from teleop_gesture_toolbox.msg import EEPoseGoals, JointAngles
+from teleop_msgs.msg import EEPoseGoals, JointAngles
 from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
 

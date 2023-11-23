@@ -13,11 +13,11 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 
 from os_and_utils.utils import cc, get_cbgo_path, reject_outliers, get_dist_by_extremes
 
-from context_based_gesture_operation.msg import Scene as SceneRos
-from context_based_gesture_operation.msg import Gestures as GesturesRos
-from context_based_gesture_operation.msg import HRICommand
-from context_based_gesture_operation.msg import Intent as IntentRos
-from context_based_gesture_operation.srv import BTreeSingleCall
+from teleop_msgs.msg import Scene as SceneRos
+from teleop_msgs.msg import Gestures as GesturesRos
+from teleop_msgs.msg import HRICommand
+from teleop_msgs.msg import Intent as IntentRos
+from teleop_msgs.srv import BTreeSingleCall
 
 sys.path.append(get_cbgo_path())
 from context_based_gesture_operation.srcmodules.Actions import Actions
@@ -486,7 +486,7 @@ class GestureSentence():
 
 
     @staticmethod
-    def adaptive_eee(path_gen=None, s=None, object_pick_method='last', blocking=False, mode='modular', ignored_gestures=['point', 'no_moving', 'five', 'pinch']):
+    def adaptive_eee(path_gen=None, s=None, object_pick_method='last', blocking=False, mode='modular', ignored_gestures=['point', 'no_moving', 'five', 'pinch'], s_func=None):
         ''' Episode evaluation & execution
         Parameters:
             object_pick_method ('last','max'): Aggregated objects list selected by user, option how to choose
@@ -585,6 +585,44 @@ class GestureSentence():
                     print(f"{cc.OK}EEE\t{gl.gd.gestures_queue_proc}\t{gl.gd.target_objects}\t{gl.gd.ap}{cc.E}")
                     if mode == 'modular':
                         rc.roscm.gesture_sentence_publisher_original.publish(GestureSentence.export_original_to_HRICommand(s))
+                        
+                        def map_action_inner_func(s, gestures_queue_proc, object_names, ap):
+                            ''' Behaviour tree is in passive mode here. It functions only as generator of precondition actions
+                                which needs to be taken to execute the main (final) action. 
+                                When I choose the last action, e.g. 'return target_action_sequence[-1]',
+                                behaviour tree has no effects. BT functionality is left here for potentional future cases.
+                                - Note that mapping gestures to actions as called inside the behaviour tree wrapper
+                            '''
+                            # if len(s.objects) == 0:
+                            #     GestureSentence.clearing()
+                            #     # No objects of scene -> Send empty command
+                            #     return
+
+                            if len(object_names) == 0: # no object added, no pointing was made
+                                ''' Object not given -> use eef position '''
+                                s = s_func()
+                                focus_point = s.r.eef_position_real
+                            else:
+                                object_name_1 = object_names[0]
+                                if s.get_object_by_name(object_name_1) is None:
+                                    print(f"{cc.W}Object target is not in the scene!{cc.E}, object name: {object_name_1} objects: {s.O}")
+                                    GestureSentence.clearing()
+                                    return None
+                                focus_point = s.get_object_by_name(object_name_1).position_real
+                            
+                            if focus_point is None: return
+                            # target object to focus point {object_names} -> {focus_point}
+
+                            target_action_sequence = GestureSentence.btsingle_call__wrapper(gestures_queue_proc, focus_point, s)
+                            return target_action_sequence[-1]
+                            
+                            # BT generated {n_actions} target actions {target_actions}"
+                        ret = map_action_inner_func(s, gl.gd.gestures_queue_proc, gl.gd.target_objects, gl.gd.ap)
+                        if ret is None:
+                            rc.roscm.gesture_sentence_publisher_mapped.publish(HRICommand(data=['unsuccessful']))
+                        else:
+                            rc.roscm.gesture_sentence_publisher_mapped.publish(GestureSentence.export_mapped_to_HRICommand(s, ret))
+                        
                         GestureSentence.clearing()
                         return 
                     if not settings.action_execution:
@@ -647,4 +685,38 @@ class GestureSentence():
 
         return HRICommand(data=[str(sentence_as_dict)])
 
+    @staticmethod
+    def export_mapped_to_HRICommand(s, intent):
+        action_names = intent.target_action
+        action_probs = 1.
+        action_timestamp = 0.
+        
+        object_names = s.O
+        
+        object_types = []
+        for object_name in object_names:
+            object_types.append(s.get_object_by_name(object_name).type)
 
+        object_probs = [0.] * len(object_names)
+        object_probs[object_names.index(intent.target_object)] = 1.0
+
+        # Collect the data
+        sentence_as_dict = {
+            'actions': action_names, # Gesture names 
+            'action_probs': action_probs, # Gesture probabilities 
+            'action_timestamp': action_timestamp, # One timestamp
+            # (Note: I can get timestamp for every activation)
+            'objects': object_names, # This should be all object names detected on the scene
+            'object_probs': object_probs, # This should be all object likelihoods 
+            # 'object_timestamps': None, # TODO
+            'object_classes': object_types, # Object type names as cbgo types 
+            # Each object type should reference to object class
+            # 'storages': [''], # TODO: some objects are storages, received by Ontology get function
+            # 'storage_probs': [],
+            # 'storage_timestamps': [],
+            'parameters': intent.auxiliary_parameters, 
+            # 'parameter_values': [], 
+            # 'parameter_timestamps': [],
+        }
+
+        return HRICommand(data=[str(sentence_as_dict)])

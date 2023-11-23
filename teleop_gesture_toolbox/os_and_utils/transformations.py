@@ -269,9 +269,9 @@ class Transformations():
         if out == 'pose':
             pose_ = Pose()
             pose_.orientation = pose.orientation
-            pose_.position.x, pose_.position.y, pose_.position.z = x_, y_, z_
+            pose_.position.x, pose_.position.y, pose_.position.z = float(x_), float(y_), float(z_)
         elif out == 'list':
-            pose_ = x_, y_, z_
+            pose_ = float(x_), float(y_), float(z_)
         else: raise Exception(f"transformLeapToUIsimple wrong argumeter: {out}")
 
         return pose_
@@ -298,9 +298,9 @@ class Transformations():
         if out == 'pose':
             pose_ = Pose()
             pose_.orientation = pose.orientation
-            pose_.position.x, pose_.position.y, pose_.position.z = x_, y_, z_
+            pose_.position.x, pose_.position.y, pose_.position.z = float(x_), float(y_), float(z_)
         elif out == 'list':
-            pose_ = x_, y_, z_
+            pose_ = float(x_), float(y_), float(z_)
         else: raise Exception(f"transformLeapToUIsimple wrong argumeter: {out}")
 
         return pose_

@@ -10,8 +10,8 @@ from os_and_utils.transformations import Transformations as tfm
 
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension, String
 from hand_processing.frame_lib import Frame
-import teleop_gesture_toolbox.msg as rosm
-from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
+import teleop_msgs.msg as rosm
+from teleop_msgs.msg import DetectionSolution, DetectionObservations
 
 class ROSComm(Node):
     def __init__(self):

@@ -16,7 +16,7 @@ from gesture_classification import gestures_lib as gl; gl.init()
 import rclpy
 from rclpy.node import Node
 
-from teleop_gesture_toolbox.msg import DetectionObservations
+from teleop_msgs.msg import DetectionObservations
 rclpy.init()
 class SimpleSubscriber(Node):
     def __init__(self):

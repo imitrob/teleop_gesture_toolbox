@@ -13,8 +13,8 @@ import os_and_utils.settings as settings; settings.init()
 import numpy as np
 import rclpy
 
-from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
-from teleop_gesture_toolbox.srv import ChangeNetwork
+from teleop_msgs.msg import DetectionSolution, DetectionObservations
+from teleop_msgs.srv import ChangeNetwork
 from std_msgs.msg import Int8, Float64MultiArray
 
 from os_and_utils.nnwrapper import NNWrapper

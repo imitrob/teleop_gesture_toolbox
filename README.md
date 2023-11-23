@@ -35,6 +35,25 @@ Tested on Linux Ubuntu 20.04.
 - Use sample trained network example (recommended):
   - Download [model (22MB)](https://drive.google.com/file/d/1jyDatUJy10sdXmLjPEdHL1cfSo-RZ4ct/view?usp=share_link) and move the file to `/include/data/trained_networks` folder
 
+## Connection to `crow`
+
+```mermaid
+flowchart LR;
+
+Leap --> teleop_toolbox("teleop<br>toolbox") -- "HRICommand<br>./gesture_sentence_original" --> EXTERNAL
+         teleop_toolbox -- "HRICommand<br>./action_sentence_mapped" --> EXTERNAL
+Ontology -- "Scene" --> teleop_toolbox
+teleop_toolbox -- "Pose" --> RTFB("Real-Time<br>Feedback")
+
+Actions_available --> teleop_toolbox
+
+
+```
+- TODO: Model of object properties is defined. Assign type to each crow object
+- TODO: Actions are different in the crow setup, for the mapping gestures to actions, different network needs to be trained
+  - List of actions - they can be added into Actions.py  
+
+
 ## Launching
 
 ### Launch as a module without robot backend

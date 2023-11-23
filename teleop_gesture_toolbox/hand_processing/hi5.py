@@ -15,8 +15,8 @@ import ctypes
 
 import rclpy
 from rclpy.node import Node
-import teleop_gesture_toolbox.msg as rosm
-import teleop_gesture_toolbox.srv as ross
+import teleop_msgs.msg as rosm
+import teleop_msgs.srv as ross
 from geometry_msgs.msg import PoseStamped
 from crow_msgs.msg import GlovesPosition
 #ross.SaveHandRecord, ross.SaveHandRecordResponseS

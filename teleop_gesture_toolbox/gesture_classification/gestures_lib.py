@@ -34,7 +34,7 @@ if __name__ == '__main__':
 # Keep independency to ROS
 try:
     import rclpy
-    from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
+    from teleop_msgs.msg import DetectionSolution, DetectionObservations
     from std_msgs.msg import Int8, Float64MultiArray, MultiArrayDimension, String
     import os_and_utils.ros_communication_main as rc
     if __name__ == '__main__': rc.init()

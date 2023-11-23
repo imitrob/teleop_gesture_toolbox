@@ -26,9 +26,9 @@ from context_based_gesture_operation.srcmodules.Actions import Actions
 from context_based_gesture_operation.srcmodules.ConditionedActions import ConditionedAction
 import os_and_utils.ycb_data as ycb_data
 
-from context_based_gesture_operation.msg import Scene as SceneRos
-from context_based_gesture_operation.msg import Gestures as GesturesRos
-from context_based_gesture_operation.srv import BTreeSingleCall
+from teleop_msgs.msg import Scene as SceneRos
+from teleop_msgs.msg import Gestures as GesturesRos
+from teleop_msgs.srv import BTreeSingleCall
 
 class MoveData():
     def __init__(self, init_goal_pose=True, init_env='table'):

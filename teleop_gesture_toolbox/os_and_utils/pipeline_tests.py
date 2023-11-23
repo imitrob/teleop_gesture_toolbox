@@ -8,10 +8,10 @@ from context_based_gesture_operation.agent_nodes.g2i import G2IRosNode
 # Btree imports
 import rclpy
 from rclpy.node import Node
-from context_based_gesture_operation.srv import G2I
-from context_based_gesture_operation.msg import Intent
-from context_based_gesture_operation.msg import Scene as SceneRos
-from context_based_gesture_operation.msg import Gestures as GesturesRos
+from teleop_msgs.srv import G2I
+from teleop_msgs.msg import Intent
+from teleop_msgs.msg import Scene as SceneRos
+from teleop_msgs.msg import Gestures as GesturesRos
 from srcmodules.Scenes import Scene
 from srcmodules.Gestures import Gestures
 from srcmodules.Actions import Actions

@@ -1339,11 +1339,11 @@ class Example(QMainWindow):
                             p2 = tfm.transformHi5ToUIsimple(getattr(gl.gd.hand_frames[-n-1], h).palm_pose())
                         if is_hand_inside_ball(getattr(gl.gd.hand_frames[-n], h)):
                             painter.setPen(QPen(Qt.green, p1.position.z))
-                            painter.drawLine(p1.position.x, p1.position.y, p2.position.x, p2.position.y)
+                            painter.drawLine(int(p1.position.x), int(p1.position.y), int(p2.position.x), int(p2.position.y))
                         else:
                             painter.setPen(QPen(Qt.red, 1))
-                            painter.drawLine(p1.position.x-10, p1.position.y-10, p2.position.x+10, p2.position.y+10)
-                            painter.drawLine(p1.position.x-10, p1.position.y+10, p2.position.x+10, p2.position.y-10)
+                            painter.drawLine(int(p1.position.x-10), int(p1.position.y-10), int(p2.position.x+10), int(p2.position.y+10))
+                            painter.drawLine(int(p1.position.x-10), int(p1.position.y+10), int(p2.position.x+10), int(p2.position.y-10))
 
         if gl.gd.r.static[-1] and self.cursor_enabled() and 'point' in gl.gd.r.static.info.names:
             pose_c = tfm.transformLeapToUIsimple(gl.gd.hand_frames[-1].r.palm_pose())
@@ -1385,10 +1385,10 @@ class Example(QMainWindow):
                     pose_wrist_ = tfm.transformLeapToUIsimple(pose_wrist)
                     x, y = pose_palm_.position.x, pose_palm_.position.y
                     x_, y_ = pose_wrist_.position.x, pose_wrist_.position.y
-                    painter.drawLine(x, y, x_, y_)
+                    painter.drawLine(int(x), int(y), int(x_), int(y_))
                     pose_elbow_ = tfm.transformLeapToUIsimple(pose_elbow)
                     x, y = pose_elbow_.position.x, pose_elbow_.position.y
-                    painter.drawLine(x, y, x_, y_)
+                    painter.drawLine(int(x), int(y), int(x_), int(y_))
 
                     if h == 'l':
                         ''' Set builder mode '''
@@ -1402,7 +1402,7 @@ class Example(QMainWindow):
                                 painter.setBrush(QBrush(Qt.blue, Qt.SolidPattern))
                             else:
                                 painter.setBrush(QBrush(Qt.blue, Qt.NoBrush))
-                            painter.drawEllipse(x+x_bm-5, y+y_bm-5, 10, 10)
+                            painter.drawEllipse(int(x+x_bm-5), int(y+y_bm-5), 10, 10)
 
                         painter.setPen(QPen(Qt.black, 2))
 
@@ -1417,7 +1417,7 @@ class Example(QMainWindow):
                             pose_bone_next_ = tfm.transformLeapToUIsimple(pose_bone_next)
                             x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
                             x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
-                            painter.drawLine(x, y, x_, y_)
+                            painter.drawLine(int(x), int(y), int(x_), int(y_))
 
         elif settings.hand_sensor == 'hi5' and gl.gd.hand_frames:
             for h in ['l', 'r']:
@@ -1436,7 +1436,7 @@ class Example(QMainWindow):
                     pose_bone_next_ = tfm.transformHi5ToUIsimple(pose_bone_next)
                     x, y = pose_bone_prev_.position.x, pose_bone_prev_.position.y
                     x_, y_ = pose_bone_next_.position.x, pose_bone_next_.position.y
-                    painter.drawLine(x, y, x_, y_)
+                    painter.drawLine(int(x), int(y), int(x_), int(y_))
 
 
     def movePage(self, e):

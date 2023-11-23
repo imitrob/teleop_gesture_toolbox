@@ -6,7 +6,7 @@ from scipy.signal import argrelextrema
 
 def ros_enabled():
     try:
-        from teleop_gesture_toolbox.msg import Frame as Framemsg
+        from teleop_msgs.msg import Frame as Framemsg
         return True
     except:
         return False

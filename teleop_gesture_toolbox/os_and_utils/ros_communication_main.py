@@ -1,4 +1,4 @@
-import sys, os, time
+import sys, os, time, json
 import rclpy
 from rclpy.node import Node
 from os_and_utils import settings
@@ -18,20 +18,20 @@ from std_msgs.msg import Int8, Float64MultiArray, Int32, Bool, MultiArrayDimensi
 from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, Vector3
 from moveit_msgs.msg import RobotTrajectory
 from trajectory_msgs.msg import JointTrajectoryPoint
-from teleop_gesture_toolbox.msg import EEPoseGoals, JointAngles
+from teleop_msgs.msg import EEPoseGoals, JointAngles
 from visualization_msgs.msg import MarkerArray, Marker
 from sensor_msgs.msg import JointState
 
 from hand_processing.frame_lib import Frame
-import teleop_gesture_toolbox.msg as rosm
-from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
+import teleop_msgs.msg as rosm
+from teleop_msgs.msg import DetectionSolution, DetectionObservations
 import threading
 
-from context_based_gesture_operation.msg import Scene as SceneRos
-from context_based_gesture_operation.msg import HRICommand
-from context_based_gesture_operation.msg import Gestures as GesturesRos
-from context_based_gesture_operation.srv import BTreeSingleCall
-from teleop_gesture_toolbox.srv import ChangeNetwork, SaveHandRecord
+from teleop_msgs.msg import Scene as SceneRos
+from teleop_msgs.msg import HRICommand
+from teleop_msgs.msg import Gestures as GesturesRos
+from teleop_msgs.srv import BTreeSingleCall
+from teleop_msgs.srv import ChangeNetwork, SaveHandRecord
 
 DEBUGSEMAPHORE = False
 
@@ -145,6 +145,9 @@ class ROSComm(Node):
 
         if rtb is not None:
             self.rtb_model = rtb.models.Panda()
+            
+        self.all_states_pub = self.create_publisher(String, '/teleop_gesture_toolbox/all_states', 5)
+        ''' Data about scene, is alive, etc. Sent as string dict '''
 
     @withsem
     def save_hand_record(self, dir):
@@ -396,7 +399,29 @@ class ROSComm(Node):
                         self.dynamic_detection_observations_pub.publish(msg)
                     except IndexError:
                         pass
+    
+    def send_state(self):
+        
+        main_livin = (time.time()-ml.md.last_time_livin) < 1.0
+        spinner_livin = (time.time()-self.last_time_livin) < 1.0
+        
+        dict_to_send = {
+            "real": self.is_real,
+            "main_livin": main_livin,
+            "spinner_livin": spinner_livin,
+            "scene": sl.scene, 
+            "fps": -1,
+            "seq": -1,
+        }
 
+        # if ml.md.goal_pose and ml.md.goal_joints:
+        #     structures_str = [structure.object_stack for structure in ml.md.structures]
+        #     textStatus += f"eef: {str(round(ml.md.eef_pose.position.x,2))} {str(round(ml.md.eef_pose.position.y,2))} {str(round(ml.md.eef_pose.position.z,2))}\ng p: {str(round(ml.md.goal_pose.position.x,2))} {str(round(ml.md.goal_pose.position.y,2))} {str(round(ml.md.goal_pose.position.z,2))}\ng q:{str(round(ml.md.goal_pose.orientation.x,2))} {str(round(ml.md.goal_pose.orientation.y,2))} {str(round(ml.md.goal_pose.orientation.z,2))} {str(round(ml.md.goal_pose.orientation.w,2))}\nAttached: {ml.md.attached}\nbuild_mode {ml.md.build_mode}\nobject_touch and focus_id {ml.md.object_focus_id} {ml.md.object_focus_id}\nStructures: {str(structures_str)}\n"
+        if gl.gd.present():
+            dict_to_send["fps"] = round(gl.gd.hand_frames[-1].fps)
+            dict_to_send["seq"] = gl.gd.hand_frames[-1].seq
+        
+        self.all_states_pub.publish(String(data=str(dict_to_send)))
 
     def detection_thread(self, freq=1., args={}):
         if not ROS: raise Exception("ROS cannot be imported!")
@@ -444,36 +469,64 @@ class MirracleSetupInterface(ROSComm):
         return s
 
 
-    @staticmethod
-    def update_scene():
-        assert cbgo is not None, "move_lib.py script doesn't have access to context_based_gesture_operation package!"
-        if not roscm.is_real:
-            raise Exception("Crow Interface currently only for real setup")
+    NAME2TYPE = {
+        'cube': 'Object',
+        
+    }
 
-        static_objects = []
-        # if sl.scene is not None:
-        #     if 'drawer' in sl.scene.O:
-        #         static_objects.append( deepcopy(sl.scene.drawer) )
-
-        # robot_data = deepcopy(sl.scene.r)
+    def update_scene(self):
+        
         s = None
-        s = cbgo.srcmodules.Scenes.Scene(init='', objects=static_objects, random=False)
-        # s.r = robot_data
+        s = Scene(init='', objects=[], random=False)
+        
+        objects = self.get_objects_from_onto()
+        ''' object list; item is dictionary containing uri, id, color, color_nlp_name_CZ, EN, nlp_name_CZ, nlp_name_EN; absolute_location'''
 
-        objects = ontology_interface.get_objects_from_onto()
+        '''
+        import rdflib
+        uri = rdflib.term.URIRef('http://imitrob.ciirc.cvut.cz/ontologies/crow#test_CUBE_498551_od_498551')
+        '''
+        # [{'uri': rdflib.term.URIRef('http://imitrob.ciirc.cvut.cz/ontologies/crow#test_CUBE_498551_od_498551'), 'id': 'od_498551', 'color': rdflib.term.URIRef('http://imitrob.ciirc.cvut.cz/ontologies/crow#COLOR_GREEN'), 'color_nlp_name_CZ': 'zelená', 'color_nlp_name_EN': 'green', 'nlp_name_CZ': 'kostka', 'nlp_name_EN': 'cube', 'absolute_location': [-0.34157065, 0.15214929, -0.24279054]}]
+        # [{'uri': rdflib.term.URIRef('http://imitrob.ciirc.cvut.cz/ontologies/crow#test_CUBE_498551_od_498551'), 'id': 'od_498551', 'color': rdflib.term.URIRef('http://imitrob.ciirc.cvut.cz/ontologies/crow#COLOR_GREEN'), 'color_nlp_name_CZ': 'zelená', 'color_nlp_name_EN': 'green', 'nlp_name_CZ': 'kostka', 'nlp_name_EN': 'cube', 'absolute_location': [-0.34157065, 0.15214929, -0.24279054]}]
 
-        if objects is None: objects = []
-        # for object in objects:
+        # Colors:
+        # [COLOR_GREEN. 
 
-        #     type = (ycb_data.NAME2TYPE[ycb_data.COSYPOSE2NAME[object['label']]]).capitalize()
+        for object in objects:
+            ''' o is dictionary containing properties '''
+            uri = object['uri']
+            id = object['id']
+            color = object['color']
+            color_nlp_name_CZ = object['color_nlp_name_CZ']
+            color_nlp_name_EN = object['color_nlp_name_EN']
+            nlp_name_CZ = object['nlp_name_CZ']
+            nlp_name_EN = object['nlp_name_EN']
+            absolute_location = object['absolute_location']
+            
+            type = (self.NAME2TYPE[nlp_name_EN]).capitalize()
 
-        #     o = getattr(cbgo.srcmodules.Objects, type)(name=ycb_data.COSYPOSE2NAME[object['label']], position_real=np.array(object['pose'][0]), random=False)
-        #     o.quaternion = np.array(object['pose'][1])
+            o = getattr(cbgo.srcmodules.Objects, type)(name=id, position_real=np.array(absolute_location), random=False)
+            # o.quaternion = np.array(object['pose'][1])
+            o.color_uri = color
+            o.color = color_nlp_name_EN
+            o.color_name_CZ = color_nlp_name_CZ
+            
+            o.nlp_name_CZ = nlp_name_CZ
+            o.nlp_name_EN = nlp_name_EN
+            o.crow_id = id
+            o.crow_uri = uri
+            
+            s.objects.append(o)
 
-        #     s.objects.append(o)
-
-        sl.scene = s
         return s
+
+
+
+
+
+
+
+
 
 def init(robot_interface='', setup='standalone'):
     global roscm, rossem

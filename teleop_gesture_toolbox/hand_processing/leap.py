@@ -17,8 +17,8 @@ import ctypes
 if ros_enabled():
     import rclpy
     from rclpy.node import Node
-    import teleop_gesture_toolbox.msg as rosm
-    import teleop_gesture_toolbox.srv as ross
+    import teleop_msgs.msg as rosm
+    import teleop_msgs.srv as ross
     #ross.SaveHandRecord, ross.SaveHandRecordResponseS
     from sensor_msgs.msg import Image
     print("ROS Enabled!")

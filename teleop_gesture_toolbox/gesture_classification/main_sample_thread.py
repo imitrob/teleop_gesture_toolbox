@@ -21,8 +21,8 @@ import rclpy
 from rclpy.node import Node
 import time
 
-from teleop_gesture_toolbox.msg import DetectionSolution, DetectionObservations
-from teleop_gesture_toolbox.srv import ChangeNetwork
+from teleop_msgs.msg import DetectionSolution, DetectionObservations
+from teleop_msgs.srv import ChangeNetwork
 from std_msgs.msg import Int8, Float64MultiArray
 
 import threading

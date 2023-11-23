@@ -1,8 +1,0 @@
-string data
----
-bool success
-string[] gs
-string type
-string[] record_keys
-string[] filenames
-string[] args

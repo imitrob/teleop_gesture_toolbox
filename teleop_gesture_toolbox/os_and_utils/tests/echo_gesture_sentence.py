@@ -2,7 +2,7 @@
 import rclpy
 from rclpy.node import Node
 
-from context_based_gesture_operation.msg import HRICommand
+from teleop_msgs.msg import HRICommand
 
 class EchoGestureSentence(Node):
     ''' ROS communication of main thread: Subscribers (init & callbacks) and Publishers
