@@ -6,8 +6,9 @@ conda activate teleopenv
 
 mkdir -p $ws/src
 cd $ws/src
-git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/teleop_gesture_toolbox.git
-git clone git@gitlab.ciirc.cvut.cz:imitrob/mirracle/coppelia_sim_ros_interface.git
+git clone https://github.com/imitrob/teleop_gesture_toolbox.git
+git clone https://github.com/imitrob/coppelia_sim_ros_interface.git
+git clone https://github.com/imitrob/context_based_gesture_operation.git
 
 cd $ws/src/teleop_gesture_toolbox
 mamba env update -n teleopenv --file environment.yml
