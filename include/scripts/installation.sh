@@ -9,6 +9,8 @@ cd $ws/src
 git clone https://github.com/imitrob/teleop_gesture_toolbox.git
 git clone https://github.com/imitrob/coppelia_sim_ros_interface.git
 git clone https://github.com/imitrob/context_based_gesture_operation.git
+git clone https://github.com/splintered-reality/py_trees_ros.git
+git clone https://github.com/splintered-reality/py_trees_ros_interfaces.git
 
 cd $ws/src/teleop_gesture_toolbox
 mamba env update -n teleopenv --file environment.yml
