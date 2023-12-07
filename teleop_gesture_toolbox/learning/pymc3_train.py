@@ -39,7 +39,6 @@ if True: # When running as notebook (jupyter)
     floatX = theano.config.floatX
     from sklearn.metrics import confusion_matrix
     import csv
-    from sklearn.metrics import plot_confusion_matrix
     import os_and_utils.confusion_matrix_pretty_print as confusion_matrix_pretty_print
     #from fastdtw import fastdtw
     from statistics import mode, StatisticsError
@@ -78,7 +77,7 @@ if True: # When running as notebook (jupyter)
     from pymc3.distributions import Interpolated
     from scipy import stats
 
-    plt.style.use("seaborn-darkgrid")
+    plt.style.use("dark_background")
     print(f"Running on PyMC3 v{pm.__version__}")
 
     # Initialize random number generator
@@ -1353,7 +1352,7 @@ if __name__ == '__main__':
     parser.add_argument('--experiment', default="train_with_parameters_and_save", type=str, help='(default=%(default))')
     parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default))')
     parser.add_argument('--example', default=False, type=bool, help='(default=%(default))')
-    parser.add_argument('--output', default='new_network', type=str, help='(default=%(default))')
+    parser.add_argument('--output', default='new_network_y23', type=str, help='(default=%(default))')
     args=parser.parse_args()
 
     e = Experiments()

@@ -32,6 +32,8 @@ from teleop_msgs.msg import HRICommand
 from teleop_msgs.msg import Gestures as GesturesRos
 from teleop_msgs.srv import BTreeSingleCall
 from teleop_msgs.srv import ChangeNetwork, SaveHandRecord
+from gesture_classification.sentence_creation import GestureSentence
+
 
 DEBUGSEMAPHORE = False
 
@@ -43,7 +45,7 @@ except ModuleNotFoundError:
 
 try:
     import coppelia_sim_ros_interface
-    from coppelia_sim_ros_interface.msg import ObjectInfo
+    from coppelia_sim_ros_interface_msgs.msg import ObjectInfo
     sys.path.append(settings.paths.coppelia_sim_ros_interface_path)
     from coppelia_sim_ros_client import CoppeliaROSInterface, CoppeliaROSInterfaceWithSem
 except:
@@ -77,6 +79,21 @@ def withsem(func):
         return ret
     return inner
 
+try:
+    # Crow interface
+    from rclpy.qos import QoSProfile
+    from rclpy.qos import QoSReliabilityPolicy
+    from rdflib.namespace import Namespace, RDF, RDFS, OWL, FOAF, XSD
+    from crow_ontology.crowracle_client import CrowtologyClient
+    from crow_msgs.msg import StampedString
+
+    ONTO_IRI = "http://imitrob.ciirc.cvut.cz/ontologies/crow"
+    CROW = Namespace(f"{ONTO_IRI}#")
+
+    ACTION_TRANSL = {"seber":"lift", "pustit":"drop", "ukaž":"reach", "podej":"pass me"}
+except ModuleNotFoundError:
+    CrowtologyClient = False
+
 class ROSComm(Node):
     ''' ROS communication of main thread: Subscribers (init & callbacks) and Publishers
     '''
@@ -105,7 +122,9 @@ class ROSComm(Node):
 
         self.gesture_solution_pub = self.create_publisher(String, '/teleop_gesture_toolbox/filtered_gestures', 5)
         self.gesture_sentence_publisher_original = self.create_publisher(HRICommand, '/teleop_gesture_toolbox/gesture_sentence_original', 5)
-        self.gesture_sentence_publisher_mapped  = self.create_publisher(HRICommand, '/teleop_gesture_toolbox/action_sentence_mapped', 5)
+        
+        # self.gesture_sentence_publisher_mapped  = self.create_publisher(HRICommand, '/teleop_gesture_toolbox/action_sentence_mapped', 5)
+        self.gesture_sentence_publisher_mapped  = self.create_publisher(HRICommand, '/hri/command', 5)
 
 
         self.call_tree_singlerun_cli = self.create_client(BTreeSingleCall, '/btree_onerun')
@@ -400,19 +419,23 @@ class ROSComm(Node):
                     except IndexError:
                         pass
     
+    
     def send_state(self):
         
         main_livin = (time.time()-ml.md.last_time_livin) < 1.0
         spinner_livin = (time.time()-self.last_time_livin) < 1.0
         
         dict_to_send = {
-            "real": self.is_real,
-            "main_livin": main_livin,
-            "spinner_livin": spinner_livin,
-            "scene": sl.scene, 
+            "real": str(self.is_real).lower(),
+            "main_livin": str(main_livin).lower(),
+            "spinner_livin": str(spinner_livin).lower(),
             "fps": -1,
             "seq": -1,
         }
+        
+        if sl.scene is not None:
+            dict_to_send['scene_objects'] = sl.scene.O
+            # dict_to_send['scene_object_positions'] = sl.scene.object_positions_real
 
         # if ml.md.goal_pose and ml.md.goal_joints:
         #     structures_str = [structure.object_stack for structure in ml.md.structures]
@@ -420,8 +443,75 @@ class ROSComm(Node):
         if gl.gd.present():
             dict_to_send["fps"] = round(gl.gd.hand_frames[-1].fps)
             dict_to_send["seq"] = gl.gd.hand_frames[-1].seq
+            
+            dict_to_send["gesture_type_selected"] = gl.sd.previous_gesture_observed_data_action
+            dict_to_send["gs_state_action"] = GestureSentence.process_gesture_queue(gl.gd.gestures_queue)
+            dict_to_send["gs_state_objects"] = gl.gd.target_objects
+            dict_to_send["gs_state_ap"] = gl.gd.ap
         
-        self.all_states_pub.publish(String(data=str(dict_to_send)))
+        if gl.gd.l.static.relevant():
+            static_n = len(gl.gd.static_info().filenames)
+            dict_to_send['l_static_names'] = gl.gd.Gs_static
+            dict_to_send['l_static_probs'] = [gl.gd.l.static[-1][n].probability for n in range(static_n)]
+            dict_to_send['l_static_activated'] = [str(gl.gd.l.static[-1][n].activated).lower() for n in range(static_n)]
+
+        if gl.gd.r.static.relevant():
+            static_n = len(gl.gd.static_info().filenames)
+            dict_to_send['r_static_names'] = gl.gd.Gs_static
+            dict_to_send['r_static_probs'] = [gl.gd.r.static[-1][n].probability for n in range(static_n)]
+            dict_to_send['r_static_activated'] = [str(gl.gd.r.static[-1][n].activated).lower() for n in range(static_n)]
+        
+        if gl.gd.l.dynamic and gl.gd.l.dynamic.relevant():
+            dynamic_n = len(gl.gd.dynamic_info().filenames)
+            dict_to_send['l_dynamic_names'] = gl.gd.Gs_dynamic
+            dict_to_send['l_dynamic_probs'] = list(gl.gd.l.dynamic[-1].probabilities_norm)
+            dict_to_send['l_dynamic_activated'] = [str(gl.gd.l.dynamic[-1][n].activated).lower() for n in range(dynamic_n)]
+        
+        if gl.gd.r.dynamic and gl.gd.r.dynamic.relevant():
+            dynamic_n = len(gl.gd.dynamic_info().filenames)
+            dict_to_send['r_dynamic_names'] = gl.gd.Gs_dynamic
+            dict_to_send['r_dynamic_probs'] = list(gl.gd.r.dynamic[-1].probabilities_norm)
+            dict_to_send['r_dynamic_activated'] = [str(gl.gd.r.dynamic[-1][n].activated).lower() for n in range(dynamic_n)]
+            # self.get_logger().info(f"r dynamic enabled {dict_to_send['r_dynamic_probs']}.. {dict_to_send['r_dynamic_activated']}, {dict_to_send['r_dynamic_names']}")
+
+        if gl.gd.l.static and gl.gd.l.static.relevant() is not None:  
+            try:
+                dict_to_send['l_static_relevant_biggest_id'] = gl.gd.l.static.relevant().biggest_probability_id
+            except AttributeError:
+                dict_to_send['l_static_relevant_biggest_id'] = -1
+
+        if gl.gd.r.static and gl.gd.r.static.relevant() is not None:  
+            try:
+                dict_to_send['r_static_relevant_biggest_id'] = gl.gd.r.static.relevant().biggest_probability_id
+            except AttributeError:
+                dict_to_send['r_static_relevant_biggest_id'] = -1
+
+        if gl.gd.l.dynamic and gl.gd.l.dynamic.relevant() is not None:
+            try:
+                dict_to_send['l_dynamic_relevant_biggest_id'] = gl.gd.l.dynamic.relevant().biggest_probability_id
+            except AttributeError:
+                dict_to_send['l_dynamic_relevant_biggest_id'] = -1
+
+        if gl.gd.r.dynamic and gl.gd.r.dynamic.relevant() is not None:
+            try:
+                dict_to_send['r_dynamic_relevant_biggest_id'] = gl.gd.r.dynamic.relevant().biggest_probability_id
+            except AttributeError:
+                dict_to_send['r_dynamic_relevant_biggest_id'] = -1
+        
+        
+        compound_gestures = gl.gd.c[-1]
+        dict_to_send['compound_activated'] = ['false'] * len(gl.gd.c.info.names)
+        dict_to_send['compound_names'] = list(gl.gd.c.info.names)
+        
+        if compound_gestures is not None:
+            dict_to_send['compound_activated'] = [str(a).lower() for a in compound_gestures.activates]
+        print("dict_to_send['compound_activated']", dict_to_send['compound_activated'], "dict_to_send['compound_names']", dict_to_send['compound_names'])
+        
+        
+        data_as_str = str(dict_to_send)
+        data_as_str = data_as_str.replace("'", '"')
+        
+        self.all_states_pub.publish(String(data=data_as_str))
 
     def detection_thread(self, freq=1., args={}):
         if not ROS: raise Exception("ROS cannot be imported!")
@@ -455,16 +545,33 @@ class ROSComm(Node):
             raise Exception("[ERROR] NotImplementedError!")
 
 
-
-import crow_interface.ontology_interface as ontology_interface 
-
 class MirracleSetupInterface(ROSComm):
     ''' November 2023 '''
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        
+        assert CrowtologyClient is not None, "CrowtologyClient not Found!"
+        
+        self.crowracle = CrowtologyClient(node=self)
+        self.onto = self.crowracle.onto
+        self.LANG = 'en'
+        # self.get_logger().info(self.onto)
+
+        #create listeners (synchronized)
+        self.nlTopic = "/nlp/command"
+        qos = QoSProfile(depth=10, reliability=QoSReliabilityPolicy.RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT)
+        
+        self.add_dummy_cube()
+        self.add_dummy_cube()
+        print(self.get_objects_from_onto())
+        print("Ready")
+        # if not NOT_PROFILING:
+        #     StatTimer.init()
 
     @staticmethod
     def mocked_update_scene():
         s = None
-        s = cbgo.srcmodules.Scenes.Scene(init='object', random=True)
+        s = cbgo.srcmodules.Scenes.Scene(init='object', random=False)
         sl.scene = s
         return s
 
@@ -477,7 +584,7 @@ class MirracleSetupInterface(ROSComm):
     def update_scene(self):
         
         s = None
-        s = Scene(init='', objects=[], random=False)
+        s = cbgo.srcmodules.Scenes.Scene(init='', objects=[], random=False)
         
         objects = self.get_objects_from_onto()
         ''' object list; item is dictionary containing uri, id, color, color_nlp_name_CZ, EN, nlp_name_CZ, nlp_name_EN; absolute_location'''
@@ -503,24 +610,66 @@ class MirracleSetupInterface(ROSComm):
             nlp_name_EN = object['nlp_name_EN']
             absolute_location = object['absolute_location']
             
-            type = (self.NAME2TYPE[nlp_name_EN]).capitalize()
-
-            o = getattr(cbgo.srcmodules.Objects, type)(name=id, position_real=np.array(absolute_location), random=False)
+            o = cbgo.srcmodules.Objects.Object(name=id, position_real=np.array(absolute_location), random=False)
             # o.quaternion = np.array(object['pose'][1])
-            o.color_uri = color
+            # o.color_uri = color
             o.color = color_nlp_name_EN
-            o.color_name_CZ = color_nlp_name_CZ
+            # o.color_name_CZ = color_nlp_name_CZ
             
-            o.nlp_name_CZ = nlp_name_CZ
-            o.nlp_name_EN = nlp_name_EN
-            o.crow_id = id
-            o.crow_uri = uri
+            # o.nlp_name_CZ = nlp_name_CZ
+            # o.nlp_name_EN = nlp_name_EN
+            # o.crow_id = id
+            # o.crow_uri = uri
             
             s.objects.append(o)
 
+        sl.scene = s        
+        # self.get_logger().info(f"scene: {sl.scene}")
         return s
 
+    def match_object_in_onto(self, obj):
+        onto = self.get_objects_from_onto()
+        obj = json.loads(obj)
+        for o in onto:
+           url = str(o["uri"])
+           if url is not None and url == obj[0]["target"][0]:
+              return o
+        return None
+        
+        
+    def add_dummy_cube(self):
+        o_list = self.get_objects_from_onto()
+        if len(o_list) == 0:
+           print("Adding a dummy cube into ontology")
+           self.crowracle.add_test_object("CUBE")
+        
+    def get_objects_from_onto(self):
+        o_list = self.crowracle.getTangibleObjectsProps()
+        #print("Onto objects:")
+        #print(o_list)
+        return o_list
+        
+    def get_action_from_cmd(self, cmd):
+        action = json.loads(cmd)[0]["action_type"].lower()
+        if action in ACTION_TRANSL.keys():
+           return ACTION_TRANSL[action]
+        else:
+           print("No czech translation for action " + action)
+           return action
+        
+        
+    def publish_trajectory(self, trajectory):
+        #TODO choose proper msg type
+        action = json.dumps(trajectory)
+        msg = StampedString()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.data = action
+        print(f'Publishing {msg.data}')
+        self.trajectory_publisher.publish(msg)
+        
 
+    def keep_alive(self):
+        self.pclient.nlp_alive = time.time()
 
 
 

@@ -12,6 +12,82 @@ set_test_new_version:
   nothing:
     record_key: n
     filename: gesture45.png
+main_winter_23:
+  grab:
+    record_key: g
+    filename: grab.png
+    static: true
+  pinch: # grip between finger and thumb, while last three fingers are open
+    record_key: p
+    filename: gesture33.png
+    static: true
+  point: # one finger
+    record_key: 1
+    filename: point.png
+    static: true
+  two: # point and middle finger up
+    record_key: 2
+    filename: two.png
+    static: true
+  three: # thumb, point and middle finger up
+    record_key: 3
+    filename: three.png
+    static: true
+  four: # only thumb down
+    record_key: 4
+    filename: four.png
+    static: true
+  five: # all fingers up
+    record_key: 5
+    filename: five.png
+    static: true
+  thumbsup: # only thumb is up
+    record_key: t
+    filename: thumbsup.png
+    static: true
+  cup_hold: # only thumb is up
+    record_key: c
+    filename: cup_hold.png
+    static: true
+  swipe_down:
+    record_key: s
+    filename: swipe_down.png
+    time_visible_threshold: 3
+  swipe_front_right:
+    record_key: d
+    filename: swipe_right.png
+    time_visible_threshold: 3
+  swipe_left:
+    record_key: a
+    filename: swipe_left.png
+    time_visible_threshold: 3
+  swipe_up:
+    record_key: w
+    filename: swipe_up.png
+    time_visible_threshold: 3
+  pour:
+    record_key: r
+    filename: pour.png
+    time_visible_threshold: 3    
+  no_moving:
+    record_key: n
+    filename: no_moving.png
+  kick:
+    mp: true
+  touch:
+    mp: true
+  down_grab:
+    compound: true
+    activation_gestures:
+     - swipe_down
+     - grab
+  steady_point:
+    compound: true
+    activation_gestures:
+     - no_moving
+     - point
+
+     
 main_set:
   grab:
     record_key: g

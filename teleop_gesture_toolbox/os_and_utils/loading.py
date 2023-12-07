@@ -18,7 +18,14 @@ sys.path.append("../hand_processing")
 sys.path.append("hand_processing")
 import frame_lib
 '''
-import hand_processing.frame_lib as frame_lib
+try:
+    import hand_processing.frame_lib as frame_lib
+except ModuleNotFoundError:
+    sys.path.append("..")
+    sys.path.append("../hand_processing")
+    sys.path.append("hand_processing")
+    import frame_lib
+
 
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import scale
@@ -564,4 +571,7 @@ if __name__ == '__main__':
 
     dataloader_args = {'normalize':1, 'n':5, 'scene_frame':1, 'inverse':1}
     #DatasetLoader(dataloader_args).load_dynamic(settings.paths.learn_path, gl.gd.Gs_dynamic, new=True)
-    DatasetLoader({'input_definition_version':1}).load_static(settings.paths.learn_path, gl.gd.Gs_static, new=True)
+    # DatasetLoader({'input_definition_version':1}).load_static(settings.paths.learn_path, gl.gd.Gs_static, new=True)
+
+
+    DatasetLoader(dataloader_args).load_dynamic(settings.paths.learn_path, gl.gd.Gs_dynamic, new=True)

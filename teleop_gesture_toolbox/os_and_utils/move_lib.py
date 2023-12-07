@@ -795,7 +795,7 @@ class RealRobotConvenience():
             s = RealRobotConvenience.update_scene()
 
         if s.object_positions_real == []: return None, None
-        idobj, distances_from_line = dl.dd.main_deitic_fun(gl.gd.hand_frames[-1], hand, s.object_positions_real, plot_line=False)
+        idobj, distances_from_line = dl.dd.main_deitic_fun(gl.gd.hand_frames[-1], hand, s.object_positions_real, plot_line=True)
         assert len(s.object_names) == len(distances_from_line)
         object_distances = list(zip(s.object_names, distances_from_line))
         return idobj, s.object_names[idobj], object_distances
@@ -1129,7 +1129,7 @@ class RealRobotActionLib():
     def check_object_args(args, num_params):
         args = list(args)
         args_ = []
-        for arg in args:
+        for arg in args: # Discard All None from args list
             if arg:
                 args_.append(arg)
 

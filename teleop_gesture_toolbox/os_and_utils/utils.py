@@ -2,7 +2,7 @@ import sys, os, yaml, inspect, itertools, collections
 import numpy as np
 from collections import OrderedDict, Counter
 from scipy.signal import argrelextrema
-
+from numpy.linalg import LinAlgError
 
 def ros_enabled():
     try:
@@ -71,15 +71,15 @@ def load_params(roscm=None):
             rclpy
         except NameError:
             import rclpy
-        robot = self.get_parameter("/gtoolbox_config/robot", 'panda')
-        simulator = self.get_parameter("/gtoolbox_config/simulator", 'coppelia')
-        gripper = self.get_parameter("/gtoolbox_config/gripper", 'none')
-        plot = to_bool(self.get_parameter("/gtoolbox_config/visualize", 'false'))
-        inverse_kinematics = self.get_parameter("/gtoolbox_config/ik_solver", '')
-        inverse_kinematics_topic = self.get_parameter("/gtoolbox_config/ik_topic", '')
-        gesture_detection_on = to_bool(self.get_parameter("/gtoolbox_config/launch_gesture_detection", 'false'))
-        launch_gesture_detection = to_bool(self.get_parameter("/gtoolbox_config/launch_gesture_detection", 'false'))
-        launch_ui = to_bool(self.get_parameter("/gtoolbox_config/launch_ui", 'false'))
+        robot = roscm.get_parameter("/gtoolbox_config/robot", 'panda')
+        simulator = roscm.get_parameter("/gtoolbox_config/simulator", 'coppelia')
+        gripper = roscm.get_parameter("/gtoolbox_config/gripper", 'none')
+        plot = to_bool(roscm.get_parameter("/gtoolbox_config/visualize", 'false'))
+        inverse_kinematics = roscm.get_parameter("/gtoolbox_config/ik_solver", '')
+        inverse_kinematics_topic = roscm.get_parameter("/gtoolbox_config/ik_topic", '')
+        gesture_detection_on = to_bool(roscm.get_parameter("/gtoolbox_config/launch_gesture_detection", 'false'))
+        launch_gesture_detection = to_bool(roscm.get_parameter("/gtoolbox_config/launch_gesture_detection", 'false'))
+        launch_ui = to_bool(roscm.get_parameter("/gtoolbox_config/launch_ui", 'false'))
     else:
         robot = 'panda'
         simulator = 'coppelia'
@@ -231,7 +231,10 @@ def get_dist_by_extremes(y, bufferlen=100, fit_deg=6):
     # y = test_data
     # 1. Fit the data
     x = np.array(range(len(y)))
-    polyvals = np.polyfit(x, y, deg=fit_deg)
+    try:
+        polyvals = np.polyfit(x, y, deg=fit_deg)
+    except: #LinAlgError and SystemError:
+        return y[0]
     # 2. Gen. new fitted data
     x_ = np.linspace(0,len(x),bufferlen)
     y_ = [np.polyval(polyvals, i) for i in x_]

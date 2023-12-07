@@ -57,8 +57,8 @@ if __name__ == '__main__':
     sys.path.append(settings.paths.coppelia_sim_ros_interface_path)
     from utils import *
 
-    from coppelia_sim_ros_interface.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
-    from coppelia_sim_ros_interface.msg import ObjectInfo
+    from coppelia_sim_ros_interface_msgs.srv import AddOrEditObject, AddOrEditObjectResponse, RemoveObject, RemoveObjectResponse, GripperControl, GripperControlResponse
+    from coppelia_sim_ros_interface_msgs.msg import ObjectInfo
     from sensor_msgs.msg import JointState, Image
 
 from os_and_utils import settings

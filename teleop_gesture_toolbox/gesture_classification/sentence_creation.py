@@ -636,7 +636,15 @@ class GestureSentence():
 
     @staticmethod
     def export_original_to_HRICommand(s):
+        """ Gesture filtered detections are saved, e.g. gl.gd.gestures_queue
 
+        Args:
+            s (Scene): scene object
+
+        Returns:
+            HRICommand: Data to send
+        """
+        
         detected_gestures_probs = [] # 2D (gesture activation, probabilities)
         for detected_gesture in gl.gd.gestures_queue:
             stamp, name, hand_tag, all_probs = detected_gesture
@@ -644,7 +652,29 @@ class GestureSentence():
 
         max_gesture_probs = GestureSentence.process_gesture_probs_by_max(detected_gestures_probs)
 
-        gesture_timestamp     = gl.gd.gestures_queue[-1][0]
+        def get_max_timestamps():
+            ''' for every gesture from set, get the timestamp,
+                where the gesture had highest probability
+            '''
+            # number of gestures
+            n_of_total_gestures = len(gl.gd.gestures_queue[-1][3])
+            # arrays init zeros
+            array_max_prob = [-1] * n_of_total_gestures
+            array_max_timestamps = [-1] * n_of_total_gestures
+            
+            for detection in gl.gd.gestures_queue:
+                gprobs = detection[3]    
+                
+                for n, (gprob, maxprob) in enumerate(zip(gprobs, array_max_prob)):
+                    if gprob > maxprob:
+                        array_max_prob[n] = gprob
+                        array_max_timestamps[n] = detection[0]
+            
+            assert -1 not in array_max_timestamps # all timestamps must be set
+            # rc.roscm.get_logger().info(str(array_max_timestamps))
+            return array_max_timestamps
+
+        gesture_timestamp     = get_max_timestamps()
 
 
         gl.gd.ap # All detected auxiliary parameters
@@ -667,11 +697,11 @@ class GestureSentence():
         # Collect the data
         sentence_as_dict = {
             'gestures': gl.gd.Gs, # Gesture names 
-            'gesture_probs': max_gesture_probs, # Gesture probabilities 
-            'gesture_timestamp': gesture_timestamp, # One timestamp
+            'gesture_probs': list(max_gesture_probs), # Gesture probabilities 
+            'gesture_timestamp': list(gesture_timestamp), # One timestamp
             # (Note: I can get timestamp for every activation)
             'objects': target_object_names, # This should be all object names detected on the scene
-            'object_probs': target_object_probs, # This should be all object likelihoods 
+            'object_probs': list(target_object_probs), # This should be all object likelihoods 
             # 'object_timestamps': None, # TODO
             'object_classes': object_types, # Object type names as cbgo types 
             # Each object type should reference to object class
@@ -682,13 +712,16 @@ class GestureSentence():
             # 'parameter_values': [], 
             # 'parameter_timestamps': [],
         }
+        
+        data_as_str = str(sentence_as_dict)
+        data_as_str = data_as_str.replace("'", '"')
 
-        return HRICommand(data=[str(sentence_as_dict)])
+        return HRICommand(data=[str(data_as_str)])
 
     @staticmethod
     def export_mapped_to_HRICommand(s, intent):
-        action_names = intent.target_action
-        action_probs = 1.
+        action_names = intent.action_names
+        action_probs = intent.action_probs
         action_timestamp = 0.
         
         object_names = s.O
@@ -698,18 +731,25 @@ class GestureSentence():
             object_types.append(s.get_object_by_name(object_name).type)
 
         object_probs = [0.] * len(object_names)
-        object_probs[object_names.index(intent.target_object)] = 1.0
+        try:
+            object_probs[object_names.index(intent.target_object)] = 1.0
+        except ValueError:
+            sentence_as_dict = {
+                'status': 'invalid',
+            }
+            return HRICommand(data=[str(sentence_as_dict)])
 
         # Collect the data
         sentence_as_dict = {
+            'target_action': intent.target_action,
             'actions': action_names, # Gesture names 
-            'action_probs': action_probs, # Gesture probabilities 
+            'action_probs': list(action_probs), # Gesture probabilities 
             'action_timestamp': action_timestamp, # One timestamp
             # (Note: I can get timestamp for every activation)
             'objects': object_names, # This should be all object names detected on the scene
-            'object_probs': object_probs, # This should be all object likelihoods 
+            'object_probs': list(object_probs), # This should be all object likelihoods 
             # 'object_timestamps': None, # TODO
-            'object_classes': object_types, # Object type names as cbgo types 
+            'object_classes': list(object_types), # Object type names as cbgo types 
             # Each object type should reference to object class
             # 'storages': [''], # TODO: some objects are storages, received by Ontology get function
             # 'storage_probs': [],
@@ -718,5 +758,7 @@ class GestureSentence():
             # 'parameter_values': [], 
             # 'parameter_timestamps': [],
         }
+        data_as_str = str(sentence_as_dict)
+        data_as_str = data_as_str.replace("'", '"')
 
-        return HRICommand(data=[str(sentence_as_dict)])
+        return HRICommand(data=[str(data_as_str)])

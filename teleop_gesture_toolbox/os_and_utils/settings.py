@@ -119,3 +119,6 @@ def get_gesture_mapping():
     except KeyError:
         return {}
     return dict(yaml_config_gestures['mappings'][mapping_set_name])
+
+if __name__ == '__main__':
+    init()

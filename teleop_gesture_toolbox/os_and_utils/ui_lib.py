@@ -1354,7 +1354,7 @@ class Example(QMainWindow):
                 rad = 100
 
             painter.setPen(QPen(Qt.yellow, 4))
-            painter.drawEllipse(x_c-rad/2,y_c-rad/2, rad, rad)
+            painter.drawEllipse(int(x_c-rad/2),int(y_c-rad/2), int(rad), int(rad))
 
         #painter.setPen(QPen(Qt.black, 1))
         #painter.drawLine(self.w/2,self.h-20, self.w-RIGHT_MARGIN-ICON_SIZE, self.h-20)
@@ -1472,14 +1472,14 @@ class Example(QMainWindow):
             self.lblSentenceStatus.setText(textSentenceStatus)
 
             compound_gestures = gl.gd.c[-1]
-            textCompoundGesturesStatus = ''
+            textCompoundGesturesStatus = 'C: '
             if compound_gestures is not None:
                 textCompoundGesturesStatus = f'{list(zip(gl.gd.c.info.names,compound_gestures.activates))}'
             self.lblCompoundGesturesStatus.setText(textCompoundGesturesStatus)
 
         if self.recording:
             qp.setBrush(QBrush(Qt.red, Qt.SolidPattern))
-            qp.drawEllipse(LEFT_MARGIN+130+ICON_SIZE*2, h-10-ICON_SIZE, ICON_SIZE/2,ICON_SIZE/2)
+            qp.drawEllipse(int(LEFT_MARGIN+130+ICON_SIZE*2), int(h-10-ICON_SIZE), int(ICON_SIZE/2), int(ICON_SIZE/2))
             qp.setBrush(QBrush(Qt.black, Qt.NoBrush))
         self.lblInfo.setGeometry(LEFT_MARGIN+130, h-ICON_SIZE,ICON_SIZE*5,ICON_SIZE)
 
