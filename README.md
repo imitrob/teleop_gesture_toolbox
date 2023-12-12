@@ -34,6 +34,9 @@ Tested on Linux Ubuntu 20.04.
   - Download [dataset (1.2GB)](https://drive.google.com/file/d/1Jitk-MxzczreZ81PuO86xTapuSkBMOb-/view?usp=sharing) and move the `learning` folder to match the `<gesture_toolbox>/include/data/learning` folder
 - Use sample trained network example (recommended):
   - Download [model (22MB)](https://drive.google.com/file/d/1jyDatUJy10sdXmLjPEdHL1cfSo-RZ4ct/view?usp=share_link) and move the file to `/include/data/trained_networks` folder
+- If you use user intent estimation (`context_based_gesture_operation` package), you can use sample NN model:
+  - Download [model (12MB)](https://drive.google.com/file/d/1miZZH9db0C7EG06j72JrZJe7Gkd6qAVV/view?usp=sharing) and move the file to `context_based_gesture_operation/trained_networks` folder or use `context_based_gesture_operation/download_sample.py` script which should do the download automatically
+
 
 ## Launching
 
