@@ -134,7 +134,7 @@ class GestureSentence():
             return ml.md.comboMovePagePickObject1Picked
     @staticmethod
     def get_target_object__wrapper_non_blocking(s, mode):
-        object_name_1 = None
+        object_name_1 = None, None
         if ml.md.real_or_sim_datapull:
             return ml.RealRobotConvenience.get_target_object_non_blocking(s, mode=mode)
         else: # Fake data from GUI
@@ -692,7 +692,12 @@ class GestureSentence():
 
         object_types = []
         for object_name in target_object_names:
-            object_types.append(s.get_object_by_name(object_name).type)
+            o_ = s.get_object_by_name(object_name)
+            if o_ is not None:
+                object_types.append(o_.type)
+            else:
+                object_types.append('object')
+                
 
         # Collect the data
         sentence_as_dict = {
@@ -739,9 +744,13 @@ class GestureSentence():
             }
             return HRICommand(data=[str(sentence_as_dict)])
 
+
+        assert len(object_names) == len(object_probs)
+        assert len(action_names) == len(action_probs)
         # Collect the data
         sentence_as_dict = {
-            'target_action': intent.target_action,
+            'target_action': str(intent.target_action),
+            'target_object': str(object_names[np.argmax(np.array(object_probs))]),
             'actions': action_names, # Gesture names 
             'action_probs': list(action_probs), # Gesture probabilities 
             'action_timestamp': action_timestamp, # One timestamp
@@ -759,6 +768,7 @@ class GestureSentence():
             # 'parameter_timestamps': [],
         }
         data_as_str = str(sentence_as_dict)
+        print(data_as_str)
         data_as_str = data_as_str.replace("'", '"')
 
         return HRICommand(data=[str(data_as_str)])

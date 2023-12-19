@@ -33,7 +33,7 @@ from teleop_msgs.msg import Gestures as GesturesRos
 from teleop_msgs.srv import BTreeSingleCall
 from teleop_msgs.srv import ChangeNetwork, SaveHandRecord
 from gesture_classification.sentence_creation import GestureSentence
-
+from copy import deepcopy
 
 DEBUGSEMAPHORE = False
 
@@ -585,6 +585,7 @@ class MirracleSetupInterface(ROSComm):
         
         s = None
         s = cbgo.srcmodules.Scenes.Scene(init='', objects=[], random=False)
+        s.objects = []
         
         objects = self.get_objects_from_onto()
         ''' object list; item is dictionary containing uri, id, color, color_nlp_name_CZ, EN, nlp_name_CZ, nlp_name_EN; absolute_location'''
@@ -602,13 +603,14 @@ class MirracleSetupInterface(ROSComm):
         for object in objects:
             ''' o is dictionary containing properties '''
             uri = object['uri']
-            id = object['id']
+            id = object['uri'].split("#")[-1]
             color = object['color']
             color_nlp_name_CZ = object['color_nlp_name_CZ']
             color_nlp_name_EN = object['color_nlp_name_EN']
             nlp_name_CZ = object['nlp_name_CZ']
             nlp_name_EN = object['nlp_name_EN']
             absolute_location = object['absolute_location']
+            print(f"MY ID: {id}")
             
             o = cbgo.srcmodules.Objects.Object(name=id, position_real=np.array(absolute_location), random=False)
             # o.quaternion = np.array(object['pose'][1])

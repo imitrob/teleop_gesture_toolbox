@@ -794,7 +794,7 @@ class RealRobotConvenience():
         if s is None:
             s = RealRobotConvenience.update_scene()
 
-        if s.object_positions_real == []: return None, None
+        if s.object_positions_real == []: return None, None, None
         idobj, distances_from_line = dl.dd.main_deitic_fun(gl.gd.hand_frames[-1], hand, s.object_positions_real, plot_line=True)
         assert len(s.object_names) == len(distances_from_line)
         object_distances = list(zip(s.object_names, distances_from_line))
@@ -989,7 +989,7 @@ class RealRobotConvenience():
         _, nameobj_, object_distances = RealRobotConvenience.deictic(hand, s)
         if nameobj_ is None:
             print("No objects on scene!")
-            return 'q'
+            return 'q', None
 
         if mode == 'original':
             RealRobotConvenience.go_on_top_of_object(nameobj_, s)
