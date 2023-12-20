@@ -44,7 +44,7 @@ def spinning_threadfn():
         rc.roscm.spin_once(sem=True)
         time.sleep(0.01)
 
-if __name__ == '__main__':
+def main():
     ''' Default main has three threads: 1. ROS spin, 2. GUI (optional), 3. main
     '''
     if 'noui' in sys.argv: settings.launch_ui = False
@@ -68,3 +68,6 @@ if __name__ == '__main__':
         sys.exit(0)
     except SystemExit:
         os._exit(0)
+
+if __name__ == '__main__':
+    main()
