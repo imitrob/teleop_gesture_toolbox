@@ -124,7 +124,7 @@ class ROSComm(Node):
         self.gesture_sentence_publisher_original = self.create_publisher(HRICommand, '/teleop_gesture_toolbox/gesture_sentence_original', 5)
         
         # self.gesture_sentence_publisher_mapped  = self.create_publisher(HRICommand, '/teleop_gesture_toolbox/action_sentence_mapped', 5)
-        self.gesture_sentence_publisher_mapped  = self.create_publisher(HRICommand, '/hri/command', 5)
+        self.gesture_sentence_publisher_mapped  = self.create_publisher(HRICommand, '/gg/hri_command', 5)
 
 
         self.call_tree_singlerun_cli = self.create_client(BTreeSingleCall, '/btree_onerun')
@@ -505,7 +505,7 @@ class ROSComm(Node):
         
         if compound_gestures is not None:
             dict_to_send['compound_activated'] = [str(a).lower() for a in compound_gestures.activates]
-        print("dict_to_send['compound_activated']", dict_to_send['compound_activated'], "dict_to_send['compound_names']", dict_to_send['compound_names'])
+        # print("dict_to_send['compound_activated']", dict_to_send['compound_activated'], "dict_to_send['compound_names']", dict_to_send['compound_names'])
         
         
         data_as_str = str(dict_to_send)
@@ -563,7 +563,7 @@ class MirracleSetupInterface(ROSComm):
         
         self.add_dummy_cube()
         self.add_dummy_cube()
-        print(self.get_objects_from_onto())
+        #print(self.get_objects_from_onto())
         print("Ready")
         # if not NOT_PROFILING:
         #     StatTimer.init()
@@ -610,7 +610,7 @@ class MirracleSetupInterface(ROSComm):
             nlp_name_CZ = object['nlp_name_CZ']
             nlp_name_EN = object['nlp_name_EN']
             absolute_location = object['absolute_location']
-            print(f"MY ID: {id}")
+            # print(f"MY ID: {id}")
             
             o = cbgo.srcmodules.Objects.Object(name=id, position_real=np.array(absolute_location), random=False)
             # o.quaternion = np.array(object['pose'][1])
@@ -623,7 +623,8 @@ class MirracleSetupInterface(ROSComm):
             # o.crow_id = id
             # o.crow_uri = uri
             
-            s.objects.append(o)
+            if id not in s.object_names:
+                s.objects.append(o)
 
         sl.scene = s        
         # self.get_logger().info(f"scene: {sl.scene}")

@@ -680,9 +680,9 @@ class GestureDataDetection():
 
         if len(data.probabilities.data) != obj_by_type.info.n:
             if self.print_error_once_1:
-                print(f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}")
-                print(f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}")
-                print(f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}")
+                rc.roscm.get_logger().info(f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}")
+                rc.roscm.get_logger().info(f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}")
+                rc.roscm.get_logger().info(f"Data received from {type} detection, lengths not match {len(data.probabilities.data)} != {obj_by_type.info.n}")
                 self.print_error_once_1 = False
             return
         obj_by_type.data_queue.append(GestureMorphClassStamped(data, obj_by_type.info.names))
@@ -811,15 +811,23 @@ class GestureDataDetection():
             self.c.data_queue.append(CompoundGestureMorphClassStamped(sensor_seq, compound_gestures.keys(), cgs_activated))
 
     def gestures_queue_to_ros(self, gestures_queue=None, rostemplate=None):
-        '''
+        ''' Either queue of activated gesture strings or it gesture probs vector
+        Parameters:
+            gestures_queue (Float[] or Str[])
         GesturesRos()
         '''
         rostemplate.probabilities.data = list(np.array(np.zeros(len(self.Gs)), dtype=float))
         if gestures_queue is None:
             print(f"gesture_queue was none, adding {self.gestures_queue}") 
             gestures_queue = self.gestures_queue
-        for g in gestures_queue:
-            rostemplate.probabilities.data[self.Gs.index(g)] = 1.0
+        
+        if isinstance(gestures_queue[0], (float,int)):
+            assert len(gestures_queue) == len(self.Gs)
+            for i in range(len(gestures_queue)):
+                rostemplate.probabilities.data[i] = float(gestures_queue[i])
+        else:
+            for g in gestures_queue:
+                rostemplate.probabilities.data[self.Gs.index(g)] = 1.0
 
         return rostemplate
 

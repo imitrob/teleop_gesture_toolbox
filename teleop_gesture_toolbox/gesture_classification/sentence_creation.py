@@ -1,3 +1,4 @@
+from copy import deepcopy
 import sys, os, time
 sys.path.append(os.path.join(os.path.abspath(__file__), "..", '..', 'python3.9', 'site-packages', 'teleop_gesture_toolbox'))
 import numpy as np
@@ -28,6 +29,10 @@ from spatialmath import UnitQuaternion
 import spatialmath as sm
 from collections import Counter
 
+# from context_based_gesture_operation.agent_nodes import g2i
+from teleop_msgs.srv import G2I
+from context_based_gesture_operation.agent_nodes.g2i import G2IRosNode
+
 class GestureSentence():
     ''' Gesture Sentence Data globally stored in gestures_lib.GestureDetections (gl.gd)
     gl.gd.gestures_queue - deque
@@ -57,6 +62,8 @@ class GestureSentence():
         gl.gd.gestures_queue.clear()
         gl.gd.gestures_queue_proc = []
         gl.sd.evaluate_episode = False
+
+        gl.gd.target_object_infos = []
 
         gl.gd.target_objects = []
         gl.gd.ap = []
@@ -170,6 +177,28 @@ class GestureSentence():
         req.scene = sr
 
         return rc.roscm.call_tree_singlerun(req)
+
+    @staticmethod
+    def g2isingle_call__wrapper(gestures_queue, focus_point, s):
+        sr = s.to_ros(SceneRos())
+        sr.focus_point = np.array(focus_point, dtype=float)
+        print(f"[INFO] Aggregated gestures: {list(gestures_queue)}")
+
+        time.sleep(0.01)
+
+        req = BTreeSingleCall.Request()
+        req.gestures = gl.gd.gestures_queue_to_ros(gestures_queue, GesturesRos())
+
+        g2i_tester = G2IRosNode(init_node=False, inference_type='1to1', load_model='M3v10_D6.pkl', ignore_unfeasible=True)
+
+
+        response = g2i_tester.G2I_service_callback( \
+            G2I.Request(gestures=req.gestures, scene=sr),
+            G2I.Response()
+            )
+        
+        return response.intent
+
 
     @staticmethod
     def load_reamining_object_names(s, target_action):
@@ -486,7 +515,7 @@ class GestureSentence():
 
 
     @staticmethod
-    def adaptive_eee(path_gen=None, s=None, object_pick_method='last', blocking=False, mode='modular', ignored_gestures=['point', 'no_moving', 'five', 'pinch'], s_func=None):
+    def adaptive_eee(path_gen=None, s=None, object_pick_method='last', blocking=False, mode='modular', ignored_gestures=['point', 'no_moving', 'five', 'pinch'], s_func=None, use_bt=False, hot_ones_only=False):
         ''' Episode evaluation & execution
         Parameters:
             object_pick_method ('last','max'): Aggregated objects list selected by user, option how to choose
@@ -511,12 +540,16 @@ class GestureSentence():
                 if object_pick_method == 'max':
                     c = Counter(gl.sd.previous_gesture_observed_data_object_names)
                     c_max = c.most_common(1)[0]
-                    gl.gd.target_objects.append(c_max)
-                    i = gl.sd.previous_gesture_observed_data_object_names.index(c_max)
+                    gl.gd.target_objects.append(c_max[0])
+                    i = gl.sd.previous_gesture_observed_data_object_names.index(c_max[0])
                     gl.gd.target_object_infos.append(gl.sd.previous_gesture_observed_data_object_info[i])
                 elif object_pick_method == 'last':
-                    gl.gd.target_objects.append(gl.sd.previous_gesture_observed_data_object_names[-1])
-                    gl.gd.target_object_infos.append(gl.sd.previous_gesture_observed_data_object_info[-1])
+                    try: # Filter last 3 time-frames of possible
+                        gl.gd.target_object_infos.append(gl.sd.previous_gesture_observed_data_object_info[-4])
+                        gl.gd.target_objects.append(gl.sd.previous_gesture_observed_data_object_names[-4])
+                    except: # If there are less than 4 samples -> use the last
+                        gl.gd.target_objects.append(gl.sd.previous_gesture_observed_data_object_names[-1])
+                        gl.gd.target_object_infos.append(gl.sd.previous_gesture_observed_data_object_info[-1])
                 else: raise Exception()
 
                 print(f"{cc.H}Added obj {Counter(gl.sd.previous_gesture_observed_data_object_names)}{cc.E}")
@@ -584,7 +617,16 @@ class GestureSentence():
                 if len(gl.gd.gestures_queue_proc) > 0:
                     print(f"{cc.OK}EEE\t{gl.gd.gestures_queue_proc}\t{gl.gd.target_objects}\t{gl.gd.ap}{cc.E}")
                     if mode == 'modular':
-                        rc.roscm.gesture_sentence_publisher_original.publish(GestureSentence.export_original_to_HRICommand(s))
+                        
+                        # Get all action gesture probs by max
+                        detected_gestures_probs = [] # 2D (gesture activation, probabilities)
+                        for detected_gesture in gl.gd.gestures_queue:
+                            stamp, name, hand_tag, all_probs = detected_gesture
+                            detected_gestures_probs.append(all_probs)
+
+                        max_gesture_probs = GestureSentence.process_gesture_probs_by_max(detected_gestures_probs)
+                        
+                        rc.roscm.gesture_sentence_publisher_original.publish(GestureSentence.export_original_to_HRICommand(s, deepcopy(max_gesture_probs)))
                         
                         def map_action_inner_func(s, gestures_queue_proc, object_names, ap):
                             ''' Behaviour tree is in passive mode here. It functions only as generator of precondition actions
@@ -613,11 +655,24 @@ class GestureSentence():
                             if focus_point is None: return
                             # target object to focus point {object_names} -> {focus_point}
 
-                            target_action_sequence = GestureSentence.btsingle_call__wrapper(gestures_queue_proc, focus_point, s)
-                            return target_action_sequence[-1]
+                            if use_bt: # use behaviour trees
+                                target_action_sequence = GestureSentence.btsingle_call__wrapper(gestures_queue_proc, focus_point, s)
+                                target_action_sequence = target_action_sequence[-1]
+                                # here is selection of last action,
+                                # which means bt is not used, this must
+                                # be uncommented and all actions sent
+                            else: # NOT use BT
+                                target_action_sequence = GestureSentence.g2isingle_call__wrapper(gestures_queue_proc, focus_point, s)
+
+                            return target_action_sequence
                             
                             # BT generated {n_actions} target actions {target_actions}"
-                        ret = map_action_inner_func(s, gl.gd.gestures_queue_proc, gl.gd.target_objects, gl.gd.ap)
+                        
+                        if hot_ones_only: # actions probs e.g. [1,0,0,0]
+                            ret = map_action_inner_func(s, gl.gd.gestures_queue_proc, gl.gd.target_objects, gl.gd.ap)
+                        else: # action probs e.g. [0.9,0.1,0.1,0.0]
+                            ret = map_action_inner_func(s, max_gesture_probs, gl.gd.target_objects, gl.gd.ap)
+
                         if ret is None:
                             rc.roscm.gesture_sentence_publisher_mapped.publish(HRICommand(data=['unsuccessful']))
                         else:
@@ -630,12 +685,19 @@ class GestureSentence():
                     else:
                         GestureSentence.adaptive_episode_evaluation_and_execution(s=ml.RealRobotConvenience.update_scene(), \
                         gestures_queue_proc=gl.gd.gestures_queue_proc, object_names=gl.gd.target_objects, ap=gl.gd.ap)
-                    
+
+                else: # Send only object probs
+                    rc.roscm.gesture_sentence_publisher_mapped.publish(GestureSentence.export_only_objects_to_HRICommand(s))
+            
+            else: # Send only object probs
+                rc.roscm.gesture_sentence_publisher_mapped.publish(GestureSentence.export_only_objects_to_HRICommand(s))
+
+
             # Whenever hand is not seen clearing
             GestureSentence.clearing_silent()
 
     @staticmethod
-    def export_original_to_HRICommand(s):
+    def export_original_to_HRICommand(s, max_gesture_probs):
         """ Gesture filtered detections are saved, e.g. gl.gd.gestures_queue
 
         Args:
@@ -645,12 +707,7 @@ class GestureSentence():
             HRICommand: Data to send
         """
         
-        detected_gestures_probs = [] # 2D (gesture activation, probabilities)
-        for detected_gesture in gl.gd.gestures_queue:
-            stamp, name, hand_tag, all_probs = detected_gesture
-            detected_gestures_probs.append(all_probs)
 
-        max_gesture_probs = GestureSentence.process_gesture_probs_by_max(detected_gestures_probs)
 
         def get_max_timestamps():
             ''' for every gesture from set, get the timestamp,
@@ -682,13 +739,23 @@ class GestureSentence():
 
         # get object names, this can be easily obtained from the function deictic this definitely was using that 
         # from that I can easily get object classes 
-        if len(gl.gd.target_object_infos) > 0:
-            target_object_infos = list(gl.gd.target_object_infos[0])
-            target_object_infos = np.array(target_object_infos)
+        # TODO: This sequence is repeated in this file
+        if len(gl.gd.target_object_infos) > 1:
+            target_object_infos = np.array(list(gl.gd.target_object_infos[-2]))
+            target_storage_infos = np.array(list(gl.gd.target_object_infos[-1]))
+        elif len(gl.gd.target_object_infos) > 0:
+            target_object_infos = np.array(list(gl.gd.target_object_infos[-1]))
+            target_storage_infos = []
         else:
             target_object_infos = []
+            target_storage_infos = []
+
         target_object_names = [o[0] for o in target_object_infos]
-        target_object_probs = [o[1] for o in target_object_infos]
+        target_object_probs = [str(1/(1+1*float(o[1]))) for o in target_object_infos]
+
+        target_storage_names = [o[0] for o in target_storage_infos]
+        target_storage_probs = [str(1/(1+1*float(o[1]))) for o in target_storage_infos]
+        ###############
 
         object_types = []
         for object_name in target_object_names:
@@ -716,12 +783,80 @@ class GestureSentence():
             'parameters': gl.gd.ap, 
             # 'parameter_values': [], 
             # 'parameter_timestamps': [],
+            'storages': target_storage_names, # TODO: some objects are storages, received by Ontology get function
+            'storage_probs': list(target_storage_probs),
         }
         
         data_as_str = str(sentence_as_dict)
         data_as_str = data_as_str.replace("'", '"')
 
         return HRICommand(data=[str(data_as_str)])
+
+    @staticmethod
+    def export_only_objects_to_HRICommand(s):
+        object_names = s.O
+        
+        object_types = []
+        for object_name in object_names:
+            object_types.append(s.get_object_by_name(object_name).type)
+
+        # TODO: This sequence is repeated in this file
+        if len(gl.gd.target_object_infos) > 1:
+            target_object_infos = np.array(list(gl.gd.target_object_infos[-2]))
+            target_storage_infos = np.array(list(gl.gd.target_object_infos[-1]))
+        elif len(gl.gd.target_object_infos) > 0:
+            target_object_infos = np.array(list(gl.gd.target_object_infos[-1]))
+            target_storage_infos = []
+        else:
+            target_object_infos = []
+            target_storage_infos = []
+
+        target_object_names = [o[0] for o in target_object_infos]
+        target_object_probs = [str(1/(1+1*float(o[1]))) for o in target_object_infos]
+
+        target_storage_names = [o[0] for o in target_storage_infos]
+        target_storage_probs = [str(1/(1+1*float(o[1]))) for o in target_storage_infos]
+
+
+        object_types = []
+        for object_name in target_object_names:
+            o_ = s.get_object_by_name(object_name)
+            if o_ is not None:
+                object_types.append(o_.type)
+            else:
+                object_types.append('object')
+
+        object_probs = target_object_probs
+        storage_probs = target_storage_probs
+        #########
+
+        if len(object_names) != len(object_probs):
+            return HRICommand(data=['{"invalid": "True"}'])
+        # Collect the data
+        sentence_as_dict = {
+            # 'target_action': str(intent.target_action),
+            'target_object': str(object_names[np.argmax(np.array(object_probs))]),
+            'target_storage': str(target_storage_names[np.argmax(np.array(storage_probs))]),
+            # 'actions': action_names, # Gesture names 
+            # 'action_probs': list(action_probs), # Gesture probabilities 
+            # 'action_timestamp': action_timestamp, # One timestamp
+            # (Note: I can get timestamp for every activation)
+            'objects': object_names, # This should be all object names detected on the scene
+            'object_probs': list(object_probs), # This should be all object likelihoods 
+            # 'object_timestamps': None, # TODO
+            'object_classes': list(object_types), # Object type names as cbgo types 
+            # Each object type should reference to object class
+            'storages': target_storage_names, # TODO: some objects are storages, received by Ontology get function
+            'storage_probs': list(storage_probs),
+            # 'storage_timestamps': [],
+            # 'parameters': intent.auxiliary_parameters, 
+            # 'parameter_values': [], 
+            # 'parameter_timestamps': [],
+        }
+        data_as_str = str(sentence_as_dict)
+        data_as_str = data_as_str.replace("'", '"')
+
+        return HRICommand(data=[str(data_as_str)])        
 
     @staticmethod
     def export_mapped_to_HRICommand(s, intent):
@@ -735,22 +870,55 @@ class GestureSentence():
         for object_name in object_names:
             object_types.append(s.get_object_by_name(object_name).type)
 
-        object_probs = [0.] * len(object_names)
+        # TODO: This sequence is repeated in this file
+        if len(gl.gd.target_object_infos) > 1:
+            target_object_infos = np.array(list(gl.gd.target_object_infos[-2]))
+            target_storage_infos = np.array(list(gl.gd.target_object_infos[-1]))
+        elif len(gl.gd.target_object_infos) > 0:
+            target_object_infos = np.array(list(gl.gd.target_object_infos[-1]))
+            target_storage_infos = []
+        else:
+            target_object_infos = []
+            target_storage_infos = []
+
+        target_object_names = [o[0] for o in target_object_infos]
+        target_object_probs = [str(1/(1+1*float(o[1]))) for o in target_object_infos]
+
+        target_storage_names = [o[0] for o in target_storage_infos]
+        target_storage_probs = [str(1/(1+1*float(o[1]))) for o in target_storage_infos]
+
+        object_types = []
+        for object_name in target_object_names:
+            o_ = s.get_object_by_name(object_name)
+            if o_ is not None:
+                object_types.append(o_.type)
+            else:
+                object_types.append('object')
+
+        object_probs = target_object_probs
+        ##################
         try:
             object_probs[object_names.index(intent.target_object)] = 1.0
-        except ValueError:
-            sentence_as_dict = {
-                'status': 'invalid',
-            }
-            return HRICommand(data=[str(sentence_as_dict)])
+        except:
+            # return HRICommand(data=['{"status": "invalid"}'])
+            pass
 
-
-        assert len(object_names) == len(object_probs)
-        assert len(action_names) == len(action_probs)
+        if len(object_names) != len(object_probs): HRICommand(data=[str("")])
+        if len(action_names) != len(action_probs): HRICommand(data=[str("")])
         # Collect the data
+        try:
+            target_object = str(object_names[np.argmax(np.array(object_probs))])
+        except IndexError:
+            target_object = ""
+        try:
+            target_storage = str(target_storage_names[np.argmax(np.array(target_storage_probs))])
+        except:
+            target_storage = ""
+
         sentence_as_dict = {
             'target_action': str(intent.target_action),
-            'target_object': str(object_names[np.argmax(np.array(object_probs))]),
+            'target_object': target_object,
+            'target_storage': target_storage,
             'actions': action_names, # Gesture names 
             'action_probs': list(action_probs), # Gesture probabilities 
             'action_timestamp': action_timestamp, # One timestamp
@@ -766,6 +934,8 @@ class GestureSentence():
             'parameters': intent.auxiliary_parameters, 
             # 'parameter_values': [], 
             # 'parameter_timestamps': [],
+            'storages': target_storage_names, # TODO: some objects are storages, received by Ontology get function
+            'storage_probs': list(target_storage_probs),
         }
         data_as_str = str(sentence_as_dict)
         print(data_as_str)

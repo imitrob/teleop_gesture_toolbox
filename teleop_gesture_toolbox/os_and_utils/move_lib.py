@@ -30,6 +30,9 @@ from teleop_msgs.msg import Scene as SceneRos
 from teleop_msgs.msg import Gestures as GesturesRos
 from teleop_msgs.srv import BTreeSingleCall
 
+from teleop_msgs.srv import G2I
+from context_based_gesture_operation.agent_nodes.g2i import G2IRosNode
+
 class MoveData():
     def __init__(self, init_goal_pose=True, init_env='table'):
         '''
@@ -472,7 +475,7 @@ class MoveData():
             dynamic_predictions.append(self.predict_handle__(s, gesture))
         return static_predictions, dynamic_predictions
 
-    def predict_handle__(self, s, gesture):
+    def predict_handle__(self, s, gesture, use_bt=False):
         object_name_1 = None
         
         if self.real_or_sim_datapull:
@@ -505,7 +508,17 @@ class MoveData():
         req.scene = sr
 
         #print(f"BT run {sr.focus_point}")
-        target_action_sequence = rc.roscm.call_tree_singlerun(req)
+        if use_bt:
+            target_action_sequence = rc.roscm.call_tree_singlerun(req)
+        else:
+            g2i_tester = G2IRosNode(ignore_unfeasible=True)
+
+            response = g2i_tester.G2I_service_callback( \
+                G2I.Request(gestures=req.gestures, scene=sr),
+                G2I.Response()
+                )
+
+            target_action_sequence = [response.intent]
         #print("BT fin")
         if len(target_action_sequence)>0:
             if len(target_action_sequence)==1:

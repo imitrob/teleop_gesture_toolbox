@@ -52,7 +52,7 @@ class fastdtw_():
         self.counts = [list(Y).count(g_) for g_ in g]
 
         self.X_ProMP = promp_approach.construct_promp_trajectories(self.X, self.Y, condition=False)
-        '''
+        
         self.X_ProMP = np.array([[[ 0.0, 0.0,  0.05], # 'swipe_down'
             [ 0.0,  0.0,  0.025],
             [ 0.0,  0.0, 0.0],
@@ -73,12 +73,19 @@ class fastdtw_():
             [ 0.0, -0.0, 0.0],
             [ 0.0, -0.0,  0.025],
             [ 0.0, -0.0,  0.05]],
+            # [[0.05,  0.0, -0.025], # 'pour'
+            # [0.025,  0.0, 0.0],
+            # [ 0.0, -0.0, 0.025],
+            # [-0.025, -0.0,  0.0],
+            # [-0.05, -0.0,  -0.025]],
             [[ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00], # 'nothing_dyn'
             [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
             [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
             [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00],
             [ 0.00000000e+00,  0.00000000e+00,  0.00000000e+00]]])
-        '''
+        # self.counts = [1, 1, 1, 1, 1, 1]
+        self.counts = [1, 1, 1, 1, 1]
+        
         self.method = None
 
         print(f"[TimeWarp] Gs: {gl.gd.Gs_dynamic}, counts: {self.counts}, records: {sum(self.counts)}")

@@ -1,6 +1,6 @@
 # Picks set from configurations:
 # Each set chooses the suitable gestures, mappings, etc..
-using_config: winter_23
+using_config: main_set
 
 available_configurations:
   winter_23:
@@ -23,8 +23,8 @@ available_configurations:
     dynamic_detection_approach: DTW
     static_network_file: PyMC3-main-set-3.pkl
     dynamic_network_file: promp
-    hand_mode_l: static
-    hand_mode_r: dynamic
+    hand_mode_l: static+dynamic
+    hand_mode_r: dynamic+static
     action_execution: True
     
   main_set_compound_tester:
