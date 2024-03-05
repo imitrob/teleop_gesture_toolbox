@@ -1377,7 +1377,14 @@ class SentenceData():
         self.evaluate_episode = False
 
         #self.last_selected_object = 'small red box'
-        
+
+    def clear(self):
+        self.previous_gesture_observed_data_action = ''
+        self.previous_gesture_observed_data_ = ''
+        self.previous_gesture_observed_data_object_names = []
+        self.previous_gesture_observed_data_object_info = []
+        self.previous_gesture_observed_data_measurement_distance = []
+        self.evaluate_episode = False
 
 def init(silent=False):
     global gd, sd

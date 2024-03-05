@@ -27,11 +27,11 @@ def main():
 
         t1 = time.perf_counter()
         # Send gesture data based on hand mode
-        if gl.gd.present() and not gl.gd.any_hand_stable(time=1.0):
+        if gl.gd.present(): # and not gl.gd.any_hand_stable(time=1.0):
             rc.roscm.send_g_data()
             
         if len(gl.gd.gestures_queue) > 0:
-            GestureSentence.adaptive_eee(None, s=rc.roscm.update_scene(), mode='modular', s_func=rc.roscm.update_scene)
+            GestureSentence.adaptive_eee(None, s=rc.roscm.update_scene(), mode='modular', s_func=rc.roscm.update_scene, ignored_gestures = ['point', 'no_moving'])
         
         rc.roscm.send_state()
         rate.sleep()
