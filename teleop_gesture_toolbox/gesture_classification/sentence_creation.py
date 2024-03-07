@@ -73,7 +73,7 @@ class GestureSentence():
         gl.gd.ap = []
 
     @staticmethod
-    def process_gesture_queue(gestures_queue,ignored_gestures): #=['point', 'no_moving', 'five', 'pinch']):
+    def process_gesture_queue(gestures_queue,ignored_gestures=['point', 'no_moving']):
         ''' gestures_queue has combinations of
         Parameters:
             gesture_queue (String[]): Activated action gestures within episode
@@ -622,7 +622,7 @@ class GestureSentence():
                 gl.gd.gestures_queue_proc = GestureSentence.process_gesture_queue(gl.gd.gestures_queue,ignored_gestures)
 
                 # target_object data save
-                if gl.sd.previous_gesture_observed_data_action != 'deictic' and gl.sd.previous_gesture_observed_data_object_names != []:
+                if gl.sd.previous_gesture_observed_data_object_names != []:
                     GestureSentence.save_accumulated_deictic_gesture_data(object_pick_method)
 
                 if len(gl.gd.gestures_queue_proc) > 0:

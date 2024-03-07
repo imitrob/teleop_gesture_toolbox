@@ -1468,7 +1468,7 @@ class Example(QMainWindow):
             if gl.sd.previous_gesture_observed_data_action == 'deictic': sd[1] = '*'
             elif gl.sd.previous_gesture_observed_data_action == 'measurement_distance': sd[2] = '*'
             elif gl.sd.previous_gesture_observed_data_action == 'action': sd[0] = '*'
-            textSentenceStatus = f'Sentence:\t{sd[0]}A: {GestureSentence.process_gesture_queue(gl.gd.gestures_queue)}{sd[0]}\t{sd[1]}D: {gl.gd.target_objects}{sd[1]}\t{sd[2]}AP: {gl.gd.ap}{sd[2]}'
+            textSentenceStatus = f'Sentence:\t{sd[0]}A: {GestureSentence.process_gesture_queue(gl.gd.gestures_queue, ["point", "no_moving"])}{sd[0]}\t{sd[1]}D: {gl.gd.target_objects}{sd[1]}\t{sd[2]}AP: {gl.gd.ap}{sd[2]}'
             self.lblSentenceStatus.setText(textSentenceStatus)
 
             compound_gestures = gl.gd.c[-1]

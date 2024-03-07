@@ -561,8 +561,8 @@ class MirracleSetupInterface(ROSComm):
         self.nlTopic = "/nlp/command"
         qos = QoSProfile(depth=10, reliability=QoSReliabilityPolicy.RMW_QOS_POLICY_RELIABILITY_BEST_EFFORT)
         
-        self.add_dummy_cube()
-        self.add_dummy_cube()
+        # self.add_dummy_cube()
+        # self.add_dummy_cube()
         #print(self.get_objects_from_onto())
         print("Ready")
         # if not NOT_PROFILING:
