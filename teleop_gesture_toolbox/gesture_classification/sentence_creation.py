@@ -43,6 +43,7 @@ class GestureSentence():
     gl.gd.ap (Dict?)
 
     '''
+    action_received = False
 
     @staticmethod
     def clearing():
@@ -55,6 +56,7 @@ class GestureSentence():
 
         gl.gd.target_objects = []
         gl.gd.ap = []
+        GestureSentence.action_received = False
 
         print("Move hand out to end the episode!")
         while gl.gd.present():
@@ -71,6 +73,7 @@ class GestureSentence():
 
         gl.gd.target_objects = []
         gl.gd.ap = []
+        GestureSentence.action_received = False
 
     @staticmethod
     def process_gesture_queue(gestures_queue,ignored_gestures=['point', 'no_moving']):
