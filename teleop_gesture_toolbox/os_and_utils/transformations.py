@@ -2,7 +2,10 @@ import numpy as np
 import transformations
 from os_and_utils.utils import extq
 ## ROS dependent lib
-from geometry_msgs.msg import Pose
+try:
+    from geometry_msgs.msg import Pose
+except ModuleNotFoundError:
+    Pose = None
 from os_and_utils import settings
 from copy import deepcopy
 
@@ -11,7 +14,7 @@ class Transformations():
     def transformLeapToScene(data, env, scale, camera_orientation):
         '''
         '''
-        if isinstance (data, Pose):
+        if Pose is not None and isinstance(data, Pose):
             return Transformations.transformLeapToScenePose(data, env, scale, camera_orientation)
         elif isinstance(data, (list,tuple, np.ndarray)):
             return Transformations.transformLeapToSceneList(data, env, scale)
@@ -158,6 +161,7 @@ class Transformations():
         if isinstance(pose, list):
             lenposelist = len(pose)
             x, y, z = pose[0], pose[1], pose[2]
+
             pose = Pose()
             pose.position.x = x
             pose.position.y = y

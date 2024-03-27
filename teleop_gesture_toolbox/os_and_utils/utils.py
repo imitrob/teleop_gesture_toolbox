@@ -36,9 +36,13 @@ class GlobalPaths():
 
         THIS_FILE_PATH = os.path.dirname(inspect.getabsfile(inspect.currentframe()))
         THIS_FILE_TMP = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..', '..', '..'))
+        # GET LINK TO INCLUDE FOLDER
+        if 'install' in THIS_FILE_TMP:
+            MG_PATH = THIS_FILE_PATH.split("install")[0] + "src/teleop_gesture_toolbox"
+        else:
+            MG_PATH = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..'))
+        
         self.ws_folder = THIS_FILE_TMP.split('/')[-1]
-
-        MG_PATH = os.path.abspath(os.path.join(THIS_FILE_PATH, '..', '..'))
         self.teleop_gesture_toolbox_path = MG_PATH+'/teleop_gesture_toolbox/'
         self.learn_path = MG_PATH+'/include/data/learning/'
         self.data_export_path = MG_PATH+'/include/data/export/'

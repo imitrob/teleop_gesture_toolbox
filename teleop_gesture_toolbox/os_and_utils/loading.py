@@ -26,6 +26,7 @@ except ModuleNotFoundError:
     sys.path.append("hand_processing")
     import frame_lib
 
+sys.modules['frame_lib'] = frame_lib
 
 from scipy.interpolate import interp1d
 from sklearn.preprocessing import scale
@@ -202,7 +203,7 @@ class DatasetLoader():
     def load(self, dir, Gs, type = 'dynamic', out='', new=False):
         data = self.load_tmp(dir, type=type)
         files = self.hdl.get_files(dir,Gs)
-        if not data or new:
+        if new:
             print("[Loading] No data, loading all directory")
             HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
             if type == 'dynamic':
@@ -229,27 +230,33 @@ class DatasetLoader():
                 return data['X'], data['Y'],False
             return data['X'], data['Y']
         else:
-            print("[Loading] Difference, loading all directory again")
-            HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
-            if type == 'dynamic':
-                X,Y = self.get_dynamic(HandData,HandDataFlags)
-            elif type == 'static':
-                X,Y = self.get_static(HandData,HandDataFlags)
-            elif type == 'mp':
-                X,Y = self.get_mp(HandData,HandDataFlags)
-            else: raise Exception("Wrong type")
-
-            np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
-            assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
+            print("[Loading] !!!!!!!!!!!!!!!!!!")
+            print("[Loading] Difference, load all directory again to load new demonstrated samples")
+            print("[Loading] !!!!!!!!!!!!!!!!!!")
             if out=='diff':
-                return X,Y,True
-            return X,Y
+                return data['X'], data['Y'],False
+            return data['X'], data['Y']
+            
+            # HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
+            # if type == 'dynamic':
+            #     X,Y = self.get_dynamic(HandData,HandDataFlags)
+            # elif type == 'static':
+            #     X,Y = self.get_static(HandData,HandDataFlags)
+            # elif type == 'mp':
+            #     X,Y = self.get_mp(HandData,HandDataFlags)
+            # else: raise Exception("Wrong type")
+
+            # np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
+            # assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
+            # if out=='diff':
+            #     return X,Y,True
+            # return X,Y
 
 
     def get_static(self, data, flags):
         X = data
         Y = flags
-
+        
         X_, Y_ = [], []
         for n, X_n in enumerate(X):
 
@@ -303,10 +310,10 @@ class DatasetLoader():
         print(f"shape 1 {np.array(X).shape} y {np.array(Y).shape}")
         X,Y = self.to_2D(X,Y)
         print(f"shape 2 {np.array(X).shape} y {np.array(Y).shape}")
-        #X,Y = self.postprocessing(X,Y)
+        X,Y = self.postprocessing(X,Y)
         print(f"shape 3 {X.shape} y {Y.shape}")
         X,Y = self.discard(X,Y)
-        print(f"shape 4 {X.shape} y {Y.shape}")
+        print(f"shape 4 {X.shape} y {Y.shape}, addon Y[0].shape {Y[0].shape} Y[1].shape {Y[1].shape}")
 
         return X, Y
 
@@ -332,11 +339,15 @@ class DatasetLoader():
         try:
             # Not in a loop, import can be here -> dependency
             import theano
-            floatX = theano.config.floatX
+            floatX = pt.config.floatX
             X = X.astype(floatX)
             Y = Y.astype(floatX)
         except:
-            print("[Loading] Converting as X.astype(floatX) failed!")
+            import pytensor as pt
+            floatX = pt.config.floatX
+            X = X.astype(floatX)
+            Y = Y.astype(floatX)
+            #print("[Loading] Converting as X.astype(floatX) failed!")
         X = np.array(X)
         Y = np.array(Y)
         return X,Y

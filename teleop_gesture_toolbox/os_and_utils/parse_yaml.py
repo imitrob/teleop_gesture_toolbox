@@ -1,6 +1,9 @@
 import yaml, random
 import numpy as np
-from os_and_utils.utils import ordered_load, isarray, isnumber, extv, extq
+try:
+    from os_and_utils.utils import ordered_load, isarray, isnumber, extv, extq
+except ModuleNotFoundError:
+    from teleop_gesture_toolbox.os_and_utils.utils import ordered_load, isarray, isnumber, extv, extq
 from copy import deepcopy
 # ROS dependency only to some functions
 try:

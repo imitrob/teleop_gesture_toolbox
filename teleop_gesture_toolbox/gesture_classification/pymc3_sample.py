@@ -3,7 +3,11 @@
                                     in include/custom_settings/main_config.yaml
 '''
 import numpy as np
-import theano
+try:
+    import theano as pt
+except ModuleNotFoundError:
+    import pytensor as pt
+
 
 class PyMC3_Sample():
     def __init__(self):
@@ -20,14 +24,14 @@ class PyMC3_Sample():
         self.X_train = nn.X_train
         self.approx = nn.approx
         self.neural_network = nn.neural_network
-        x = theano.tensor.matrix("X")
-        n = theano.tensor.iscalar("n")
+        x = pt.tensor.matrix("X")
+        n = pt.tensor.iscalar("n")
         x.tag.test_value = np.empty_like(self.X_train[:10])
         n.tag.test_value = 100
         self._sample_proba = self.approx.sample_node(
             self.neural_network.out.distribution.p, size=n, more_replacements={self.neural_network["ann_input"]: x}
         )
-        self.sample_proba = theano.function([x, n], self._sample_proba)
+        self.sample_proba = pt.function([x, n], self._sample_proba)
 
 
 
@@ -38,10 +42,10 @@ if __name__ == '__main__':
     from os_and_utils.nnwrapper import NNWrapper
     import os_and_utils.settings as settings; settings.init()
 
-    network='new_network.pkl'
+    network='PyMC3-main-set-3.pkl'
     pymc_sampler = PyMC3_Sample()
     if network not in os.listdir(settings.paths.network_path):
-        raise Exception("network not found in folder")
+        raise Exception(f"network {network} not found in folder {settings.paths.network_path}")
 
     nn = NNWrapper.load_network(settings.paths.network_path, name=network)
 

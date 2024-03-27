@@ -19,17 +19,20 @@ except ModuleNotFoundError: gdown = None
 import numpy as np
 from copy import deepcopy
 
-from os_and_utils import settings
+from teleop_gesture_toolbox.os_and_utils import settings
 from os_and_utils.nnwrapper import NNWrapper
 if __name__ == '__main__': settings.init()
-import os_and_utils.move_lib as ml
-if __name__ == '__main__': ml.init()
+try:
+    import os_and_utils.move_lib as ml
+    if __name__ == '__main__': ml.init()
+except:
+    pass
 from os_and_utils.utils import cc, CustomDeque
 
 from os_and_utils.parse_yaml import ParseYAML
 
-if __name__ == '__main__':
-    from os_and_utils.ros_communication_main import ROSComm
+# if __name__ == '__main__':
+#     from os_and_utils.ros_communication_main import ROSComm
 
 # Keep independency to ROS
 try:
@@ -39,7 +42,7 @@ try:
     import os_and_utils.ros_communication_main as rc
     if __name__ == '__main__': rc.init()
     ROS = True
-except ModuleNotFoundError:
+except:
     ROS = False
 
 def NormalizeData(data):
@@ -569,10 +572,13 @@ class GestureDataDetection():
         dynamic_network_file = settings.get_network_file(type='dynamic')
 
         if static_network_file is not None:
-            from os_and_utils.nnwrapper import NNWrapper
-            nw = NNWrapper.load_network(settings.paths.network_path, static_network_file)
-            static_network_info = nw.args
-            static_network_info['accuracy'] = nw.accuracy
+            try:
+                from os_and_utils.nnwrapper import NNWrapper
+                nw = NNWrapper.load_network(settings.paths.network_path, static_network_file)
+                static_network_info = nw.args
+                static_network_info['accuracy'] = nw.accuracy
+            except ModuleNotFoundError:
+                static_network_info = None
         else:
             static_network_info = None
 

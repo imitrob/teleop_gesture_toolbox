@@ -315,13 +315,16 @@ class Frame():
 
         return frame
 
-    def __getattr__(self, attr):
-        if self.l.visible:
-            return getattr(self.l, attr)
-        elif self.r.visible:
-            return getattr(self.r, attr)
-        else:
-            return None
+    ### !!!!!!!! ###
+    # Comment out when loading file from pickle 
+    ################
+    # def __getattr__(self, attr):
+    #     if 'l' in self.__dict__.keys() and self.l.visible:
+    #         return getattr(self.l, attr)
+    #     elif 'r' in self.__dict__.keys() and self.r.visible:
+    #         return getattr(self.r, attr)
+    #     else:
+    #         return None
 
 
 class Hand():
