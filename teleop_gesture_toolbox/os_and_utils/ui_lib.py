@@ -11,6 +11,7 @@ matplotlib.use('Qt5Agg')
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 from collections import deque
+from playsound import playsound
 
 from os_and_utils import settings
 if __name__ == '__main__': settings.init()
@@ -1464,11 +1465,24 @@ class Example(QMainWindow):
         self.lblStatus.setText(textStatus)
 
         if ml.md.mode in ['gesture', 'gesture_ad']:
+            
             sd = ['', '', '', ''] # string decorator based on which gesture type is active
-            if gl.sd.previous_gesture_observed_data_action == 'deictic': sd[1] = '*'
-            elif gl.sd.previous_gesture_observed_data_action == 'measurement_distance': sd[2] = '*'
-            elif gl.sd.previous_gesture_observed_data_action == 'action': sd[0] = '*'
-            textSentenceStatus = f'Sentence:\t{sd[0]}A: {GestureSentence.process_gesture_queue(gl.gd.gestures_queue, ["point", "no_moving"])}{sd[0]}\t{sd[1]}D: {gl.gd.target_objects}{sd[1]}\t{sd[2]}AP: {gl.gd.ap}{sd[2]}'
+            if gl.sd.previous_gesture_observed_data_action == 'deictic': 
+                sd[1] = '*'
+                playsound('/usr/share/sounds/Yaru/stereo/bell.oga', block=False)
+                time.sleep(0.1)
+            elif gl.sd.previous_gesture_observed_data_action == 'measurement_distance':
+                sd[2] = '*'
+            elif gl.sd.previous_gesture_observed_data_action == 'action':
+                playsound('/usr/share/sounds/Yaru/stereo/dialog-question.oga', block=False)
+                time.sleep(0.1)
+                sd[0] = '*'
+            actions_gestures_so_far = GestureSentence.process_gesture_queue(gl.gd.gestures_queue, ["point", "no_moving"])
+            if len(actions_gestures_so_far) > 0 and not GestureSentence.action_received:
+                playsound('/usr/share/sounds/Yaru/stereo/complete.oga', block=False)
+                time.sleep(0.1)
+                GestureSentence.action_received = True
+            textSentenceStatus = f'Sentence:\t{sd[0]}A: {actions_gestures_so_far}{sd[0]}\t{sd[1]}D: {gl.gd.target_objects}{sd[1]}\t{sd[2]}AP: {gl.gd.ap}{sd[2]}'
             self.lblSentenceStatus.setText(textSentenceStatus)
 
             compound_gestures = gl.gd.c[-1]
