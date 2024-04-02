@@ -7,7 +7,7 @@
     > (optional) Expects saved neural_networks in ~/<your workspace>/src/teleop_gesture_toolbox/include/data/trained_networks/
 '''
 
-import sys, os, time, argparse, sklearn
+import sys, os, time, argparse
 from teleop_gesture_toolbox.os_and_utils.utils import ordered_load, GlobalPaths, load_params
 from teleop_gesture_toolbox.os_and_utils.parse_yaml import ParseYAML
 PATHS = GlobalPaths(change_working_directory=True)
@@ -17,7 +17,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pymc as pm
 import seaborn as sns
-from aesara.tensor.random.utils import RandomStream
+# from aesara.tensor.random.utils import RandomStream
 from pytensor.tensor.random.utils import RandomStream
 # import aesara as pt
 import pytensor as pt
@@ -57,15 +57,17 @@ gl.init()
 
 class PyMC3Train():
 
-    def __init__(self, Gs=[], args={}, type='static'):
+    def __init__(self, args={}, type='static'):
 
-        self.Gs, self.args = gl.gd.Gs_static, {}
-        if type == 'dynamic':
-            self.Gs, self.args = gl.gd.Gs_dynamic, {}
+        if type == 'static':
+            self.Gs = gl.gd.Gs_static
+        elif type == 'dynamic':
+            self.Gs = gl.gd.Gs_dynamic
+        assert len(self.Gs) > 1
+
         self.learn_path = PATHS.learn_path
         self.network_path = PATHS.network_path
-        if Gs: self.Gs = Gs
-        if args: self.args = args
+        self.args = args
         self.approx = None
         print("Gestures for training are: ", self.Gs)
         print("Arguments for training are: ", self.args)
@@ -125,12 +127,8 @@ class PyMC3Train():
         Object (self) returns:
             X_train, X_test, Y_train, Y_test (ndarray): Split dataset
         '''
-        test_size = 0.3
-        if 'split' in self.args: test_size = self.args['split']
-        print("Split test_size: ", test_size)
-
         assert not np.any(np.isnan(self.X))
-        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=test_size)#, stratify=self.Y)
+        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=self.args['split'])
 
     def plot_dataset(self):
         ''' Plot some class from dataset
@@ -180,15 +178,15 @@ class PyMC3Train():
             act_1 = pm.math.tanh(pm.math.dot(ann_input, weights_in_1))
             #act_2 = pm.math.tanh(pm.math.dot(act_1, weights_1_2))
             #act_3 = pm.math.tanh(pm.math.dot(act_2, weights_2_3))
-            act_out = pm.math.softmax(pm.math.dot(act_1, weights_3_out))
-
+            
+            act_out = pm.math.softmax(pm.math.dot(act_1, weights_3_out), axis=-1)
+            
             out = pm.Categorical(
                 "out",
                 p=act_out,
                 observed=ann_output,
                 total_size=Y.shape[0],  # IMPORTANT for minibatches
-                dims="obs_id",
-                logit_p = 1.0
+                dims="obs_id"
             )
 
         return neural_network
@@ -298,20 +296,23 @@ class PyMC3Train():
         # )
         # sample_proba = theano.function([x, n], _sample_proba)
         #pred = sample_proba(X_test,self.args['samples']).mean(0)
-        print("PRED SADSASD")
-        print(pred)
         shape = np.array(pred).shape
-        print(shape)
-
-
-        y_pred = np.argmax(np.array(pred)[0], axis=0)
+        
+        np.save("/home/petr/Downloads/pred.npy", pred)
         Y_train = np.array(self.Y_train).astype(int)
+        np.save("/home/petr/Downloads/Y_train.npy", Y_train)
+
+        y_pred = np.max(np.array(pred)[0], axis=0)
         y_pred = np.array(y_pred).astype(int)
-        print("Accuracy = {}%".format((Y_train == y_pred).mean() * 100))
+
+        acc = (Y_train == y_pred).mean() * 100
+        print(f"Accuracy = {acc}%")
+        return acc
+
 
         pred_t = sample_proba(self.X_train,samples).mean(0)
         y_pred_t = np.argmax(pred_t, axis=1)
-
+        #this wil be reowrked I tihnk about 
         #print("y pred t shape: ", y_pred_t.shape)
         print("Accuracy on train = {}%".format((self.Y_train == y_pred_t).mean() * 100))
 
@@ -376,6 +377,8 @@ class PyMC3Train():
 
 
 class Experiments():
+
+    ''' THERE IS BETTER WAY TO DO THIS
     def seed_wrapper(self, fun=None, args=None, SEEDS=[93457, 12345, 45677, 82909, 75433]):
         print("------------")
         print("Seed Wrapper")
@@ -394,11 +397,11 @@ class Experiments():
             self.accuracies_train.append(accuracies_train_row)
         print("Accuracies test: ", self.accuracies)
         print("Accuracies train: ", self.accuracies_train)
-
+    '''
+    
     def loadAndEvaluate(self, args):
         ''' Loads network file and evaluate it
         '''
-        accuracies, accuracies_train = [], []
         print("Load and evaluate\n---")
         self.train = PyMC3Train(args=args)
         self.train.import_records()
@@ -407,17 +410,8 @@ class Experiments():
         self.train.import_records()
         self.train.split()
 
-        accuracy, accuracy_train = self.train.evaluate()
-        accuracies.append(accuracy)
-        accuracies_train.append(accuracy_train)
-
-        print("accuracies.append(", accuracies, ")")
-        print("accuracies_train.append(", accuracies_train, ")")
-        return accuracy, accuracy_train
-
-
-        return accuracies, accuracies_train
-
+        return self.train.evaluate()
+        
     def trainWithParameters(self, args):
         ''' Train/evaluate + Save
         '''
@@ -425,6 +419,7 @@ class Experiments():
         self.train = PyMC3Train(args=args)
 
         self.train.import_records()
+        print("Split test_size: ", self.train.args['split'])
         self.train.split()
 
         self.train.train()
@@ -440,17 +435,16 @@ class Experiments():
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(description='')
     parser.add_argument('--experiment', default="trainWithParameters", type=str, help='(default=%(default))', choices=['loadAndEvaluate', 'trainWithParameters'])
-    parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default))')
+    # parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default))')
 
     parser.add_argument('--model_filename', default='new_network_y24', type=str, help='(default=%(default))')
     parser.add_argument('--inference_type', default='ADVI', type=str, help='(default=%(default))')
     parser.add_argument('--input_definition_version', default=1, type=int, help='(default=%(default))')
     parser.add_argument('--split', default=0.3, type=float, help='(default=%(default))')
     parser.add_argument('--take_every', default=10, type=int, help='(default=%(default))')
-    parser.add_argument('--iter', default=1000, type=int, help='(default=%(default))')
-    parser.add_argument('--n_hidden', default=20, type=int, help='(default=%(default))')
+    parser.add_argument('--iter', default=70000, type=int, help='(default=%(default))')
+    parser.add_argument('--n_hidden', default=25, type=int, help='(default=%(default))')
     
-
     
     
     parser.add_argument('--full_dataload', default=False, type=bool, help='(default=%(default))')
@@ -460,8 +454,8 @@ if __name__ == '__main__':
     args=parser.parse_args().__dict__
 
     experiment = getattr(Experiments(), args['experiment'])
-    if args['seed_wrapper']:
-        e.seed_wrapper(experiment, args=args)
-    else:
-        experiment(args=args)
+    # if args['seed_wrapper']:
+    #     e.seed_wrapper(experiment, args=args)
+    # else:
+    experiment(args=args)
 
