@@ -8,6 +8,7 @@
 '''
 
 import sys, os, time, argparse
+from typing import Dict, Optional, Union
 from teleop_gesture_toolbox.os_and_utils.utils import ordered_load, GlobalPaths, load_params
 from teleop_gesture_toolbox.os_and_utils.parse_yaml import ParseYAML
 PATHS = GlobalPaths(change_working_directory=True)
@@ -15,17 +16,16 @@ from warnings import filterwarnings; filterwarnings("ignore")
 from copy import deepcopy
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 import pymc as pm
 import seaborn as sns
-# from aesara.tensor.random.utils import RandomStream
 from pytensor.tensor.random.utils import RandomStream
-# import aesara as pt
 import pytensor as pt
 
 from sklearn.model_selection import train_test_split
 floatX = pt.config.floatX
 from sklearn.metrics import confusion_matrix
-import teleop_gesture_toolbox.os_and_utils.confusion_matrix_pretty_print as confusion_matrix_pretty_printfastdtw
+import teleop_gesture_toolbox.os_and_utils.confusion_matrix_pretty_print as confusion_matrix_pretty_print
 from scipy import stats
 
 rc = {'xtick.labelsize': 20, 'ytick.labelsize': 20, 'axes.labelsize': 20, 'font.size': 20,
@@ -53,26 +53,140 @@ np.random.seed(0)
 import gesture_classification.gestures_lib as gl
 from teleop_gesture_toolbox.os_and_utils import settings
 settings.init()
-gl.init()
+gl.init(load_trained=False)
 
-class PyMC3Train():
+az.style.use("arviz-darkgrid")
 
-    def __init__(self, args={}, type='static'):
+class PyMCModel():
+        # Give the model a name
+    _model_type = "VIClassifier"
 
-        if type == 'static':
-            self.Gs = gl.gd.Gs_static
-        elif type == 'dynamic':
-            self.Gs = gl.gd.Gs_dynamic
-        assert len(self.Gs) > 1
+    # And a version
+    version = "0.1"
 
-        self.learn_path = PATHS.learn_path
-        self.network_path = PATHS.network_path
-        self.args = args
-        self.approx = None
-        print("Gestures for training are: ", self.Gs)
-        print("Arguments for training are: ", self.args)
+    def __init__(self, args):
+        self.model_config = self.get_default_model_config(args)
 
-    def import_records(self, dataset_files=[], type_='static'):
+    # self.model
+    def build_model(self, X: pd.DataFrame, y: pd.Series, **kwargs):
+        """
+        build_model creates the PyMC model
+
+        Parameters:
+        model_config: dictionary
+            it is a dictionary with all the parameters that we need in our model example:  a_loc, a_scale, b_loc
+        X : pd.DataFrame
+            The input data that is going to be used in the model. This should be a DataFrame
+            containing the features (predictors) for the model. For efficiency reasons, it should
+            only contain the necessary data columns, not the entire available dataset, as this
+            will be encoded into the data used to recreate the model.
+
+        y : pd.Series
+            The target data for the model. This should be a Series representing the output
+            or dependent variable for the model.
+        
+        rng: Prior values random generator
+        
+        Parameters:
+            update (Bool): If true, weights are updated from self.approx
+
+        kwargs : dict
+            Additional keyword arguments that may be used for model configuration.
+        """
+        assert self.model_config['layers'] == 2
+        assert self.model_config['inference_type'] == 'ADVI'
+        assert self.model_config['engine'] == 'PyMC'
+        
+
+        # Check the type of X and y and adjust access accordingly
+        X = X #["input"].values
+        y = y.values if isinstance(y, pd.Series) else y
+
+        n_hidden = self.model_config['n_hidden']
+        
+        out_n = len(list(dict.fromkeys(y)))
+        rng = np.random.default_rng(self.model_config['seed'])
+
+        init_1 = rng.standard_normal(size=(X.shape[1], n_hidden)).astype(floatX)
+        init_out = rng.standard_normal(size=(n_hidden, out_n)).astype(floatX)
+
+        coords = {
+            "hidden_layer_1": np.arange(n_hidden), # 20
+            "train_cols": np.arange(X.shape[1]), # 57
+            "out_n": np.arange(out_n), # 8
+            "obs_id": np.arange(X.shape[0]), # ~17000 for training?
+        }
+
+        with pm.Model(coords=coords) as self.model:
+            ann_input = pm.Data("ann_input", X, mutable=True, dims=("obs_id", "train_cols"))
+            ann_output = pm.Data("ann_output", y, mutable=True, dims="obs_id")
+
+            # Weights from input to hidden layer
+            weights_in_1 = pm.Normal("w_in_1", 0, sigma=1, initval=init_1, dims=("train_cols", "hidden_layer_1")) # 57 -> 20
+
+            # Weights from hidden layer to output
+            weights_3_out = pm.Normal("w_2_out", 0, sigma=1, initval=init_out, dims=("hidden_layer_1", "out_n")) # 20 -> 8
+
+            # Build neural-network using tanh activation function
+            act_1 = pm.math.tanh(pm.math.dot(ann_input, weights_in_1))
+            
+            act_out = pm.math.softmax(pm.math.dot(act_1, weights_3_out), axis=-1)
+            
+            out = pm.Categorical(
+                "out",
+                p=act_out,
+                observed=ann_output,
+                total_size=y.shape[0],  # IMPORTANT for minibatches
+                dims="obs_id"
+            )
+
+
+    @staticmethod
+    def get_default_model_config(args) -> Dict:
+
+        if args['gesture_type'] == 'static':
+            Gs = gl.gd.Gs_static
+        elif args['gesture_type'] == 'dynamic':
+            Gs = gl.gd.Gs_dynamic
+        assert len(Gs) > 1
+
+        model_config = args
+        model_config["Gs"] = Gs
+        model_config["learn_path"] = PATHS.learn_path
+        model_config["network_path"] = PATHS.network_path
+        
+        return model_config
+
+    @property
+    def output_var(self):
+        return "y"
+
+    @property
+    def _serializable_model_config(self) -> Dict[str, Union[int, float, Dict]]:
+        """
+        _serializable_model_config is a property that returns a dictionary with all the model parameters that we want to save.
+        as some of the data structures are not json serializable, we need to convert them to json serializable objects.
+        Some models will need them, others can just define them to return the model_config.
+        """
+        return self.model_config
+
+    def _save_input_params(self, idata) -> None:
+        """
+        Saves any additional model parameters (other than the dataset) to the idata object.
+
+        These parameters are stored within `idata.attrs` using keys that correspond to the parameter names.
+        If you don't need to store any extra parameters, you can leave this method unimplemented.
+
+        Example:
+            For saving customer IDs provided as an 'customer_ids' input to the model:
+            self.customer_ids = customer_ids.values #this line is done outside of the function, preferably at the initialization of the model object.
+            idata.attrs["customer_ids"] = json.dumps(self.customer_ids.tolist())  # Convert numpy array to a JSON-serializable list.
+        """
+        pass
+
+        pass
+
+    def import_records(self, dataset_files=[]):
         ''' Import static gestures, Import all data from learning folder
         Object (self) parameters:
             Gs_static (List): Static gesture names
@@ -83,12 +197,12 @@ class PyMC3Train():
             DYpalm (ndarray): Palm trajectories velocities
             Ydyn (1darray): (Y solutions flags for palm trajectories)
         '''
-        if type_ == 'static':
-            self.X, self.Y = DatasetLoader({'input_definition_version':1, 'interpolate':1}).load_static(PATHS.learn_path, self.Gs, new=self.args['full_dataload'])
-        elif type_ == 'dynamic':
+        if self.model_config['gesture_type'] == 'static':
+            X, y = DatasetLoader({'input_definition_version':1, 'interpolate':1, 'take_every': self.model_config['take_every']}).load_static(PATHS.learn_path, self.model_config['Gs'], new=self.model_config['full_dataload'])
+        elif self.model_config['gesture_type'] == 'dynamic':
             dataloader_args = {'interpolate':1, 'discards':1, 'normalize':1, 'normalize_dim':1, 'n':0}
-            self.X, self.Y = DatasetLoader(dataloader_args).load_dynamic(PATHS.learn_path, self.Gs)
-        print(f"X shape={np.array(self.X).shape}")
+            X, y = DatasetLoader(dataloader_args).load_dynamic(PATHS.learn_path, self.model_config['Gs'])
+        print(f"X shape={np.array(X).shape}")
 
         #HandData, HandDataFlags = HandDataLoader().load_directory_update(PATHS.learn_path, self.Gs)
         #self.X, self.Y = DatasetLoader().get_static(HandData, HandDataFlags)
@@ -96,39 +210,23 @@ class PyMC3Train():
         #self.Xpalm, self.Ydyn = DatasetLoader().get_dynamic(HandData, HandDataFlags)
 
         self.new_data_arrived = True
-        if len(self.Y) == 0:
+        if len(y) == 0:
             self.new_data_arrived = False
             print("No new data!")
             return
 
-        # import matplotlib.pyplot as plt
-        # plt.hist(self.X.flatten(), bins=100)
-        # plt.show()
-
-        #print("Gestures imported: ", self.Gs)
-        #print("Args used: ", self.args)
-        #print("X shape: ", self.X.shape)
-        #print("Y shape: ", self.Y.shape)
-        #print("Xpalm shape", self.Xpalm.shape)
-        assert len(self.X) == len(self.Y), "Lengths not match"
-        g = list(dict.fromkeys(self.Y))
-        counts = [list(self.Y).count(g_) for g_ in g]
+        assert len(X) == len(y), "Lengths not match"
+        g = list(dict.fromkeys(y))
+        counts = [list(y).count(g_) for g_ in g]
         print(f"counts = {counts}")
-        self.args['counts'] = counts
-        #assert len(self.Xpalm) == len(self.Ydyn), "Lengths not match"
-        #print("Gesture 0 recordings: ", len(self.Y[self.Y==0]))
+        self.model_config['counts'] = counts
+        return X, y
 
-    def split(self):
+    def split(self, X, y):
         ''' Splits the data
-        Object (self) parameters:
-            X, Y (ndarray): Dataset
-            args (Str{}):
-                - test_size
-        Object (self) returns:
-            X_train, X_test, Y_train, Y_test (ndarray): Split dataset
         '''
-        assert not np.any(np.isnan(self.X))
-        self.X_train, self.X_test, self.Y_train, self.Y_test = train_test_split(self.X, self.Y, test_size=self.args['split'])
+        assert not np.any(np.isnan(X))
+        return train_test_split(X, y, test_size=self.model_config['split'])
 
     def plot_dataset(self):
         ''' Plot some class from dataset
@@ -144,110 +242,6 @@ class PyMC3Train():
             ax.set(xlabel="X", ylabel="Y")
 
 
-    def construct_nn_2l(self, X, Y, n_hidden, out_n=8, update=False, rng=None):
-        ''' Model description
-            -> n_hidden - number of hidden layers
-            -> number of layers
-            -> type of layer distribution (normal, bernoulli, uniform, poisson)
-            -> distribution parameters (mu, sigma)
-            -> activation function (tanh, sigmoid)
-        Parameters:
-            update (Bool): If true, weights are updated from self.approx
-        '''
-        init_1 = rng.standard_normal(size=(X.shape[1], n_hidden)).astype(floatX)
-        init_out = rng.standard_normal(size=(n_hidden, out_n)).astype(floatX)
-
-        coords = {
-            "hidden_layer_1": np.arange(n_hidden), # 20
-            "train_cols": np.arange(X.shape[1]), # 57
-            "out_n": np.arange(out_n), # 8
-            "obs_id": np.arange(X.shape[0]), # ~17000 for training?
-        }
-
-        with pm.Model(coords=coords) as neural_network:
-            ann_input = pm.Data("ann_input", X, mutable=True, dims=("obs_id", "train_cols"))
-            ann_output = pm.Data("ann_output", Y, mutable=True, dims="obs_id")
-
-            # Weights from input to hidden layer
-            weights_in_1 = pm.Normal("w_in_1", 0, sigma=1, initval=init_1, dims=("train_cols", "hidden_layer_1")) # 57 -> 20
-
-            # Weights from hidden layer to output
-            weights_3_out = pm.Normal("w_2_out", 0, sigma=1, initval=init_out, dims=("hidden_layer_1", "out_n")) # 20 -> 8
-
-            # Build neural-network using tanh activation function
-            act_1 = pm.math.tanh(pm.math.dot(ann_input, weights_in_1))
-            #act_2 = pm.math.tanh(pm.math.dot(act_1, weights_1_2))
-            #act_3 = pm.math.tanh(pm.math.dot(act_2, weights_2_3))
-            
-            act_out = pm.math.softmax(pm.math.dot(act_1, weights_3_out), axis=-1)
-            
-            out = pm.Categorical(
-                "out",
-                p=act_out,
-                observed=ann_output,
-                total_size=Y.shape[0],  # IMPORTANT for minibatches
-                dims="obs_id"
-            )
-
-        return neural_network
-
-
-    def train(self):
-        ''' Train with given NN
-        Object (self) parameters:
-            X_train, Y_train (ndarray): Dataset
-            args (Str{}):
-                - n_hidden (Int[]): layers size hidden inside NN
-                - iter (Int[]): Learning number of iterations, [initial,updates]
-        Object (self) returns:
-            neural_network (PyMC3 NN): Model
-            approx (PyMC3 obj <mean field group>): Approximation
-        '''
-
-        print("Iterations: ", self.args['iter'], " number of hidden layers: ", self.args['n_hidden'])
-        g = list(dict.fromkeys(self.Y_train))
-
-        RANDOM_SEED = 1564
-        rng = np.random.default_rng(RANDOM_SEED)
-        az.style.use("arviz-darkgrid")
-
-        self.neural_network = self.construct_nn_2l(self.X_train, self.Y_train, out_n=len(g),n_hidden=self.args['n_hidden'], rng=rng)
-
-        # pm.model_to_graphviz(self.neural_network)
-        # with self.neural_network:
-        #     self.neural_network.debug()
-        #     pm.find_MAP()
-
-        with self.neural_network:
-            # if self.args['inference_type'] == 'FullRankADVI':
-            #     self.inference = pm.FullRankADVI()
-            # else: # default option 'ADVI'
-            #     self.inference = pm.ADVI()
-            tstart = time.time()
-
-            self.approx = pm.fit(n=self.args['iter']) #, method=self.inference)#, callbacks=self.clbcks)
-            print("Train time [s]: ", time.time()-tstart)
-    
-    def clbcks(approx, losses, i):
-        if i % 500 == 499:
-            print("@@@@ clbcks @@@@")
-            self.approx = approx
-            self.evaluate()
-            print("@@@@@@@@@@@@@@@@")
-
-    def load(self, name='network0.pkl'):
-        ''' Load Network
-        Object (self) returns:
-            neural_network (PyMC3 NN model)
-            approx (PyMC3 <mean field>): Approximation
-            X_train (ndarray): Network training dataset
-        '''
-        nn = NNWrapper.load_network(self.network_path, name=name)
-        self.X_train = nn.X_train
-        self.approx = nn.approx
-        self.neural_network = nn.neural_network
-        self.Gs = nn.Gs
-        self.args = nn.args
 
 
     def plot_train(self):
@@ -263,116 +257,178 @@ class PyMC3Train():
         plt.ylabel("ELBO")
         plt.xlabel("iteration")
 
-    def evaluate(self, cutTestTo=0):
+    def fit(self, X: pd.DataFrame, y: Optional[pd.Series] = None) -> az.InferenceData:
+        """
+        """
+        self.build_model(X, y)
+
+        with self.model:
+            tstart = time.time()
+            self.idata = pm.fit(n=self.model_config['iter'])
+            print("Train time [s]: ", time.time()-tstart)
+
+        return self.idata
+
+    def evaluate(self, fitted_model, X_test, y_test, X_train, y_train):
         ''' Evaluate network
         Object (self) parameters:
+            fitted_model (PyMC3 obj): Approximation
             X_train, Y_train (ndarray): Train datatset
-            approx (PyMC3 obj): Approximation
-            neural_network (PyMC3 obj): Model
+            model (PyMC3 obj): Model
             X_test, Y_test (ndarray): Test dataset
             args (Str{})
         '''
-        X_test = deepcopy(self.X_test)
-        Y_test = deepcopy(self.Y_test)
-        # if cutTestTo:
-        #     X_test = X_test[Y_test<cutTestTo]
-        #     Y_test = Y_test[Y_test<cutTestTo]
+        X_test = deepcopy(X_test)
+        Y_test = deepcopy(y_test)
 
-        # x = pt.tensor.matrix("X")
-        # n = pt.tensor.iscalar("n")
-        # x.tag.test_value = np.empty_like(self.X_train[:10])
-        # IMPROVEMENT? (independent to X_train)
-        #x.tag.test_value = np.zeros([10,87])
-        # n.tag.test_value = 100
-
-        trace = self.approx.sample(draws=100)
-        with self.neural_network:
-            pm.set_data(new_data={'ann_input': self.X_train})
+        # test on X_train
+        trace = fitted_model.sample(draws=100)
+        with self.model:
+            pm.set_data(new_data={'ann_input': X_train})
             ppc = pm.sample_posterior_predictive(trace)
             trace.extend(ppc)
         pred = ppc.posterior_predictive['out']
-        # _sample_proba = self.approx.sample_node(
-        #     self.neural_network.out.distribution.p, size=n, more_replacements={self.neural_network["ann_input"]: x}
-        # )
-        # sample_proba = theano.function([x, n], _sample_proba)
-        #pred = sample_proba(X_test,self.args['samples']).mean(0)
-        shape = np.array(pred).shape
         
-        np.save("/home/petr/Downloads/pred.npy", pred)
-        Y_train = np.array(self.Y_train).astype(int)
-        np.save("/home/petr/Downloads/Y_train.npy", Y_train)
-
+        y_train = np.array(y_train).astype(int)
         y_pred = np.max(np.array(pred)[0], axis=0)
         y_pred = np.array(y_pred).astype(int)
 
-        acc = (Y_train == y_pred).mean() * 100
-        print(f"Accuracy = {acc}%")
+        acc = (y_train == y_pred).mean() * 100
+        print(f"Train accuracy = {acc}%")
+        self.model_config['acc_train'] = acc
+
+        confusion_matrix_pretty_print.plot_confusion_matrix_from_data(y_train, y_pred, self.model_config['Gs'], annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name=self.model_config['model_filename'])
+
+        # test on X_test
+        trace = fitted_model.sample(draws=100)
+        with self.model:
+            ## TEMPORARY HACK
+            X_train[:len(X_test)] = X_test
+            pm.set_data(new_data={'ann_input': X_train})
+            ppc = pm.sample_posterior_predictive(trace)
+            trace.extend(ppc)
+        pred = ppc.posterior_predictive['out']
+        
+        y_test = np.array(y_test).astype(int)
+        y_pred = np.max(np.array(pred)[0,:,0:len(X_test)], axis=0)
+        y_pred = np.array(y_pred).astype(int)
+
+        acc = (y_test == y_pred).mean() * 100
+        print(f"Test accuracy = {acc}%")
+        self.model_config['acc_test'] = acc
+
+        confusion_matrix_pretty_print.plot_confusion_matrix_from_data(Y_test, y_pred, self.model_config['Gs'], annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name=self.model_config['model_filename'])
+
         return acc
 
 
-        pred_t = sample_proba(self.X_train,samples).mean(0)
-        y_pred_t = np.argmax(pred_t, axis=1)
-        #this wil be reowrked I tihnk about 
-        #print("y pred t shape: ", y_pred_t.shape)
-        print("Accuracy on train = {}%".format((self.Y_train == y_pred_t).mean() * 100))
-
-        #confusion_matrix_pretty_print.plot_confusion_matrix_from_data(self.Y_test, self.y_pred, self.Gs,
-        #annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name=str(name))
-
-        confusion_matrix_pretty_print.plot_confusion_matrix_from_data(Y_test, y_pred, self.Gs, annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name="")
-        return (Y_test == y_pred).mean() * 100, 0 #(self.Y_train == y_pred_t).mean() * 100
-
-
-    def save(self, name=None, accuracy=-1.):
+    def save(self, fitted_model, X_train, y_train, X_test, y_test):
         ''' Save the network
-        Parameters:
-            name (Str): NoneType for default
-            accuracy (Float): Accuracy (on test data) saved to file model
-        Object (self) parameters:
-            X_train (ndarray): Dataset
-            approx (PyMC3 obj): Approximation
-            neural_network (PyMC3 obj): Model
-            network_path (String): Path to network folder, where the network will be saved
-            Gs (String[]): Array of gestures defined in model & approximation
-            args (String{}): Arguments for saving
         '''
-        #X_train, approx, neural_network, network_path, name=None, Gs=[], type='', engine='', args={}, accuracy=-1, record_keys=[], filenames=[]
+        mu =    np.array(fitted_model.mean.eval())
+        sigma = np.array(fitted_model.std.eval())
+        assert (sigma>=0).all(), f"Negative sigma {sigma}"
+        
+        assert len(mu) == (X_train.shape[1] * self.model_config['n_hidden'] + self.model_config['n_hidden'] * len(list(dict.fromkeys(y_train))))
 
-        NNWrapper.save_network(self.X_train, self.approx, self.neural_network,
-        network_path=self.network_path, name=name,
-        Gs=self.Gs, type='static', engine='PyMC3',
-        args=self.args, accuracy=accuracy, filenames=gl.gd.l.static.info.filenames, record_keys=gl.gd.l.static.info.record_keys)
+        # save
+        name = self.model_config['model_filename']
+        n_network = ""
+        if name == None:
+            for i in range(0,200):
+                if not os.path.isfile(self.network_path+"network"+str(i)+".pkl"):
+                    n_network = str(i)
+                    break
+            name = f"network{n_network}"
+        else:
+            if os.path.isfile(self.model_config['network_path']+name+".npy"):
+                print(f"File {name} exists, network is rewritten!")
 
-    def from_posterior(self, param, samples, k=100):
-        smin, smax = np.min(samples), np.max(samples)
-        width = smax - smin
-        x = np.linspace(smin, smax, k)
-        y = stats.gaussian_kde(samples)(x)
+        saved_tuple = np.array((X_train, y_train, X_test, y_test, 
+                mu, sigma, self.model_config), dtype=object)
+        np.save(self.model_config['network_path']+name, 
+                saved_tuple)
 
-        # what was never sampled should have a small probability but not 0,
-        # so we'll extend the domain and use linear approximation of density on it
-        x = np.concatenate([[x[0] - 3 * width], x, [x[-1] + 3 * width]])
-        y = np.concatenate([[0], y, [0]])
-        return pm.Interpolated(param, x, y)
-        # ?
-        # Y1 = np.random.normal(loc=57, scale=5.42, size=100)
+        print(f"Network: {name}.npy saved")
 
-    def extract_approx(self):
-        ''' Approximation -> params weights/values
-        Object (self) parameters:
-            approx (PyMC3 obj): Approximation
-        Object (self) returns:
-            μ, ρ (ndarray): Mean field values
+    def load(self):
+        ''' Load Network
         '''
-        print("approx param 0 name: ", self.approx.params[0])
-        print("approx param 1 name: ", self.approx.params[1])
+        name = self.model_config['model_filename']
+        network_path = self.model_config['network_path']
+        
+        X_train, y_train, X_test, y_test, mu, sigma, model_config = np.load(network_path+name+".npy", allow_pickle=True)
 
-        self.μ = approx.bij.rmap(self.approx.params[0].eval())
-        print("w_in_1 μ shape: ", self.μ['w_in_1'].shape)
-        print("w_2_out μ shape: ", self.μ['w_2_out'].shape)
-        self.ρ = approx.bij.rmap(approx.params[1].eval())
-        print("w_in_1 ρ shape: ", self.ρ['w_in_1'].shape)
-        print("w_2_out ρ shape: ", self.ρ['w_2_out'].shape)
+        out_n = len(list(dict.fromkeys(y_train)))
+        layer1_bound = X_train.shape[1] * model_config['n_hidden']
+
+        mus1 = mu[0:layer1_bound]
+        mus2 = mu[layer1_bound:]
+
+        mus1=mus1.T.reshape(X_train.shape[1],model_config['n_hidden'])
+        mus2=mus2.T.reshape(model_config['n_hidden'],out_n)
+
+        sigmas1 = sigma[0:layer1_bound]
+        sigmas2 = sigma[layer1_bound:]
+        sigmas1 = sigmas1.T.reshape(X_train.shape[1],model_config['n_hidden'])
+        sigmas2 = sigmas2.T.reshape(model_config['n_hidden'],out_n)
+
+        mus1.astype(floatX)
+        mus2.astype(floatX)
+        sigmas1.astype(floatX)
+        sigmas2.astype(floatX)
+        assert (sigmas1>=0).all(), f"Negative sigma {sigmas1}"
+        assert (sigmas2>=0).all(), f"Negative sigma {sigmas2}"
+
+
+        assert self.model_config['layers'] == 2
+        assert self.model_config['inference_type'] == 'ADVI'
+        assert self.model_config['engine'] == 'PyMC'
+        
+
+        # Check the type of X and y and adjust access accordingly
+        X = X_train #["input"].values
+        y = y_train
+
+        n_hidden = self.model_config['n_hidden']
+        
+        out_n = len(list(dict.fromkeys(y)))
+        rng = np.random.default_rng(self.model_config['seed'])
+
+        init_1 = rng.standard_normal(size=(X.shape[1], n_hidden)).astype(floatX)
+        init_out = rng.standard_normal(size=(n_hidden, out_n)).astype(floatX)
+
+        coords = {
+            "hidden_layer_1": np.arange(n_hidden), # 20
+            "train_cols": np.arange(X.shape[1]), # 57
+            "out_n": np.arange(out_n), # 8
+            "obs_id": np.arange(X.shape[0]), # ~17000 for training?
+        }
+
+        with pm.Model(coords=coords) as self.model:
+            ann_input = pm.Data("ann_input", X, mutable=True, dims=("obs_id", "train_cols"))
+            ann_output = pm.Data("ann_output", y, mutable=True, dims="obs_id")
+
+            weights_in_1 = pm.Normal("w_in_1", mus1, sigma=sigmas1, shape=(X.shape[1], model_config['n_hidden']), initval=mus1)
+            weights_3_out = pm.Normal("w_2_out", mus2, sigma=sigmas2, shape=(model_config['n_hidden'], out_n), initval=mus2)
+
+            # Build neural-network using tanh activation function
+            act_1 = pm.math.tanh(pm.math.dot(ann_input, weights_in_1))
+            
+            act_out = pm.math.softmax(pm.math.dot(act_1, weights_3_out), axis=-1)
+            
+            out = pm.Categorical(
+                "out",
+                p=act_out,
+                observed=ann_output,
+                total_size=y.shape[0],  # IMPORTANT for minibatches
+                dims="obs_id"
+            )
+
+            fitted_model = pm.fit(n=1)
+            
+        return fitted_model, X_train, y_train, X_test, y_test
+
 
 
 
@@ -403,32 +459,33 @@ class Experiments():
         ''' Loads network file and evaluate it
         '''
         print("Load and evaluate\n---")
-        self.train = PyMC3Train(args=args)
-        self.train.import_records()
-        self.train.split()
-        self.train.load(name=self.args['model_filename'])
-        self.train.import_records()
-        self.train.split()
-
-        return self.train.evaluate()
+        self.pymcmodel = PyMCModel(args)
+        fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
+        acc = self.pymcmodel.evaluate(fitted_model, X_test, y_test, X_train, y_train)
         
     def trainWithParameters(self, args):
         ''' Train/evaluate + Save
         '''
         print("Training With Parameters and Save\n---")
-        self.train = PyMC3Train(args=args)
+        self.pymcmodel = PyMCModel(args)
 
-        self.train.import_records()
-        print("Split test_size: ", self.train.args['split'])
-        self.train.split()
+        X, y = self.pymcmodel.import_records()
+        X_train, X_test, y_train, y_test = self.pymcmodel.split(X, y)
 
-        self.train.train()
-        accuracy, accuracy_train = self.train.evaluate()
+        fitted_model = self.pymcmodel.fit(X_train, y_train)
+        acc = self.pymcmodel.evaluate(fitted_model, X_test, y_test, X_train, y_train)
+
 
         if args['save']:
-            self.train.save(name=self.train.args['model_filename'], accuracy=accuracy)
+            self.pymcmodel.save(fitted_model, X_train, y_train, X_test, y_test)
 
-        return accuracy, accuracy_train
+        self.pymcmodel = None
+        self.pymcmodel = PyMCModel(args)
+
+        if args['test']:
+            fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
+            acc = self.pymcmodel.evaluate(fitted_model, X_test, y_test, X_train, y_train)
+            
 
 
 
@@ -437,20 +494,24 @@ if __name__ == '__main__':
     parser.add_argument('--experiment', default="trainWithParameters", type=str, help='(default=%(default))', choices=['loadAndEvaluate', 'trainWithParameters'])
     # parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default))')
 
-    parser.add_argument('--model_filename', default='new_network_y24', type=str, help='(default=%(default))')
     parser.add_argument('--inference_type', default='ADVI', type=str, help='(default=%(default))')
+    parser.add_argument('--layers', default=2, type=int, help='(default=%(default))')
     parser.add_argument('--input_definition_version', default=1, type=int, help='(default=%(default))')
     parser.add_argument('--split', default=0.3, type=float, help='(default=%(default))')
-    parser.add_argument('--take_every', default=10, type=int, help='(default=%(default))')
-    parser.add_argument('--iter', default=70000, type=int, help='(default=%(default))')
-    parser.add_argument('--n_hidden', default=25, type=int, help='(default=%(default))')
+    parser.add_argument('--take_every', default=4, type=int, help='(default=%(default))')
+    parser.add_argument('--iter', default=10000, type=int, help='(default=%(default))')
+    parser.add_argument('--n_hidden', default=30, type=int, help='(default=%(default))')
     
+    parser.add_argument('--seed', default=93457, type=int, help='(default=%(default))')
+    parser.add_argument('--gesture_type', default="static", type=str, help='(default=%(default))')
     
-    
-    parser.add_argument('--full_dataload', default=False, type=bool, help='(default=%(default))')
+    parser.add_argument('--model_filename', default='new_network_y24', type=str, help='(default=%(default))')
+    parser.add_argument('--full_dataload', default=True, type=bool, help='(default=%(default))')
 
+    parser.add_argument('--engine', default="PyMC", type=str, help='(default=%(default))')
 
-    parser.add_argument('--save', default=False, type=bool, help='(default=%(default))')
+    parser.add_argument('--save', default=True, type=bool, help='(default=%(default))')
+    parser.add_argument('--test', default=True, type=bool, help='(default=%(default))')
     args=parser.parse_args().__dict__
 
     experiment = getattr(Experiments(), args['experiment'])

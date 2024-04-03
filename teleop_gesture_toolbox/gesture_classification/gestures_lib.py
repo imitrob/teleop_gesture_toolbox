@@ -457,7 +457,7 @@ class GestureDataHand():
 class GestureDataDetection():
     ''' The main class: gl.gd
     '''
-    def __init__(self, silent=False):
+    def __init__(self, silent=False, load_trained=True):
         self.bfr_len = 1000
         ''' Leap Controller hand data saved as circullar buffer '''
         self.hand_frames = collections.deque(maxlen=self.bfr_len)
@@ -481,7 +481,7 @@ class GestureDataDetection():
         self.target_object_infos = []
         self.ap = []
 
-        self.static_network_info, self.dynamic_network_info = self.load_netork_info()
+        self.static_network_info, self.dynamic_network_info = self.load_netork_info(load_trained)
         # Misc
         self.last_seq = 0
         self.rate = settings.yaml_config_gestures['misc']['rate']
@@ -567,22 +567,25 @@ class GestureDataDetection():
     def mp_info(self):
         return self.l.mp.info
 
-    def load_netork_info(self):
+    def load_netork_info(self, load_trained):
         static_network_file = settings.get_network_file(type='static')
         dynamic_network_file = settings.get_network_file(type='dynamic')
 
         if static_network_file is not None:
-            try:
-                from os_and_utils.nnwrapper import NNWrapper
-                nw = NNWrapper.load_network(settings.paths.network_path, static_network_file)
-                static_network_info = nw.args
-                static_network_info['accuracy'] = nw.accuracy
-            except ModuleNotFoundError:
+            if load_trained:
+                try:
+                    from os_and_utils.nnwrapper import NNWrapper
+                    nw = NNWrapper.load_network(settings.paths.network_path, static_network_file)
+                    static_network_info = nw.args
+                    static_network_info['accuracy'] = nw.accuracy
+                except ModuleNotFoundError:
+                    static_network_info = None
+            else:
                 static_network_info = None
         else:
             static_network_info = None
 
-        if dynamic_network_file is not None:
+        if dynamic_network_file is not None and load_trained:
             #nw = NNWrapper.load_network(settings.paths.network_path, dynamic_network_file)
             #dynamic_network_info = nw.args
             dynamic_network_info = {'input_definition_version': 0, 'scene_frame':1}
@@ -1392,7 +1395,7 @@ class SentenceData():
         self.previous_gesture_observed_data_measurement_distance = []
         self.evaluate_episode = False
 
-def init(silent=False):
+def init(silent=False, load_trained=True):
     global gd, sd
     gd = GestureDataDetection(silent=silent)
     sd = SentenceData()
