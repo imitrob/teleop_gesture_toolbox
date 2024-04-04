@@ -304,11 +304,10 @@ class DatasetLoader():
                 for i in range(0, len(X_n), 10):
                     X_.append(deepcopy(X_n[i]))
                     Y_.append(deepcopy(Y[n]))
-
-        X = np.array(X)
-        Y = np.array(Y)
-        print(f"shape 1 {np.array(X).shape} y {np.array(Y).shape}")
-        X,Y = self.to_2D(X,Y)
+        X = np.array(X_)
+        Y = np.array(Y_)
+        # print(f"shape 1 {np.array(X).shape} y {np.array(Y).shape}")
+        # X,Y = self.to_2D(X,Y)
         print(f"shape 2 {np.array(X).shape} y {np.array(Y).shape}")
         X,Y = self.postprocessing(X,Y)
         print(f"shape 3 {X.shape} y {Y.shape}")
@@ -330,11 +329,13 @@ class DatasetLoader():
         return X,Y
 
     def postprocessing(self, X, Y):
-
-        try:
-            X = scale(X)
-        except:
-            print("[Loading] Scale function failed")
+        
+        ## Need to be there
+        X = scale(X)
+        # try:
+        #     X = scale(X)
+        # except:
+        #     print("[Loading] Scale function failed")
 
         try:
             # Not in a loop, import can be here -> dependency
