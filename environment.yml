@@ -1,4 +1,4 @@
-name: teleopenv2
+name: teleopenv
 channels:
   - conda-forge
   - speleo3
@@ -6,10 +6,13 @@ channels:
   - robostack-experimental
   - defaults
 dependencies:
+  - python=3.11
+  - numpy=1.25.2
+  - pymc>=5
+  - arviz=0.11.0
   - fastdtw
   - deepdiff
   - pygraphviz
-  - arviz
   - assimp
   - autograd
   - beautifulsoup4
@@ -29,14 +32,9 @@ dependencies:
   - ipywidgets
   - jupyter
   - matplotlib
-  - numpy<1.23
-  - arviz=0.11.0
   - pandas
   - pillow
-  - pip
-  - pymc3
   - pyqt
-  - python=3.9
   - pyyaml
   - qpsolvers
   - qt
@@ -62,7 +60,6 @@ dependencies:
   - ros-galactic-moveit-msgs
   - ros-galactic-geometry-msgs
   - colcon-common-extensions
-  - theano-pymc=1.1.2
   - pip:
     - cffi==1.14.2
     - machinevision-toolbox-python==0.5.5
