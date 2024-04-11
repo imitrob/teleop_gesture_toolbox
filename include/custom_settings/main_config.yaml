@@ -19,9 +19,9 @@ available_configurations:
     gestures: main_set
     mapping: main_map
 
-    static_detection_approach: PyMC3
+    static_detection_approach: PyMC
     dynamic_detection_approach: DTW
-    static_network_file: PyMC3-main-set-3.pkl
+    static_network_file: network99.npy
     dynamic_network_file: promp
     hand_mode_l: static+dynamic
     hand_mode_r: dynamic+static

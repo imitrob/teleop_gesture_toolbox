@@ -9,7 +9,7 @@ dependencies:
   - python=3.11
   - numpy=1.25.2
   - pymc>=5
-  - arviz=0.11.0
+#  - arviz=0.11.0
   - fastdtw
   - deepdiff
   - pygraphviz
@@ -54,11 +54,11 @@ dependencies:
   - rosdep
   - rosdistro
   - rospkg
-  - ros-galactic-desktop
-  - ros-galactic-moveit-resources-panda-moveit-config
-  - ros-galactic-control-msgs
-  - ros-galactic-moveit-msgs
-  - ros-galactic-geometry-msgs
+  - ros-humble-desktop
+  - ros-humble-moveit-resources-panda-moveit-config
+  - ros-humble-control-msgs
+  - ros-humble-moveit-msgs
+  - ros-humble-geometry-msgs
   - colcon-common-extensions
   - pip:
     - cffi==1.14.2

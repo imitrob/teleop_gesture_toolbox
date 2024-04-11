@@ -236,13 +236,14 @@ class PyMCModel():
 
         print(f"Network: {name}.npy saved")
 
-    def build_model_from_values(self, X_train, y_train, mu, sigma, model_config):
+    def build_model_from_values(self, X_train, y_train, mu, sigma, model_config, out_n=None):
 
-        out_n = len(list(dict.fromkeys(y_train)))
+        if out_n is None:
+            out_n = len(list(dict.fromkeys(y_train)))
+        
         layer1_bound = X_train.shape[1] * model_config['n_hidden']
         n_hidden = self.model_config['n_hidden']
-        out_n = len(list(dict.fromkeys(y_train)))
-
+        
         mus1 = mu[0:layer1_bound]
         mus2 = mu[layer1_bound:]
         mus1=mus1.T.reshape(X_train.shape[1],model_config['n_hidden'])
@@ -299,9 +300,20 @@ class PyMCModel():
 
         return loaded_model, X_train, y_train, X_test, y_test
 
-    def sample(self):
-        
+    def sample(self, built_model, draws=100):
 
+        t1 = time.perf_counter()
+
+        trace = built_model.sample(draws=draws)
+        with self.model:
+            ppc = pm.sample_posterior_predictive(trace)
+            trace.extend(ppc)
+        pred = np.array(ppc.posterior_predictive['out'])[0].T
+
+        y_pred = Counter(pred[0]).most_common()[0][0]
+        print(f"tt {time.perf_counter()-t1}")
+        return y_pred        
+        
 
 class Experiments():
 
@@ -358,10 +370,20 @@ class Experiments():
             fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
             acc = self.pymcmodel.evaluate(fitted_model, X_test, y_test, X_train, y_train)
             
+    def sampleThread(self, args):
+        args = _args()
+        self.pymcmodel = PyMCModel(args)
+        fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
+        X_true = X_test[0:1]
+        y_true = y_test[0:1]
+        out_n = len(list(dict.fromkeys(y_train)))
+        built_model = self.pymcmodel.build_model_from_values(X_true, y_true, fitted_model.mean.eval(), fitted_model.std.eval(), self.pymcmodel.model_config, out_n=out_n)
 
+        while True:
+            self.pymcmodel.sample(built_model)
 
-
-if __name__ == '__main__':
+    
+def _args():
     """ Optimal config for 8 gestures, each 30 recordings (~2000 samples) per gestures
         - 20 n_hidden nodes
         - 70000 iterations
@@ -372,7 +394,7 @@ if __name__ == '__main__':
     """
 
     parser=argparse.ArgumentParser(description='')
-    parser.add_argument('--experiment', default="loadAndEvaluate", type=str, help='(default=%(default))', choices=['loadAndEvaluate', 'trainWithParameters'])
+    parser.add_argument('--experiment', default="sampleThread", type=str, help='(default=%(default))', choices=['loadAndEvaluate', 'trainWithParameters', 'sampleThread'])
 
     # const
     parser.add_argument('--inference_type', default='ADVI', type=str, help='(default=%(default))')
@@ -398,12 +420,12 @@ if __name__ == '__main__':
     parser.add_argument('--save', default=False, type=bool, help='(default=%(default))')
     parser.add_argument('--test', default=False, type=bool, help='(default=%(default))')
 
-    args=parser.parse_args().__dict__
+    return parser.parse_args().__dict__
 
+if __name__ == '__main__':
+    args = _args()
     experiment = getattr(Experiments(), args['experiment'])
     # if args['seed_wrapper']:
     #     e.seed_wrapper(experiment, args=args)
     # else:
     experiment(args=args)
-
-

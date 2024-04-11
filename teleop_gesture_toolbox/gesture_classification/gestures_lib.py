@@ -1397,7 +1397,7 @@ class SentenceData():
 
 def init(silent=False, load_trained=True):
     global gd, sd
-    gd = GestureDataDetection(silent=silent)
+    gd = GestureDataDetection(silent=silent, load_trained=load_trained)
     sd = SentenceData()
 
 

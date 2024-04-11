@@ -39,9 +39,11 @@ class ClassificationSampler(Node):
         self.sem = threading.Semaphore()
 
         self.detection_approach = settings.get_detection_approach(type)
-        if self.detection_approach in ['PyMC3', 'PyMC', 'pymc3', 'pymc']:
+        if self.detection_approach == 'PyMC3':
             self.detection_approach = 'PyMC3'
             from gesture_classification.pymc3_sample import PyMC3_Sample as sample_approach
+        elif self.detection_approach == 'PyMC':
+            from gesture_classification.pymc_sample import PyMC_Sample as sample_approach
         elif self.detection_approach in ['PyTorch', 'Torch', 'pytorch', 'torch']:
             self.detection_approach = 'PyTorch'
             from gesture_classification.pytorch_sample import PyTorch_Sample as sample_approach
@@ -102,7 +104,8 @@ class ClassificationSampler(Node):
 
     def init(self, network):
         ''' network parameter is classic file name for PyMC3 '''
-        if network in os.listdir(settings.paths.network_path):
+        #if network in os.listdir(settings.paths.network_path):
+        if self.detection_approach == 'PyMC3':
             nn = NNWrapper.load_network(settings.paths.network_path, name=network)
 
             self.Gs = nn.Gs
@@ -117,6 +120,15 @@ class ClassificationSampler(Node):
 
             self.get_logger().info(f"[Sample thread] network is: {network}")
             ''' network parameter is folder name for PyTorch network folder '''
+        elif self.detection_approach == 'PyMC': 
+            nn = np.load(settings.paths.network_path+network, allow_pickle=True)
+            
+            self.sem.acquire()
+            self.nn = self.sample_approach.init(nn)
+            self.sem.release()
+
+            self.get_logger().info(f"[Sample thread] network is: {network}")
+
         elif os.path.isdir(settings.paths.UCB_path+'checkpoints/'+network):
             self.sem.acquire()
             self.nn = self.sample_approach.init(network)
