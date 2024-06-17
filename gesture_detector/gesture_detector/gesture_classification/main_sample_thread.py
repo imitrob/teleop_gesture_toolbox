@@ -16,7 +16,7 @@ from gesture_detector.gesture_classification.pymc_lib import PyMC_Sample
 from gesture_detector.gesture_classification.timewarp_lib import fastdtw_
 
 class ClassificationSampler(Node):
-    def __init__(self, network_name):
+    def __init__(self, network_name: str):
         with open(gesture_detector.saved_models_path+network_name+".json", 'r') as f:
             model_config = json.load(f)
         model = np.load(gesture_detector.saved_models_path+network_name+".npz")
@@ -87,6 +87,18 @@ def run_dynamic():
     rclpy.init()
     rosnode = ClassificationSampler(network_name='DTW99')
     rclpy.spin(rosnode)
+
+
+def run_from_rosparam():
+    rclpy.init()
+    node = Node("tmp_node")
+    node.declare_parameter('model', '')
+    network_name = node.get_parameter('model').get_parameter_value().string_value
+    node.destroy_node()
+
+    rosnode = ClassificationSampler(network_name)
+    rclpy.spin(rosnode)
+
 
 def main():
     if len(sys.argv) > 1 and sys.argv[1] in ['static', 'dynamic']:

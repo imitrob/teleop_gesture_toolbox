@@ -300,7 +300,7 @@ class PyMC_Sample():
     def sample(self, data):
         trace = self.built_model.sample(draws=self.draws)
         with self.pymcmodel.model:
-            ppc = pm.sample_posterior_predictive(trace)
+            ppc = pm.sample_posterior_predictive(trace, progressbar=False)
             trace.extend(ppc)
         pred = np.array(ppc.posterior_predictive['out'])[0].T
 

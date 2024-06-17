@@ -16,22 +16,24 @@ def generate_launch_description():
         ),
         Node(
             package='gesture_detector',
-            executable='static_detector',
+            executable='custom_detector', # static detector
             name='static_detector_node',
             output='screen',
+            parameters=[{'model': 'network99'}]
         ),
         Node(
             package='gesture_detector',
-            executable='dynamic_detector',
+            executable='custom_detector', # dynamic detector
             name='dynamic_detector_node',
             output='screen',
+            parameters=[{'model': 'DTW99'}]
         ),
         Node(
             package='gesture_detector',
             executable='gesture_detect',
             name='gesture_detector_node',
             output='screen',
-            parameters=[{'l': 'static+dynamic'}]
+            parameters=[{'l': 'static+dynamic', 'r': 'static+dynamic'}]
         ),
         # IncludeLaunchDescription(
         #     PythonLaunchDescriptionSource([os.path.join(

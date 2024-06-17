@@ -18,7 +18,7 @@ mamba activate teleopenv
 Build as ROS2 package:
 ```Shell
 mkdir -p <your_ws>/src
-git clone https://github.com/imitrob/teleop_gesture_toolbox.git
+git clone https://github.com/imitrob/teleop_gesture_toolbox.git --depth 1 --branch dev
 cd <your_ws>
 colcon build --symlink-install
 ```
@@ -55,3 +55,9 @@ ros2 launch rosbridge_server rosbridge_websocket_launch.xml
 python -m http.server
 ```
 
+### Create link for saved_models
+
+```Shell
+rm ~/teleop_2_ws/build/gesture_detector/gesture_detector
+ln -s ~/teleop_2_ws/src/teleop_gesture_toolbox/gesture_detector/saved_models ~/teleop_2_ws/build/gesture_detector/gesture_detector
+```

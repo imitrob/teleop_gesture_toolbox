@@ -1,5 +1,6 @@
 from setuptools import setup
 from glob import glob
+import os 
 
 package_name = 'gesture_detector'
 
@@ -11,6 +12,7 @@ setup(
     data_files=[
         ('share/' + package_name, ['package.xml']),
         ('share/' + package_name + '/launch', glob('launch/*.py')),
+        (os.path.join('share', package_name, 'saved_models'), glob('saved_models/*')),
     ],
     zip_safe=True,
     maintainer='Petr Vanc',
@@ -22,6 +24,7 @@ setup(
         'console_scripts': [
             'static_detector = gesture_detector.gesture_classification.main_sample_thread:run_static',
             'dynamic_detector = gesture_detector.gesture_classification.main_sample_thread:run_dynamic',
+            'custom_detector = gesture_detector.gesture_classification.main_sample_thread:run_from_rosparam',
             'leap = gesture_detector.hand_processing.leap:ros_run',
             'gesture_detect = gesture_detector.gesture_detect:main',
         ],
