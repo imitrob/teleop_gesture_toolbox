@@ -1,0 +1,33 @@
+from setuptools import setup
+from glob import glob
+
+package_name = 'gesture_detector'
+
+setup(
+    name=package_name,
+    version='1.0.0',
+    packages=[package_name],
+    install_requires=['setuptools'],
+    data_files=[
+        ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', glob('launch/*.py')),
+    ],
+    zip_safe=True,
+    maintainer='Petr Vanc',
+    maintainer_email='petr.vanc@cvut.cz',
+    description='',
+    license='Apache 2.0',
+    tests_require=['pytest'],
+    entry_points={
+        'console_scripts': [
+            'static_detector = gesture_detector.gesture_classification.main_sample_thread:run_static',
+            'dynamic_detector = gesture_detector.gesture_classification.main_sample_thread:run_dynamic',
+            'leap = gesture_detector.hand_processing.leap:ros_run',
+            'gesture_detect = gesture_detector.gesture_detect:main',
+        ],
+    },
+)
+
+
+
+

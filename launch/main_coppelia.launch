@@ -1,6 +1,0 @@
-
-<launch>
-  <param name="mirracle_config/action_execution" type="str" value="false" />
-
-  <node pkg="teleop_gesture_toolbox" name="main" type="main_coppelia.py" output="screen"/>
-</launch>

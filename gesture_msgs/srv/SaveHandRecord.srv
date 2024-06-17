@@ -1,0 +1,4 @@
+string directory
+float32 recording_length # [s]
+---
+bool success
