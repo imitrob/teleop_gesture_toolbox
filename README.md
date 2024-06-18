@@ -32,6 +32,12 @@ source install/setup.bash'
 
 See Leap Motion rigged hands by using [leapjs-rigged-hand](https://github.com/leapmotion/leapjs-rigged-hand).
 
+## SampleTraining dataset
+
+Download to `gesture_data` folder from [link](https://drive.google.com/file/d/17L5KEuhW9kLYC073t11jctynQQ6z2Qm0/view?usp=sharing).
+
+Then train static gestures by using `pymc_lib.py` script.
+
 ## Usage 
 
 Run Leap Motion backend: `sudo leapd`
