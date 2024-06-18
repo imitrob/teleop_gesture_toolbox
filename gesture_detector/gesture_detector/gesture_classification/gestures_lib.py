@@ -49,7 +49,9 @@ class ROSComm(Node):
     ''' ROS communication of main thread: Subscribers (init & callbacks) and Publishers
     '''
     def __init__(self):
-        super().__init__('ros_comm_main')
+        if not self.topic:
+            self.topic = 'ros_comm_main'
+        super().__init__(self.topic)
 
         self.create_subscription(rosm.Frame, '/hand_frame', self.hand_frame_callback, 10)
 
@@ -74,14 +76,6 @@ class ROSComm(Node):
         self.get_dynamic_model_config = self.create_client(GetModelConfig, '/teleop_gesture_toolbox/dynamic_detection_info')
         while not self.get_dynamic_model_config.wait_for_service(timeout_sec=1.0):
             print('service not available, waiting again...')
-
-    #     spinning_thread = threading.Thread(target=self.spinning_threadfn, args=(), daemon=True)
-    #     spinning_thread.start()
-
-    # def spinning_threadfn(self):
-    #     while rclpy.ok():
-    #         self.spin_once(sem=True)
-    #         time.sleep(0.01)
 
     def call_static_model_config_service(self):
         self.future = self.get_static_model_config.call_async(GetModelConfig.Request())
@@ -655,6 +649,7 @@ class GestureDataDetection(ROSComm):
     ''' The main class: self
     '''
     def __init__(self, silent=False, load_trained=True):
+        self.topic = None
         super(GestureDataDetection, self).__init__()
         self.bfr_len = 1000
         ''' Leap Controller hand data saved as circullar buffer '''

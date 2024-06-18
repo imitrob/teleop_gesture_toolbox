@@ -94,14 +94,14 @@ class PyMCModel():
     def output_var(self):
         return "y"
 
-    def import_records(self, dataset_files=[]):
+    def import_records(self, gesture_names):
         ''' Import static gestures, Import all data from learning folder
         '''
         if self.model_config['gesture_type'] == 'static':
-            X, y = DatasetLoader({'input_definition_version':1, 'interpolate':1, 'take_every': self.model_config['take_every']}).load_static(gesture_detector.gesture_data_path, self.model_config['Gs'], new=self.model_config['full_dataload'])
+            X, y = DatasetLoader({'input_definition_version':1, 'interpolate':1, 'take_every': self.model_config['take_every']}).load_static(gesture_detector.gesture_data_path, gesture_names, new=self.model_config['full_dataload'])
         elif self.model_config['gesture_type'] == 'dynamic':
             dataloader_args = {'interpolate':1, 'discards':1, 'normalize':1, 'normalize_dim':1, 'n':0}
-            X, y = DatasetLoader(dataloader_args).load_dynamic(gesture_detector.gesture_data_path, self.model_config['Gs'])
+            X, y = DatasetLoader(dataloader_args).load_dynamic(gesture_detector.gesture_data_path, gesture_names)
         print(f"X shape={np.array(X).shape}")
 
         assert not np.any(np.isnan(X))
@@ -349,28 +349,6 @@ class PyMC_Sample():
    
 
 class Experiments():
-
-    ''' THERE IS BETTER WAY TO DO THIS
-    def seed_wrapper(self, fun=None, args=None, SEEDS=[93457, 12345, 45677, 82909, 75433]):
-        print("------------")
-        print("Seed Wrapper")
-        print("------------")
-        # Random seeds, specified for next repeatability
-        self.accuracies, self.accuracies_train = [], []
-        for n,seed in enumerate(SEEDS):
-            print(str(n+1)+". seed: "+str(seed))
-            accuracies_row, accuracies_train_row = [], []
-            np.random.seed(seed)
-            if args:
-                accuracies_row, accuracies_train_row = fun(args=args)
-            else:
-                accuracies_row, accuracies_train_row = fun()
-            self.accuracies.append(accuracies_row)
-            self.accuracies_train.append(accuracies_train_row)
-        print("Accuracies test: ", self.accuracies)
-        print("Accuracies train: ", self.accuracies_train)
-    '''
-    
     def loadAndEvaluate(self, args):
         ''' Loads network file and evaluate it
         '''
@@ -385,7 +363,7 @@ class Experiments():
         print("Training With Parameters and Save\n---")
         self.pymcmodel = PyMCModel(args)
 
-        X, y = self.pymcmodel.import_records()
+        X, y = self.pymcmodel.import_records(gesture_names=args['gestures_train'])
         X_train, X_test, y_train, y_test = train_test_split(X, y, 
             test_size=self.pymcmodel.model_config['split'])
         
@@ -436,6 +414,9 @@ def _args():
     parser.add_argument('--engine', default="PyMC", type=str, help='(default=%(default))')
     parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default))')
 
+    # List of gestures to train
+    # `nargs='+'` tells the parser to expect at least one argument, and to gather all provided into a list
+    parser.add_argument('--gestures_train', nargs='+', default=['grab','point','two','three','four','five','thumbsup'], help='List of gestures')
     # data load
     parser.add_argument('--full_dataload', default=False, type=bool, help='(default=%(default))')
     parser.add_argument('--input_definition_version', default=1, type=int, help='(default=%(default))')
@@ -458,7 +439,5 @@ def _args():
 if __name__ == '__main__':
     args = _args()
     experiment = getattr(Experiments(), args['experiment'])
-    # if args['seed_wrapper']:
-    #     e.seed_wrapper(experiment, args=args)
-    # else:
+
     experiment(args=args)

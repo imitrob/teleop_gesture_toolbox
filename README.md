@@ -30,11 +30,7 @@ LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/CoppeliaSim:$HOME/LeapSDK/lib/x64/;
 source install/setup.bash'
 ```
 
-See Leap Motion rigged hands:
-```
-cd gesture_detector/gesture_visualization
-git clone https://github.com/leapmotion/leapjs-rigged-hand
-```
+See Leap Motion rigged hands by using [leapjs-rigged-hand](https://github.com/leapmotion/leapjs-rigged-hand).
 
 ## Usage 
 

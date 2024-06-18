@@ -72,6 +72,25 @@ class Frame():
 
     def stamp(self):
         return self.sec+self.nanosec*1e-9
+    
+    @property
+    def secs(self):
+        return self.sec
+    
+    @property
+    def nsecs(self):
+        return self.nanosec
+
+    def import_from_json(self, seq, secs, nsecs, fps, hands, l, r, leapgestures=None, present=None):              
+        self.seq = seq
+        self.sec = secs
+        self.nanosec = nsecs
+        self.fps = fps
+        self.hands = hands
+        self.l = l
+        self.r = r
+        self.leapgestures = leapgestures
+        self.present = present
 
     def import_from_leap(self, frame):
         self.seq = frame.id
@@ -356,6 +375,38 @@ class Hand():
 
     def palm_euler(self):
         return [self.palm_normal.roll(), self.direction.pitch(), self.direction.yaw()]
+
+    def import_from_json(self, visible, id, is_left, is_right, is_valid, grab_strength, pinch_strength, confidence, palm_normal, direction, palm_position, fingers, palm_velocity, basis, palm_width, sphere_center, sphere_radius, stabilized_palm_position, time_visible, wrist_position, elbow_position = None, arm_valid = None, arm_width = None, arm_direction = None, arm_basis = None, wrist_angles = None, bone_angles = None, finger_distances = None, finger_distances_old = None
+        ):
+        self.visible = visible
+        self.id = id
+        self.is_left = is_left
+        self.is_right = is_right
+        self.is_valid = is_valid
+        self.grab_strength = grab_strength
+        self.pinch_strength = pinch_strength
+        self.confidence = confidence
+        self.palm_normal = palm_normal
+        self.direction = direction
+        self.palm_position = palm_position
+        self.fingers = fingers
+        self.palm_velocity = palm_velocity
+        self.basis = basis
+        self.palm_width = palm_width
+        self.sphere_center = sphere_center
+        self.sphere_radius = sphere_radius
+        self.stabilized_palm_position = stabilized_palm_position
+        self.time_visible = time_visible
+        self.wrist_position = wrist_position
+        self.elbow_position = elbow_position
+        self.arm_valid = arm_valid
+        self.arm_width = arm_width
+        self.arm_direction = arm_direction
+        self.arm_basis = arm_basis
+        self.wrist_angles = wrist_angles
+        self.bone_angles = bone_angles
+        self.finger_distances = finger_distances
+        self.finger_distances_old = finger_distances_old
 
     def import_from_leap(self, hand):
         self.visible = True
@@ -804,6 +855,17 @@ class Bone():
             self.is_valid = False
             self.length = 0.
             self.width = 0.
+        
+    def import_from_json(self, basis, direction, next_joint, prev_joint, center, is_valid, length, width):
+        self.basis = basis
+        self.direction = direction
+        self.next_joint = next_joint
+        self.prev_joint = prev_joint
+        self.center = center
+        self.is_valid = is_valid
+        self.length = length
+        self.width = width
+
 
     def import_from_leap(self, bone):
         v1 = bone.basis.x_basis.to_float_array()
@@ -854,6 +916,9 @@ class Finger():
                           Bone(), # Intermediate
                           Bone()] # Distal
 
+    def import_from_json(self, bones):
+        self.bones = bones
+
     def import_from_leap(self, finger):
         self.bones = [Bone(finger.bone(0)),
                       Bone(finger.bone(1)),
@@ -875,6 +940,14 @@ class LeapGestures():
         self.swipe = LeapGesturesSwipe()
         self.keytap = LeapGesturesKeytap()
         self.screentap = LeapGesturesScreentap()
+
+
+
+    def import_from_json(self, circle, swipe, keytap, screentap):
+        self.circle = circle
+        self.swipe = swipe
+        self.keytap = keytap
+        self.screentap = screentap
 
     def import_from_ros(self, lg):
         self.circle.present = lg.circle_present
@@ -918,6 +991,16 @@ class LeapGesturesCircle():
         self.radius = 0.
         self.state = 0
 
+    def import_from_json(self, present, id, in_progress, clockwise, progress, angle, radius, state):
+        self.present = present
+        self.id = id
+        self.in_progress = in_progress
+        self.clockwise = clockwise
+        self.progress = progress
+        self.angle = angle
+        self.radius = radius
+        self.state = state
+
 class LeapGesturesSwipe():
     def __init__(self):
         self.present = False
@@ -927,6 +1010,14 @@ class LeapGesturesSwipe():
         self.speed = 0.
         self.state = 0
 
+    def import_from_json(self, present, id, in_progress, direction, speed, state):
+        self.present = present
+        self.id = id
+        self.in_progress = in_progress
+        self.direction = direction
+        self.speed = speed
+        self.state = state
+
 class LeapGesturesKeytap():
     def __init__(self):
         self.present = False
@@ -935,6 +1026,16 @@ class LeapGesturesKeytap():
         self.direction = [0.,0.,0.]
         self.position = [0.,0.,0.]
         self.state = 0
+        self.keytap_flag = True
+
+    def import_from_json(self, present, id, in_progress, direction, position, state, keytap_flag = None):
+        self.present = present
+        self.id = id
+        self.in_progress = in_progress
+        self.direction = direction
+        self.position = position
+        self.state = state
+        self.keytap_flag = keytap_flag
 
 class LeapGesturesScreentap():
     def __init__(self):
@@ -944,6 +1045,14 @@ class LeapGesturesScreentap():
         self.direction = [0.,0.,0.]
         self.position = [0.,0.,0.]
         self.state = 0
+    
+    def import_from_json(self, present, id, in_progress, direction, position, state):
+        self.present = present
+        self.id = id
+        self.in_progress = in_progress
+        self.direction = direction
+        self.position = position
+        self.state = state
 
 # ----------------------------------------------
 

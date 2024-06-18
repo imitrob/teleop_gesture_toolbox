@@ -1,6 +1,9 @@
+import json
 import time, os, pathlib
 import os
 import numpy as np
+
+from gesture_detector.hand_processing import frame_lib
 
 class Recording():
     def __init__(self):
@@ -59,6 +62,92 @@ class Recording():
         while os.path.isfile(directory+"/"+str(i)+ext):
             i+=1
         file_abs_path = directory+"/"+str(i)
-        np.save(file_abs_path+".npy", object_to_save)
+        # np.save(file_abs_path+".npy", object_to_save)
+        JSONLoader.save(file_abs_path, object_to_save)
         
         print(f"[Saving] Gesture movement {directory} saved")
+
+
+
+class FrameEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, (frame_lib.Vector, 
+                            frame_lib.Bone, 
+                            frame_lib.Finger, 
+                            frame_lib.Hand, 
+                            frame_lib.Frame, 
+                            frame_lib.LeapGesturesCircle, 
+                            frame_lib.LeapGesturesSwipe, 
+                            frame_lib.LeapGesturesKeytap, 
+                            frame_lib.LeapGesturesScreentap, 
+                            frame_lib.LeapGestures)):
+            return obj.__dict__  
+        if isinstance(obj, np.ndarray):
+            return list(obj)
+
+        return json.JSONEncoder.default(self, obj)
+
+def decode_frame(dct):
+    if 'x' in dct:  
+        return frame_lib.Vector(**dct)   
+    if 'width' in dct:  
+        b = frame_lib.Bone()  
+        b.import_from_json(**dct)
+        return b
+    if 'bones' in dct:  
+        f = frame_lib.Finger()  
+        f.import_from_json(**dct)
+        return f
+    if 'visible' in dct:  
+        h = frame_lib.Hand()  
+        h.import_from_json(**dct)
+        return h
+    if 'seq' in dct:  
+        h = frame_lib.Frame()  
+        h.import_from_json(**dct)
+        return h
+    if 'keytap' in dct:
+        h = frame_lib.LeapGestures()
+        h.import_from_json(**dct)
+        return h
+    if 'clockwise' in dct:
+        h = frame_lib.LeapGesturesCircle()   
+        h.import_from_json(**dct)
+        return h
+    if 'speed' in dct:
+        h = frame_lib.LeapGesturesSwipe()
+        h.import_from_json(**dct)
+        return h
+    if 'keytap_flag' in dct:
+        h = frame_lib.LeapGesturesKeytap()   
+        h.import_from_json(**dct)
+        return h 
+    if 'state' in dct:
+        h = frame_lib.LeapGesturesScreentap()   
+        h.import_from_json(**dct)
+        return h 
+    return dct
+
+
+class JSONLoader():
+    @staticmethod
+    def save(path: str, frame):
+        pathlib.Path(path).parent.mkdir(exist_ok=True)
+        json_data = json.dumps(frame, cls=FrameEncoder)
+
+        with open(f"{path}", "w") as outfile:
+            outfile.write(json_data)
+
+    @staticmethod
+    def load(path_: str):
+        with open(f"{path_}", 'r') as openfile:
+            json_data = str(json.load(openfile))
+
+        json_data = json_data.replace("'", '"')
+        json_data = json_data.replace("False", "false")
+        json_data = json_data.replace("True", "true")
+        json_data = json_data.replace("nan", "null")
+
+        frame_copy = json.loads(json_data, object_hook=decode_frame)
+
+        return frame_copy

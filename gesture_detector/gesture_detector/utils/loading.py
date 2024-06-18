@@ -1,5 +1,6 @@
 import json
 import gesture_detector
+from gesture_detector.utils.saving import JSONLoader
 import numpy as np
 import pickle
 import sys,os
@@ -11,11 +12,7 @@ from sklearn.preprocessing import scale
 from gesture_detector.utils.transformations import Transformations as tfm
 
 class HandDataLoader():
-    def __init__(self, import_method='numpy', dataset_files=[]):
-        if import_method not in ['numpy', 'pickle']:
-            raise Exception(f"Invalid import_method: {import_method}, pick 'numpy or 'pickle'")
-        self.import_method = import_method
-
+    def __init__(self, dataset_files=[]):
         self.dataset_files = dataset_files
 
     def load_tmp(self, dir, type):
@@ -82,7 +79,7 @@ class HandDataLoader():
                 with open(f"{dir}/{i_file}", 'rb') as input:
                     self.dataset_files.append(i_file)
 
-                    X.append(self.load_file(input))
+                    X.append(self.load_file(f"{dir}/{i_file}"))
                     Y.append(n)
                 i+=1
 
@@ -107,7 +104,7 @@ class HandDataLoader():
                         continue
                     self.dataset_files.append(i_file)
 
-                    X.append(self.load_file(input))
+                    X.append(self.load_file(f"{dir}/{i_file}"))
                     Y.append(n)
                 i+=1
 
@@ -117,16 +114,11 @@ class HandDataLoader():
         return X,Y
 
     def get_ext(self):
-        if self.import_method=='numpy':
-            return '.npy'
-        elif self.import_method=='pickle':
-            return '.pkl'
-
-    def load_file(self, input):
-        if self.import_method == 'numpy':
-            return np.load(input, encoding='latin1', allow_pickle=True)
-        elif self.import_method == 'pickle':
-            return pickle.load(input, encoding="latin1")
+        return '.json'
+        
+    def load_file(self, input_):
+        # return np.load(input, encoding='latin1', allow_pickle=True)
+        return JSONLoader.load(input_)
 
 #X,Y = HandDataLoader().load_directory('/home/<user>/<your dir>', ['asd'])
 

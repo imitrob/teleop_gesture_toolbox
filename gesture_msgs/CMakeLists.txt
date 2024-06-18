@@ -33,6 +33,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DetectionObservations.msg"
   "msg/DetectionSolution.msg"
   "msg/LeapGestures.msg"
+  "msg/HRICommand.msg"
   "srv/SaveHandRecord.srv"
   "srv/GetModelConfig.srv"
   
