@@ -1,8 +1,5 @@
 
-
-
-
-
+import collections
 from copy import deepcopy
 import time
 import numpy as np
@@ -10,99 +7,93 @@ from spatialmath import UnitQuaternion
 import spatialmath as sm 
 
 from geometry_msgs.msg import Quaternion
+import gesture_msgs.msg as rosm
+from gesture_detector.hand_processing.frame_lib import Frame
 
-class Servo():
-    type = "drawing" # type (Str): 'simple' - position based, 'absolute', 'relavive'
-
-    def live_handle_step(self, mod=3, scale=1.0, local_live_mode=None):
-        if self.seq % mod == 0:
-            if gl.gd.r_present():
-                self.do_live_mode(h='r', type='drawing with collision detection', link_gesture='grab', scale=scale, local_live_mode=local_live_mode)
-            else:
-                self.live_mode_drawing = False
-        if gl.gd.l_present():
-            if self.seq % mod == 0:
-                self.grasp_on_basic_grab_gesture(hnds=['l'])
+from teleop_gesture_toolbox.live_teleoperation.transform import transform_leap_to_scene
+from panda_ros import Panda
 
 
-    def do_live_mode(self, h='r', link_gesture='grab', scale=1.0, local_live_mode=None):
-        '''
-        Parameters:
-            rc.roscm.r (obj): coppelia/swift or other
-            h (Str): read hand 'r', 'l'
-           
-            link_gesture (Str): ['<static_gesture>', 'grab'] - live mode activated when using given static gesture
-        '''
+class Servo(Panda):
+    def __init__(self,
+                 teleop_hand = "l", # h (Str): read hand 'r', 'l'
+                 aux_hand = "r",
+                 link_gesture = "grab_strength", # (Str): ['<static_gesture>', 'grab'] - live mode activated when using given static gesture
+                 scale = 1.0,
+                 live_mode_with_eef_rot = True,
+                 ):
+        """Live mode is enabled only, when link_gesture is activated.
+        """        
+        self.teleop_hand = teleop_hand 
+        self.aux_hand = 'r'
 
-        # update focused object based on what is closest
-        if sl.scene is not None:
-            self.object_focus_id = sl.scene.get_closest_object(self.goal_pose)
+        self.create_subscription(rosm.Frame, '/hand_frame', self.hand_frame_callback, 10)
+        self.hand_frames = collections.deque(maxlen=5)
+        
+        self.link_gesture = link_gesture
+        self.scale = scale
+        self.live_mode_with_eef_rot = live_mode_with_eef_rot
 
-        if type == 'simple': return DirectTeleoperation.simple_teleop_step(self)
-        '''
-        Live mode is enabled only, when link_gesture is activated
-        '''
-        relevant = getattr(gl.gd, h).static.relevant()
-        now_actived_gesture = None
+    def hand_frame_callback(self, data):
+        ''' Hand data received by ROS msg is saved '''
+        f = Frame()
+        f.import_from_ros(data)
+        self.hand_frames.append(f)
 
-        if relevant: now_actived_gesture = relevant.activate_name
-        a = False # Activated
+    def is_hand_visible(self, hand):
+        if (self.frames and 
+            self.frames[-1] and
+            getattr(self.frames[-1],hand) and
+            getattr(self.frames[-1],hand).visible):
+            return True
+        return False
 
-        # Check if activated gesture is the gesture which triggers the live mode
-        if now_actived_gesture and now_actived_gesture == link_gesture:
-            a = True
-        # Gesture is 'grab', it is not in list, but it is activated externally
-        elif link_gesture == 'grab' and getattr(gl.gd.hand_frames[-1], h).grab_strength > 0.8:
-            a = True
-        if Servo.type == 'absolute':
-            DirectTeleoperation.absolute_teleop_step(a, self, h,scale=scale)
-        elif Servo.type == 'relative':
-            DirectTeleoperation.relative_teleop_step(a, self, h, scale=scale)
-        elif Servo.type == 'drawing':
-            DirectTeleoperation.drawing_teleop_step(a, self, h, scale=scale)
-        elif Servo.type == 'drawing with collision detection':
-            DirectTeleoperation.drawing_mode_with_collision_detection_step(a,self,h,scale=scale,local_live_mode=local_live_mode)
-        else: raise Exception(f"Wrong parameter type ({type}) not in ['simple','absolute','relative']")
+    def is_gesture_activated(self, hand, gesture):
+        if self.is_hand_visible(hand):
+            if getattr(getattr(self.frames[-1],hand),gesture) > 0.8:
+                return True
+        return False
+
+    def live_handle_step(self):
+
+        if self.is_hand_visible(self.teleop_hand):
+            trigger = self.is_gesture_activated(self.teleop_hand, self.link_gesture)
+            self.teleoperation_step(trigger)
+        else:
+            self.live_mode_drawing = False
+        
+        if self.is_hand_visible(self.aux_hand):
+            grab_strength = getattr(self.hand_frames[-1], self.aux_hand).grab_strength
+            self.panda.set_gripper(grab_strength)
+
+    def teleoperation_step(self, trigger):
+        self.goal_pose = transform_leap_to_scene(
+            getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
+            self.scale)
+        self.go_to_pose(self.goal_pose)
 
 
-    def grasp_on_basic_grab_gesture(self, hnds=['l']):
-        for h in hnds:
-            grab_strength = getattr(gl.gd.hand_frames[-1], h).grab_strength
-            if grab_strength > 0.5:
-                if not rc.roscm.is_real and sl.scene is not None and not (sl.scene.object_names is None) and self.object_focus_id is not None:
-                    rc.roscm.r.pick_object(object=sl.scene.object_names[self.object_focus_id])
-                else:
-                    rc.roscm.r.close_gripper()
-            else:
-                rc.roscm.r.release_object()
+class AbsoluteTeleoperation(Servo):
+    def teleoperation_step(self, trigger):
+        if trigger:
+            self.goal_pose = transform_leap_to_scene(
+                getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
+                self.scale)
+            self.go_to_pose(self.goal_pose)
 
-
-
-class DirectTeleoperation():
-    """ TODO: Add remaining function to th
-    """
-    @staticmethod
-    def simple_teleop_step(self, h='l'):
-        self.goal_pose = tfm.transformLeapToScene(getattr(gl.gd.hand_frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
-        rc.roscm.r.go_to_pose(self.goal_pose)
-
-    @staticmethod
-    def absolute_teleop_step(a, self, h):
-        if a:
-            self.goal_pose = tfm.transformLeapToScene(getattr(gl.gd.hand_frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
-            rc.roscm.r.go_to_pose(self.goal_pose)
-
-    @staticmethod
-    def relative_teleop_step(a, self, h):
+class RelativeTeleoperation(Servo):
+    def teleoperation_step(self, trigger):
         raise Exception("Not Implemented")
 
-    def drawing_teleop_step(a, self, h):
-        if a:
+class TeleoperationByDrawing(Servo):
+    def teleoperation_step(self, trigger):
+        if trigger:
+            mouse_3d = transform_leap_to_scene(
+                getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
+                self.scale)
 
-            mouse_3d = tfm.transformLeapToScene(getattr(gl.gd.hand_frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
-
-            if self.live_mode == 'With eef rot':
-                x,y = gl.gd.hand_frames[-1].r.direction()[0:2]
+            if self.live_mode_with_eef_rot:
+                x,y = self.hand_frames[-1].r.direction()[0:2]
                 angle = np.arctan2(y,x)
 
             if not self.live_mode_drawing: # init anchor
@@ -110,7 +101,7 @@ class DirectTeleoperation():
                 self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
                 self.live_mode_drawing = True
 
-                if self.live_mode == 'With eef rot':
+                if self.live_mode_with_eef_rot:
                     self.eef_rot_scene = deepcopy(self.eef_rot)
                     self.live_mode_drawing_eef_rot_anchor = angle
 
@@ -120,7 +111,7 @@ class DirectTeleoperation():
             self.goal_pose.position.y += (mouse_3d.position.y - self.live_mode_drawing_anchor.position.y)
             self.goal_pose.position.z += (mouse_3d.position.z - self.live_mode_drawing_anchor.position.z)
 
-            if self.live_mode == 'With eef rot':
+            if self.live_mode_with_eef_rot:
                 self.eef_rot = deepcopy(self.eef_rot_scene)
                 self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
 
@@ -131,32 +122,32 @@ class DirectTeleoperation():
         else:
             self.live_mode_drawing = False
 
-        rc.roscm.r.go_to_pose(self.goal_pose)
+        self.go_to_pose(self.goal_pose)
 
 
-    @staticmethod
-    def correction_by_teleop():
-        print(f"Teleop started")
-        while not gl.gd.present():
+
+class CorrectingPositionTeleoperation():
+    
+    def correction_by_teleop(self, duration=5.0):
+        teleop = TeleoperationByDrawing(live_mode_with_eef_rot=False)
+
+        while not self.present():
             time.sleep(0.1)
-        while gl.gd.present():
+        while self.present():
             t = time.time()
-            while time.time()-t < 5.0:
-                Servo.live_handle_step(mod=1, scale=0.03, local_live_mode='no_eef_rotation')
+            while time.time()-t < duration:
+                teleop.live_handle_step(scale=0.03)
                 time.sleep(0.01)
-        print(f"Teleop ended")
-        return True
 
-    @staticmethod
-    def drawing_mode_with_collision_detection_step(a, self, h, scale=0.5, local_live_mode=None):
-        live_mode = self.live_mode
-        if local_live_mode is not None: live_mode = local_live_mode
-        if a:
+        
 
-            mouse_3d = tfm.transformLeapToScene(getattr(gl.gd.hand_frames[-1],h).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+class TeleoperationByDrawingSomeCollisionDetection(Servo):
+    def teleoperation_step(self, trigger):
+        if trigger:
+            mouse_3d = transform_leap_to_scene(getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(), self.ENV, self.scale, self.camera_orientation)
 
-            if live_mode == 'With eef rot':
-                x,y = gl.gd.hand_frames[-1].r.direction()[0:2]
+            if self.live_mode_with_eef_rot:
+                x,y = self.hand_frames[-1].r.direction()[0:2]
                 angle = np.arctan2(y,x)
 
             if not self.live_mode_drawing: # init anchor
@@ -164,7 +155,7 @@ class DirectTeleoperation():
                 self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
                 self.live_mode_drawing = True
 
-                if live_mode == 'With eef rot':
+                if self.live_mode_with_eef_rot:
                     self.eef_rot_scene = deepcopy(self.eef_rot)
                     self.live_mode_drawing_eef_rot_anchor = angle
 
@@ -178,14 +169,14 @@ class DirectTeleoperation():
             mouse_3d.position.y- self.live_mode_drawing_anchor.position.y, mouse_3d.position.z- self.live_mode_drawing_anchor.position.z]
             anchor_list = [self.live_mode_drawing_anchor_scene.position.x, self.live_mode_drawing_anchor_scene.position.y, self.live_mode_drawing_anchor_scene.position.z]
 
-            anchor, goal_pose = DirectTeleoperation.damping_difference(anchor=anchor_list,
+            anchor, goal_pose = self.damping_difference(anchor=anchor_list,
                                         eef=mouse_3d_list, objects=np.array([]))
             self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
-            self.goal_pose.position.x += (goal_pose[0]) * scale
-            self.goal_pose.position.y += (goal_pose[1]) * scale
-            self.goal_pose.position.z += (goal_pose[2]) * scale
+            self.goal_pose.position.x += (goal_pose[0]) * self.scale
+            self.goal_pose.position.y += (goal_pose[1]) * self.scale
+            self.goal_pose.position.z += (goal_pose[2]) * self.scale
 
-            if live_mode == 'With eef rot':
+            if self.live_mode_with_eef_rot:
                 self.eef_rot = deepcopy(self.eef_rot_scene)
                 self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
 
@@ -195,18 +186,17 @@ class DirectTeleoperation():
                 self.goal_pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
         else:
             self.live_mode_drawing = False
-        rc.roscm.r.go_to_pose(self.goal_pose)
 
-    @staticmethod
-    def compute_closest_pointing_object(hand_trajectory_vector, goal_pose):
+        self.go_to_pose(self.goal_pose)
+
+    def compute_closest_pointing_object(self, hand_trajectory_vector, goal_pose):
         ''' TODO!
         '''
         raise NotImplementedError
         goal_pose + hand_trajectory_vector
         return object_name, object_distance_to_bb
 
-    @staticmethod
-    def damping_compute(position, objects, table_safety=0.03):
+    def damping_compute(self, position, objects, table_safety=0.03):
         '''
         Parameters:
             eef (Vector[3]): xyz of eef position
@@ -232,8 +222,7 @@ class DirectTeleoperation():
         v = np.min(v__)
         return v
 
-    @staticmethod
-    def damping_difference(anchor, eef, objects):
+    def damping_difference(self, anchor, eef, objects):
         eef = np.array(eef)
         anchor = np.array(anchor)
 
@@ -241,7 +230,7 @@ class DirectTeleoperation():
         for i in range(0,100,1):
             i = i/100
             v = anchor + i * (eef)
-            r = DirectTeleoperation.damping_compute(v, objects)
+            r = self.damping_compute(v, objects)
 
             if r < 1.0 and path_points[0] is True:
                 path_points[0] = i
@@ -251,7 +240,7 @@ class DirectTeleoperation():
         if path_points[1] is True: path_points[1] = 1.0
         v = anchor + path_points[0] * (eef)
         v_ = anchor + path_points[1] * (eef)
-        damping_factor = (DirectTeleoperation.damping_compute(v_, objects) + DirectTeleoperation.damping_compute(v, objects)) / 2
+        damping_factor = (self.damping_compute(v_, objects) + self.damping_compute(v, objects)) / 2
         v2 = damping_factor * (path_points[1] - path_points[0]) * (eef)
         return anchor, (path_points[0] * (eef))+v2
 
@@ -272,7 +261,7 @@ class DirectTeleoperation():
     __test(np.array([[0.0,0.0,0.05,0.05]]))
     '''
 
-    def live_mode_with_damping(mouse_3d):
+    def live_mode_with_damping(self, mouse_3d):
         '''
         '''
         anchor = np.array([0.0,0.0,0.5])
@@ -288,7 +277,7 @@ class DirectTeleoperation():
         object_name, object_distance_to_bb = 'box1', 0.2
 
 
-        mode, magn = DirectTeleoperation.live_mode_damp_scaler(object_name, object_distance_to_bb)
+        mode, magn = self.live_mode_damp_scaler(object_name, object_distance_to_bb)
 
         if mode == 'damping':
             goal_pose = anchor + magn * (mouse_3d - anchor)
@@ -296,15 +285,15 @@ class DirectTeleoperation():
             pass
         return goal_pose,magn
 
-    def live_mode_damp_scaler(object_name, object_distance_to_bb):
+    def live_mode_damp_scaler(self, object_name, object_distance_to_bb):
         # different value based on object_name & type
-        magn = DirectTeleoperation.sigmoid(object_distance_to_bb)
+        magn = self.sigmoid(object_distance_to_bb)
         if False: #damping <= 0.0:
             return 'interact', magn
         else:
             return 'damping', magn
 
-    def sigmoid(x, center=0.14, tau=40):
+    def sigmoid(self, x, center=0.14, tau=40):
         ''' Inverted sigmoid. sigmoid(x=0)=1, sigmoid(x=center)=0.5
         '''
         return 1 / (1 + np.exp((x-center)*(-tau)))
