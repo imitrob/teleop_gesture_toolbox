@@ -1,8 +1,8 @@
 
-# teleop_gesture_toolbox v1.1
+# Teleoperation gesture toolbox v1.1
 
-Welcome to teleop_gesture_toolbox package made for Leap Motion Controller.
-Most of the package utilize ROS2 Humble. 
+Welcome to **teleoperation gesture toolbox** package made for **Leap Motion Controller**.
+Most of the package utilize **ROS2**. 
 
 ## Installation 
 
@@ -23,10 +23,10 @@ cd <your_ws>
 colcon build --symlink-install
 ```
 
-Make alias for sourcing environment:
+I use following alias to sourcing the environment:
 ```Shell
 alias teleopenv='conda activate teleopenv;
-LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/CoppeliaSim:$HOME/LeapSDK/lib/x64/;
+LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/LeapAPI/lib/x64/;
 source install/setup.bash'
 ```
 
@@ -34,7 +34,7 @@ See Leap Motion rigged hands by using [leapjs-rigged-hand](https://github.com/le
 
 ## SampleTraining dataset
 
-Download to `gesture_data` folder from [link](https://drive.google.com/file/d/17L5KEuhW9kLYC073t11jctynQQ6z2Qm0/view?usp=sharing).
+Download dataset to `gesture_detector/gesture_data` folder from [link](https://drive.google.com/file/d/17L5KEuhW9kLYC073t11jctynQQ6z2Qm0/view?usp=sharing).
 
 Then train static gestures by using `pymc_lib.py` script.
 
