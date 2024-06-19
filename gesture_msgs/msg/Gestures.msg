@@ -1,3 +1,4 @@
 
 std_msgs/Header header
-std_msgs/Float64MultiArray probabilities
+std_msgs/Float64MultiArray gesture_names
+std_msgs/Float64MultiArray gesture_probs

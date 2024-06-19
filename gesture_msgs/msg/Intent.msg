@@ -1,0 +1,3 @@
+string target_action
+string target_object
+string auxiliary_parameters
