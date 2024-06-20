@@ -2,14 +2,13 @@
 
 import numpy as np
 
+transform_leap_to_base_corner_config_translation = [1.07, 0.4, 0.01]
 
-transformLeapToBase__CornerConfig_translation = [1.07, 0.4, 0.01]
-@staticmethod
-def transformLeapToBase__CornerConfig(pose):
+def transform_leap_to_base(pose):
     '''
     t (list[3]): Measured
     '''
-    t = transformLeapToBase__CornerConfig_translation
+    t = transform_leap_to_base_corner_config_translation
 
     assert isinstance(pose, (list,np.ndarray, tuple))
     assert len(pose) == 3

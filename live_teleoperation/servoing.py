@@ -1,44 +1,48 @@
 
-import collections
+import argparse
+
 from copy import deepcopy
 import time
+from gesture_detector.hand_processing.hand_listener import HandListener
 import numpy as np
 from spatialmath import UnitQuaternion
 import spatialmath as sm 
 
 from geometry_msgs.msg import Quaternion
-import gesture_msgs.msg as rosm
-from gesture_detector.hand_processing.frame_lib import Frame
 
 from teleop_gesture_toolbox.live_teleoperation.transform import transform_leap_to_scene
 from panda_ros import Panda
 
-
-class Servo(Panda):
+class Servo(Panda, HandListener):
     def __init__(self,
-                 teleop_hand = "l", # h (Str): read hand 'r', 'l'
-                 aux_hand = "r",
-                 link_gesture = "grab_strength", # (Str): ['<static_gesture>', 'grab'] - live mode activated when using given static gesture
-                 scale = 1.0,
-                 live_mode_with_eef_rot = True,
+                 teleop_hand: str = "l", 
+                 aux_hand: str = "r",
+                 link_gesture: str = "grab_strength",
+                 scale: float = 1.0,
+                 teleop_rotate_eef: bool = True,
                  ):
-        """Live mode is enabled only, when link_gesture is activated.
+        """
+        Panda:
+            self.go_to_pose(pose) # position (float[3]), orientation (float[4])
+            self.set_gripper(gripper) # gripper strength (float)
+
+        Args:
+            teleop_hand (str, optional): Hand used to teleoperate. 
+                Defaults to "l" left hand. "r" for right hand. "" to disable teleop.
+            aux_hand (str, optional): Hand used for auxiliary action (gripper open/close).
+                Defaults to "l" left hand. "r" for right hand. "" to disable aux action.
+            link_gesture (str, optional): Gesture to trigger teleoperation
+                Defaults to "grab_strength" - Grab gesture triggers teleoperation.
+            teleop_rotate_eef (bool, optional): Reads angle of hand and rotates 7th joint.
+                Defaults to True.
         """        
         self.teleop_hand = teleop_hand 
-        self.aux_hand = 'r'
-
-        self.create_subscription(rosm.Frame, '/hand_frame', self.hand_frame_callback, 10)
-        self.hand_frames = collections.deque(maxlen=5)
+        self.aux_hand = aux_hand
         
         self.link_gesture = link_gesture
         self.scale = scale
-        self.live_mode_with_eef_rot = live_mode_with_eef_rot
+        self.teleop_rotate_eef = teleop_rotate_eef
 
-    def hand_frame_callback(self, data):
-        ''' Hand data received by ROS msg is saved '''
-        f = Frame()
-        f.import_from_ros(data)
-        self.hand_frames.append(f)
 
     def is_hand_visible(self, hand):
         if (self.frames and 
@@ -54,7 +58,13 @@ class Servo(Panda):
                 return True
         return False
 
-    def live_handle_step(self):
+    def teleoperation_step(self, trigger):
+        self.goal_pose = transform_leap_to_scene(
+            getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
+            self.scale)
+        self.go_to_pose(self.goal_pose)
+
+    def step(self):
 
         if self.is_hand_visible(self.teleop_hand):
             trigger = self.is_gesture_activated(self.teleop_hand, self.link_gesture)
@@ -64,16 +74,12 @@ class Servo(Panda):
         
         if self.is_hand_visible(self.aux_hand):
             grab_strength = getattr(self.hand_frames[-1], self.aux_hand).grab_strength
-            self.panda.set_gripper(grab_strength)
-
-    def teleoperation_step(self, trigger):
-        self.goal_pose = transform_leap_to_scene(
-            getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
-            self.scale)
-        self.go_to_pose(self.goal_pose)
+            self.set_gripper(grab_strength)
 
 
 class AbsoluteTeleoperation(Servo):
+    """Live mode is enabled only, when link_gesture is activated.
+    """    
     def teleoperation_step(self, trigger):
         if trigger:
             self.goal_pose = transform_leap_to_scene(
@@ -86,13 +92,15 @@ class RelativeTeleoperation(Servo):
         raise Exception("Not Implemented")
 
 class TeleoperationByDrawing(Servo):
+    """Live mode is enabled only, when link_gesture is activated.
+    """    
     def teleoperation_step(self, trigger):
         if trigger:
             mouse_3d = transform_leap_to_scene(
                 getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
                 self.scale)
 
-            if self.live_mode_with_eef_rot:
+            if self.teleop_rotate_eef:
                 x,y = self.hand_frames[-1].r.direction()[0:2]
                 angle = np.arctan2(y,x)
 
@@ -101,7 +109,7 @@ class TeleoperationByDrawing(Servo):
                 self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
                 self.live_mode_drawing = True
 
-                if self.live_mode_with_eef_rot:
+                if self.teleop_rotate_eef:
                     self.eef_rot_scene = deepcopy(self.eef_rot)
                     self.live_mode_drawing_eef_rot_anchor = angle
 
@@ -111,7 +119,7 @@ class TeleoperationByDrawing(Servo):
             self.goal_pose.position.y += (mouse_3d.position.y - self.live_mode_drawing_anchor.position.y)
             self.goal_pose.position.z += (mouse_3d.position.z - self.live_mode_drawing_anchor.position.z)
 
-            if self.live_mode_with_eef_rot:
+            if self.teleop_rotate_eef:
                 self.eef_rot = deepcopy(self.eef_rot_scene)
                 self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
 
@@ -126,27 +134,30 @@ class TeleoperationByDrawing(Servo):
 
 
 
-class CorrectingPositionTeleoperation():
-    
-    def correction_by_teleop(self, duration=5.0):
-        teleop = TeleoperationByDrawing(live_mode_with_eef_rot=False)
+class CorrectingPositionTeleoperation(TeleoperationByDrawing):
+    def __init__(self, duration=5.0):
+        super().__init__(scale=0.03, teleop_rotate_eef=False)
+        self.duration = duration
 
+    def correction_step(self):
         while not self.present():
             time.sleep(0.1)
         while self.present():
             t = time.time()
-            while time.time()-t < duration:
-                teleop.live_handle_step(scale=0.03)
+            while time.time()-t < self.duration:
+                self.step(scale=0.03)
                 time.sleep(0.01)
 
         
 
 class TeleoperationByDrawingSomeCollisionDetection(Servo):
+    """Live mode is enabled only, when link_gesture is activated.
+    """    
     def teleoperation_step(self, trigger):
         if trigger:
             mouse_3d = transform_leap_to_scene(getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(), self.ENV, self.scale, self.camera_orientation)
 
-            if self.live_mode_with_eef_rot:
+            if self.teleop_rotate_eef:
                 x,y = self.hand_frames[-1].r.direction()[0:2]
                 angle = np.arctan2(y,x)
 
@@ -155,7 +166,7 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
                 self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
                 self.live_mode_drawing = True
 
-                if self.live_mode_with_eef_rot:
+                if self.teleop_rotate_eef:
                     self.eef_rot_scene = deepcopy(self.eef_rot)
                     self.live_mode_drawing_eef_rot_anchor = angle
 
@@ -176,7 +187,7 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
             self.goal_pose.position.y += (goal_pose[1]) * self.scale
             self.goal_pose.position.z += (goal_pose[2]) * self.scale
 
-            if self.live_mode_with_eef_rot:
+            if self.teleop_rotate_eef:
                 self.eef_rot = deepcopy(self.eef_rot_scene)
                 self.eef_rot += (angle - self.live_mode_drawing_eef_rot_anchor)
 
@@ -313,3 +324,71 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
     x
     plt.plot(mouse_3d[:,2], edited[:,2])
     '''
+
+def test_correction():
+    teleop = CorrectingPositionTeleoperation()
+    for i in range(5):
+        print(f"correction step {i}")
+        teleop.correction_step()
+    print("Test done")
+
+def main(args):
+    if args['approach'] == "CorrectingPositionTeleoperation":
+        test_correction()
+        return
+
+    ''' teleop = AbsoluteTeleoperation() = eval("AbsoluteTeleoperation")() '''
+    teleop = eval(args['approach'])(
+        teleop_hand = args['teleop_hand'], 
+        aux_hand = args['aux_hand'],
+        link_gesture = args['link_gesture'],
+        scale = args['scale'],
+        teleop_rotate_eef = args['teleop_rotate_eef'],
+    )
+
+    while True:
+        teleop.step()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        prog="Run teleoperation node",
+        description="",
+        epilog="",
+    )
+    parser.add_argument(
+        "--approach",
+        default="AbsoluteTeleoperation",
+        choices=[
+            "AbsoluteTeleoperation",
+            "RelativeTeleoperation",
+            "TeleoperationByDrawing",
+            "TeleoperationByDrawingSomeCollisionDetection",
+            "CorrectingPositionTeleoperation",
+        ]
+    )
+    parser.add_argument(
+        "--teleop_hand",
+        default="l",
+        choices=["l", "r", ""],
+    )
+    parser.add_argument(
+        "--aux_hand",
+        default="l",
+        choices=["l", "r", ""],
+    )
+    parser.add_argument(
+        "--link_gesture",
+        default="grab_strength",
+        choices=["grab_strength"],
+    )
+    parser.add_argument(
+        "--scale",
+        default=1.0,
+    )
+    parser.add_argument(
+        "--teleop_rotate_eef",
+        default=True,
+    )
+
+    main(vars(parser.parse_args()))

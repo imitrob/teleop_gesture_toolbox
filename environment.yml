@@ -10,6 +10,7 @@ dependencies:
 - seaborn
 - ros-humble-desktop
 - ros-humble-rosbridge-server
+- spatialmath-python
 - compilers # ROS2 utils
 - cmake
 - pkg-config

@@ -5,8 +5,8 @@ from rclpy.qos import QoSReliabilityPolicy
 from rdflib.namespace import Namespace, RDF, RDFS, OWL, FOAF, XSD
 from crow_ontology.crowracle_client import CrowtologyClient
 from crow_msgs.msg import StampedString
-from scene_getter.Scene import Scene
-from scene_getter.scene_getter import SceneGetter
+from teleop_gesture_toolbox.scene_getter.scene_getter.Scene import Scene
+from teleop_gesture_toolbox.scene_getter.scene_getter.scene_getter import SceneGetter
 
 ONTO_IRI = "http://imitrob.ciirc.cvut.cz/ontologies/crow"
 CROW = Namespace(f"{ONTO_IRI}#")

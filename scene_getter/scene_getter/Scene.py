@@ -2,7 +2,7 @@
 import numpy as np
 from random import choice
 
-import scene_getter.Objects as Objects
+import teleop_gesture_toolbox.scene_getter.scene_getter.Objects as Objects
 
 from copy import deepcopy
 from geometry_msgs.msg import Point, Quaternion, Pose
