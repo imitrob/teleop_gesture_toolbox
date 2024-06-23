@@ -23,7 +23,7 @@ cd <your_ws>
 colcon build --symlink-install
 ```
 
-I use following alias to sourcing the environment:
+I use following alias to source the environment:
 ```Shell
 alias teleopenv='conda activate teleopenv;
 LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/LeapAPI/lib/x64/;
@@ -32,7 +32,7 @@ source install/setup.bash'
 
 See Leap Motion rigged hands by using [leapjs-rigged-hand](https://github.com/leapmotion/leapjs-rigged-hand).
 
-## SampleTraining dataset
+## Common Gestures dataset
 
 Download dataset to `gesture_detector/gesture_data` folder from [link](https://drive.google.com/file/d/17L5KEuhW9kLYC073t11jctynQQ6z2Qm0/view?usp=sharing).
 
@@ -54,8 +54,7 @@ rm ~/teleop_2_ws/build/gesture_detector/gesture_detector
 ln -s ~/teleop_2_ws/src/teleop_gesture_toolbox/gesture_detector/saved_models ~/teleop_2_ws/build/gesture_detector/gesture_detector
 ```
 
-
-### Running websocket server on specific port 
+### Run websocket server on specific port 
 
 Comment `websocket` node in launch file description and run:
 ```Shell

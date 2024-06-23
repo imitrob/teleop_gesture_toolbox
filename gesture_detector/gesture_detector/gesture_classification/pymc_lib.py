@@ -171,10 +171,11 @@ class PyMCModel():
             self.model_config[save_name] = acc
 
             pp_matrix_from_data(y_true, y_pred, self.model_config['gestures'], annot=True, cmap = 'Oranges', cbar=False, figsize=(9,9))
+            return acc
 
-        eval(X_train, y_train, 'acc_train', draws=300)
-        eval(X_test, y_test, 'acc_test', draws=300)
-
+        acc = eval(X_train, y_train, 'acc_train', draws=300)
+        acc = eval(X_test, y_test, 'acc_test', draws=300)
+        return acc
 
     def save(self, fitted_model, X_train, y_train, X_test, y_test):
         ''' Save the network
@@ -363,7 +364,8 @@ class Experiments():
         self.pymcmodel = PyMCModel(args)
         fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
         acc = self.pymcmodel.evaluate(fitted_model, X_test, y_test, X_train, y_train)
-    
+        return acc
+
     def train_custom(self, args):
         ''' Train/evaluate + Save
         '''
@@ -386,7 +388,8 @@ class Experiments():
 
         fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
         acc = self.pymcmodel.evaluate(fitted_model, X_test, y_test, X_train, y_train)
-            
+        return acc
+
     def sample_node(self, args):
         args = _args()
         self.pymcmodel = PyMCModel(args)
@@ -401,20 +404,12 @@ class Experiments():
 
     
 def _args():
-    """ Optimal config for 8 gestures, each 30 recordings (~2000 samples) per gestures
-        - 20 n_hidden nodes
-        - 70000 iterations
-        - 0.3 split: 30% for testing
-        - 4 take_every, take every 4th sample from hand records
-        -> Should reach up to 99% accuracy
-    """
-
     parser=argparse.ArgumentParser(description='')
     parser.add_argument('--experiment', default="train_custom", type=str, help='(default=%(default))', choices=['load_and_evaluate', 'train_custom', 'sample_node'])
 
     # List of gestures to train
     parser.add_argument('--gestures', nargs='+', default=['grab','pinch','point','two','three','four','five','thumbsup'], help='List of gestures')
-    parser.add_argument('--model_name', default='test2024_noscale', type=str, help='(default=%(default))')
+    parser.add_argument('--model_name', default='common_gestures', type=str, help='(default=%(default))')
     parser.add_argument('--save', default=True, type=bool, help='(default=%(default))')
 
     # model
