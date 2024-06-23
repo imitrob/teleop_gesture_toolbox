@@ -1,6 +1,5 @@
 #!/usr/bin/env python
-import json
-import os, time, argparse
+import os, time, argparse, json
 from typing import Dict, Optional
 from warnings import filterwarnings; filterwarnings("ignore")
 from copy import deepcopy
@@ -9,7 +8,6 @@ import numpy as np
 import pandas as pd
 import pymc as pm
 from pymc.variational import ADVI
-from pymc import model_to_graphviz
 import seaborn as sns
 import pytensor as pt
 
@@ -18,7 +16,7 @@ floatX = pt.config.floatX
 from sklearn.metrics import confusion_matrix
 from collections import Counter
 import arviz as az
-from collections import Counter
+from pretty_confusion_matrix import pp_matrix_from_data
 
 # Initialize random number generator
 np.random.seed(0)
@@ -98,7 +96,7 @@ class PyMCModel():
         ''' Import static gestures, Import all data from learning folder
         '''
         if self.model_config['gesture_type'] == 'static':
-            X, y = DatasetLoader({'input_definition_version':1, 'interpolate':1, 'take_every': self.model_config['take_every']}).load_static(gesture_detector.gesture_data_path, gesture_names, new=self.model_config['full_dataload'])
+            X, y = DatasetLoader({'input_definition_version':1, 'take_every': self.model_config['take_every']}).load_static(gesture_detector.gesture_data_path, gesture_names)
         elif self.model_config['gesture_type'] == 'dynamic':
             dataloader_args = {'interpolate':1, 'discards':1, 'normalize':1, 'normalize_dim':1, 'n':0}
             X, y = DatasetLoader(dataloader_args).load_dynamic(gesture_detector.gesture_data_path, gesture_names)
@@ -169,10 +167,10 @@ class PyMCModel():
             y_pred = np.array(y_pred).astype(int)
 
             acc = (y_true == y_pred).mean() * 100
-            print(f"Train accuracy = {acc}%")
+            print(f"Accurracy {save_name} = {acc}%")
             self.model_config[save_name] = acc
 
-            # confusion_matrix_pretty_print.plot_confusion_matrix_from_data(y_true, y_pred, self.model_config['Gs'], annot=True, cmap = 'Oranges', fmt='1.8f', fz=12, lw=1.5, cbar=False, figsize=[9,9], show_null_values=2, pred_val_axis='y', name=f"{save_name}_{self.model_config['model_filename']}")
+            pp_matrix_from_data(y_true, y_pred, self.model_config['gestures'], annot=True, cmap = 'Oranges', cbar=False, figsize=(9,9))
 
         eval(X_train, y_train, 'acc_train', draws=300)
         eval(X_test, y_test, 'acc_test', draws=300)
@@ -188,7 +186,7 @@ class PyMCModel():
         assert len(mu) == (X_train.shape[1] * self.model_config['n_hidden'] + self.model_config['n_hidden'] * len(list(dict.fromkeys(y_train))))
 
         # save
-        name = self.model_config['model_filename']
+        name = self.model_config['model_name']
         n_network = ""
         if name == None:
             for i in range(0,200):
@@ -259,14 +257,15 @@ class PyMCModel():
                 dims="obs_id"
             )
 
-            loaded_model = pm.fit(n=0, method=ADVI())
+            loaded_model = pm.fit(n=0, method=ADVI(), progressbar=False)
+        
         return loaded_model
     
 
     def load(self):
         ''' Load Network
         '''
-        name = self.model_config['model_filename']
+        name = self.model_config['model_name']
 
         with open(gesture_detector.saved_models_path+name+".json", 'r') as f:
             model_config = json.load(f)
@@ -298,15 +297,23 @@ class PyMC_Sample():
         self.draws = draws
 
     def sample(self, data):
+        data = np.array([data])
+        assert data.ndim == 2
+
+        with self.pymcmodel.model:
+            self.pymcmodel.model.set_data("ann_input", data)
+            
         trace = self.built_model.sample(draws=self.draws)
         with self.pymcmodel.model:
             ppc = pm.sample_posterior_predictive(trace, progressbar=False)
             trace.extend(ppc)
         pred = np.array(ppc.posterior_predictive['out'])[0].T
-
         
+        y_pred = []
+        for row in pred:
+            y_pred.append(Counter(row).most_common()[0][0])
 
-        y_pred = Counter(pred[0]).most_common()[0][0]
+        y_pred = np.array(y_pred).astype(int)
 
         probs = self.pred_labels_to_probs(pred)
 
@@ -340,16 +347,16 @@ class PyMC_Sample():
         sigma = nn['sigma']
 
         self.pymcmodel = PyMCModel(model_config)
-        fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
+        self.fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
         X_true = X_test[0:1]
-        y_true = y_test[0:1]
+        self.y_true_1 = y_test[0:1]
         out_n = len(list(dict.fromkeys(y_train)))
         self.out_n = out_n
-        self.built_model = self.pymcmodel.build_model_from_values(X_true, y_true, fitted_model.mean.eval(), fitted_model.std.eval(), self.pymcmodel.model_config, out_n=out_n)
+        self.built_model = self.pymcmodel.build_model_from_values(X_true, self.y_true_1, self.fitted_model.mean.eval(), self.fitted_model.std.eval(), self.pymcmodel.model_config, out_n=out_n)
    
 
 class Experiments():
-    def loadAndEvaluate(self, args):
+    def load_and_evaluate(self, args):
         ''' Loads network file and evaluate it
         '''
         print("Load and evaluate\n---")
@@ -357,13 +364,13 @@ class Experiments():
         fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
         acc = self.pymcmodel.evaluate(fitted_model, X_test, y_test, X_train, y_train)
     
-    def trainWithParameters(self, args):
+    def train_custom(self, args):
         ''' Train/evaluate + Save
         '''
         print("Training With Parameters and Save\n---")
         self.pymcmodel = PyMCModel(args)
 
-        X, y = self.pymcmodel.import_records(gesture_names=args['gestures_train'])
+        X, y = self.pymcmodel.import_records(gesture_names=args['gestures'])
         X_train, X_test, y_train, y_test = train_test_split(X, y, 
             test_size=self.pymcmodel.model_config['split'])
         
@@ -377,11 +384,10 @@ class Experiments():
         self.pymcmodel = None
         self.pymcmodel = PyMCModel(args)
 
-        if args['test']:
-            fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
-            acc = self.pymcmodel.evaluate(fitted_model, X_test, y_test, X_train, y_train)
+        fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
+        acc = self.pymcmodel.evaluate(fitted_model, X_test, y_test, X_train, y_train)
             
-    def sampleThread(self, args):
+    def sample_node(self, args):
         args = _args()
         self.pymcmodel = PyMCModel(args)
         fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
@@ -400,39 +406,33 @@ def _args():
         - 70000 iterations
         - 0.3 split: 30% for testing
         - 4 take_every, take every 4th sample from hand records
-        - True full_dataload: Load all hand data from record folder
         -> Should reach up to 99% accuracy
     """
 
     parser=argparse.ArgumentParser(description='')
-    parser.add_argument('--experiment', default="sampleThread", type=str, help='(default=%(default))', choices=['loadAndEvaluate', 'trainWithParameters', 'sampleThread'])
+    parser.add_argument('--experiment', default="train_custom", type=str, help='(default=%(default))', choices=['load_and_evaluate', 'train_custom', 'sample_node'])
 
-    # const
+    # List of gestures to train
+    parser.add_argument('--gestures', nargs='+', default=['grab','pinch','point','two','three','four','five','thumbsup'], help='List of gestures')
+    parser.add_argument('--model_name', default='test2024_noscale', type=str, help='(default=%(default))')
+    parser.add_argument('--save', default=True, type=bool, help='(default=%(default))')
+
+    # model
+    parser.add_argument('--n_hidden', default=20, type=int, help='(default=%(default))')
+    parser.add_argument('--split', default=0.3, type=float, help='(default=%(default))')
+    parser.add_argument('--take_every', default=4, type=int, help='Frame dropping policy')
+    # fit
+    parser.add_argument('--iter', default=70000, type=int, help='(default=%(default))')
+    parser.add_argument('--seed', default=93457, type=int, help='(default=%(default))')
+
+    # Const
     parser.add_argument('--inference_type', default='ADVI', type=str, help='(default=%(default))')
     parser.add_argument('--layers', default=2, type=int, help='(default=%(default))')
     parser.add_argument('--gesture_type', default="static", type=str, help='(default=%(default))')
     parser.add_argument('--engine', default="PyMC", type=str, help='(default=%(default))')
     parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default))')
+    parser.add_argument('--input_definition_version', default=1, type=int, help='Train hand features')
 
-    # List of gestures to train
-    # `nargs='+'` tells the parser to expect at least one argument, and to gather all provided into a list
-    parser.add_argument('--gestures_train', nargs='+', default=['grab','point','two','three','four','five','thumbsup'], help='List of gestures')
-    # data load
-    parser.add_argument('--full_dataload', default=False, type=bool, help='(default=%(default))')
-    parser.add_argument('--input_definition_version', default=1, type=int, help='(default=%(default))')
-    parser.add_argument('--take_every', default=4, type=int, help='(default=%(default))')
-    parser.add_argument('--split', default=0.3, type=float, help='(default=%(default))')
-    
-    # model
-    parser.add_argument('--n_hidden', default=20, type=int, help='(default=%(default))')
-    # fit
-    parser.add_argument('--iter', default=70000, type=int, help='(default=%(default))')
-    parser.add_argument('--seed', default=93457, type=int, help='(default=%(default))')
-    
-    
-    parser.add_argument('--model_filename', default='network99', type=str, help='(default=%(default))')
-    parser.add_argument('--save', default=False, type=bool, help='(default=%(default))')
-    parser.add_argument('--test', default=False, type=bool, help='(default=%(default))')
 
     return parser.parse_args().__dict__
 

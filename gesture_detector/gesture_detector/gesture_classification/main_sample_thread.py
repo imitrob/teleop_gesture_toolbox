@@ -24,7 +24,7 @@ class ClassificationSampler(Node):
         self.type = model_config['gesture_type']
         super().__init__(f"classifier_name_{self.type}")
 
-        self.Gs = model_config['Gs']
+        self.gestures = model_config['gestures']
         self.args = model_config
 
         self.sem = threading.Semaphore()
@@ -56,7 +56,11 @@ class ClassificationSampler(Node):
         t1 = time.perf_counter()
         self.sem.acquire()
 
-        pred, probs = self.sample_approach.sample(data.observations)
+        # prepare input data 
+        x = np.array(data.observations.data).squeeze()
+        assert x.ndim == 1
+
+        pred, probs = self.sample_approach.sample(x)
         self.sem.release()
 
         sol = DetectionSolution()
@@ -73,7 +77,7 @@ class ClassificationSampler(Node):
         self.seq += 1
 
     def send_sampler_config(self, request, response):
-        response.gestures = list(self.Gs)
+        response.gestures = list(self.gestures)
         return response
 
 def run_static():

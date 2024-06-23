@@ -62,7 +62,6 @@ class Recording():
         while os.path.isfile(directory+"/"+str(i)+ext):
             i+=1
         file_abs_path = directory+"/"+str(i)
-        # np.save(file_abs_path+".npy", object_to_save)
         JSONLoader.save(file_abs_path, object_to_save)
         
         print(f"[Saving] Gesture movement {directory} saved")

@@ -21,7 +21,7 @@ class fastdtw_():
         self.counts = model_config['counts']
         assert len(self.X) == len(self.Y)
 
-        self.Gs = model_config['Gs']
+        self.Gs = model_config['gestures']
         print(f"[TimeWarp] Gs: {self.Gs}, counts: {self.counts}, records: {sum(self.counts)}")
 
         self.method = model_config['method']

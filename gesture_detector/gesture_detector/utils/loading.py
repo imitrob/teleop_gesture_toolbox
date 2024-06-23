@@ -1,84 +1,36 @@
 import json
+from typing import Iterable
 import gesture_detector
 from gesture_detector.utils.saving import JSONLoader
 import numpy as np
-import pickle
 import sys,os
 from copy import deepcopy
 
 from scipy.interpolate import interp1d
-from sklearn.preprocessing import scale
 
 from gesture_detector.utils.transformations import Transformations as tfm
 
 class HandDataLoader():
-    def __init__(self, dataset_files=[]):
-        self.dataset_files = dataset_files
-
-    def load_tmp(self, dir, type):
-        dir = os.path.join(dir, "..")
-        if not os.path.isfile(f"{dir}tmp_{type}{self.get_ext()}"):
-            return False
-        data = np.load(f"{dir}tmp_{type}{self.get_ext()}", allow_pickle=True).item()
-        return data
-
-    def load(self,dir,Gs,type):
-        X,Y = self.load_directory(dir, Gs)
-        dir_tmp = os.path.abspath(os.path.join(dir,f'../tmp_{type}'))
-        np.save(dir_tmp, {'X': X, 'Y': Y, 'files':self.dataset_files})
-        return X,Y
-
-    def load_(self, dir, Gs,type):
-        ''' Main function:
-            1. Checks if tmp file exists
-                - If not, it loads all directory, saves tmp, return X,Y
-            2. If exists, checks the difference
-                - If difference zero, return X,Y from tmp file
-                - If some difference, loads again all directory, save tmp return X,Y
-        '''
-        data = self.load_tmp(dir,type)
-        if not data:
-            X,Y = self.load_directory(dir, Gs)
-            dir_tmp = os.path.abspath(os.path.join(dir,f'../tmp_{type}'))
-            np.save(dir_tmp, {'X': X, 'Y': Y, 'files':self.dataset_files})
-            return X,Y
-
-        data_files = data['files']
-        real_files = self.get_files()
-        diff = [item for item in real_files if item not in data_files]
-
-        if diff == []:
-            return data['X'], data['Y']
-        else:
-            X,Y = self.load_directory(dir, Gs)
-            dir_tmp = os.path.abspath(os.path.join(dir,f'../tmp_{type}'))
-            np.save(dir_tmp, {'X': X, 'Y': Y, 'files':self.dataset_files})
-            return X, Y
-
-    def get_files(self, dir, Gs):
-        dataset_files = []
-        for n, G in enumerate(Gs):
-            i=0
-            while os.path.isfile(f"{dir}/{G}/{str(i)}{self.get_ext()}"):
-                i_file = f"{G}/{str(i)}{self.get_ext()}"
-                with open(f"{dir}/{i_file}", 'rb') as input:
-                    dataset_files.append(i_file)
-                i+=1
-        return dataset_files
+    ext = '.json'
 
     def load_directory(self, dir, Gs):
-        ## Load data from file (%timeit ~7s)
-        self.dataset_files = []
+        """ %timeit ~7s
+
+        Args:
+            dir (str): Directory to load
+            Gs (Iterable[str]): Gesture names: folders 
+
+        Returns:
+            X, Y: HandFrames of shape (demontrations, frames), Labels of shape (demonstrations)
+        """
         X, Y = [], []
         for n, G in enumerate(Gs):
             i=0
-            print(f"{dir}{G}/{str(i)}{self.get_ext()}")
-            while os.path.isfile(f"{dir}/{G}/{str(i)}{self.get_ext()}"):
-                i_file = f"{G}/{str(i)}{self.get_ext()}"
-                print(f"i_file {i_file}")
+            print(f"{dir}{G}/{str(i)}{self.ext}")
+            while os.path.isfile(f"{dir}/{G}/{str(i)}{self.ext}"):
+                i_file = f"{G}/{str(i)}{self.ext}"
+                print(f"File {i_file}")
                 with open(f"{dir}/{i_file}", 'rb') as input:
-                    self.dataset_files.append(i_file)
-
                     X.append(self.load_file(f"{dir}/{i_file}"))
                     Y.append(n)
                 i+=1
@@ -87,145 +39,60 @@ class HandDataLoader():
             print(('[WARN*] No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)'))
 
         return X,Y
-
-    def load_directory_update(self, dir, Gs):
-        ## Load data from file (%timeit ~7s)
-        X, Y = [], []
-        for n, G in enumerate(Gs):
-            i=0
-            print(f"{dir}/{G}/{str(i)}{self.get_ext()}")
-            while os.path.isfile(f"{dir}/{G}/{str(i)}{self.get_ext()}"):
-                i_file = f"{G}/{str(i)}{self.get_ext()}"
-                print(f"i_file {i_file}")
-                with open(f"{dir}/{i_file}", 'rb') as input:
-                    # Discard already learned part if it is in dataset_files array
-                    if i_file in self.dataset_files:
-                        i+=1
-                        continue
-                    self.dataset_files.append(i_file)
-
-                    X.append(self.load_file(f"{dir}/{i_file}"))
-                    Y.append(n)
-                i+=1
-
-        if X == []:
-            print(('[WARN*] No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)'))
-
-        return X,Y
-
-    def get_ext(self):
-        return '.json'
         
     def load_file(self, input_):
-        # return np.load(input, encoding='latin1', allow_pickle=True)
         return JSONLoader.load(input_)
-
-#X,Y = HandDataLoader().load_directory('/home/<user>/<your dir>', ['asd'])
 
 
 class DatasetLoader():
     def __init__(self, args={}):
         self.args = args
-
         self.hdl = HandDataLoader()
 
-    def load_tmp(self, dir, type='static'):
-        print(f"[Loading] Dataset tmp directory file is {dir}tmp_{type}{HandDataLoader().get_ext()}")
-        if not os.path.isfile(f"{dir}tmp_{type}{HandDataLoader().get_ext()}"):
-            return False
-        data = np.load(f"{dir}tmp_{type}{HandDataLoader().get_ext()}", allow_pickle=True).item()
-        return data
+    def load_static(self, dir: str, Gs: Iterable[str]):
+        """Convenience function to get dataset of all static gestures
+        """
+        return self.load_dataset(dir=dir, Gs=Gs, type='static')
 
-    def load_static(self, dir, Gs, out='', new=False):
-        return self.load(dir=dir, Gs=Gs, type='static', out=out, new=new)
+    def load_dynamic(self, dir: str, Gs: Iterable[str]):
+        """Convenience function to get dataset of all dynamic gestures
+        """
+        return self.load_dataset(dir=dir, Gs=Gs, type='dynamic')
 
-    def load_dynamic(self, dir, Gs, out='', new=False):
-        return self.load(dir=dir, Gs=Gs, type='dynamic', out=out, new=new)
 
-    def load_mp_tmp(self,dir,Gs):
-        data = np.load(f"{dir}tmp_mp{HandDataLoader().get_ext()}", allow_pickle=True).item()
-        return data['X'], data['Y']
+    def load_dataset(self, dir: str, Gs: Iterable[str], type: str = 'dynamic'):
+        """Main function to load dataset
 
-    def load_mp(self,dir,Gs, approach, new=False):
-        ## Load movements same as dynamic
-        X, Y, diff = self.load(dir=dir, Gs=Gs, type='mp', out='diff', new=new)
-        ## Check trained MPs
-        robot_promps = []
-        '''
-        if diff:
-        '''
-        for i in range(len(list(set(Y)))):
-            robot_promps.append(approach.construct_promp_trajectory(X[Y==i]))
-        #print("saving")
-        #np.save(f"{dir}tmp_trained_promps.pkl", robot_promps)
-        #with open(f"{dir}tmp_trained_promps.pkl", 'wb') as file:
-        #    pickle.dump(robot_promps, file)
-
-        '''
-        else:
-            #robot_promps = np.load(f"{dir}tmp_trained_promps.pkl", allow_pickle=True).item()
-            with open(f"{dir}tmp_trained_promps.pkl", 'rb') as file:
-                robot_promps = pickle.load(file)
-        '''
-        return X,Y,robot_promps
-
-    def load(self, dir, Gs, type = 'dynamic', out='', new=False):
-        data = self.load_tmp(dir, type=type)
-        files = self.hdl.get_files(dir,Gs)
-        if new:
-            print("[Loading] No data, loading all directory")
-            HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
-            if type == 'dynamic':
-                X,Y = self.get_dynamic(HandData,HandDataFlags)
-            elif type == 'static':
-                X,Y = self.get_static(HandData,HandDataFlags)
-            elif type == 'mp':
-                X,Y = self.get_mp(HandData,HandDataFlags)
-            else: raise Exception("Wrong type")
-
-            np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
-            assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
-            if out=='diff':
-                return X,Y,True
-            return X,Y
-
-        data_files = data['files']
-        real_files = files
-        diff = [item for item in real_files if item not in data_files]
-
-        if diff == []:
-            print("[Loading] No difference, tmp up to date")
-            if out=='diff':
-                return data['X'], data['Y'],False
-            return data['X'], data['Y']
-        else:
-            print("[Loading] !!!!!!!!!!!!!!!!!!")
-            print("[Loading] Difference, load all directory again to load new demonstrated samples")
-            print("[Loading] !!!!!!!!!!!!!!!!!!")
-            if out=='diff':
-                return data['X'], data['Y'],False
-            return data['X'], data['Y']
+        Args:
+            dir (str): Directory of gesture data
+            Gs (Iterable[str]): Gesture names
+            type (str, optional): Which type of gestures to load. Defaults to 'dynamic'.
             
-            # HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
-            # if type == 'dynamic':
-            #     X,Y = self.get_dynamic(HandData,HandDataFlags)
-            # elif type == 'static':
-            #     X,Y = self.get_static(HandData,HandDataFlags)
-            # elif type == 'mp':
-            #     X,Y = self.get_mp(HandData,HandDataFlags)
-            # else: raise Exception("Wrong type")
+        Raises:
+            Exception: If type not recognized (not in 'static', 'dynamic')
 
-            # np.save(f"{dir}tmp_{type}", {'X': X, 'Y': Y, 'files': files})
-            # assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
-            # if out=='diff':
-            #     return X,Y,True
-            # return X,Y
+        Returns:
+            np.ndarray: Observations (X) of shape (samples, features)
+            np.ndarray: Labels (Y) of shape (samples)
+        """        
+        HandData, HandDataFlags = self.hdl.load_directory(dir, Gs)
+        
+        if type == 'dynamic':
+            X,Y = self.get_dynamic(HandData,HandDataFlags)
+        elif type == 'static':
+            X,Y = self.get_static(HandData,HandDataFlags)
+        else: raise Exception("Wrong type")
 
+        assert X.shape[0] == Y.shape[0], "Wrong Xs and Ys"
+        return X,Y
 
     def get_static(self, data, flags):
+        """Extracts features of hand data to learning observations
+        """        
         X = data
         Y = flags
         
+        ''' Extract features '''
         X_, Y_ = [], []
         for n, X_n in enumerate(X):
 
@@ -245,20 +112,20 @@ class DatasetLoader():
         X = X_
         Y = Y_
 
-        if 'interpolate' in self.args:
-            X_interpolated = []
-            for n,sample in enumerate(X):
-                X_interpolated_sample = []
-                for dim in range(0,len(sample[0])):
-                    f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
-                    X_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
-                X_interpolated.append(np.array(X_interpolated_sample).T)
-            X=np.array(X_interpolated)
-            print("Data interpolated")
+        ''' Interpolate demonstration data to have same length '''
+        X_interpolated = []
+        for n,sample in enumerate(X):
+            X_interpolated_sample = []
+            for dim in range(0,len(sample[0])):
+                f2 = interp1d(np.linspace(0,1, num=len(np.array(sample)[:,dim])), np.array(sample)[:,dim], kind='cubic')
+                X_interpolated_sample.append(f2(np.linspace(0,1, num=101)))
+            X_interpolated.append(np.array(X_interpolated_sample).T)
+        X=np.array(X_interpolated)
 
 
         X_ = []
         Y_ = []
+        ''' Frame dropping '''
         for n, X_n in enumerate(X):
             if 'middle' in self.args:
                 X_.append(deepcopy(X_n[0]))
@@ -275,17 +142,16 @@ class DatasetLoader():
                     Y_.append(deepcopy(Y[n]))
         X = np.array(X_)
         Y = np.array(Y_)
-        # print(f"shape 1 {np.array(X).shape} y {np.array(Y).shape}")
-        # X,Y = self.to_2D(X,Y)
-        print(f"shape 2 {np.array(X).shape} y {np.array(Y).shape}")
+
         X,Y = self.postprocessing(X,Y)
-        print(f"shape 3 {X.shape} y {Y.shape}")
+        print(f"shape before discrading nans: X: {X.shape} y {Y.shape}")
         X,Y = self.discard(X,Y)
-        print(f"shape 4 {X.shape} y {Y.shape}, addon Y[0].shape {Y[0].shape} Y[1].shape {Y[1].shape}")
+        print(f"shape after discrading nans: X: {X.shape} y {Y.shape}, addon Y[0].shape {Y[0].shape} Y[1].shape {Y[1].shape}")
 
         return X, Y
 
     def discard(self, X, Y):
+        ''' Discard demonstrations where is any nan value '''
         discards = []
         for n,rec in enumerate(X):
             for obs in rec:
@@ -299,25 +165,10 @@ class DatasetLoader():
 
     def postprocessing(self, X, Y):
         
-        ## Need to be there
-        X = scale(X)
-        # try:
-        #     X = scale(X)
-        # except:
-        #     print("[Loading] Scale function failed")
-
-        try:
-            # Not in a loop, import can be here -> dependency
-            import theano
-            floatX = pt.config.floatX
-            X = X.astype(floatX)
-            Y = Y.astype(floatX)
-        except:
-            import pytensor as pt
-            floatX = pt.config.floatX
-            X = X.astype(floatX)
-            Y = Y.astype(floatX)
-            #print("[Loading] Converting as X.astype(floatX) failed!")
+        import pytensor as pt
+        floatX = pt.config.floatX
+        X = X.astype(floatX)
+        Y = Y.astype(floatX)
         X = np.array(X)
         Y = np.array(Y)
         return X,Y
@@ -333,9 +184,6 @@ class DatasetLoader():
                 row.append([*t.r.palm_position(), l2])#,*t.r.index_position])
             Xpalm.append(row)
         return Xpalm
-
-    def get_mp(self, data, flags):
-        return self.get_dynamic(data, flags)
 
     def get_dynamic(self, data, flags):
         Y = flags
@@ -496,29 +344,6 @@ class DatasetLoader():
 
         return Xpalm, Y
 
-    ''' e.g.: 2 gestures, 2 recordings for each gesture, 2 observations
-    import numpy as np
-    data = np.array([[[1,2],[3,4]],[[5,6],[7,8]]])
-    flags = [0,1]
-    data, flags = to_2D(None,data,flags)
-    data # array([[1, 2], [3, 4], [5, 6], [7, 8]])
-    flags # array([0, 0, 1, 1])
-    '''
-    def to_2D(self, data, flags):
-        '''
-        Parameters:
-            data (3D): [g, recording, observation]
-            flags (1D): [g] (e.g. [0,1,2])
-        Returns:
-            data (2D): [recording, observation]
-            flags (1D): [g*recordings] (e.g. [])
-        '''
-        data_, flags_ = [], []
-        for n,gesture in enumerate(data):
-            data_.extend(gesture)
-            flags_.extend([flags[n]] * len(gesture))
-        return np.array(data_), np.array(flags_)
-
     '''
     import numpy as np
     A = np.array([[[np.nan],[np.inf]],[[3],[4]]])
@@ -545,6 +370,13 @@ def avg_dataframe(data_n):
 
 
 if __name__ == '__main__':
+    path = "/home/petr/teleop_2_ws/build/gesture_detector/gesture_detector/gesture_data/"
+    gesture_names = ['grab', 'pinch', 'point', 'two', 'three', 'four', 'five', 'thumbsup']
+    new = True
+
+    X, y = DatasetLoader({'input_definition_version':1, 'take_every': 4}).load_static(path, gesture_names, new=new)
+
+    exit()
     with open(gesture_detector.saved_models_path+"network99.json", 'r') as f:
         data_loaded = json.load(f)
     Gs_static = data_loaded['Gs']

@@ -50,7 +50,7 @@ teleopenv; ros2 launch gesture_detector gesture_detect_launch.py
 See the gesture detections in web:
 
 ```Shell
-ros2 launch rosbridge_server rosbridge_websocket_launch.xml
+teleopenv; ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=9095
 ```
 
 ```Shell

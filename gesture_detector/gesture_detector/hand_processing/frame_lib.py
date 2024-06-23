@@ -748,8 +748,7 @@ class Hand():
     def get_learning_data(self, definition=1):
         ''' Return Vector of Observation Parameters
         '''
-        try: self.finger_distances_old
-        except AttributeError: self.prepare_learning_data()
+        self.prepare_learning_data()
 
         learning_data = list(self.wrist_angles)
         learning_data.extend(self.bone_angles)
