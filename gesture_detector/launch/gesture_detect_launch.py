@@ -2,9 +2,8 @@
 from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
 from launch_ros.actions import Node
-from launch.actions import IncludeLaunchDescription
-from launch.launch_description_sources import PythonLaunchDescriptionSource, AnyLaunchDescriptionSource
-import os
+from launch.actions import ExecuteProcess
+import gesture_detector
 
 def generate_launch_description():
     return LaunchDescription([
@@ -35,13 +34,17 @@ def generate_launch_description():
             output='screen',
             parameters=[{'l': 'static+dynamic', 'r': 'static+dynamic'}]
         ),
-        # IncludeLaunchDescription(
-        #     PythonLaunchDescriptionSource([os.path.join(
-        #         get_package_share_directory('rosbridge_server'),
-        #         'launch',
-        #         'rosbridge_websocket_launch.xml'
-        #     )])
-        # )
+        Node(
+            package='rosbridge_server',
+            executable='rosbridge_websocket',
+            name='rosbridge_server_node',
+            output='screen',
+        ),
+        ExecuteProcess(
+            cmd=['python', '-m', 'http.server', '--directory', gesture_detector.path+"/live_display", '8000'],
+            output='screen',
+            shell=True
+        ),
     ])
 
 

@@ -47,19 +47,17 @@ Run gesture detector:
 teleopenv; ros2 launch gesture_detector gesture_detect_launch.py
 ```
 
-See the gesture detections in web:
-
-```Shell
-teleopenv; ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=9095
-```
-
-```Shell
-python -m http.server
-```
-
 ### Create link for saved_models
 
 ```Shell
 rm ~/teleop_2_ws/build/gesture_detector/gesture_detector
 ln -s ~/teleop_2_ws/src/teleop_gesture_toolbox/gesture_detector/saved_models ~/teleop_2_ws/build/gesture_detector/gesture_detector
+```
+
+
+### Running websocket server on specific port 
+
+Comment `websocket` node in launch file description and run:
+```Shell
+teleopenv; ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=9095
 ```
