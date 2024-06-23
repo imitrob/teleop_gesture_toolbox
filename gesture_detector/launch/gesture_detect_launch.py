@@ -19,7 +19,7 @@ def generate_launch_description():
             executable='custom_detector', # static detector
             name='static_detector_node',
             output='screen',
-            parameters=[{'model': 'network99'}]
+            parameters=[{'model': 'common_gestures'}]
         ),
         Node(
             package='gesture_detector',
