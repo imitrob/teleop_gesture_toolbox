@@ -10,7 +10,7 @@
         "five",
         "thumbsup"
     ],
-    "model_name": "test2024_noscale",
+    "model_name": "common_gestures",
     "save": true,
     "n_hidden": 20,
     "split": 0.3,
@@ -34,5 +34,6 @@
         806
     ],
     "acc_train": 99.53093589457225,
-    "acc_test": 99.6352266805628
+    "acc_test": 99.6352266805628,
+    "scale": false
 }

@@ -110,6 +110,16 @@
     });
     */
 
+    var staticGestureNames = [];
+    var staticGestureProbs = [];
+    var staticGesturesActivated = [];
+    var staticBiggestID = -1;
+
+    var dynamicGestureNames = [];
+    var dynamicGestureProbs = [];
+    var dynamicGesturesActivated = [];
+    var dynamicBiggestID = -1;
+
     socket.addEventListener('message', (event) => {
       // Handle incoming messages
       const messageContainer = document.getElementById('message-container');
@@ -139,91 +149,81 @@
           }
         }
         messageContainerInnerHTML = messageContainerInnerHTML.concat(`<br>`);*/
+        
+
 
         if (parsed_message.hasOwnProperty('l_static_probs')) {
-          for (var i = 0; i < parsed_message['l_static_probs'].length; i++) {
-          
-            var perc = parsed_message['l_static_probs'][i] * 100;
-            if (parsed_message['l_static_relevant_biggest_id'] == i) {
-              var activ_str = `w3-yellow`;
-            } else if (parsed_message['l_static_activated'][i] == 'true') {
-              var activ_str = `w3-red`;
-            } else {
-              var activ_str = `w3-blue`;
-            }
-            // Sec. passed since gesture shown, to 1 decimal point 
-            //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
-            // HTML
-            messageContainerInnerHTML = messageContainerInnerHTML.concat(
-              `${parsed_message['l_static_names'][i]}, <span class="w3-tag w3-red"></span>
-              <div class="w3-light-grey w3-round"> 
-                <div class="w3-container w3-round ${activ_str}" style="width:${perc}%">${perc}%</div>
-              </div>`);
-          }
+          staticGestureNames = parsed_message['l_static_names'];
+          staticGestureProbs = parsed_message['l_static_probs'];
+          staticGesturesActivated = parsed_message['l_static_activated'];
+          staticBiggestID = parsed_message['l_static_relevant_biggest_id'];
         } else if (parsed_message.hasOwnProperty('r_static_probs')) {
-          for (var i = 0; i < parsed_message['r_static_probs'].length; i++) {
-          
-            var perc = parsed_message['r_static_probs'][i] * 100;
-            if (parsed_message['r_static_relevant_biggest_id'] == i) {
-              var activ_str = `w3-yellow`;
-            } else  if (parsed_message['r_static_activated'][i] == 'true') {
-              var activ_str = `w3-red`;
-            } else {
-              var activ_str = `w3-blue`;
-            }
-            // Sec. passed since gesture shown, to 1 decimal point 
-            //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
-            // HTML
-            messageContainerInnerHTML = messageContainerInnerHTML.concat(
-              `${parsed_message['r_static_names'][i]}, <span class="w3-tag w3-red"></span>
-              <div class="w3-light-grey w3-round"> 
-                <div class="w3-container w3-round ${activ_str}" style="width:${perc}%">${perc}%</div>
-              </div>`);
-          }
+          staticGestureNames = parsed_message['r_static_names'];
+          staticGestureProbs = parsed_message['r_static_probs'];
+          staticGesturesActivated = parsed_message['r_static_activated'];
+          staticBiggestID = parsed_message['r_static_relevant_biggest_id'];
+        } else {
+          staticGestureProbs = Array(staticGestureNames.length).fill(0);
+          staticGesturesActivated = Array(staticGestureNames.length).fill('false');
+          staticBiggestID = -1;
         }
 
-        if (parsed_message.hasOwnProperty('l_dynamic_probs')) {
-          for (var i = 0; i < parsed_message['l_dynamic_probs'].length; i++) {
-          
-            var perc = parsed_message['l_dynamic_probs'][i] * 100;
-            if (parsed_message['l_dynamic_relevant_biggest_id'] == i) {
-              var activ_str = `w3-yellow`;
-            } else  if (parsed_message['l_dynamic_activated'][i] == 'true') {
-              var activ_str = `w3-red`;
-            } else {
-              var activ_str = `w3-blue`;
-            }
-            // Sec. passed since gesture shown, to 1 decimal point 
-            //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
-            // HTML
-            messageContainerInnerHTML = messageContainerInnerHTML.concat(
-              `${parsed_message['l_dynamic_names'][i]}, <span class="w3-tag w3-red"></span>
-              <div class="w3-light-grey w3-round"> 
-                <div class="w3-container w3-round ${activ_str}" style="width:${perc}%">${perc}%</div>
-              </div>`);
+        for (var i = 0; i < staticGestureProbs.length; i++) {
+
+          var perc = staticGestureProbs[i] * 100;
+          if (staticBiggestID == i) {
+            var activ_str = `w3-yellow`;
+          } else if (staticGesturesActivated[i] == 'true') {
+            var activ_str = `w3-red`;
+          } else {
+            var activ_str = `w3-blue`;
           }
-        } 
-        if (parsed_message.hasOwnProperty('r_dynamic_probs')) {
-          for (var i = 0; i < parsed_message['r_dynamic_probs'].length; i++) {
-          
-            var perc = parsed_message['r_dynamic_probs'][i] * 100;
-            if (parsed_message['r_dynamic_relevant_biggest_id'] == i) {
-              var activ_str = `w3-yellow`;
-            } else  if (parsed_message['r_dynamic_activated'][i] == 'true') {
-              var activ_str = `w3-red`;
-            } else {
-              var activ_str = `w3-blue`;
-            }
-            // Sec. passed since gesture shown, to 1 decimal point 
-            //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
-            // HTML
-            messageContainerInnerHTML = messageContainerInnerHTML.concat(
-              `${parsed_message['r_dynamic_names'][i]}, <span class="w3-tag w3-red"></span>
-              <div class="w3-light-grey w3-round"> 
-                <div class="w3-container w3-round ${activ_str}" style="width:${perc}%">${perc}%</div>
-              </div>`);
-          }
+          // Sec. passed since gesture shown, to 1 decimal point 
+          //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
+          // HTML
+          messageContainerInnerHTML = messageContainerInnerHTML.concat(
+            `${staticGestureNames[i]}, <span class="w3-tag w3-red"></span>
+            <div class="w3-light-grey w3-round"> 
+              <div class="w3-container w3-round ${activ_str}" style="width:${perc}%">${perc}%</div>
+            </div>`);
         }
+        
+        if (parsed_message.hasOwnProperty('l_dynamic_probs')) {
+          dynamicGestureNames = parsed_message['l_dynamic_names'];
+          dynamicGestureProbs = parsed_message['l_dynamic_probs'];
+          dynamicGesturesActivated = parsed_message['l_dynamic_activated'];
+          dynamicBiggestID = parsed_message['l_dynamic_relevant_biggest_id'];
+        } else if (parsed_message.hasOwnProperty('r_dynamic_probs')) {
+          dynamicGestureNames = parsed_message['r_dynamic_names'];
+          dynamicGestureProbs = parsed_message['r_dynamic_probs'];
+          dynamicGesturesActivated = parsed_message['r_dynamic_activated'];
+          dynamicBiggestID = parsed_message['r_dynamic_relevant_biggest_id'];
+        } else {
+          dynamicGestureProbs = Array(dynamicGestureNames.length).fill(0);
+          dynamicGesturesActivated = Array(dynamicGestureNames.length).fill('false');
+          dynamicBiggestID = -1;
+        }
+
+        for (var i = 0; i < dynamicGestureProbs.length; i++) {
+        
+          var perc = dynamicGestureProbs[i] * 100;
+          if (dynamicBiggestID == i) {
+            var activ_str = `w3-yellow`;
+          } else  if (dynamicGesturesActivated[i] == 'true') {
+            var activ_str = `w3-red`;
+          } else {
+            var activ_str = `w3-blue`;
+          }
+          // Sec. passed since gesture shown, to 1 decimal point 
+          //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
+          // HTML
+          messageContainerInnerHTML = messageContainerInnerHTML.concat(
+            `${dynamicGestureNames[i]}, <span class="w3-tag w3-red"></span>
+            <div class="w3-light-grey w3-round"> 
+              <div class="w3-container w3-round ${activ_str}" style="width:${perc}%">${perc}%</div>
+            </div>`);
+        }
+        
         /*
         if (parsed_message.hasOwnProperty('compound_names')) {
           for (var i = 0; i < parsed_message['compound_names'].length; i++) {
