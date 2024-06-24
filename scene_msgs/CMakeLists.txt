@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
-project(gesture_msgs)
+project(scene_msgs)
 
 # Default to C99
 if(NOT CMAKE_C_STANDARD)
@@ -26,17 +26,8 @@ find_package(builtin_interfaces REQUIRED)
 find_package(rosidl_default_generators REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
-  "msg/Bone.msg"
-  "msg/Hand.msg"
-  "msg/Frame.msg"
-  "msg/Gestures.msg"
-  "msg/DetectionObservations.msg"
-  "msg/DetectionSolution.msg"
-  "msg/DeicticSolution.msg"
-  "msg/LeapGestures.msg"
-  "msg/HRICommand.msg"
-  "srv/SaveHandRecord.srv"
-  "srv/GetModelConfig.srv"
+  "msg/Scene.msg"
+  "msg/SceneObject.msg"
   
   DEPENDENCIES builtin_interfaces std_msgs sensor_msgs geometry_msgs
 )

@@ -1,16 +1,18 @@
 
+from typing import Iterable
 from gesture_detector.hand_processing.hand_listener import HandListener
 import numpy as np
 
-from teleop_gesture_toolbox.scene_getter.scene_getter.scene_getter import SceneGetter
-from transform import transform_leap_to_base
+from scene_getter.scene_getter import SceneGetter
+from pointing_object_selection.transform import transform_leap_to_base
 
 from rclpy.node import Node
-from gesture_msgs.msg import LineData
-from gesture_msgs.msg import SceneRos
+from geometry_msgs.msg import Point
+from gesture_msgs.msg import DeicticSolution
 
 class DeiticLib(HandListener):
     def __init__(self):
+        super(DeiticLib, self).__init__()
         self.disabled = False
 
     def get_closest_point_to_line(self,line_points, test_point):
@@ -41,14 +43,19 @@ class DeiticLib(HandListener):
 
         if np.min(distances_from_line) > max_dist: return None, np.min(distances_from_line)
         print(f"[Deictic] Chosen: {np.argmin(distances_from_line)}, {np.min(distances_from_line)}, {distances_from_line}")
-        return np.argmin(distances_from_line), np.min(distances_from_line), distances_from_line
+        return int(np.argmin(distances_from_line)), np.min(distances_from_line), distances_from_line
 
-    def step(self, f, h, object_poses, plot_line=True):
-        ''' has dependencies
-        f (Frame): gl.gd.hand_frames[-1] (take last detection frame)
-        h (string): hand - 'l' left, 'r', right
-        object_poses (): sl.scene.object_poses
-        '''
+    def step(self, f, h: str, object_poses: Iterable[list], object_names: Iterable[str]):
+        """
+        Args:
+            f (Frame): self.hand_frames[-1] (take last detection frame)
+            h (str): hand - 'l' left, 'r', right
+            object_poses (Iterable[list]): sl.scene.object_poses
+            object_names (Iterable[str]): _description_
+
+        Returns:
+            dict: deictic_solution
+        """
         if len(object_poses) == 0: return None
 
         if h == 'lr':
@@ -75,13 +82,36 @@ class DeiticLib(HandListener):
         else:
             object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in object_poses]
         idobj, _, distances_from_line = self.get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
-
         
         assert len(object_poses) == len(distances_from_line)
 
-        line_data = {"line_points": line_points, "focus_target_pose": object_positions[idobj]}
+        deictic_solution = {
+            "object_id": idobj,
+            "object_name": object_names[idobj],
+            "object_names": object_names,
+            "distances_from_line": distances_from_line,
+            "line_point_1": line_points[0],
+            "line_point_2": line_points[1],
+            "target_object_position": object_positions[idobj],
+        }
+        return deictic_solution
+    
+    @staticmethod
+    def deictic_solution_to_ros(deictic_solution: dict):
+        line_point_1 = deictic_solution['line_point_1']
+        line_point_2 = deictic_solution['line_point_2']
+        to_position = deictic_solution['target_object_position']
 
-        return idobj, distances_from_line, line_data
+        return DeicticSolution(
+            object_id = deictic_solution['object_id'],
+            object_name = deictic_solution['object_name'],
+            object_names = deictic_solution['object_names'],
+            distances_from_line = deictic_solution['distances_from_line'],
+            line_point_1 = Point(x=line_point_1[0], y=line_point_1[1], z=line_point_1[2]),
+            line_point_2 = Point(x=line_point_2[0], y=line_point_2[1], z=line_point_2[2]),
+            target_object_position = Point(x=to_position[0],y=to_position[1],z=to_position[2]),
+        )
+
 
     def set_focus_logic(self, hand):
         '''
@@ -103,33 +133,9 @@ class DeiticLib(HandListener):
 
 class DeicticLibRos(DeiticLib, SceneGetter, Node):
     def __init__(self):
-        super().__init__("deictic_ros_node")
+        Node.__init__(self, "deictic_ros_node")
+        DeiticLib.__init__(self)
+        SceneGetter.__init__(self)
+        
+        self.deictic_solutions_pub = self.create_publisher(DeicticSolution, "/teleop_gesture_toolbox/deictic_solution", 5)
 
-        self.publish_deictic_data = self.create_publisher(LineData, "/teleop_gesture_toolbox/deictic_line", 5)
-
-
-
-
-def test_deictic():
-    dl = DeiticLib()
-    # test 1
-    line_points = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))
-    test_points = ((0.0, 0.0, 1.00000), (10.0, 0.0, 1.0), (10.0, 0.0, 2.0))
-    closest_point = dl.get_id_of_closest_point_to_line(line_points, test_points)
-    assert closest_point == (0, 1.0)
-
-    # test 2
-    line_points = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))
-    test_points = ((0.0, 0.0, 0.99999), (10.0, 0.0, 1.0), (10.0, 0.0, 2.0))
-    closest_point = dl.get_id_of_closest_point_to_line(line_points, test_points)
-    assert closest_point == (0, 0.99999)
-
-    # test 3
-    line_points = ((0.0, 0.0, 0.0), (1.0, 0.0, 0.0))
-    test_points = ((0.0, 0.0, 0.99999), (10.0, 0.0, 1.0), (10.0, 0.0, 2.0))
-    closest_point = dl.get_id_of_closest_point_to_line(line_points, test_points, max_dist=0.3)
-    assert closest_point == (None, 0.99999)
-
-
-if __name__ == '__main__':
-    test_deictic()

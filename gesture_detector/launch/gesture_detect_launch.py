@@ -25,7 +25,7 @@ def generate_launch_description():
             executable='custom_detector', # dynamic detector
             name='dynamic_detector_node',
             output='screen',
-            parameters=[{'model': 'DTW99'}]
+            parameters=[{'model': 'directional_swipes'}]
         ),
         Node(
             package='gesture_detector',

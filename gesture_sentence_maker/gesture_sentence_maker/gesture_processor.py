@@ -3,70 +3,78 @@
 from collections import Counter
 from copy import deepcopy
 import time
+
+from scene_getter.scene_getter import SceneGetter
 from gesture_detector.gesture_classification.gestures_lib import GestureDataDetection
 import numpy as np
 import rclpy
 from rclpy.node import Node
 
-from teleop_gesture_toolbox.gesture_sentence_maker.gesture_sentence_maker.aux_gestures import load_auxiliary_parameter, misc_gesture_handle
-from teleop_gesture_toolbox.gesture_sentence_maker.gesture_sentence_maker.hricommand_export import export_only_objects_to_HRICommand, export_original_to_HRICommand
-from teleop_gesture_toolbox.gesture_sentence_maker.target_objects_getter import get_target_object
-from teleop_gesture_toolbox.gesture_sentence_maker.utils import get_dist_by_extremes
+from gesture_sentence_maker.aux_gestures import load_auxiliary_parameter, misc_gesture_handle
+from gesture_sentence_maker.hricommand_export import export_only_objects_to_HRICommand, export_original_to_HRICommand
+from pointing_object_selection.pointing_object_getter import PointingObjectGetter
+from gesture_sentence_maker.utils import get_dist_by_extremes
 
 from gesture_msgs.msg import HRICommand
+from gesture_detector.utils.utils import CustomDeque
 
-class GestureSentence(GestureDataDetection):
+class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def __init__(self, ignored_gestures = ['point', 'no_moving', 'five', 'pinch'], object_pick_method = 'last'):
         self.topic = "sentence_processor_node"
-        super().__init__()
+        
+        super(GestureDataDetection, self).__init__()
+        super(SceneGetter, self).__init__()
+        super(PointingObjectGetter, self).__init__()
 
         self.gesture_sentence_publisher = self.create_publisher(HRICommand, "/teleop_gesture_toolbox/hricommand_original", 5)
 
         self.ignored_gestures = ignored_gestures
         self.object_pick_method = object_pick_method
         
-        # self.gd.gestures_queue - deque
-        # self.gd.gestures_queue_proc - processed queue
+        # self.gestures_queue - deque
+        # self.gestures_queue_proc - processed queue
 
         # sentence data
-        self.previous_gesture_observed_data_action
-        self.previous_gesture_observed_data_object_names
-        self.previous_gesture_observed_data_measurement_distance
+        self.previous_gesture_observed_data_action = None
+        self.previous_gesture_observed_data_object_names = CustomDeque()
+        self.previous_gesture_observed_data_measurement_distance = []
         self.ap = None # (Dict?)
-        self.previous_gesture_observed_data_action
-        self.previous_gesture_observed_data_object_info
+        self.previous_gesture_observed_data_action = None
+        self.previous_gesture_observed_data_object_info = CustomDeque()
 
-        self.target_objects # (String[])
-        self.target_objects_info
+        self.target_objects = None # (String[])
+        self.target_objects_infos = []
+        self.evidence_gesture_type_to_activate_last_added = 0.
+        self.evidence_gesture_type_to_activate = CustomDeque()
 
         self.action_received = False
-
-    def gd(self):
-        return self
+        print("[GS] Done ")
 
     def step(self):
-        if self.gd.present():
+        print("step")
+        if self.present():
+            print("gesture step")
             self.gesturing_step()
-        elif len(self.gd.gestures_queue) > 0:
+        elif len(self.gestures_queue) > 0:
             time.sleep(0.5)
-            self.gd.gestures_queue_proc = self.process_gesture_queue(self.gd.gestures_queue)
+            self.gestures_queue_proc = self.process_gesture_queue(self.gestures_queue)
 
             # target_object data save
             if self.previous_gesture_observed_data_object_names != []:
                 self.save_accumulated_deictic_gesture_data(self.object_pick_method)
 
-            if len(self.gd.gestures_queue_proc) == 0:
-                self.gesture_sentence_publisher.publish(export_only_objects_to_HRICommand())
+            if len(self.gestures_queue_proc) == 0:
+                self.gesture_sentence_publisher.publish(export_only_objects_to_HRICommand(self.scene, self.target_objects_infos))
                 return
 
         else:
-            self.gesture_sentence_publisher.publish(export_only_objects_to_HRICommand())
+            self.gesture_sentence_publisher.publish(export_only_objects_to_HRICommand(self.scene, self.target_objects_infos))
         
         # Whenever hand is not seen clearing
         self.clearing(wait=False)
 
     def gesturing_step(self):
-        activated_gestures = self.gd.load_all_relevant_activated_gestures(relevant_time=2.0, records=3)
+        activated_gestures = self.load_all_relevant_activated_gestures(relevant_time=2.0, records=3)
 
         activated_gesture_type = AdaptiveSetup.get_adaptive_gesture_type(activated_gestures)
 
@@ -106,11 +114,11 @@ class GestureSentence(GestureDataDetection):
                <-y->|< ----- delay -----> y False
 
         '''
-        if (time.time()-self.gd.evidence_gesture_type_to_activate_last_added) > (1/rate):
-            self.gd.evidence_gesture_type_to_activate_last_added = time.time()
-            self.gd.evidence_gesture_type_to_activate.append(activated_gesture_type)
+        if (time.time()-self.evidence_gesture_type_to_activate_last_added) > (1/rate):
+            self.evidence_gesture_type_to_activate_last_added = time.time()
+            self.evidence_gesture_type_to_activate.append(activated_gesture_type)
 
-        gesture_type = self.gd.evidence_gesture_type_to_activate.get_last_common(x, threshold=1.0)
+        gesture_type = self.evidence_gesture_type_to_activate.get_last_common(x, threshold=1.0)
         if gesture_type is not None:
             return gesture_type
 
@@ -131,7 +139,7 @@ class GestureSentence(GestureDataDetection):
     def step_deictic(self):
         ''' Activated gesture enabled Deictic gesture mode.
         '''
-        object_name_1, on1_info = get_target_object()
+        object_name_1, on1_info = self.get_target_object()
 
         self.previous_gesture_observed_data_action = 'deictic'
         self.previous_gesture_observed_data_object_names.append(object_name_1)
@@ -151,7 +159,7 @@ class GestureSentence(GestureDataDetection):
     def get_max_gesture_probs(self):
         # Get all action gesture probs by max
         detected_gestures_probs = [] # 2D (gesture activation, probabilities)
-        for detected_gesture in self.gd.gestures_queue:
+        for detected_gesture in self.gestures_queue:
             stamp, name, hand_tag, all_probs = detected_gesture
             detected_gestures_probs.append(all_probs)
         return self.process_gesture_probs_by_max(detected_gestures_probs)
@@ -161,25 +169,24 @@ class GestureSentence(GestureDataDetection):
         max_gesture_probs = self.get_max_gesture_probs()
 
         self.gesture_sentence_publisher.publish(export_original_to_HRICommand(
-            deepcopy(max_gesture_probs), self.gd.target_object_infos, self.gd.gestures_queue, self.gd.Gs
+            deepcopy(max_gesture_probs), self.target_object_infos, self.gestures_queue, self.Gs
             ))
         
         self.clearing()
         return 
 
     def clearing(self, wait=True):
-        self.gd.gestures_queue.clear()
-        self.gd.gestures_queue_proc = []
+        self.gestures_queue.clear()
+        self.gestures_queue_proc = []
         self.evaluate_episode = False
 
-        self.clear()
-        self.gd.target_object_infos = []
-        self.gd.target_objects = []
-        self.gd.ap = []
+        self.target_object_infos = []
+        self.target_objects = []
+        self.ap = []
 
         if wait:
             print("Move hand out to end the episode!")
-            while self.gd.present():
+            while self.present():
                 time.sleep(0.1)
 
 
@@ -221,7 +228,7 @@ class GestureSentence(GestureDataDetection):
             gesture_name = max(counts)
             m = counts.pop(gesture_name)
 
-            gt = self.gd.get_gesture_type(gesture_name)
+            gt = self.get_gesture_type(gesture_name)
 
             if gt == 'static' and len(static_gestures) < n and gesture_name not in ignored_gestures:
                 static_gestures.append(gesture_name)
@@ -236,16 +243,16 @@ class GestureSentence(GestureDataDetection):
         if object_pick_method == 'max':
             c = Counter(self.previous_gesture_observed_data_object_names)
             c_max = c.most_common(1)[0]
-            self.gd.target_objects.append(c_max[0])
+            self.target_objects.append(c_max[0])
             i = self.previous_gesture_observed_data_object_names.index(c_max[0])
-            self.gd.target_object_infos.append(self.previous_gesture_observed_data_object_info[i])
+            self.target_object_infos.append(self.previous_gesture_observed_data_object_info[i])
         elif object_pick_method == 'last':
             try: # Filter last 3 time-frames of possible
-                self.gd.target_object_infos.append(self.previous_gesture_observed_data_object_info[-4])
+                self.target_object_infos.append(self.previous_gesture_observed_data_object_info[-4])
                 self.gd.target_objects.append(self.previous_gesture_observed_data_object_names[-4])
             except: # If there are less than 4 samples -> use the last
-                self.gd.target_objects.append(self.previous_gesture_observed_data_object_names[-1])
-                self.gd.target_object_infos.append(self.previous_gesture_observed_data_object_info[-1])
+                self.target_objects.append(self.previous_gesture_observed_data_object_names[-1])
+                self.target_object_infos.append(self.previous_gesture_observed_data_object_info[-1])
         else: raise Exception()
 
         print(f"Added obj {Counter(self.previous_gesture_observed_data_object_names)}")
@@ -301,7 +308,8 @@ if __name__ == '__main__':
     sentence_processor = GestureSentence()
 
     while rclpy.ok():
-        time.sleep(0.1)
+
+        rclpy.spin_once(sentence_processor)
         sentence_processor.step()
 
 

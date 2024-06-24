@@ -6,10 +6,10 @@ from geometry_msgs.msg import Pose, Point, Quaternion
 from panda_ros import Panda
 
 
-class PandaPlus(Panda):
+class PandaEnhanced(Panda):
 
     
-    def go_on_top_of_object(nameobj, s):
+    def go_on_top_of_object(self, nameobj, s):
         object = s.get_object_by_name(nameobj)
         if object is None:
             print(f"name of object {nameobj} not found")

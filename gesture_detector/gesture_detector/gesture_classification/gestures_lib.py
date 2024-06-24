@@ -346,10 +346,6 @@ class GestureDataAtTime():
         self.activated = False
         self.action_activated = False
 
-class CompoundGestureDataAtTime():
-    def __init__(self, activated):
-        self.activated = activated
-
 class GestureMorphClass(object):
     ''' Super cool class
         Initialization: gmc = GestureMorphClass()
@@ -509,15 +505,6 @@ class GestureMorphClassStamped(GestureMorphClass):
             # self.l.static[<time>].<g> = GestureDataAtTime(probability, biggest_probability)
             setattr(self, g, GestureDataAtTime(data.probabilities.data[n], data.id == n))
 
-class CompoundGestureMorphClassStamped(GestureMorphClass):
-    def __init__(self, sensor_seq, compound_gestures, cgs_activated):
-        ''' New compound detection record '''
-        super().__init__()
-        self.header = GHeader(time.time(), sensor_seq, 'compound')
-
-        for g,activated in zip(compound_gestures,cgs_activated):
-            # self.c[<time>].<g> = True/False
-            setattr(self, g, CompoundGestureDataAtTime(activated))
 
 class StaticInfo():
     def __init__(self, name):
@@ -755,20 +742,17 @@ class GestureDataDetection(ROSComm):
         ''' Returns solutions based on hand and type if not older than relevant_time
         '''
         t = time.time()
-        if type == 'compound':
-            self_h_type = self.c
-        else:
-            self_h = getattr(self, hand)
-            self_h_type = getattr(self_h, type)
-        if True:
-            gs = []
-            i = 1
-            while self_h_type.n > i and (t-self_h_type[-i].header.stamp) < relevant_time:
-                gs.append(self_h_type[-i])
-                if i > records:
-                    break
-                i+=1
-            return gs
+        self_h = getattr(self, hand)
+        self_h_type = getattr(self_h, type)
+
+        gs = []
+        i = 1
+        while self_h_type.n > i and (t-self_h_type[-i].header.stamp) < relevant_time:
+            gs.append(self_h_type[-i])
+            if i > records:
+                break
+            i+=1
+        return gs
 
     @property
     def Gs(self):
@@ -839,8 +823,6 @@ class GestureDataDetection(ROSComm):
 
         # Add logic
         self.prepare_postprocessing(data.header.frame_id, type, data.sensor_seq)
-
-        # self.handle_compound_gestures(data.sensor_seq)
 
 
     def get_static_and_extended_probabilities_norm(self, hand_tag, frame_n=-1):
@@ -915,20 +897,18 @@ class GestureDataDetection(ROSComm):
                             g.action_activated = True
                             self.gestures_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag, all_probs))
 
-    def load_all_relevant_gestures(self, compound=True, relevant_time=0.5, records=3):
+    def load_all_relevant_gestures(self, relevant_time=0.5, records=3):
         l_s = self.relevant(hand='l', type='static', relevant_time=relevant_time, records=records)
         l_d = self.relevant(hand='l', type='dynamic', relevant_time=relevant_time, records=records)
         r_s = self.relevant(hand='r', type='static', relevant_time=relevant_time, records=records)
         r_d = self.relevant(hand='r', type='dynamic', relevant_time=relevant_time, records=records)
-        # has unfitting type !
-        if compound: c = self.relevant(type='compound', relevant_time=relevant_time, records=records)
+        
         relevant = []
         if l_s is not None: relevant.extend(l_s)
         if l_d is not None: relevant.extend(l_d)
         if r_s is not None: relevant.extend(r_s)
         if r_d is not None: relevant.extend(r_d)
-        if compound and c is not None: relevant.extend(c)
-
+        
         return relevant
 
     def load_all_relevant_activated_gestures(self, relevant_time=0.5, records=3):

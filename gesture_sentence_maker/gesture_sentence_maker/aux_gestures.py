@@ -1,10 +1,8 @@
 
 
 
-def misc_gesture_handle(asd=f"Approve? (y/n)", new_episode=False):
-
-
-
+def misc_gesture_handle():
+    pass
 
 
 def load_auxiliary_parameter(type='rotation', robot_feedback=True):
