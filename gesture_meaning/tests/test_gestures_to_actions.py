@@ -1,19 +1,20 @@
 
 
 from gesture_meaning.get_gesture_meaning import GestureToMeaningNode, OneToOne_Sample
-from teleop_msgs.srv import G2I
-
+from gesture_msgs.srv import GestureToMeaning
+import rclpy
 
 def test_gestures_to_actions():
+    rclpy.init()
     rosnode = GestureToMeaningNode()
 
-    req = G2I.request()
-    req.gesture_names = OneToOne_Sample.G
+    req = GestureToMeaning.Request()
+    req.gestures.gesture_names = OneToOne_Sample.G
     gesture_probs = [0.0] * len(OneToOne_Sample.G)
     gesture_probs[0] = 1.0
-    req.gesture_probs = gesture_probs
+    req.gestures.gesture_probs = gesture_probs
 
-    response = rosnode.G2I_service_callback(req, G2I.response())
+    response = rosnode.G2I_service_callback(req, GestureToMeaning.Response())
 
     assert response.intent.target_action == 'move_up'
 

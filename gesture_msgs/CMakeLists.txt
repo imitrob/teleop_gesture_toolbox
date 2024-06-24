@@ -35,8 +35,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/DeicticSolution.msg"
   "msg/LeapGestures.msg"
   "msg/HRICommand.msg"
+  "msg/Intent.msg"
   "srv/SaveHandRecord.srv"
   "srv/GetModelConfig.srv"
+  "srv/GestureToMeaning.srv"
   
   DEPENDENCIES builtin_interfaces std_msgs sensor_msgs geometry_msgs
 )

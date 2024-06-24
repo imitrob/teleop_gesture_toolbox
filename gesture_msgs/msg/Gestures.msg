@@ -1,4 +1,4 @@
 
 std_msgs/Header header
-std_msgs/Float64MultiArray gesture_names
-std_msgs/Float64MultiArray gesture_probs
+string[] gesture_names
+float32[] gesture_probs

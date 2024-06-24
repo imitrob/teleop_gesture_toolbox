@@ -1,38 +1,65 @@
 import argparse
 import time
-# from panda_ros import Panda
-from pointing_object_selection.deictic_lib import DeicticLibRos
+from pointing_object_selection.deictic_lib import DeiticLib
 import rclpy
 
+from scene_getter.scene_getter import SceneGetter
+from rclpy.node import Node
+from gesture_msgs.msg import DeicticSolution
+from gesture_detector.hand_processing.hand_listener import HandListener
+from geometry_msgs.msg import Point
 
-# class DeicticLibPandaRos(Panda, DeicticLibRos):
-#     pass
+class DeicticLibRos(DeiticLib, HandListener, SceneGetter, Node):
+    def __init__(self, hand):
+        Node.__init__(self, "deictic_ros_node")
+        DeiticLib.__init__(self, hand)
+        SceneGetter.__init__(self)
+        
+        self.deictic_solutions_pub = self.create_publisher(DeicticSolution, "/teleop_gesture_toolbox/deictic_solution", 5)
+
+    @staticmethod
+    def deictic_solution_to_ros(deictic_solution: dict):
+        line_point_1 = deictic_solution['line_point_1']
+        line_point_2 = deictic_solution['line_point_2']
+        to_position = deictic_solution['target_object_position']
+
+        return DeicticSolution(
+            object_id = deictic_solution['object_id'],
+            object_name = deictic_solution['object_name'],
+            object_names = deictic_solution['object_names'],
+            distances_from_line = deictic_solution['distances_from_line'],
+            line_point_1 = Point(x=line_point_1[0], y=line_point_1[1], z=line_point_1[2]),
+            line_point_2 = Point(x=line_point_2[0], y=line_point_2[1], z=line_point_2[2]),
+            target_object_position = Point(x=to_position[0],y=to_position[1],z=to_position[2]),
+        )
+
+    def step(self):        
+        s = self.get_scene()
+
+        if s.object_positions == []: 
+            print("Empty scene!")
+            return
+        
+        deictic_solution = self.compute_deictic_solution(self.hand_frames[-1], s.object_positions, s.object_names)
+        
+        self.deictic_solutions_pub.publish(
+            self.deictic_solution_to_ros(deictic_solution)
+        )
+        return deictic_solution
 
 
 def main(args):
     rclpy.init()
     print("Test deictic started")
-    dl = DeicticLibRos()
+    dl = DeicticLibRos(hand=args['hand'])
 
     print("[Info] Ctrl+C to leave")
     try:
         while True:
             rclpy.spin_once(dl)
             time.sleep(1/args['frequency'])
-            s = dl.get_scene()
-
-            if s.object_positions == []: 
-                print("Empty scene!")
-                continue
+            dl.step()
             
-            deictic_solution = dl.step(dl.hand_frames[-1], args['hand'], s.object_positions, s.object_names)
-            
-            dl.deictic_solutions_pub.publish(
-                dl.deictic_solution_to_ros(deictic_solution)
-            )
-            # dl.go_on_top_of_object(nameobj, s)
-        
-
     except KeyboardInterrupt:
         print("KeyboardInterrupt: Test deictic ended\n\n")
 

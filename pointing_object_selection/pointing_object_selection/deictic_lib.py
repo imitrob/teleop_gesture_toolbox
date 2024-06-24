@@ -1,19 +1,15 @@
 
 from typing import Iterable
-from gesture_detector.hand_processing.hand_listener import HandListener
 import numpy as np
 
-from scene_getter.scene_getter import SceneGetter
 from pointing_object_selection.transform import transform_leap_to_base
 
-from rclpy.node import Node
-from geometry_msgs.msg import Point
-from gesture_msgs.msg import DeicticSolution
 
-class DeiticLib(HandListener):
-    def __init__(self):
+class DeiticLib():
+    def __init__(self, hand: str):
         super(DeiticLib, self).__init__()
         self.disabled = False
+        self.hand = hand
 
     def get_closest_point_to_line(self,line_points, test_point):
         ''' Line points
@@ -45,7 +41,7 @@ class DeiticLib(HandListener):
         print(f"[Deictic] Chosen: {np.argmin(distances_from_line)}, {np.min(distances_from_line)}, {distances_from_line}")
         return int(np.argmin(distances_from_line)), np.min(distances_from_line), distances_from_line
 
-    def step(self, f, h: str, object_poses: Iterable[list], object_names: Iterable[str]):
+    def compute_deictic_solution(self, f, h: str, object_poses: Iterable[list], object_names: Iterable[str]):
         """
         Args:
             f (Frame): self.hand_frames[-1] (take last detection frame)
@@ -96,21 +92,7 @@ class DeiticLib(HandListener):
         }
         return deictic_solution
     
-    @staticmethod
-    def deictic_solution_to_ros(deictic_solution: dict):
-        line_point_1 = deictic_solution['line_point_1']
-        line_point_2 = deictic_solution['line_point_2']
-        to_position = deictic_solution['target_object_position']
 
-        return DeicticSolution(
-            object_id = deictic_solution['object_id'],
-            object_name = deictic_solution['object_name'],
-            object_names = deictic_solution['object_names'],
-            distances_from_line = deictic_solution['distances_from_line'],
-            line_point_1 = Point(x=line_point_1[0], y=line_point_1[1], z=line_point_1[2]),
-            line_point_2 = Point(x=line_point_2[0], y=line_point_2[1], z=line_point_2[2]),
-            target_object_position = Point(x=to_position[0],y=to_position[1],z=to_position[2]),
-        )
 
 
     def set_focus_logic(self, hand):
@@ -130,12 +112,4 @@ class DeiticLib(HandListener):
     def enable(self):
         self.disabled = False
 
-
-class DeicticLibRos(DeiticLib, SceneGetter, Node):
-    def __init__(self):
-        Node.__init__(self, "deictic_ros_node")
-        DeiticLib.__init__(self)
-        SceneGetter.__init__(self)
-        
-        self.deictic_solutions_pub = self.create_publisher(DeicticSolution, "/teleop_gesture_toolbox/deictic_solution", 5)
 

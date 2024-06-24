@@ -1,6 +1,5 @@
-context_based_gesture_operation/Gestures gestures
-context_based_gesture_operation/Scene scene
+gesture_msgs/Gestures gestures
 
 ---
 
-context_based_gesture_operation/Intent intent
+gesture_msgs/Intent intent
