@@ -28,6 +28,7 @@ from gesture_msgs.msg import DetectionSolution
 import gesture_msgs.msg as rosm
 from gesture_msgs.msg import DetectionSolution, DetectionObservations
 from gesture_msgs.srv import SaveHandRecord, GetModelConfig
+from gesture_detector.gesture_classification.episodic_accumulation import AccumulatedGestures
 # from gesture_detector.gesture_classification.sentence_creation import GestureSentence
 
 DEBUGSEMAPHORE = False
@@ -51,7 +52,8 @@ class ROSComm(Node):
     def __init__(self):
         if not self.topic:
             self.topic = 'ros_comm_main'
-        super().__init__(self.topic)
+        # super().__init__(self.topic) # not sure about this one
+        super(ROSComm, self).__init__(self.topic)
 
         self.create_subscription(rosm.Frame, '/hand_frame', self.hand_frame_callback, 10)
 
@@ -246,10 +248,9 @@ class ROSComm(Node):
             dict_to_send["fps"] = round(self.hand_frames[-1].fps)
             dict_to_send["seq"] = self.hand_frames[-1].seq
             
-            # dict_to_send["gesture_type_selected"] = gl.sd.previous_gesture_observed_data_action
+            # dict_to_send["gesture_type_selected"] = gl.sd.prev_gesture_type
             # dict_to_send["gs_state_action"] = GestureSentence.process_gesture_queue(self.gestures_queue)
             # dict_to_send["gs_state_objects"] = self.target_objects
-            # dict_to_send["gs_state_ap"] = self.ap
         
         if self.l.static.relevant():
             static_n = self.static_info().n
@@ -661,7 +662,7 @@ class GestureDataDetection(ROSComm):
         if not silent:
             print(f"Static gestures: {self.static_info().names}, \nDynamic gestures {self.dynamic_info().names}")
 
-        self.gestures_queue = collections.deque(maxlen=50)
+        self.gestures_queue = AccumulatedGestures()
         
         # Misc
         self.last_seq = 0
@@ -895,7 +896,13 @@ class GestureDataDetection(ROSComm):
                         (np.array([data[n].activated for data in gs[-activate_length-2:-1]]).all() and not np.array([data[n].action_activated for data in gs[-distance_length*2-2:-1]]).any())): # or gesture happening for a long time
                         if not np.array([data[n].action_activated for data in gs[-distance_length-2:-1]]).any():
                             g.action_activated = True
-                            self.gestures_queue.append((latest_gs.header.stamp, gs.info.names[n], hand_tag, all_probs))
+                            print(f"New Action gesture detected: {gs.info.names[n]}, {hand_tag}")
+                            self.gestures_queue.append(
+                                {"stamp": latest_gs.header.stamp, 
+                                "name": gs.info.names[n],
+                                "hand": hand_tag,
+                                "probs": all_probs
+                            })
 
     def load_all_relevant_gestures(self, relevant_time=0.5, records=3):
         l_s = self.relevant(hand='l', type='static', relevant_time=relevant_time, records=records)
@@ -940,26 +947,7 @@ class GestureDataDetection(ROSComm):
         if np.array(cgs_activated).any():
             self.c.data_queue.append(CompoundGestureMorphClassStamped(sensor_seq, compound_gestures.keys(), cgs_activated))
 
-    def gestures_queue_to_ros(self, gestures_queue=None, rostemplate=None):
-        ''' Either queue of activated gesture strings or it gesture probs vector
-        Parameters:
-            gestures_queue (Float[] or Str[])
-        GesturesRos()
-        '''
-        rostemplate.probabilities.data = list(np.array(np.zeros(len(self.Gs)), dtype=float))
-        if gestures_queue is None:
-            print(f"gesture_queue was none, adding {self.gestures_queue}") 
-            gestures_queue = self.gestures_queue
-        
-        if isinstance(gestures_queue[0], (float,int)):
-            assert len(gestures_queue) == len(self.Gs)
-            for i in range(len(gestures_queue)):
-                rostemplate.probabilities.data[i] = float(gestures_queue[i])
-        else:
-            for g in gestures_queue:
-                rostemplate.probabilities.data[self.Gs.index(g)] = 1.0
 
-        return rostemplate
 
     def last(self):
         return self.l.static.relevant(), self.r.static.relevant(), self.l.dynamic.relevant(), self.r.dynamic.relevant()

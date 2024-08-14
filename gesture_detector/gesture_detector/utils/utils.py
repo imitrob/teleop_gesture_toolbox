@@ -60,6 +60,12 @@ class CustomDeque(collections.deque):
                 return super(CustomDeque, self).__getitem__(slic)
             except IndexError:
                 return None
+    @property
+    def empty(self):
+        if len(self) > 0:
+            return False
+        else:
+            return True
 
     def get_last(self, nlast):
         assert nlast>0

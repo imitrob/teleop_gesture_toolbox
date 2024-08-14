@@ -12,8 +12,8 @@ class MockedScenePublisher(Node):
         self.scene_pub = self.create_publisher(scene_ros.Scene, "/scene", 5)
         
         self.scene = Scene(name="scene_1", objects=[
-            SceneObject("plastic_cube_1", [0.5,0.0,0.04]),
-            SceneObject("robothon_box", [0.5,0.0,0.04]),
+            SceneObject("plastic_cube_1", [0.5,0.2,0.04]),
+            SceneObject("robothon_box", [0.5,-0.2,0.04]),
             SceneObject("robothon_peg", [0.5,0.0,0.04]),
         ])
 

@@ -9,11 +9,14 @@ from gesture_msgs.msg import DeicticSolution
 from gesture_detector.hand_processing.hand_listener import HandListener
 from geometry_msgs.msg import Point
 
-class DeicticLibRos(DeiticLib, HandListener, SceneGetter, Node):
+class NamedRosNode(Node):
+    def __init__(self):
+        super(NamedRosNode, self).__init__("deitic_ros_node")
+
+class DeicticLibRos(DeiticLib, HandListener, SceneGetter, NamedRosNode):
     def __init__(self, hand):
-        Node.__init__(self, "deictic_ros_node")
-        DeiticLib.__init__(self, hand)
-        SceneGetter.__init__(self)
+        self.hand = hand
+        super(DeicticLibRos, self).__init__()
         
         self.deictic_solutions_pub = self.create_publisher(DeicticSolution, "/teleop_gesture_toolbox/deictic_solution", 5)
 
@@ -39,8 +42,13 @@ class DeicticLibRos(DeiticLib, HandListener, SceneGetter, Node):
         if s.object_positions == []: 
             print("Empty scene!")
             return
-        
-        deictic_solution = self.compute_deictic_solution(self.hand_frames[-1], s.object_positions, s.object_names)
+        if len(self.hand_frames) == 0: 
+            print("No hand data!")
+            return
+
+        deictic_solution = self.compute_deictic_solution(self.hand_frames[-1], self.hand, s.object_positions, s.object_names)
+        if deictic_solution is None:
+            return None
         
         self.deictic_solutions_pub.publish(
             self.deictic_solution_to_ros(deictic_solution)

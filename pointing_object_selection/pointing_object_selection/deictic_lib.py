@@ -6,10 +6,9 @@ from pointing_object_selection.transform import transform_leap_to_base
 
 
 class DeiticLib():
-    def __init__(self, hand: str):
+    def __init__(self):
         super(DeiticLib, self).__init__()
         self.disabled = False
-        self.hand = hand
 
     def get_closest_point_to_line(self,line_points, test_point):
         ''' Line points
@@ -37,7 +36,8 @@ class DeiticLib():
             norm_distance = np.linalg.norm(np.array(closest_point)-np.array(test_point))
             distances_from_line.append(norm_distance)
 
-        if np.min(distances_from_line) > max_dist: return None, np.min(distances_from_line)
+        if np.min(distances_from_line) > max_dist: 
+            return None, np.min(distances_from_line), distances_from_line
         print(f"[Deictic] Chosen: {np.argmin(distances_from_line)}, {np.min(distances_from_line)}, {distances_from_line}")
         return int(np.argmin(distances_from_line)), np.min(distances_from_line), distances_from_line
 
@@ -60,11 +60,14 @@ class DeiticLib():
             elif f.r.visible:
                 h = 'r'
             else:
-                print("[WARNING] Deictic has no visible hand!")
                 h = 'l'
         if not isinstance(h, str): 
             print(f"h is not string, h is {type(h)}")
         hand = getattr(f, h)
+
+        if not hand.visible:
+            print("[Deictic] Hand is not visible!")
+            return None
 
         p1, p2 = np.array(hand.palm_position()), np.array(hand.palm_position())+np.array(hand.direction())
         #p1, p2 = np.array(hand.fingers[1].bones[3].prev_joint()), np.array(hand.fingers[1].bones[3].next_joint())

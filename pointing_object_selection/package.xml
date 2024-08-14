@@ -1,6 +1,6 @@
 <?xml version="1.0"?>
 <package format="3">
-  <name>gesture_sentence_maker</name>
+  <name>pointing_object_selection</name>
   <version>1.0.0</version>
   <description>Processes gestures into sentence.</description>
   <maintainer email="petr.vanc@cvut.cz">Petr Vanc</maintainer>
