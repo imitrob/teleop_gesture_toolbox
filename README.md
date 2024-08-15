@@ -40,7 +40,7 @@ Sample trained model (containing common gestures) is included with the repositor
 
 ## Usage 
 
-### Gesture detector
+### Gesture detector (not requires robotics setup)
 
 Run Leap Motion backend: `sudo leapd`
 
@@ -69,9 +69,9 @@ teleopenv; ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=909
 
 ### Deictic gesture (Pointing object selection)
 
-Pointing on objects on the scene with your hand will select it. Run `python deictic_node.py`.
+Pointing on objects on the scene with your hand will select it. Run: `ros2 run pointing_object_selection selector_node`.
 
-Deictic selector requires scene publisher, publishing the scene object locations. Run and see script [mocked_scene_maker.py](scene_getter/scene_getter/scene_makers/mocked_scene_maker.py) that publishes example scene positions.
+Deictic selector requires scene publisher, publishing the scene object locations. Run `ros2 run scene_getter mocked_scene` to publish mocked scene, or see the script [mocked_scene_maker.py](scene_getter/scene_getter/scene_makers/mocked_scene_maker.py) how it is done.
 
 Secondly, calibration of the Leap Motion Controller with your scene base frame is needed. Transform is defined in ([transform.py](pointing_object_selection/pointing_object_selection/transform.py)) is valid for example setup (see image [setup.jpg](setup.jpg)) when the Leap Motion controller is opposite from base.  
 
@@ -82,25 +82,35 @@ Example setup
 
 By combining multiple gesture types creates a gesture sentence. When pointing gesture is detected, object selection is activated. See example video [here](http://imitrob.ciirc.cvut.cz/publications/chi23/2023_IROS_GESTURE_SENTENCE_VIDEO.mp4).
 
-Requires gesture detector (`teleopenv; ros2 launch gesture_detector gesture_detect_launch.py`) and deictic node (`python deictic_node.py`) running.
+Requires gesture detector (`teleopenv; ros2 launch gesture_detector gesture_detect_launch.py`) and deictic node (`ros2 run pointing_object_selection selector_node`) running.
 
 Then gesture sentence processor is launch with
 
 ```
-ros2 launch gesture_sentence_maker sentence_maker_launch.py
-```
-or run script:
-```
-python gesture_processor.py
+ros2 run gesture_sentence_maker sentence_maker
 ```
 
 After gesture sentence finishes (hand no longer visible), processed gestures are sent and you should see `HRI Command original` results on your browser (`localhost:8000`).
 
 ### Mapping gestures to Robotic Actions
 
-> Tutorial coming soon
+Get gesture meaning and convert detected gestures to (robotic) actions. Run: `ros2 run gesture_meaning gesture_meaning_service`
 
-### Gesture Direct Teleoperation
+Service is launching 1 to 1 constant mapping by default. Note that gesture set must match the current gesture set. See *OneToOneMapping* class in [gesture_meaning_service.py](src/teleop_gesture_toolbox/gesture_meaning/gesture_meaning/gesture_meaning_service.py).
 
-> Tutorial coming soon
+By running the service, mappings are published to `/hri/command` topic.
 
+### Action execution by the robotic manipulator
+
+Part that executes the actions with robitic manipulator is moved to separate [repository](https://github.com/imitrob/imitrob_templates) compatibility with this package is currently under development.
+
+
+### Gesture Direct Teleoperation (requires robotics setup)
+
+Direct teleoperation subpackage is independent from rest of toolbox. Dependency is Franka Emika Panda robot and Python bindings that depends on two functions:
+```python
+self.go_to_pose(pose) # position (float[3]), orientation (float[4])
+self.set_gripper(gripper) # gripper position (float) 0.-1.
+```
+
+Servoing happens in task space (cartesian controller).

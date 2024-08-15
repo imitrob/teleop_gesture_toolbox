@@ -20,6 +20,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'sentence_maker = gesture_sentence_maker.gesture_processor:main',
         ],
     },
 )

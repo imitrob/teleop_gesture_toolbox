@@ -234,7 +234,8 @@ def spinning_threadfn(gd):
         gd.spin_once(sem=True)
         time.sleep(0.01)
 
-if __name__ == '__main__':
+
+def main():
     rclpy.init()
     sentence_processor = GestureSentence()
     spinning_thread = threading.Thread(target=spinning_threadfn, args=(sentence_processor, ), daemon=True)
@@ -254,3 +255,6 @@ if __name__ == '__main__':
                 print("Detections warning, check objects!")
     self.seq += 1
     '''
+
+if __name__ == '__main__':
+    main()

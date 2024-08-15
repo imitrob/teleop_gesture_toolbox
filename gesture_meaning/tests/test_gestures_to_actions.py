@@ -1,6 +1,6 @@
 
 
-from gesture_meaning.get_gesture_meaning import GestureToMeaningNode, OneToOne_Sample
+from gesture_meaning.gesture_meaning_service import GestureToMeaningNode, OneToOne_Sample
 from gesture_msgs.srv import GestureToMeaning
 import rclpy
 

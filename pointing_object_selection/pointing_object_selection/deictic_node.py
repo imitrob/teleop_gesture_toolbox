@@ -71,6 +71,11 @@ def main(args):
     except KeyboardInterrupt:
         print("KeyboardInterrupt: Test deictic ended\n\n")
 
+def run_node_default():
+    main(args = {
+        'hand': "lr",
+        'frequency': 2,
+    })
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

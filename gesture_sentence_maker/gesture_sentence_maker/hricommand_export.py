@@ -71,6 +71,8 @@ def export_original_to_HRICommand(s, target_object_solutions, max_probs, max_tim
 
     # Collect the data
     sentence_as_dict = {
+        'target_object': argmax(target_object_names, target_object_probs),
+        'target_storage': argmax(target_storage_names, target_storage_probs),
         'gestures': Gs, # Gesture names 
         'gesture_probs': list(max_probs), # Gesture probabilities 
         'gesture_timestamp': list(max_timestamps), # One timestamp
@@ -92,6 +94,10 @@ def export_original_to_HRICommand(s, target_object_solutions, max_probs, max_tim
     data_as_str = data_as_str.replace("'", '"')
 
     return HRICommand(data=[str(data_as_str)])
+
+def import_original_HRICommand_to_dict(hricommand):
+    sentence_as_str = hricommand.data[0]
+    return eval(sentence_as_str)
 
 def export_only_objects_to_HRICommand(s, target_object_solutions):
     target_object_names, target_object_probs, object_types, target_storage_names, target_storage_probs = get_object_probs(s, target_object_solutions)

@@ -20,13 +20,13 @@ class MockedScenePublisher(Node):
     def __call__(self):
         self.scene_pub.publish(self.scene.to_ros())
 
-
-
-if __name__ == '__main__':
+def main():
     rclpy.init()
     sp = MockedScenePublisher()
     
     while rclpy.ok():
         sp()
         time.sleep(1.0)
-    
+
+if __name__ == '__main__':
+    main()

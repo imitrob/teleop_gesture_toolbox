@@ -17,6 +17,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'selector_node = pointing_object_selection.deictic_lib:run_node_default',
         ],
     },
 )

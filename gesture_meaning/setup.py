@@ -17,6 +17,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
+            'gesture_meaning_service = gesture_meaning.gesture_meaning_service:main',
         ],
     },
 )
