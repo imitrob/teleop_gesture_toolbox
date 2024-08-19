@@ -11,7 +11,7 @@ Install Leap Motion SDK and API for Python (v3.11), see [script](gesture_detecto
 Dependency packages are stored in `environment.yml` file.
 ```Shell
 conda install mamba -c conda-forge
-mamba create -f environment.yml # Installs ROS2 Humble via RoboStack utilized for this conda environemnt
+mamba env create -f environment.yml # Installs ROS2 Humble via RoboStack utilized for this conda environemnt
 mamba activate teleopenv
 ```
 
