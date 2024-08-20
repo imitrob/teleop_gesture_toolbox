@@ -8,16 +8,39 @@ import numpy as np
 from spatialmath import UnitQuaternion
 import spatialmath as sm 
 
+from rclpy.node import Node
+import rclpy
+from rclpy.executors import MultiThreadedExecutor
+import threading
+
 from geometry_msgs.msg import Quaternion
 
-from teleop_gesture_toolbox.live_teleoperation.transform import transform_leap_to_scene
+# from live_teleoperation.transform import transform_leap_to_scene
+from transform import transform_leap_to_scene
 
 from panda_py import Panda
-from libfranka import Gripper
+from panda_py.libfranka import Gripper
 
 HOSTNAME = "192.168.89.140"
 
-class Servo(Gripper, Panda, HandListener):
+class PandaWrap():
+    def __init__(self):
+        super(PandaWrap, self).__init__()
+        self.panda = Panda(HOSTNAME)
+        self.gripper = Gripper(HOSTNAME)
+
+    def move_to_pose(self, *args, **kwargs):
+        self.panda.move_to_pose(*args, **kwargs)
+
+    def move(self, *args, **kwargs):
+        self.gripper.move(*args, **kwargs)
+
+
+class RosNode(Node):
+    def __init__(self):
+        super(RosNode, self).__init__("servo_node")
+
+class Servo(PandaWrap, HandListener, RosNode):
     def __init__(self,
                  teleop_hand: str = "l", 
                  aux_hand: str = "r",
@@ -40,7 +63,7 @@ class Servo(Gripper, Panda, HandListener):
             teleop_rotate_eef (bool, optional): Reads angle of hand and rotates 7th joint.
                 Defaults to True.
         """
-        super(Servo, self).__init__(hostname=HOSTNAME)
+        super(Servo, self).__init__()
 
         self.teleop_hand = teleop_hand 
         self.aux_hand = aux_hand
@@ -51,27 +74,27 @@ class Servo(Gripper, Panda, HandListener):
 
 
     def is_hand_visible(self, hand):
-        if (self.frames and 
-            self.frames[-1] and
-            getattr(self.frames[-1],hand) and
-            getattr(self.frames[-1],hand).visible):
+        if (self.hand_frames and 
+            self.hand_frames[-1] and
+            getattr(self.hand_frames[-1],hand) and
+            getattr(self.hand_frames[-1],hand).visible):
             return True
         return False
 
     def is_gesture_activated(self, hand, gesture):
         if self.is_hand_visible(hand):
-            if getattr(getattr(self.frames[-1],hand),gesture) > 0.8:
+            if getattr(getattr(self.hand_frames[-1],hand),gesture) > 0.8:
                 return True
         return False
 
     def teleoperation_step(self, trigger):
         self.goal_pose = transform_leap_to_scene(
-            getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
+            getattr(self.hand_frames[-1],self.teleop_hand).palm_position(),
             self.scale)
-        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0])
+        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.01)
+
 
     def step(self):
-
         if self.is_hand_visible(self.teleop_hand):
             trigger = self.is_gesture_activated(self.teleop_hand, self.link_gesture)
             self.teleoperation_step(trigger)
@@ -80,7 +103,8 @@ class Servo(Gripper, Panda, HandListener):
         
         if self.is_hand_visible(self.aux_hand):
             grab_strength = getattr(self.hand_frames[-1], self.aux_hand).grab_strength
-            self.grasp(width=grab_strength/100, speed=0.1, force=20, epsilon_inner=0.005, epsilon_outer=0.07)
+            self.move(width=(1.-grab_strength)/10, speed=0.1)
+            # self.grasp(width=(1.-grab_strength)/10, speed=0.1, force=20, epsilon_inner=0.005, epsilon_outer=0.07)
 
 class AbsoluteTeleoperation(Servo):
     """Live mode is enabled only, when link_gesture is activated.
@@ -90,7 +114,8 @@ class AbsoluteTeleoperation(Servo):
             self.goal_pose = transform_leap_to_scene(
                 getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
                 self.scale)
-            self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0])
+            
+            self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.01)
 
 class RelativeTeleoperation(Servo):
     def teleoperation_step(self, trigger):
@@ -135,7 +160,7 @@ class TeleoperationByDrawing(Servo):
         else:
             self.live_mode_drawing = False
 
-        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0])
+        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.01)
 
 
 
@@ -203,7 +228,8 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
         else:
             self.live_mode_drawing = False
 
-        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0])
+        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.01)
+
 
     def compute_closest_pointing_object(self, hand_trajectory_vector, goal_pose):
         ''' TODO!
@@ -338,6 +364,8 @@ def test_correction():
     print("Test done")
 
 def main(args):
+    rclpy.init()
+
     if args['approach'] == "CorrectingPositionTeleoperation":
         test_correction()
         return
@@ -351,6 +379,20 @@ def main(args):
         teleop_rotate_eef = args['teleop_rotate_eef'],
     )
 
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(teleop)
+
+    spinning_thread = threading.Thread(target=executor.spin, args=(), daemon=True)
+    spinning_thread.start()
+
+    # try:
+    #     executor.spin()
+    # except KeyboardInterrupt:
+    #     pass
+    # finally:
+    #     teleop.destroy_node()
+    #     rclpy.shutdown()
+
     while True:
         teleop.step()
 
@@ -363,8 +405,9 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--approach",
-        default="AbsoluteTeleoperation",
+        default="Servo",
         choices=[
+            "Servo",
             "AbsoluteTeleoperation",
             "RelativeTeleoperation",
             "TeleoperationByDrawing",
