@@ -11,9 +11,13 @@ import spatialmath as sm
 from geometry_msgs.msg import Quaternion
 
 from teleop_gesture_toolbox.live_teleoperation.transform import transform_leap_to_scene
-from panda_ros import Panda
 
-class Servo(Panda, HandListener):
+from panda_py import Panda
+from libfranka import Gripper
+
+HOSTNAME = "192.168.89.140"
+
+class Servo(Gripper, Panda, HandListener):
     def __init__(self,
                  teleop_hand: str = "l", 
                  aux_hand: str = "r",
@@ -23,8 +27,8 @@ class Servo(Panda, HandListener):
                  ):
         """
         Panda:
-            self.go_to_pose(pose) # position (float[3]), orientation (float[4])
-            self.set_gripper(gripper) # gripper strength (float)
+            self.move_to_pose(position, orientation) # position (float[3]), orientation (float[4])
+            self.grasp(width, speed, force, epsilon_inner, epsilon_outer)
 
         Args:
             teleop_hand (str, optional): Hand used to teleoperate. 
@@ -35,7 +39,9 @@ class Servo(Panda, HandListener):
                 Defaults to "grab_strength" - Grab gesture triggers teleoperation.
             teleop_rotate_eef (bool, optional): Reads angle of hand and rotates 7th joint.
                 Defaults to True.
-        """        
+        """
+        super(Servo, self).__init__(hostname=HOSTNAME)
+
         self.teleop_hand = teleop_hand 
         self.aux_hand = aux_hand
         
@@ -62,7 +68,7 @@ class Servo(Panda, HandListener):
         self.goal_pose = transform_leap_to_scene(
             getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
             self.scale)
-        self.go_to_pose(self.goal_pose)
+        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0])
 
     def step(self):
 
@@ -74,8 +80,7 @@ class Servo(Panda, HandListener):
         
         if self.is_hand_visible(self.aux_hand):
             grab_strength = getattr(self.hand_frames[-1], self.aux_hand).grab_strength
-            self.set_gripper(grab_strength)
-
+            self.grasp(width=grab_strength/100, speed=0.1, force=20, epsilon_inner=0.005, epsilon_outer=0.07)
 
 class AbsoluteTeleoperation(Servo):
     """Live mode is enabled only, when link_gesture is activated.
@@ -85,7 +90,7 @@ class AbsoluteTeleoperation(Servo):
             self.goal_pose = transform_leap_to_scene(
                 getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
                 self.scale)
-            self.go_to_pose(self.goal_pose)
+            self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0])
 
 class RelativeTeleoperation(Servo):
     def teleoperation_step(self, trigger):
@@ -130,7 +135,7 @@ class TeleoperationByDrawing(Servo):
         else:
             self.live_mode_drawing = False
 
-        self.go_to_pose(self.goal_pose)
+        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0])
 
 
 
@@ -198,7 +203,7 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
         else:
             self.live_mode_drawing = False
 
-        self.go_to_pose(self.goal_pose)
+        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0])
 
     def compute_closest_pointing_object(self, hand_trajectory_vector, goal_pose):
         ''' TODO!
