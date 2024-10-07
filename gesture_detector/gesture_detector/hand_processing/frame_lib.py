@@ -531,7 +531,7 @@ class Hand():
         return ret
 
     def get_palm_ros_pose(self):
-        if not TF_IMPORT: raise Exception("tf library not imported!")
+        if not TF_IMPORT: raise Exception("pip install transformations==2021.6.6")
         q = transformations.quaternion_from_euler(self.palm_normal.roll(), self.direction.pitch(), self.direction.yaw())
         pose = PoseStamped()
         pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
@@ -603,7 +603,7 @@ class Hand():
         Returns:
             open/close fingers (Float[5]): For every finger Float value (0.,1.), 0. - finger closed, 1. - finger opened
         '''
-        if not TF_IMPORT: raise Exception("tf library not imported!")
+        if not TF_IMPORT: raise Exception("pip install transformations==2021.6.6")
 
         oc = []
         for i in range(0,5):
