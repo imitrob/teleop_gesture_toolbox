@@ -360,6 +360,12 @@ class Hand():
         self.touch14_ = None
         self.touch15_ = None
 
+    def palm_pose_list(self):
+        ''' Returns [x,y,z,qx,qy,qz,qw] '''
+        p = self.palm_position()
+        q = self.palm_quaternion()
+        return [p[0], p[1], p[2], q[0], q[1], q[2], q[3]]
+
     def palm_pose(self):
         if ROS_IMPORT:
             pose = Pose()

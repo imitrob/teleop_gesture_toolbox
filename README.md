@@ -107,10 +107,18 @@ Part that executes the actions with robitic manipulator is moved to separate [re
 
 ### Gesture Direct Teleoperation (requires robotics setup)
 
-Direct teleoperation subpackage is independent from rest of toolbox. Dependency is Franka Emika Panda robot and Python bindings that depends on two functions:
-```python
-self.go_to_pose(pose) # position (float[3]), orientation (float[4])
-self.set_gripper(gripper) # gripper position (float) 0.-1.
-```
+Direct teleoperation is a separate subpackage (*live_teleoperation* folder)
+
+Tested robot is Franka Emika Panda and [panda_py](https://github.com/JeanElsner/panda-py) `pip install panda-python`. See implementation in `robot.py`.
 
 Servoing happens in task space (cartesian controller).
+
+#### Usage:
+
+1. Run Leap Motion backend: `sudo leapd`
+2. Run Leap Motion ROS2 publisher: `teleopenv; ros2 run gesture_detector leap`
+3. Run servo: `python servoing.py`
+    - Default is teleoperate by drawing.
+    - Right hand for teleoperation, Left hand to close and open gripper.
+
+

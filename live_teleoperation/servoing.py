@@ -13,34 +13,20 @@ import rclpy
 from rclpy.executors import MultiThreadedExecutor
 import threading
 
-from geometry_msgs.msg import Quaternion
+from playsound import playsound
+from geometry_msgs.msg import Point, Quaternion, Pose
 
 # from live_teleoperation.transform import transform_leap_to_scene
 from transform import transform_leap_to_scene
 
-from panda_py import Panda
-from panda_py.libfranka import Gripper
-
-HOSTNAME = "192.168.89.140"
-
-class PandaWrap():
-    def __init__(self):
-        super(PandaWrap, self).__init__()
-        self.panda = Panda(HOSTNAME)
-        self.gripper = Gripper(HOSTNAME)
-
-    def move_to_pose(self, *args, **kwargs):
-        self.panda.move_to_pose(*args, **kwargs)
-
-    def move(self, *args, **kwargs):
-        self.gripper.move(*args, **kwargs)
-
+from robot import PandaPy
+import time
 
 class RosNode(Node):
     def __init__(self):
         super(RosNode, self).__init__("servo_node")
 
-class Servo(PandaWrap, HandListener, RosNode):
+class Servo(PandaPy, HandListener, RosNode):
     def __init__(self,
                  teleop_hand: str = "l", 
                  aux_hand: str = "r",
@@ -71,7 +57,11 @@ class Servo(PandaWrap, HandListener, RosNode):
         self.link_gesture = link_gesture
         self.scale = scale
         self.teleop_rotate_eef = teleop_rotate_eef
-
+        
+        self.scene_anchor_save = [0.4, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0] # x,y,z,qx,qy,qz,qw [m] wrt. robot base
+        self.goal_pose_tmp = [0.4, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0]
+        self.eef_rot = 0.0
+        self.trigger = False
 
     def is_hand_visible(self, hand):
         if (self.hand_frames and 
@@ -87,11 +77,21 @@ class Servo(PandaWrap, HandListener, RosNode):
                 return True
         return False
 
+    def playontrigger(self):
+        while True:
+            if self.trigger and self.is_hand_visible(self.teleop_hand):
+                playsound('/usr/share/sounds/Yaru/stereo/bell.oga', block=True)
+            else:
+                time.sleep(0.5)
+
     def teleoperation_step(self, trigger):
-        self.goal_pose = transform_leap_to_scene(
+        goal_pose = transform_leap_to_scene(
             getattr(self.hand_frames[-1],self.teleop_hand).palm_position(),
             self.scale)
-        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.01)
+        
+        # print(goal_pose)
+        
+        self.move_to_pose(position=goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.05)
 
 
     def step(self):
@@ -99,23 +99,33 @@ class Servo(PandaWrap, HandListener, RosNode):
             trigger = self.is_gesture_activated(self.teleop_hand, self.link_gesture)
             self.teleoperation_step(trigger)
         else:
-            self.live_mode_drawing = False
+            self.is_drawing = False
         
         if self.is_hand_visible(self.aux_hand):
             grab_strength = getattr(self.hand_frames[-1], self.aux_hand).grab_strength
-            self.move(width=(1.-grab_strength)/10, speed=0.1)
-            # self.grasp(width=(1.-grab_strength)/10, speed=0.1, force=20, epsilon_inner=0.005, epsilon_outer=0.07)
+            # self.move(width=(1.-grab_strength)/10, speed=0.1)
+
+            if grab_strength > 0.8:
+                print("GRASP PRE", self.gripper.read_once().is_grasped)
+                if not self.gripper.read_once().is_grasped:
+                    self.gripper.grasp(width=0, speed=0.2, force=10, epsilon_inner=0.04, epsilon_outer=0.04)
+                print("GRASP POST", self.gripper.read_once().is_grasped)
+            elif grab_strength < 0.2:
+                self.gripper.move(0.08, 0.2)
+
+            # self.grasp(width=(1.-grab_strength)/10, speed=0.1, force=20, epsilon_inner=0.005, epsilon_outer=0.005)
+
 
 class AbsoluteTeleoperation(Servo):
     """Live mode is enabled only, when link_gesture is activated.
     """    
     def teleoperation_step(self, trigger):
         if trigger:
-            self.goal_pose = transform_leap_to_scene(
+            goal_pose = transform_leap_to_scene(
                 getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
                 self.scale)
             
-            self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.01)
+            self.move_to_pose(position=goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.01)
 
 class RelativeTeleoperation(Servo):
     def teleoperation_step(self, trigger):
@@ -125,29 +135,32 @@ class TeleoperationByDrawing(Servo):
     """Live mode is enabled only, when link_gesture is activated.
     """    
     def teleoperation_step(self, trigger):
+        self.trigger = trigger
         if trigger:
-            mouse_3d = transform_leap_to_scene(
-                getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(),
-                self.scale)
+            
+            mouse3d = transform_leap_to_scene(
+                getattr(self.hand_frames[-1],self.teleop_hand).palm_pose_list(),
+                self.scale
+            )
 
             if self.teleop_rotate_eef:
                 x,y = self.hand_frames[-1].r.direction()[0:2]
                 angle = np.arctan2(y,x)
 
-            if not self.live_mode_drawing: # init anchor
-                self.live_mode_drawing_anchor = mouse_3d
-                self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
-                self.live_mode_drawing = True
+            if not self.is_drawing: # init anchor
+                self.anchor = mouse3d
+                self.scene_anchor = deepcopy(self.scene_anchor_save)
+                self.is_drawing = True
 
                 if self.teleop_rotate_eef:
                     self.eef_rot_scene = deepcopy(self.eef_rot)
                     self.live_mode_drawing_eef_rot_anchor = angle
 
-            #self.goal_pose = self.goal_pose + (mouse_3d - self.live_mode_drawing_anchor)
-            self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
-            self.goal_pose.position.x += (mouse_3d.position.x - self.live_mode_drawing_anchor.position.x)
-            self.goal_pose.position.y += (mouse_3d.position.y - self.live_mode_drawing_anchor.position.y)
-            self.goal_pose.position.z += (mouse_3d.position.z - self.live_mode_drawing_anchor.position.z)
+            #goal_pose = goal_pose + (mouse3d - self.anchor)
+            goal_pose = deepcopy(self.scene_anchor)
+            goal_pose[0] += (mouse3d[0] - self.anchor[0])
+            goal_pose[1] += (mouse3d[1] - self.anchor[1])
+            goal_pose[2] += (mouse3d[2] - self.anchor[2])
 
             if self.teleop_rotate_eef:
                 self.eef_rot = deepcopy(self.eef_rot_scene)
@@ -155,12 +168,20 @@ class TeleoperationByDrawing(Servo):
 
             q = UnitQuaternion([0.0,0.0,1.0,0.0])
             rot = sm.SO3(q.R) * sm.SO3.Rz(self.eef_rot)
-            qx,qy,qz,qw = UnitQuaternion(rot).vec_xyzs
-            self.goal_pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
+            goal_pose[3],goal_pose[4],goal_pose[5],goal_pose[6] = UnitQuaternion(rot).vec_xyzs
+            
+            self.goal_pose_tmp = goal_pose
         else:
-            self.live_mode_drawing = False
+            self.scene_anchor_save = self.goal_pose_tmp
+            self.is_drawing = False
 
-        self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.01)
+        self.move_to_pose(position=(
+            self.goal_pose_tmp[0], 
+            self.goal_pose_tmp[1], 
+            self.goal_pose_tmp[2]), 
+            orientation=[1.0, 0.0, 0.0, 0.0], 
+            speed_factor=0.01
+        )
 
 
 
@@ -185,34 +206,39 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
     """    
     def teleoperation_step(self, trigger):
         if trigger:
-            mouse_3d = transform_leap_to_scene(getattr(self.hand_frames[-1],self.teleop_hand).palm_pose(), self.ENV, self.scale, self.camera_orientation)
+            mouse3d = transform_leap_to_scene(
+                getattr(self.hand_frames[-1],self.teleop_hand).palm_pose_list(), 
+                self.ENV, 
+                self.scale, 
+                self.camera_orientation
+            )
 
             if self.teleop_rotate_eef:
                 x,y = self.hand_frames[-1].r.direction()[0:2]
                 angle = np.arctan2(y,x)
 
-            if not self.live_mode_drawing: # init anchor
-                self.live_mode_drawing_anchor = mouse_3d
-                self.live_mode_drawing_anchor_scene = deepcopy(self.goal_pose)
-                self.live_mode_drawing = True
+            if not self.is_drawing: # init anchor
+                self.anchor = mouse3d
+                self.scene_anchor = deepcopy(self.goal_pose)
+                self.is_drawing = True
 
                 if self.teleop_rotate_eef:
                     self.eef_rot_scene = deepcopy(self.eef_rot)
                     self.live_mode_drawing_eef_rot_anchor = angle
 
-            #self.goal_pose = self.goal_pose + (mouse_3d - self.live_mode_drawing_anchor)
-            self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
-            self.goal_pose.position.x += (mouse_3d.position.x - self.live_mode_drawing_anchor.position.x)
-            self.goal_pose.position.y += (mouse_3d.position.y - self.live_mode_drawing_anchor.position.y)
-            self.goal_pose.position.z += (mouse_3d.position.z - self.live_mode_drawing_anchor.position.z)
+            #self.goal_pose = self.goal_pose + (mouse3d - self.anchor)
+            self.goal_pose = deepcopy(self.scene_anchor)
+            self.goal_pose.position.x += (mouse3d.position.x - self.anchor.position.x)
+            self.goal_pose.position.y += (mouse3d.position.y - self.anchor.position.y)
+            self.goal_pose.position.z += (mouse3d.position.z - self.anchor.position.z)
 
-            mouse_3d_list = [mouse_3d.position.x- self.live_mode_drawing_anchor.position.x,
-            mouse_3d.position.y- self.live_mode_drawing_anchor.position.y, mouse_3d.position.z- self.live_mode_drawing_anchor.position.z]
-            anchor_list = [self.live_mode_drawing_anchor_scene.position.x, self.live_mode_drawing_anchor_scene.position.y, self.live_mode_drawing_anchor_scene.position.z]
+            mouse3d_list = [mouse3d.position.x- self.anchor.position.x,
+            mouse3d.position.y- self.anchor.position.y, mouse3d.position.z- self.anchor.position.z]
+            anchor_list = [self.scene_anchor.position.x, self.scene_anchor.position.y, self.scene_anchor.position.z]
 
             anchor, goal_pose = self.damping_difference(anchor=anchor_list,
-                                        eef=mouse_3d_list, objects=np.array([]))
-            self.goal_pose = deepcopy(self.live_mode_drawing_anchor_scene)
+                                        eef=mouse3d_list, objects=np.array([]))
+            self.goal_pose = deepcopy(self.scene_anchor)
             self.goal_pose.position.x += (goal_pose[0]) * self.scale
             self.goal_pose.position.y += (goal_pose[1]) * self.scale
             self.goal_pose.position.z += (goal_pose[2]) * self.scale
@@ -226,7 +252,7 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
                 qx,qy,qz,qw = UnitQuaternion(rot).vec_xyzs
                 self.goal_pose.orientation = Quaternion(x=qx, y=qy, z=qz, w=qw)
         else:
-            self.live_mode_drawing = False
+            self.is_drawing = False
 
         self.move_to_pose(position=self.goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.01)
 
@@ -303,17 +329,17 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
     __test(np.array([[0.0,0.0,0.05,0.05]]))
     '''
 
-    def live_mode_with_damping(self, mouse_3d):
+    def live_mode_with_damping(self, mouse3d):
         '''
         '''
         anchor = np.array([0.0,0.0,0.5])
-        #mouse_3d = np.array([0.0,0.0,0.4])
+        #mouse3d = np.array([0.0,0.0,0.4])
 
-        goal_pose_prev = anchor + (mouse_3d - anchor)
+        goal_pose_prev = anchor + (mouse3d - anchor)
 
 
 
-        hand_trajectory_vector = (mouse_3d - anchor)/np.linalg.norm(mouse_3d-anchor)
+        hand_trajectory_vector = (mouse3d - anchor)/np.linalg.norm(mouse3d-anchor)
 
         #object_name, object_distance_to_bb = compute_closest_pointing_object(hand_trajectory_vector, goal_pose)
         object_name, object_distance_to_bb = 'box1', 0.2
@@ -322,7 +348,7 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
         mode, magn = self.live_mode_damp_scaler(object_name, object_distance_to_bb)
 
         if mode == 'damping':
-            goal_pose = anchor + magn * (mouse_3d - anchor)
+            goal_pose = anchor + magn * (mouse3d - anchor)
         elif mode == 'interact':
             pass
         return goal_pose,magn
@@ -341,11 +367,11 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
         return 1 / (1 + np.exp((x-center)*(-tau)))
 
     '''
-    mouse_3d = np.array([[0.0,0.0,0.4],[0.0,0.0,0.35],[0.0,0.0,0.3],[0.0,0.0,0.25],[0.0,0.0,0.2],[0.0,0.0,0.15],[0.0,0.0,0.1],[0.0,0.0,0.08], [0.0,0.0,0.06], [0.0,0.0,0.04], [0.0,0.0,0.02], [0.0,0.0,0.0]])
+    mouse3d = np.array([[0.0,0.0,0.4],[0.0,0.0,0.35],[0.0,0.0,0.3],[0.0,0.0,0.25],[0.0,0.0,0.2],[0.0,0.0,0.15],[0.0,0.0,0.1],[0.0,0.0,0.08], [0.0,0.0,0.06], [0.0,0.0,0.04], [0.0,0.0,0.02], [0.0,0.0,0.0]])
 
     magns = []
-    for pmouse_3d in mouse_3d:
-        edited,magn = live_mode_with_damping(pmouse_3d)
+    for pmouse3d in mouse3d:
+        edited,magn = live_mode_with_damping(pmouse3d)
         magns.append(magn)
     magns
 
@@ -353,7 +379,7 @@ class TeleoperationByDrawingSomeCollisionDetection(Servo):
     y = sigmoid(x)
     import matplotlib.pyplot as plt
     x
-    plt.plot(mouse_3d[:,2], edited[:,2])
+    plt.plot(mouse3d[:,2], edited[:,2])
     '''
 
 def test_correction():
@@ -381,9 +407,16 @@ def main(args):
 
     executor = MultiThreadedExecutor(num_threads=4)
     executor.add_node(teleop)
-
+    
     spinning_thread = threading.Thread(target=executor.spin, args=(), daemon=True)
     spinning_thread.start()
+
+    ctrl_thread = threading.Thread(target=teleop.ctrl_node, args=(), daemon=True)
+    ctrl_thread.start()
+
+    play_thread = threading.Thread(target=teleop.playontrigger, args=(), daemon=True)
+    play_thread.start()
+
 
     # try:
     #     executor.spin()
@@ -405,7 +438,8 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--approach",
-        default="Servo",
+        # default="Servo",
+        default="TeleoperationByDrawing",
         choices=[
             "Servo",
             "AbsoluteTeleoperation",
@@ -417,7 +451,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--teleop_hand",
-        default="l",
+        default="r",
         choices=["l", "r", ""],
     )
     parser.add_argument(
