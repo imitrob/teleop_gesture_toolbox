@@ -12,6 +12,6 @@ rm Leap_Motion_SDK_Linux_2.3.1.tgz
 
 # Python API
 cd ~; git clone https://github.com/petrvancjr/LeapAPI.git
-cd ~/LeapAPI/Python3.11
+cd ~/LeapAPI/Leap3.11 # or choose different python version
 pip install .
 echo "export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:~/LeapAPI/Leap3.11/" >> ~/.bashrc
