@@ -30,7 +30,6 @@ class PandaPy():
         self.orientation = (1.0,0.0,0.0,0.0)
 
     def ctrl_node(self):
-        print("CTRL NODE STARTED")
         ctrl = controllers.CartesianImpedance(filter_coeff=1.0, impedance=np.diag([100, 100, 100, 50, 50, 50]))
         x0 = self.panda.get_position()
         q0 = self.panda.get_orientation()
@@ -38,25 +37,15 @@ class PandaPy():
         self.panda.start_controller(ctrl)
 
         while True:
-            print("NEW CONTEXT")
             self.panda.start_controller(ctrl)
             try:
                 with self.panda.create_context(frequency=1e3, max_runtime=runtime) as ctx:
                     while ctx.ok():
-                        # x_d = x0.copy()
-                        # x_d[1] += 0.1 * np.sin(ctrl.get_time())
-                        # ctrl.set_control(x_d, q0)
-                        
                         ctrl.set_control(self.position, self.orientation)
             except:
-                print("CTRL NODE REFLEX")
-
-        print("ENDED")
+                print("Ctrl aborted, trying again")
 
     def move_to_pose(self, position, orientation, speed_factor):
-
-        position = np.clip(position, np.array([0.2, -0.4, 0.03]), np.array([0.5,0.4,0.4]))
-        
         self.position = tuple(position)
         self.orientation = tuple((1.0,0.0,0.0,0.0))
         # self.panda.move_to_pose(*args, **kwargs)

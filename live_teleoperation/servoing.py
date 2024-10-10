@@ -59,7 +59,7 @@ class Servo(PandaPy, HandListener, RosNode):
         self.teleop_rotate_eef = teleop_rotate_eef
         
         self.scene_anchor_save = [0.4, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0] # x,y,z,qx,qy,qz,qw [m] wrt. robot base
-        self.goal_pose_tmp = [0.4, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0]
+        self.goal_pose = [0.4, 0.0, 0.4, 1.0, 0.0, 0.0, 0.0]
         self.eef_rot = 0.0
         self.trigger = False
 
@@ -89,10 +89,7 @@ class Servo(PandaPy, HandListener, RosNode):
             getattr(self.hand_frames[-1],self.teleop_hand).palm_position(),
             self.scale)
         
-        # print(goal_pose)
-        
         self.move_to_pose(position=goal_pose, orientation=[1.0, 0.0, 0.0, 0.0], speed_factor=0.05)
-
 
     def step(self):
         if self.is_hand_visible(self.teleop_hand):
@@ -103,18 +100,14 @@ class Servo(PandaPy, HandListener, RosNode):
         
         if self.is_hand_visible(self.aux_hand):
             grab_strength = getattr(self.hand_frames[-1], self.aux_hand).grab_strength
-            # self.move(width=(1.-grab_strength)/10, speed=0.1)
 
+            # OPTION: Close gripper proportionally with grab strength:
+            # self.gripper.grasp(width=(1.-grab_strength)/1, speed=0.2, force=10, epsilon_inner=0.04, epsilon_outer=0.04)
             if grab_strength > 0.8:
-                print("GRASP PRE", self.gripper.read_once().is_grasped)
                 if not self.gripper.read_once().is_grasped:
                     self.gripper.grasp(width=0, speed=0.2, force=10, epsilon_inner=0.04, epsilon_outer=0.04)
-                print("GRASP POST", self.gripper.read_once().is_grasped)
             elif grab_strength < 0.2:
                 self.gripper.move(0.08, 0.2)
-
-            # self.grasp(width=(1.-grab_strength)/10, speed=0.1, force=20, epsilon_inner=0.005, epsilon_outer=0.005)
-
 
 class AbsoluteTeleoperation(Servo):
     """Live mode is enabled only, when link_gesture is activated.
@@ -170,15 +163,22 @@ class TeleoperationByDrawing(Servo):
             rot = sm.SO3(q.R) * sm.SO3.Rz(self.eef_rot)
             goal_pose[3],goal_pose[4],goal_pose[5],goal_pose[6] = UnitQuaternion(rot).vec_xyzs
             
-            self.goal_pose_tmp = goal_pose
+            # Save cage
+            goal_pose = np.clip(
+                goal_pose,
+                #        [x  , y   , z   , no limits on rotation]
+                np.array([0.2, -0.4, 0.03, -10, -10, -10, -10]),
+                np.array([0.6,  0.4, 0.4,   10,  10,  10,  10])
+            )
+            self.goal_pose = goal_pose
         else:
-            self.scene_anchor_save = self.goal_pose_tmp
+            self.scene_anchor_save = self.goal_pose
             self.is_drawing = False
 
         self.move_to_pose(position=(
-            self.goal_pose_tmp[0], 
-            self.goal_pose_tmp[1], 
-            self.goal_pose_tmp[2]), 
+            self.goal_pose[0], 
+            self.goal_pose[1], 
+            self.goal_pose[2]), 
             orientation=[1.0, 0.0, 0.0, 0.0], 
             speed_factor=0.01
         )
@@ -186,6 +186,7 @@ class TeleoperationByDrawing(Servo):
 
 
 class CorrectingPositionTeleoperation(TeleoperationByDrawing):
+    ''' User have limited time (duration) to correct the robot's position. '''
     def __init__(self, duration=5.0):
         super().__init__(scale=0.03, teleop_rotate_eef=False)
         self.duration = duration
@@ -203,6 +204,7 @@ class CorrectingPositionTeleoperation(TeleoperationByDrawing):
 
 class TeleoperationByDrawingSomeCollisionDetection(Servo):
     """Live mode is enabled only, when link_gesture is activated.
+    EXPERIMENTAL!
     """    
     def teleoperation_step(self, trigger):
         if trigger:
@@ -417,15 +419,6 @@ def main(args):
     play_thread = threading.Thread(target=teleop.playontrigger, args=(), daemon=True)
     play_thread.start()
 
-
-    # try:
-    #     executor.spin()
-    # except KeyboardInterrupt:
-    #     pass
-    # finally:
-    #     teleop.destroy_node()
-    #     rclpy.shutdown()
-
     while True:
         teleop.step()
 
@@ -438,16 +431,13 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--approach",
-        # default="Servo",
-        default="TeleoperationByDrawing",
+        default="TeleoperationByDrawing", 
         choices=[
-            "Servo",
-            "AbsoluteTeleoperation",
-            "RelativeTeleoperation",
-            "TeleoperationByDrawing",
-            "TeleoperationByDrawingSomeCollisionDetection",
-            "CorrectingPositionTeleoperation",
-        ]
+            "Servo", # Absolute teleoperation without any (safety) constraints
+            "AbsoluteTeleoperation", 
+            "TeleoperationByDrawing", # (3D Mouse) Grab and Move to teleoperate
+        ],
+        help="Name of Servoing Class."
     )
     parser.add_argument(
         "--teleop_hand",
@@ -458,15 +448,20 @@ if __name__ == "__main__":
         "--aux_hand",
         default="l",
         choices=["l", "r", ""],
+        help="Hand that opens and closes the gripper."
     )
     parser.add_argument(
         "--link_gesture",
         default="grab_strength",
-        choices=["grab_strength"],
+        choices=["grab_strength", # hand closed
+                 "pinch_strength", # thumb and point fingers touching 
+                ],
+        help="The gesture activates teleoperation."
     )
     parser.add_argument(
         "--scale",
         default=1.0,
+        help="Stretching hand move distance to task space distance."
     )
     parser.add_argument(
         "--teleop_rotate_eef",
