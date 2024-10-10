@@ -19,7 +19,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'mocked_scene = scene_getter.scene_makers.mocked_scnee_maker:main',
+            'mocked_scene = scene_getter.scene_makers.mocked_scene_maker:main',
         ],
     },
 )

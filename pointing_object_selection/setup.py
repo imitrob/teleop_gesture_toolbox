@@ -1,4 +1,6 @@
 from setuptools import setup
+from glob import glob
+
 
 package_name = 'pointing_object_selection'
 
@@ -8,6 +10,9 @@ setup(
     packages=[package_name],
     install_requires=['setuptools'],
     data_files=[
+        ('share/' + package_name, ['package.xml']),
+        ('share/' + package_name + '/launch', glob('launch/*.py')),
+        
     ],
     zip_safe=True,
     maintainer='Petr Vanc',
@@ -17,7 +22,7 @@ setup(
     tests_require=['pytest'],
     entry_points={
         'console_scripts': [
-            'selector_node = pointing_object_selection.deictic_lib:run_node_default',
+            'selector_node = pointing_object_selection.deictic_node:run_node_default',
         ],
     },
 )

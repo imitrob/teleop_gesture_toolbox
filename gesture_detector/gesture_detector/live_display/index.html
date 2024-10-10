@@ -22,23 +22,28 @@
 
   <div class="w3-row min-height-div">
     <div class="w3-half w3-container">
-  <h1 align="center">Teleop_gesture_toolbox</h1>
+  <h1 align="center">Gesture detector</h1>
   <p>Displaying solutions from single hand (Left hand has priority).</p>
   <div id="message-container"></div>
+  <img id="activatedGestureImage"></img>
+  <img id="activatedGestureImage2"></img>
   </div>
   <div class="w3-half w3-container">
     
     <div class="w3-row">
       <div class="w3-half w3-container">
-        <h3>Gesture sentence as original gesture probs (HRI Command original)</h3>
+        <h1 align="center">Episode-catched gestures</h1>
+        Gesture sentence (HRI Gestures)
         <div id="hricOriginal1Container"></div>
         <hr>
         <div id="hricOriginal2Container"></div>
       </div>
       <div class="w3-half w3-container">
-        <h3>Gesture sentence as Mapped Robotic Actions (HRI Command)</h3>
-        <div id="hricommandmappedContainer"></div>
-        
+        <h1 align="center">Gesture Meaning</h1>
+        Mapped Robotic Actions (HRI Command)</h3>
+        <div id="hricMapped1Container"></div>
+        <hr>
+        <div id="hricMapped2Container"></div>
       </div>
     </div>
 
@@ -46,62 +51,43 @@
   </div>
 
   <script>
-  /*
-  var s = '{"AboutToExpire":{"Display":true,"Message":"Several of your subscriptions are about to expire."}, "Expired":{"Display":true,"Message":"Your McAfee WaveSecure - Tablet Edition subscription has expired and youve been without protection for 384 days."}}';
-
-  var data = JSON.parse(s); // this will convert your json string to a javascript object
-    
-  for (var key in data) {
-      if (data.hasOwnProperty(key)) { // this will check if key is owned by data object and not by any of it's ancestors
-          alert(key+' '+data[key]); // this will show each key with it's value
-      }
-  }
-  const messageContainer = document.getElementById('message-container');
-  messageContainer.innerHTML += `<p>${Object.keys(data)}</p>`;*/
-  </script>
-
-  <script>
     const ip = `127.0.0.1`;
     const port = 9090;
     const socket = new WebSocket(`ws://${ip}:${port}`);  // Adjust the URL based on your ROS 2 setup
 
     socket.addEventListener('open', (event) => {
-      // Subscribe to the "example_topic" topic when the WebSocket connection is open
       const subscribeMessage = {
         op: 'subscribe',
-        id: 'your_subscription_id',  // Provide a unique ID for the subscription
-        topic: "/teleop_gesture_toolbox/all_states",     // Specify the ROS topic to subscribe to
-        type: "std_msgs/String"       // Specify the message type
+        id: 'your_subscription_id',
+        topic: "/teleop_gesture_toolbox/all_states",
+        type: "std_msgs/String"
       };
 
       socket.send(JSON.stringify(subscribeMessage));
     });
 
+    socket.addEventListener('open', (event) => {
+      const subscribeMessage = {
+        op: 'subscribe',
+        id: 'your_subscription_id',
+        topic: "/teleop_gesture_toolbox/hricommand_original",
+        type: "gesture_msgs/HRICommand"
+      };
+
+      socket.send(JSON.stringify(subscribeMessage));
+    });
     
     socket.addEventListener('open', (event) => {
-      // Subscribe to the "example_topic" topic when the WebSocket connection is open
       const subscribeMessage = {
         op: 'subscribe',
-        id: 'your_subscription_id',  // Provide a unique ID for the subscription
-        topic: "/teleop_gesture_toolbox/hricommand_original",     // Specify the ROS topic to subscribe to
-        type: "gesture_msgs/HRICommand"       // Specify the message type
+        id: 'your_subscription_id',
+        topic: "/hri/command",
+        type: "gesture_msgs/HRICommand"
       };
 
       socket.send(JSON.stringify(subscribeMessage));
     });
-    /*
-    socket.addEventListener('open', (event) => {
-      // Subscribe to the "example_topic" topic when the WebSocket connection is open
-      const subscribeMessage = {
-        op: 'subscribe',
-        id: 'your_subscription_id',  // Provide a unique ID for the subscription
-        topic: "/hri/command",     // Specify the ROS topic to subscribe to
-        type: "gesture_msgs/HRICommand"       // Specify the message type
-      };
-
-      socket.send(JSON.stringify(subscribeMessage));
-    });
-    */
+    
 
     var staticGestureNames = [];
     var staticGestureProbs = [];
@@ -118,7 +104,10 @@
       const messageContainer = document.getElementById('message-container');
       const hricOriginal1Container = document.getElementById('hricOriginal1Container');
       const hricOriginal2Container = document.getElementById('hricOriginal2Container');
-      // const hricommandmappedContainer = document.getElementById('hricommandmappedContainer');
+      const hricMapped1Container = document.getElementById('hricMapped1Container');
+      const hricMapped2Container = document.getElementById('hricMapped2Container');
+      const activatedGestureImage = document.getElementById('activatedGestureImage');
+      const activatedGestureImage2 = document.getElementById('activatedGestureImage2');
       const data = JSON.parse(event.data);
 
       if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/all_states") {
@@ -142,8 +131,6 @@
           }
         }
         messageContainerInnerHTML = messageContainerInnerHTML.concat(`<br>`);*/
-        
-
 
         if (parsed_message.hasOwnProperty('l_static_probs')) {
           staticGestureNames = parsed_message['l_static_names'];
@@ -196,6 +183,37 @@
           dynamicGesturesActivated = Array(dynamicGestureNames.length).fill('false');
           dynamicBiggestID = -1;
         }
+        
+        // TODO:
+        var gid = parsed_message['l_static_relevant_biggest_id'];
+        if (gid == 0) {
+          activatedGestureImage.setAttribute("src", "grab.png")
+        } else if (gid == 1) {
+          activatedGestureImage.setAttribute("src", "pinch.png")
+        } else if (gid == 2) {
+          activatedGestureImage.setAttribute("src", "point.png")
+        } else if (gid == 3) {
+          activatedGestureImage.setAttribute("src", "two.png")
+        } else if (gid == 4) {
+          activatedGestureImage.setAttribute("src", "three.png")
+        } else if (gid == 5) {
+          activatedGestureImage.setAttribute("src", "four.png")
+        } else if (gid == 6) {
+          activatedGestureImage.setAttribute("src", "five.png")
+        } else if (gid == 7) {
+          activatedGestureImage.setAttribute("src", "thumbsup.png")        
+        }
+        var gid2 = parsed_message['l_dynamic_relevant_biggest_id'];
+        if (gid2 == 0) {
+          activatedGestureImage2.setAttribute("src", "swipe_down.png")
+        } else if (gid2 == 1) {
+          activatedGestureImage2.setAttribute("src", "swipe_right.png")
+        } else if (gid2 == 2) {
+          activatedGestureImage2.setAttribute("src", "swipe_left.png")
+        } else if (gid2 == 3) {
+          activatedGestureImage2.setAttribute("src", "swipe_up.png")
+        }
+
 
         for (var i = 0; i < dynamicGestureProbs.length; i++) {
         
@@ -275,29 +293,50 @@
           </div>`);
       }
 
-      // for (var key in parsed_message) {
-      //   if (parsed_message.hasOwnProperty(key)) {
-      //     theinnerHTML1 = theinnerHTML1.concat(`<p>${key}: ${parsed_message[key]}</p>`);   
-      //   }
-      // }
       hricOriginal1Container.innerHTML = theinnerHTML1;
       hricOriginal2Container.innerHTML = theinnerHTML2;
     }
 
-    /*
+    // Received message is HRICommand mapped
     if (data.op === 'publish' && data.topic === "/hri/command") {
       var message = data.msg.data; // Extract message data
       var parsed_message = JSON.parse(message); // Parse string dict into javascript obj.
+      var timeStampNow = Date.now() / 1000; // JS Timestamp 1700xxxxxxxxx vs ROS 1700xxxxxx 
       
-      //var theinnerHTML = ``;
-      //theinnerHTML = `<h3>HRICommand Mapped</h3>`;
-      //theinnerHTML = theinnerHTML.concat(`<p>${message}</p>`);
-      //theinnerHTML = theinnerHTML.concat(`<p>asdmp</p>`);
-      hricommandmappedContainer.innerHTML = `Action: <span class="w3-tag w3-red">${parsed_message['target_action']}</span>, Object: <span class="w3-tag w3-blue">${parsed_message['target_object']}</span>`;
-      hricommandmappedContainer.innerHTML += `<p>${message}</p>`;
+      var theinnerHTML1 = ``;
+      var theinnerHTML2 = ``;
       
-      
-    }*/
+      // Print gesture probabilities as progress bars
+      // For every gesture there is progress bar
+      for (var i = 0; i < parsed_message['actions'].length; i++) {
+        
+        var perc = parsed_message['action_probs'][i] * 100;
+        // Sec. passed since gesture shown, to 1 decimal point 
+        var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
+        // HTML
+        theinnerHTML1 = theinnerHTML1.concat(
+          `${parsed_message['actions'][i]}, <span class="w3-tag w3-red">${timestamp}s</span>
+          <div class="w3-light-grey w3-round"> 
+            <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
+          </div>`);
+      }
+      // Object probabilties
+      for (var i = 0; i < parsed_message['objects'].length; i++) {
+        
+        var perc = parsed_message['object_probs'][i] * 100;
+        // Sec. passed since gesture shown, to 1 decimal point 
+        //var timestamp = Math.round((timeStampNow - parsed_message['object_timestamp'][i]) * 10) / 10;
+        // HTML
+        theinnerHTML2 = theinnerHTML2.concat(
+          `${parsed_message['objects'][i]}, <span class="w3-tag w3-red">s</span>, <span class="w3-tag w3-red">${parsed_message['object_classes'][i]}s</span>
+          <div class="w3-light-grey w3-round"> 
+            <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
+          </div>`);
+      }
+
+      hricMapped1Container.innerHTML = theinnerHTML1;
+      hricMapped2Container.innerHTML = theinnerHTML2;
+    }
     });
   </script>
 
