@@ -20,7 +20,7 @@ class GestureToMeaningNode(GestureListService, RosNode):
         self.create_service(GestureToMeaning, '/teleop_gesture_toolbox/get_meaning', self.G2I_service_callback)
         # OR subscription
         self.create_subscription(HRICommand, "/teleop_gesture_toolbox/hricommand_original", self.G2I_message_callback, 10)
-        self.pub = self.create_publisher(HRICommand, "/hri/command", 5)
+        self.pub = self.create_publisher(HRICommand, "/modality/gestures", 5)
 
     def G2I_message_callback(self, msg):
         d = import_original_HRICommand_to_dict(msg)

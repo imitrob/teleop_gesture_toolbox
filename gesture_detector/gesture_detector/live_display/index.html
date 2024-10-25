@@ -81,7 +81,7 @@
       const subscribeMessage = {
         op: 'subscribe',
         id: 'your_subscription_id',
-        topic: "/hri/command",
+        topic: "/modality/gestures",
         type: "gesture_msgs/HRICommand"
       };
 
@@ -298,7 +298,7 @@
     }
 
     // Received message is HRICommand mapped
-    if (data.op === 'publish' && data.topic === "/hri/command") {
+    if (data.op === 'publish' && data.topic === "/modality/gestures") {
       var message = data.msg.data; // Extract message data
       var parsed_message = JSON.parse(message); // Parse string dict into javascript obj.
       var timeStampNow = Date.now() / 1000; // JS Timestamp 1700xxxxxxxxx vs ROS 1700xxxxxx 
