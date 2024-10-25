@@ -1,0 +1,39 @@
+{
+    "experiment": "train_custom",
+    "gestures": [
+        "grab",
+        "pinch",
+        "point",
+        "two",
+        "three",
+        "four",
+        "five",
+        "thumbsup"
+    ],
+    "model_name": "common_gestures",
+    "save": true,
+    "n_hidden": 20,
+    "split": 0.3,
+    "take_every": 4,
+    "iter": 70000,
+    "seed": 93457,
+    "inference_type": "ADVI",
+    "layers": 2,
+    "gesture_type": "static",
+    "engine": "PyMC",
+    "seed_wrapper": false,
+    "input_definition_version": 1,
+    "counts": [
+        780,
+        780,
+        832,
+        780,
+        832,
+        780,
+        806,
+        806
+    ],
+    "acc_train": 99.53093589457225,
+    "acc_test": 99.6352266805628,
+    "scale": false
+}

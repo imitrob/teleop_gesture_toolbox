@@ -1,70 +1,22 @@
-name: teleopenv2
+name: teleopenv
 channels:
-  - conda-forge
-  - speleo3
-  - robostack
-  - robostack-experimental
-  - defaults
+- conda-forge
+- robostack-staging
 dependencies:
-  - fastdtw
-  - deepdiff
-  - pygraphviz
-  - arviz
-  - assimp
-  - autograd
-  - beautifulsoup4
-  - binutils
-  - bullet
-  - cmake
-  - curl
-  - cython
-  - eigen
-  - fcl
-  - future
-  - gcc
-  - gdown
-  - ipykernel
-  - ipython
-  - ipython_genutils
-  - ipywidgets
-  - jupyter
-  - matplotlib
-  - numpy<1.23
-  - arviz=0.11.0
-  - pandas
-  - pillow
-  - pip
-  - pymc3
-  - pyqt
-  - python=3.9
-  - pyyaml
-  - qpsolvers
-  - qt
-  - roboticstoolbox-python
-  - rtb-data
-  - scikit-learn
-  - scipy
-  - seaborn
-  - sip
-  - spatialgeometry
-  - spatialmath-python
-  - swift-sim
-  - swig
-  - sympy
-  - yaml
-  - freeglut
-  - rosdep
-  - rosdistro
-  - rospkg
-  - ros-galactic-desktop
-  - ros-galactic-moveit-resources-panda-moveit-config
-  - ros-galactic-control-msgs
-  - ros-galactic-moveit-msgs
-  - ros-galactic-geometry-msgs
-  - colcon-common-extensions
-  - pip:
-    - cffi==1.14.2
-    - machinevision-toolbox-python==0.5.5
-    #- opencv-python==4.5.5.62
-    - autograd
-    - transformations==2021.6.6
+- python=3.11 # Make sure the correct Leap Python version is installed (https://github.com/petrvancjr/LeapAPI)
+- numpy
+- pymc
+- fastdtw
+- scikit-learn
+- seaborn
+- ros-humble-desktop
+- ros-humble-rosbridge-server
+- spatialmath-python
+- compilers # ROS2 utils
+- cmake
+- pkg-config
+- make
+- colcon-common-extensions
+- rosdep
+- pip:
+  - transformations==2021.6.6

@@ -1,252 +1,124 @@
-# Teleoperation gesture toolbox v0.02
 
-Python gesture toolbox for teleoperating robotic arm. The toolbox covers both static and dynamic gestures in several representations, including ProMP.
+# Teleoperation gesture toolbox v1.1
 
-## Installation
+Welcome to **teleoperation gesture toolbox** package made for **Leap Motion Controller**.
+Most of the package utilize **ROS2**. 
 
-Tested on Linux Ubuntu 20.04.
+## Installation 
 
-### Dependencies
+Install Leap Motion SDK and API for Python (v3.11), see [script](gesture_detector/leap_motion_install.sh).
 
-- Conda, e.g. Miniconda [download](https://docs.conda.io/en/latest/miniconda.html)
-- Choose any robotic backend:
-  - Real Panda Robot (we might publish our controller API in the future), or
-  - [Coppelia Sim](https://www.coppeliarobotics.com/) simulator (default)
-    - (Recommended) Use version 4.1 (PyRep can have problems with newer versions)
-    - Please install Coppelia Sim files to your home folder: `~/CoppeliaSim` (as shown below):
-  ```
-  cd ~
-  wget --no-check-certificate https://www.coppeliarobotics.com/files/CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
-  tar -xf CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
-  mv CoppeliaSim_Edu_V4_1_0_Ubuntu20_04 CoppeliaSim
-  rm CoppeliaSim_Edu_V4_1_0_Ubuntu20_04.tar.xz
-  cd CoppeliaSim
-  rm libsimExtROS2Interface.so # Official ROS2 interface needs to be disabled
-  ```
+I use [miniconda](docs.anaconda.com/miniconda) packaging. Dependency packages are stored in `environment.yml` file.
+```Shell
+conda install mamba -c conda-forge
+mamba env create -f environment.yml # Installs ROS2 Humble via RoboStack utilized for this conda environemnt
+mamba activate teleopenv
+```
 
-- [Leap Motion Controller](https://www.ultraleap.com/product/leap-motion-controller/) as a hand sensor ([install](include/scripts/leap_motion_install.sh))
+Build as ROS2 package:
+```Shell
+mkdir -p <your_ws>/src
+git clone https://github.com/imitrob/teleop_gesture_toolbox.git --depth 1 --branch dev
+cd <your_ws>
+colcon build --symlink-install
+```
 
-### Packages install with Mamba and ROS2 workspace setup:
-1. Set your ROS2 workspace path with: `export ws=<path/to/your/colcon/ws>`, e.g. `export ws=/home/$USER/teleop_ws`
-2. Go through installation process in [include/scripts/installation.sh](include/scripts/installation.sh) script.
+I use following alias to source the environment:
+```Shell
+alias teleopenv='conda activate teleopenv;
+LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/LeapAPI/lib/x64/;
+source install/setup.bash'
+```
 
-- Use sample dataset example (recommended):
-  - Download [dataset (1.2GB)](https://drive.google.com/file/d/1Jitk-MxzczreZ81PuO86xTapuSkBMOb-/view?usp=sharing) and move the `learning` folder to match the `<gesture_toolbox>/include/data/learning` folder
-- Use sample trained network example (recommended):
-  - Download [model (22MB)](https://drive.google.com/file/d/1jyDatUJy10sdXmLjPEdHL1cfSo-RZ4ct/view?usp=share_link) and move the file to `/include/data/trained_networks` folder
+See Leap Motion rigged hands by using [leapjs-rigged-hand](https://github.com/leapmotion/leapjs-rigged-hand).
 
-## Launching
+## Common Gestures dataset
 
-### Launch Backend
+Sample trained model (containing common gestures) is included with the repository (`gesture_detector/saved_models`) and is loaded by default. 
+
+(optional) The sample dataset can be downloaded from [link](https://drive.google.com/file/d/17L5KEuhW9kLYC073t11jctynQQ6z2Qm0/view?usp=sharing). To train the dataset, save it to `gesture_detector/gesture_data` folder. Then train static gestures by using `pymc_lib.py` script.
+
+## Usage 
+
+### Gesture detector (not requires robotics setup)
+
+Run Leap Motion backend: `sudo leapd`
+
+Run gesture detector:
+```Shell
+teleopenv; ros2 launch gesture_detector gesture_detect_launch.py
+```
+
+See the gesture detections on your browser `localhost:8000`.
+
+#### (optional) Create link for saved_models
+
+You may want to create link to gesture detection models, so that models in `src` folder are also recognized in `install` folder.
 
 ```Shell
-source ~/activate_teleop_backend.sh
-ros2 launch teleop_gesture_toolbox backend.launch
-# OR (Launch without Coppelia Sim)
-ros2 launch teleop_gesture_toolbox backend_real.launch
+rm ~/<your_ws>/build/gesture_detector/gesture_detector
+ln -s ~/<your_ws>/src/teleop_gesture_toolbox/gesture_detector/saved_models ~/<your_ws>/build/gesture_detector/gesture_detector
 ```
-- This launches:
-  1. Leap software backend (Shell command: `sudo leapd`)
-  2. Leap Motion Controller ROS publisher (`ros2 run teleop_gesture_toolbox leap_run.py`) (Script: `hand_processing/leap.py`)
-  3. Static gestures detection (`ros2 run teleop_gesture_toolbox static_sample_thread_run.py`) (`gesture_classification/main_sample_thread.py`)
-  4. Dynamic gestures detection (`ros2 run teleop_gesture_toolbox dynamic_sample_thread_run.py`) (`gesture_classification/dynamic_sample_thread.py`)
-  5. Coppelia Sim simulator with Panda robot from *Coppelia Sim ROS interface package* (`ros2 run coppelia_sim_ros_interface server_run.py`) (`coppelia_sim_ros_server.py`)
 
-- **Note**: You can run nodes separately via `ros2 run <package> <python file>` as shown
-- Launch Leap Motion Controller using `sudo leapd`
+#### (optional) Run websocket server on specific port 
 
-### Examples
-
-- Now you can run examples in second terminal
-
-#### Coppelia Sim example
-
-- Example of controlling CoppeliaSim scene and Panda robot using ROS2 interface
-- You can look at `<coppelia_sim_ros_interface>/examples/coppelia_sim_ros_example.py` script
+To run websocket (for live gesture display) on scecific port, first, comment `websocket` node in launch file description and run:
 ```Shell
-source ~/activate_teleop_backend.sh
-ros2 run coppelia_sim_ros_interface example_run.py
+teleopenv; ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=9095
 ```
 
-#### Gesture Recognitions
+### Deictic gesture (Pointing object selection)
 
-- Launches GUI only for gesture detection feedback (without use of simulator)  
-- In dropdown menu pick the `Gesture based` item
-```Shell
-source ~/activate_teleop.sh
-ros2 run teleop_gesture_toolbox example_gestures_only.py
+Pointing on objects on the scene with your hand will select it. Run: `ros2 run pointing_object_selection selector_node`.
+
+Deictic selector requires scene publisher, publishing the scene object locations. Run `ros2 run scene_getter mocked_scene` to publish mocked scene, or see the script [mocked_scene_maker.py](scene_getter/scene_getter/scene_makers/mocked_scene_maker.py) how it is done.
+
+Secondly, calibration of the Leap Motion Controller with your scene base frame is needed. Transform is defined in ([transform.py](pointing_object_selection/pointing_object_selection/transform.py)) is valid for example setup (see image [setup.jpg](setup.jpg)) when the Leap Motion controller is opposite from base.  
+
+Example setup
+![setup.jpg](setup.jpg)
+
+### Gesture sentence processor
+
+By combining multiple gesture types creates a gesture sentence. When pointing gesture is detected, object selection is activated. See example video [here](http://imitrob.ciirc.cvut.cz/publications/chi23/2023_IROS_GESTURE_SENTENCE_VIDEO.mp4).
+
+Requires gesture detector (`teleopenv; ros2 launch gesture_detector gesture_detect_launch.py`) and deictic node (`ros2 run pointing_object_selection selector_node`) running.
+
+Then gesture sentence processor is launch with
+
+```
+ros2 run gesture_sentence_maker sentence_maker
 ```
 
-#### Run main script
+After gesture sentence finishes (hand no longer visible), processed gestures are sent and you should see `HRI Command original` results on your browser (`localhost:8000`).
 
-- Starts a GUI with demo
-```Shell
-cd <teleop_gesture_toolbox>/teleop_gesture_toolbox
-python main_iros23.py ros1armer
-```
-- Run with different backends: `python main_iros23.py coppelia` or `python main_iros23.py ros1armer`
-- Run without robotic action execution: `python main_iros23.py ros1armer no_action_execution` to evaluate gesture sequence without execution.
-- Run without checking each robot move: `python main_iros23.py ros1armer incautious`.
-**Note:** You can combine arguments.
-- Run only testing: `python main_iros23.py ros1armer tester`.
+### Mapping gestures to Robotic Actions
 
-## Recognizers
+Get gesture meaning and convert detected gestures to (robotic) actions. Run: `ros2 run gesture_meaning gesture_meaning_service`
 
-### Static gestures with Probabilistic Neural Network
+Service is launching 1 to 1 constant mapping by default. Note that gesture set must match the current gesture set. See *OneToOneMapping* class in [gesture_meaning_service.py](src/teleop_gesture_toolbox/gesture_meaning/gesture_meaning/gesture_meaning_service.py).
 
-- (Default)
-- Preprocessing (based on config chosen in given script):
-```Shell
-cd <your ws>/src/teleop_gesture_toolbox/teleop_gesture_toolbox/learning
-python pymc3_train.py
-```
+By running the service, mappings are published to `/hri/command` topic.
 
-### Dynamic gestures with Dynamic Time Warping
+### Action execution by the robotic manipulator
 
-- (Default)
-- Preprocessing not needed
+Part that executes the actions with robitic manipulator is moved to separate [repository](https://github.com/imitrob/imitrob_templates) compatibility with this package is currently under development.
 
 
-## Application
+### Gesture Direct Teleoperation (requires robotics setup)
 
-1. Motion planning
-  - Path execution: Pick 'Play path' on Drop-down list
-  - Path selection is made in second Drop-down list
-  - To Add/Edit paths in this list, go to [here](#manage-paths)
+Direct teleoperation is a separate subpackage (*live_teleoperation* folder)
 
-2. Live mapping with _Leap Motion_ and gesture detection
-  - Pick 'Live hand' in left Drop-down list
-  - Note: Leap Motion needs to be connected to see this option and Leap software (`sudo leapd`) must be running
-  - On the left panel can be seen what gestures has been detected, pointing arrow indicates probabilistic solution
+Tested robot is Franka Emika Panda and [panda_py](https://github.com/JeanElsner/panda-py) `pip install panda-python`. See implementation in `robot.py`.
 
-Features:
-1. Switch between environments in _Menu->Robot config.->Environment_
-2. Switch between scenes _Menu->Scene_, more about scenes in [here](#manage-scenes)
-3. Switch between gesture detection NN files in _Menu->Gestures->Pick detection network_, new NN files can be downloaded (_Menu->Gestures->Download networks from gdrive_)
+Servoing happens in task space (cartesian controller).
 
-## Manage Gestures
+#### Usage:
 
-Gesture configurations YAML file is saved in `<gestures pkg>/include/custom_settings/gesture_recording.yaml`. Add new gesture by creating new record under `staticGestures` or `dynamicGestures` (below). Note that gesture list is updated when program starts.
-
-`gesture_recording.yaml`:
-```
-staticGestures:
-  <gesture 1>:
-    key: <keyboard key for recording>
-    filename: <picture (icon) of gesture showed in UI>
-  <gesture 2>:
-    ...
-  ...
-dynamicGestures:
-  <gesture 1>:
-    ...
-  ...
-```
-
-TODO: Right now all gestures loaded from `network.pkl` needs to have record in this yaml file. Make it independent.
+1. Run Leap Motion backend: `sudo leapd`
+2. Run Leap Motion ROS2 publisher: `teleopenv; ros2 run gesture_detector leap`
+3. Run servo: `python servoing.py`
+    - Default is teleoperate by drawing.
+    - Right hand for teleoperation, Left hand to close and open gripper.
 
 
-
-All available networks can be downloaded from google drive with button from UI menu and they are saved in folder `<gestures pkg>/include/data/trained_networks/`.
-To get information about network, run: `python get_info_about_network.py` (located in `/learning` folder) then specify network (e.g. `network0.pkl`).
-
-Train new NN with script (`src/learning/pymc3_train.py`). Running script via IPython is advised for better orientation in learning processes. TODO: Publish recorded data-set to gdrive
-
-Gesture management described above can be summarized into graph:
-```mermaid
-graph LR;
-classDef someclass fill:#f96;
-classDef someclass2 fill:#00FF00;
-
-A("Train network *<br>src/learning/train.py<br>"):::someclass --> B("Folder containing network data files<br>include/data/trained_networks/<network x>.pkl")
-C("Download networks (gdrive)<br><inside user interface>") --> B
-B --> D("Sampling thread<br>src/learning/sample.py<br>(launched by Main<br>src/demo.launch)")
-E("Info about gestures **<br>/include/custom_settings/gesture_recording.yaml"):::someclass2 --> D
-B --> F("Get info about <network x>.pkl *<br>src/learning/get_info_about_network.py"):::someclass
-
-G("* python files executed separately (Python3)"):::someclass
-H("** Configuration text file"):::someclass2
-
-I("Recorded gestures folder<br>include/data/learning/<gesture n>/<recording m>") -.-> A
-D --> I
-```
-
-## Manage Scenes
-
-Scene configurations YAML file is saved in `<teleop_gesture_toolbox pkg>/include/custom_settings/scenes.yaml`.
-
-The object needs to have at least _pose_ and _size_.
-
-Scenes are loaded with start of a program and can be switched from menu.
-
-Create new scenes in this file as follows:
-```yaml
-<Sample scene1 name>:
-  <Sample object 1 name>:
-    pose:
-      # Loads position as dictionary, uses Cartesian coordinates
-      position: {'x': 1.0, 'y': 1.0, 'z': 1.0}
-      # Loads orientation as dictionary, uses Quaternion values
-      orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': }
-    size: [1.,1.,1.]
-    shape: cube # Loads shape object (or sphere, cylinder, cone)
-    mass: 0.1 # [kg]
-    friction: 0.3 # [-] Coefficient
-    pub_info: true # Info about object is published to topic (/coppelia/object_info)
-  <Sample object 2 name>:
-    pose:
-      # Loads position as list or tuple, uses Cartesian coordinates (x,y,z)
-      position: [1., 1., 1.]
-      # Loads orientation as list or tuple (uses notation x,y,z,w)
-      orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': 1.0}
-    size: [1.,1.,1.]
-    mesh: <mesh file>.obj # Loads mesh file from include/models
-  <Sample object 3 name>:
-    pose:
-      # Loads position as saved in poses.yaml name
-      position: home
-      # Loads orientation as saved in poses.yaml name
-      orientation: home
-    size: [1.,1.,1.]
-  <Sample object 4 name>:
-    # Loads both position and orientation as saved in poses.yaml name
-    pose: home
-    size: [1.,1.,1.]
-   ...
-<Sample scene2 name>:
-  ...
-```
-
-## Manage Paths
-Path configurations YAML file is saved in `<teleop_gesture_toolbox pkg>/include/custom_settings/paths.yaml`.
-
-Create new paths in this file as follows:
-```yaml
-<Sample path1 name>:
-  <Sample pose 1 name>:
-    pose:
-      # Loads position as dictionary, uses Cartesian coordinates
-      position: {'x': 1.0, 'y': 1.0, 'z': 1.0}
-      # Loads orientation as dictionary, uses Quaternion values
-      orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': }
-    # Grab/Release object
-    action:
-  <Sample pose 2 name>:
-    pose:
-      # Loads position as list or tuple, uses Cartesian coordinates (x,y,z)
-      position: [1., 1., 1.]
-      # Loads orientation as list or tuple (uses notation x,y,z,w)
-      orientation: {'x': 1.0, 'y': 1.0, 'z': 1.0, 'w': 1.0}
-  <Sample pose 3 name>:
-    pose:
-      # Loads position as saved in poses.yaml name
-      position: home
-      # Loads orientation as saved in poses.yaml name
-      orientation: home
-  <Sample pose 4 name>:
-    # Loads both position and orientation as saved in poses.yaml name
-    pose: home
-   ...
-<Sample path2 name>:
-  ...
-```

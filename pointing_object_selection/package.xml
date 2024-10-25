@@ -1,0 +1,16 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>pointing_object_selection</name>
+  <version>1.0.0</version>
+  <description>Processes gestures into sentence.</description>
+  <maintainer email="petr.vanc@cvut.cz">Petr Vanc</maintainer>
+  <license>Apache 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+  <depend>rclpy</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>
+
