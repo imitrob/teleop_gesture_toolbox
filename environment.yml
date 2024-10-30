@@ -27,3 +27,4 @@ dependencies:
   - filterpy==1.4.5
   - playsound
   - panda-python
+  - zmq
