@@ -1,4 +1,4 @@
-#name: teleopenv
+name: teleopenv
 channels:
 - conda-forge
 #- robostack-staging
