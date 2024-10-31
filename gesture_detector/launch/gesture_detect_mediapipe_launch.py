@@ -9,7 +9,7 @@ def generate_launch_description():
     return LaunchDescription([
         Node(
             package='mediapipe_ros_pkg',
-            executable='mediapipe_node', # mediapipe script here
+            executable='mediapipe_toolbox_node',
             name='mediapipe_publisher_node',
             output='screen',
         ),

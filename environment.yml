@@ -1,30 +1,22 @@
 name: teleopenv
 channels:
 - conda-forge
-#- robostack-staging
+- robostack-staging
 dependencies:
-- python=3.10 # Make sure the correct Leap Python version is installed (https://github.com/petrvancjr/LeapAPI)
+- python=3.11 # Make sure the correct Leap Python version is installed (https://github.com/petrvancjr/LeapAPI)
 - numpy
 - pymc
 - fastdtw
 - scikit-learn
 - seaborn
-#- ros-humble-desktop
-#- ros-humble-rosbridge-server
+- ros-humble-desktop
+- ros-humble-rosbridge-server
 - spatialmath-python
-#- compilers # ROS2 utils
-#- cmake
-#- pkg-config
+- compilers # ROS2 utils
+- cmake
+- pkg-config
 - make
-#- colcon-common-extensions
-#- rosdep
+- colcon-common-extensions
+- rosdep
 - pip:
   - transformations==2021.6.6
-  - matplotlib==3.9.2
-  - scikit-learn==1.5.2
-  - mediapipe==0.10.15
-  - pyrealsense2==2.55.1.6486
-  - filterpy==1.4.5
-  - playsound
-  - panda-python
-  - zmq
