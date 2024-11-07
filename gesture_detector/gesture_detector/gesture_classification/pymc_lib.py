@@ -34,6 +34,8 @@ rc = {'xtick.labelsize': 20, 'ytick.labelsize': 20, 'axes.labelsize': 20, 'font.
         'legend.fontsize': 12.0, 'axes.titlesize': 10, "figure.figsize": [12, 6]}
 sns.set(rc = rc)
 sns.set_style("white")
+import logging
+logging.getLogger("pymc").setLevel(logging.ERROR)
 
 class PyMCModel():
     def __init__(self, model_config):

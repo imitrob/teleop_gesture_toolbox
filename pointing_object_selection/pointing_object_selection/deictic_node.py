@@ -9,11 +9,13 @@ from gesture_msgs.msg import DeicticSolution
 from gesture_detector.hand_processing.hand_listener import HandListener
 from geometry_msgs.msg import Point
 
+from pointing_object_selection.transform_ros_getter import TransformUpdater
+
 class NamedRosNode(Node):
     def __init__(self):
         super(NamedRosNode, self).__init__("deitic_ros_node")
 
-class DeicticLibRos(DeiticLib, HandListener, SceneGetter, NamedRosNode):
+class DeicticLibRos(DeiticLib, TransformUpdater, HandListener, SceneGetter, NamedRosNode):
     def __init__(self, hand):
         self.hand = hand
         super(DeicticLibRos, self).__init__()
@@ -36,7 +38,11 @@ class DeicticLibRos(DeiticLib, HandListener, SceneGetter, NamedRosNode):
             target_object_position = Point(x=to_position[0],y=to_position[1],z=to_position[2]),
         )
 
-    def step(self):        
+    def step(self):
+        if self.latest_transform is None:
+            print("Waiting for TF")
+            return
+
         s = self.get_scene()
 
         if s.object_positions == []: 
@@ -46,7 +52,13 @@ class DeicticLibRos(DeiticLib, HandListener, SceneGetter, NamedRosNode):
             print("No hand data!")
             return
 
-        deictic_solution = self.compute_deictic_solution(self.hand_frames[-1], self.hand, s.object_positions, s.object_names)
+        deictic_solution = self.compute_deictic_solution(
+            self.hand_frames[-1], 
+            self.hand, 
+            s.object_positions, 
+            s.object_names,
+            self.apply_transform,
+        )
         if deictic_solution is None:
             return None
         

@@ -2,9 +2,6 @@
 from typing import Iterable
 import numpy as np
 
-from pointing_object_selection.transform import transform_leap_to_base
-
-
 class DeiticLib():
     def __init__(self):
         super(DeiticLib, self).__init__()
@@ -41,7 +38,13 @@ class DeiticLib():
         print(f"[Deictic] Chosen: {np.argmin(distances_from_line)}, {np.min(distances_from_line)}, {distances_from_line}")
         return int(np.argmin(distances_from_line)), np.min(distances_from_line), distances_from_line
 
-    def compute_deictic_solution(self, f, h: str, object_poses: Iterable[list], object_names: Iterable[str]):
+    def compute_deictic_solution(self,
+                                f, 
+                                h: str,
+                                object_poses: Iterable[list],
+                                object_names: Iterable[str],
+                                tf_fun,
+        ):
         """
         Args:
             f (Frame): self.hand_frames[-1] (take last detection frame)
@@ -71,8 +74,8 @@ class DeiticLib():
 
         p1, p2 = np.array(hand.palm_position()), np.array(hand.palm_position())+np.array(hand.direction())
         #p1, p2 = np.array(hand.fingers[1].bones[3].prev_joint()), np.array(hand.fingers[1].bones[3].next_joint())
-        p1s = np.array(transform_leap_to_base(p1))
-        p2s = np.array(transform_leap_to_base(p2))
+        p1s = np.array(tf_fun(p1))
+        p2s = np.array(tf_fun(p2))
         v = 1000*(p2s-p1s)
         line_points = [list(p1s), list(p2s+v)]
 

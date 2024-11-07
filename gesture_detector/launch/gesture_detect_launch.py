@@ -31,7 +31,7 @@ def generate_launch_description():
             package='gesture_detector',
             executable='gesture_detect',
             name='gesture_detector_node',
-            output='screen',
+            output='log',
             parameters=[{'l': 'static+dynamic', 'r': 'static+dynamic'}]
         ),
         Node(
