@@ -176,7 +176,10 @@ class PyMCModel():
             print(f"Accurracy {save_name} = {acc}%")
             self.model_config[save_name] = acc
 
-            pp_matrix_from_data(y_true, y_pred, self.model_config['gestures'], annot=True, cmap = 'Oranges', cbar=False, figsize=(9,9)) # pip install pp_matrix_from_data
+            try:
+                pp_matrix_from_data(y_true, y_pred, self.model_config['gestures'], annot=True, cmap = 'Oranges', cbar=False, figsize=(9,9))
+            except NameError:
+                print("Visualize results requests: pip install pretty-confusion-matrix --no-deps")
             return acc
 
         acc = eval(X_train, y_train, 'acc_train', draws=300)

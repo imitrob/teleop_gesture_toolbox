@@ -21,8 +21,8 @@ from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray, MultiArrayDimension, String
 
 import gesture_detector
-from gesture_detector.utils.transformations import Transformations as tfm
 from gesture_detector.hand_processing.frame_lib import Frame
+from pointing_object_selection.pointing_object_selection.transform import transform_leap_to_base_anyinput
 
 from gesture_msgs.msg import DetectionSolution
 import gesture_msgs.msg as rosm
@@ -201,7 +201,7 @@ class ROSComm(Node):
                         ''' Transform to Leap frame id '''
                         data_composition_ = []
                         for point in data_composition:
-                            data_composition_.append(tfm.transformLeapToBase(point, out='position'))
+                            data_composition_.append(transform_leap_to_base_anyinput(point, out='position'))
                         data_composition = data_composition_
 
                         ''' Check if the length of composed data is aorund 1sec '''
