@@ -28,6 +28,7 @@ setup(
             'leap = gesture_detector.hand_processing.leap:ros_run',
             'realsense = gesture_detector.hand_processing.realsense:main',
             'gesture_detect = gesture_detector.gesture_detect:main',
+            'hand_marker_pub = gesture_detector.live_display.hand_marker_pub:main',
         ],
     },
 )

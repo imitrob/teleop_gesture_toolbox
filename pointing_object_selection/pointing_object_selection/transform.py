@@ -16,10 +16,10 @@ def transform_leap_to_base(pose):
     x,y,z=pose
     return np.array([z/1000+t[0], x/1000+t[1], y/1000+t[2]])
 
-def transform_to_world(pose):
+def transform_leap_to_leapworld(pose):
     if len(pose) == 3:
         x,y,z = pose
-        return np.array([x/1000, y/1000, z/1000])
+        return np.array([-x/1000, z/1000, y/1000])
     else:
         x,y,z,qx,qy,qz,qw = pose
-        return np.array([x/1000, y/1000, z/1000, qx,qy,qz,qw])
+        return np.array([-x/1000, z/1000, y/1000, qx,qy,qz,qw])

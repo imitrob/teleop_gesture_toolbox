@@ -8,7 +8,7 @@ from gesture_detector.hand_processing.frame_lib import Frame
 from visualization_msgs.msg import Marker, MarkerArray  # Import for RViz visualization
 from gesture_msgs.msg import DeicticSolution
 
-from pointing_object_selection.transform import transform_to_world
+from pointing_object_selection.transform import transform_leap_to_leapworld
 from pointing_object_selection.transform_ros_getter import TransformUpdater
 
 from tf2_ros import StaticTransformBroadcaster
@@ -93,8 +93,8 @@ class HandVisualizer(TransformUpdater, HandVisualizerRosNode):
                     # position_start = self.apply_transform(position_start)
                     # position_end = self.apply_transform(position_end)
                     
-                    position_start = transform_to_world(position_start)
-                    position_end = transform_to_world(position_end)
+                    position_start = transform_leap_to_leapworld(position_start)
+                    position_end = transform_leap_to_leapworld(position_end)
                     
                     start_point = Point(x=position_start[0],y=position_start[1],z=position_start[2])
                     end_point = Point(x=position_end[0],y=position_end[1],z=position_end[2])

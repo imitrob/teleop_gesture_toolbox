@@ -36,7 +36,21 @@ def generate_launch_description():
         description='Choose which sensor node to launch: "realsense" or "leap"'
     )
 
-    # OpaqueFunction dynamically selects the node to launch
+    rviz_config_file_arg = DeclareLaunchArgument(
+        'rviz_config_file',
+        default_value=gesture_detector.path+"/live_display/hand_cfg.rviz",
+        description='Path to the RViz2 configuration file'
+    )
+
+    # Define the Node action to launch RViz2
+    rviz_node = Node(
+        package='rviz2',
+        executable='rviz2',
+        name='rviz2',
+        output='screen',
+        arguments=['-d', LaunchConfiguration('rviz_config_file')],
+    )
+
     return LaunchDescription([
         sensor_arg,
         OpaqueFunction(function=generate_nodes),
@@ -72,6 +86,14 @@ def generate_launch_description():
             output='screen',
             shell=True
         ),
+        Node(
+            package='gesture_detector',
+            executable='hand_marker_pub',
+            name='hand_marker_pub',
+            output='screen',
+        ),
+        rviz_config_file_arg,
+        rviz_node
     ])
 
 
