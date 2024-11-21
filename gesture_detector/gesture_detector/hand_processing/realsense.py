@@ -3,6 +3,8 @@ import mediapipe as mp
 import pyrealsense2 as rs
 import numpy as np
 from gesture_detector.hand_processing.landmark_ext_frame_lib import FrameAdder
+from pointing_object_selection.transform import transform_realsense_to_leap
+
 
 X_LEN = 640
 Y_LEN = 480
@@ -106,7 +108,7 @@ def main():
 
                         # Map to 3D point
                         point_3d = rs.rs2_deproject_pixel_to_point(intrinsics, [cx, cy], depth)
-                        hand_landmarks_3d[hand][i] = [-point_3d[0] * 1000, point_3d[2] * 1000, point_3d[1] * 1000] # [m] to [mm], tf to toolbox
+                        hand_landmarks_3d[hand][i] = transform_realsense_to_leap(point_3d)
                         
                         # Check for outliers
                         key = i  # Use landmark index as key
