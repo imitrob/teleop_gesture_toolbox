@@ -26,6 +26,7 @@ setup(
             'dynamic_detector = gesture_detector.gesture_classification.main_sample_thread:run_dynamic',
             'custom_detector = gesture_detector.gesture_classification.main_sample_thread:run_from_rosparam',
             'leap = gesture_detector.hand_processing.leap:ros_run',
+            'realsense = gesture_detector.hand_processing.realsense:main',
             'gesture_detect = gesture_detector.gesture_detect:main',
         ],
     },

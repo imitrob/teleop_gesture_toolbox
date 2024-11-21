@@ -21,7 +21,7 @@ def main():
 
     rate = gd.create_rate_(10) 
     while rclpy.ok():
-        print("..")
+        # print("..")
         if gd.present():
             gd.send_g_data(l_hand_mode, r_hand_mode)
         gd.send_state()

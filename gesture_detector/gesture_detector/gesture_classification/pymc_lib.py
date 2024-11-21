@@ -100,6 +100,7 @@ class PyMCModel():
     def import_records(self, gesture_names):
         ''' Import static gestures, Import all data from learning folder
         '''
+        print(f"Loading dataset from: {gesture_detector.gesture_data_path}")
         if self.model_config['gesture_type'] == 'static':
             X, y = DatasetLoader({'input_definition_version':1, 'take_every': self.model_config['take_every']}).load_static(gesture_detector.gesture_data_path, gesture_names)
         elif self.model_config['gesture_type'] == 'dynamic':
@@ -430,7 +431,6 @@ def _args():
     parser.add_argument('--layers', default=2, type=int, help='(default=%(default))')
     parser.add_argument('--gesture_type', default="static", type=str, help='(default=%(default))')
     parser.add_argument('--engine', default="PyMC", type=str, help='(default=%(default))')
-    parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default))')
     parser.add_argument('--input_definition_version', default=1, type=int, help='Train hand features')
 
 

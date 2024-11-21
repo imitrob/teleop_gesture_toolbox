@@ -1,18 +1,45 @@
 #!/usr/bin/env python
-from ament_index_python import get_package_share_directory
 from launch import LaunchDescription
+from launch.actions import DeclareLaunchArgument, OpaqueFunction
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch.actions import ExecuteProcess
 import gesture_detector
 
-def generate_launch_description():
-    return LaunchDescription([
-        Node(
+def generate_nodes(context, *args, **kwargs):
+    # Retrieve the value of 'sensor' argument at runtime
+    sensor = LaunchConfiguration('sensor').perform(context)
+
+    # Conditional logic for node selection
+    if sensor == 'realsense':
+        return [Node(
+            package='gesture_detector',
+            executable='realsense',
+            name='realsense_publisher_node',
+            output='screen',
+        )]
+    elif sensor == 'leap':
+        return [Node(
             package='gesture_detector',
             executable='leap',
             name='leap_publisher_node',
             output='screen',
-        ),
+        )]
+    else:
+        raise ValueError(f"Invalid sensor argument: {sensor}. Use 'realsense' or 'leap'.")
+
+def generate_launch_description():
+    # Declare the 'sensor' argument
+    sensor_arg = DeclareLaunchArgument(
+        'sensor',
+        default_value='realsense',
+        description='Choose which sensor node to launch: "realsense" or "leap"'
+    )
+
+    # OpaqueFunction dynamically selects the node to launch
+    return LaunchDescription([
+        sensor_arg,
+        OpaqueFunction(function=generate_nodes),
         Node(
             package='gesture_detector',
             executable='custom_detector', # static detector

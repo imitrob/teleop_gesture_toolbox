@@ -30,6 +30,7 @@ class HandVisualizer(TransformUpdater, HandVisualizerRosNode):
 
         # Static Transform Broadcaster
         self.static_broadcaster = StaticTransformBroadcaster(self)
+        self.static_broadcaster2 = StaticTransformBroadcaster(self)
 
         # Define and send a static transform from "world" to "hand"
         static_transform = TransformStamped()
@@ -45,6 +46,21 @@ class HandVisualizer(TransformUpdater, HandVisualizerRosNode):
         static_transform.transform.rotation.w = 1.0
 
         self.static_broadcaster.sendTransform(static_transform)
+
+        # Define and send a static transform from "world" to "hand"
+        static_transform2 = TransformStamped()
+        static_transform2.header.stamp = self.get_clock().now().to_msg()
+        static_transform2.header.frame_id = "base_footprint"
+        static_transform2.child_frame_id = "xtion_rgb_optical_frame"
+        static_transform2.transform.translation.x = 0.0
+        static_transform2.transform.translation.y = 0.0
+        static_transform2.transform.translation.z = 1.0
+        static_transform2.transform.rotation.x = 0.0
+        static_transform2.transform.rotation.y = 0.0
+        static_transform2.transform.rotation.z = 0.0
+        static_transform2.transform.rotation.w = 1.0
+
+        self.static_broadcaster2.sendTransform(static_transform2)
 
 
     def frame_callback(self, msg):
