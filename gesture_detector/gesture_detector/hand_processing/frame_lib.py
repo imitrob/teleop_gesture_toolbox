@@ -11,13 +11,6 @@ Bone: ~2.7us
 '''
 import numpy as np
 from itertools import combinations
-# I can make independent to tf library if quaternion_from_euler function imported
-try:
-    import transformations
-    TF_IMPORT = True
-except ImportError:
-    TF_IMPORT = False
-
 try:
     from geometry_msgs.msg import Pose, PoseStamped, Point, Quaternion, Vector3
     ROS_IMPORT = True
@@ -377,7 +370,7 @@ class Hand():
         else: raise Exception("Cannot get palm_pose! ROS cannot be imported!")
 
     def palm_quaternion(self):
-        return transformations.quaternion_from_euler(*self.palm_euler())
+        return quaternion_from_euler(*self.palm_euler())
 
     def palm_euler(self):
         return [self.palm_normal.roll(), self.direction.pitch(), self.direction.yaw()]
@@ -537,8 +530,7 @@ class Hand():
         return ret
 
     def get_palm_ros_pose(self):
-        if not TF_IMPORT: raise Exception("pip install transformations==2021.6.6")
-        q = transformations.quaternion_from_euler(self.palm_normal.roll(), self.direction.pitch(), self.direction.yaw())
+        q = quaternion_from_euler(self.palm_normal.roll(), self.direction.pitch(), self.direction.yaw())
         pose = PoseStamped()
         pose.pose.orientation = Quaternion(x=q[0], y=q[1], z=q[2], w=q[3])
         pose.pose.position = Point(x=self.palm_position[0],y=self.palm_position[1],z=self.palm_position[2])
@@ -609,15 +601,13 @@ class Hand():
         Returns:
             open/close fingers (Float[5]): For every finger Float value (0.,1.), 0. - finger closed, 1. - finger opened
         '''
-        if not TF_IMPORT: raise Exception("pip install transformations==2021.6.6")
-
         oc = []
         for i in range(0,5):
             bone_1 = self.fingers[i].bones[0]
             if i == 0: bone_1 = self.fingers[i].bones[1]
             bone_4 = self.fingers[i].bones[3]
-            q1 = transformations.quaternion_from_euler(0.0, np.arcsin(-bone_1.direction[1]), np.arctan2(bone_1.direction[0], bone_1.direction[2])) # roll, pitch, yaw
-            q2 = transformations.quaternion_from_euler(0.0, np.arcsin(-bone_4.direction[1]), np.arctan2(bone_4.direction[0], bone_4.direction[2])) # roll, pitch, yaw
+            q1 = quaternion_from_euler(0.0, np.arcsin(-bone_1.direction[1]), np.arctan2(bone_1.direction[0], bone_1.direction[2])) # roll, pitch, yaw
+            q2 = quaternion_from_euler(0.0, np.arcsin(-bone_4.direction[1]), np.arctan2(bone_4.direction[0], bone_4.direction[2])) # roll, pitch, yaw
             oc.append(np.dot(q1, q2))
         return oc
 
@@ -1076,3 +1066,90 @@ def transform_quaternion_to_normal_vector(q):
     V[1] = 1 - 2 * (x*x + z*z)
     V[2] = 2 * (y*z + w*x)
     return V
+
+_AXES2TUPLE = {
+    'sxyz': (0, 0, 0, 0),
+    'sxyx': (0, 0, 1, 0),
+    'sxzy': (0, 1, 0, 0),
+    'sxzx': (0, 1, 1, 0),
+    'syzx': (1, 0, 0, 0),
+    'syzy': (1, 0, 1, 0),
+    'syxz': (1, 1, 0, 0),
+    'syxy': (1, 1, 1, 0),
+    'szxy': (2, 0, 0, 0),
+    'szxz': (2, 0, 1, 0),
+    'szyx': (2, 1, 0, 0),
+    'szyz': (2, 1, 1, 0),
+    'rzyx': (0, 0, 0, 1),
+    'rxyx': (0, 0, 1, 1),
+    'ryzx': (0, 1, 0, 1),
+    'rxzx': (0, 1, 1, 1),
+    'rxzy': (1, 0, 0, 1),
+    'ryzy': (1, 0, 1, 1),
+    'rzxy': (1, 1, 0, 1),
+    'ryxy': (1, 1, 1, 1),
+    'ryxz': (2, 0, 0, 1),
+    'rzxz': (2, 0, 1, 1),
+    'rxyz': (2, 1, 0, 1),
+    'rzyz': (2, 1, 1, 1),
+}
+
+_TUPLE2AXES = {v: k for k, v in _AXES2TUPLE.items()}
+
+_NEXT_AXIS = [1, 2, 0, 1]
+
+def quaternion_from_euler(ai, aj, ak, axes='sxyz'):
+    """Return quaternion from Euler angles and axis sequence.
+
+    ai, aj, ak : Euler's roll, pitch and yaw angles
+    axes : One of 24 axis sequences as string or encoded tuple
+
+    >>> q = quaternion_from_euler(1, 2, 3, 'ryxz')
+    >>> numpy.allclose(q, [0.435953, 0.310622, -0.718287, 0.444435])
+    True
+
+    """
+    try:
+        firstaxis, parity, repetition, frame = _AXES2TUPLE[axes.lower()]
+    except (AttributeError, KeyError):
+        _TUPLE2AXES[axes]  # noqa: validation
+        firstaxis, parity, repetition, frame = axes
+
+    i = firstaxis + 1
+    j = _NEXT_AXIS[i + parity - 1] + 1
+    k = _NEXT_AXIS[i - parity] + 1
+
+    if frame:
+        ai, ak = ak, ai
+    if parity:
+        aj = -aj
+
+    ai /= 2.0
+    aj /= 2.0
+    ak /= 2.0
+    ci = np.cos(ai)
+    si = np.sin(ai)
+    cj = np.cos(aj)
+    sj = np.sin(aj)
+    ck = np.cos(ak)
+    sk = np.sin(ak)
+    cc = ci * ck
+    cs = ci * sk
+    sc = si * ck
+    ss = si * sk
+
+    q = np.empty((4,))
+    if repetition:
+        q[0] = cj * (cc - ss)
+        q[i] = cj * (cs + sc)
+        q[j] = sj * (cc + ss)
+        q[k] = sj * (cs - sc)
+    else:
+        q[0] = cj * cc + sj * ss
+        q[i] = cj * sc - sj * cs
+        q[j] = cj * ss + sj * cc
+        q[k] = cj * cs - sj * sc
+    if parity:
+        q[j] *= -1.0
+
+    return q

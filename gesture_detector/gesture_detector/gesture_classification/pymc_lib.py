@@ -16,10 +16,7 @@ floatX = pt.config.floatX
 from sklearn.metrics import confusion_matrix
 from collections import Counter
 import arviz as az
-try:
-    from pretty_confusion_matrix import pp_matrix_from_data
-except ModuleNotFoundError:
-    pass # Not needed when doing inference
+from gesture_detector.utils.pretty_confusion_matrix import pp_matrix_from_data
 
 # Initialize random number generator
 np.random.seed(0)
@@ -176,10 +173,7 @@ class PyMCModel():
             print(f"Accurracy {save_name} = {acc}%")
             self.model_config[save_name] = acc
 
-            try:
-                pp_matrix_from_data(y_true, y_pred, self.model_config['gestures'], annot=True, cmap = 'Oranges', cbar=False, figsize=(9,9))
-            except NameError:
-                print("Visualize results requests: pip install pretty-confusion-matrix --no-deps")
+            pp_matrix_from_data(y_true, y_pred, self.model_config['gestures'], annot=True, cmap = 'Oranges', cbar=False, figsize=(9,9))
             return acc
 
         acc = eval(X_train, y_train, 'acc_train', draws=300)
