@@ -99,7 +99,6 @@ class HandVisualizer(TransformUpdater, HandVisualizerRosNode):
                     start_point = Point(x=position_start[0],y=position_start[1],z=position_start[2])
                     end_point = Point(x=position_end[0],y=position_end[1],z=position_end[2])
 
-                    print(position_start, position_end)
                     marker.points.append(start_point)
                     marker.points.append(end_point)
 

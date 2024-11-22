@@ -5,6 +5,9 @@ import numpy as np
 from gesture_detector.hand_processing.landmark_ext_frame_lib import FrameAdder
 from pointing_object_selection.transform import transform_realsense_to_leap
 
+import rclpy
+from rclpy.node import Node
+from gesture_msgs.msg import Frame
 
 X_LEN = 640
 Y_LEN = 480
@@ -32,10 +35,6 @@ def main():
     profile = pipeline.get_active_profile()
     depth_stream = profile.get_stream(rs.stream.depth)
     intrinsics = depth_stream.as_video_stream_profile().get_intrinsics()
-
-    import rclpy
-    from rclpy.node import Node
-    from gesture_msgs.msg import Frame
 
     rclpy.init()
     rosnode = Node("frame_adder")

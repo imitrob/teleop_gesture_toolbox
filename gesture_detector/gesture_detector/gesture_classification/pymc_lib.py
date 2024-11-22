@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os, time, argparse, json
-from typing import Dict, Optional
+from typing import Optional
 from warnings import filterwarnings; filterwarnings("ignore")
 from copy import deepcopy
 import matplotlib.pyplot as plt
@@ -13,7 +13,6 @@ import pytensor as pt
 
 from sklearn.model_selection import train_test_split
 floatX = pt.config.floatX
-from sklearn.metrics import confusion_matrix
 from collections import Counter
 import arviz as az
 from gesture_detector.utils.pretty_confusion_matrix import pp_matrix_from_data

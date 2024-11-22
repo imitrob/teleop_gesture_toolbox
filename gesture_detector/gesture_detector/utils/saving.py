@@ -54,19 +54,13 @@ class Recording():
     @staticmethod
     def save_recording(directory, object_to_save):
         print("[Saving] Saving data")
-
-        ext = '.npy'
         pathlib.Path(directory).mkdir(exist_ok=True)
 
         i=0
-        while os.path.isfile(directory+"/"+str(i)+ext):
+        while os.path.isfile(f"{directory}/{i}.json"):
             i+=1
-        file_abs_path = directory+"/"+str(i)
-        JSONLoader.save(file_abs_path, object_to_save)
-        
-        print(f"[Saving] Gesture movement {directory} saved")
-
-
+        JSONLoader.save(f"{directory}/{i}.json", object_to_save)
+        print(f"[Saving] Demonstration {directory}/{i}.json saved")
 
 class FrameEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -145,7 +139,9 @@ class JSONLoader():
         json_data = json_data.replace("'", '"')
         json_data = json_data.replace("False", "false")
         json_data = json_data.replace("True", "true")
-        json_data = json_data.replace("nan", "null")
+        json_data = json_data.replace("None", "0.0")
+        json_data = json_data.replace('"nanosec"', '"nsecs"') # compatibility for both ROS2 and ROS1
+        json_data = json_data.replace('"sec"', '"secs"') # compatibility for both ROS2 and ROS1
 
         frame_copy = json.loads(json_data, object_hook=decode_frame)
 

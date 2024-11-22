@@ -375,7 +375,7 @@ class Hand():
     def palm_euler(self):
         return [self.palm_normal.roll(), self.direction.pitch(), self.direction.yaw()]
 
-    def import_from_json(self, visible, id, is_left, is_right, is_valid, grab_strength, pinch_strength, confidence, palm_normal, direction, palm_position, fingers, palm_velocity, basis, palm_width, sphere_center, sphere_radius, stabilized_palm_position, time_visible, wrist_position, elbow_position = None, arm_valid = None, arm_width = None, arm_direction = None, arm_basis = None, wrist_angles = None, bone_angles = None, finger_distances = None, finger_distances_old = None
+    def import_from_json(self, visible, id, is_left, is_right, is_valid, grab_strength, pinch_strength, confidence, palm_normal, direction, palm_position, fingers, palm_velocity, basis, palm_width, sphere_center, sphere_radius, stabilized_palm_position, time_visible, wrist_position, elbow_position = None, arm_valid = None, arm_width = None, arm_direction = None, arm_basis = None, wrist_angles = None, bone_angles = None, finger_distances = None, finger_distances_old = None, *args, **kwargs
         ):
         self.visible = visible
         self.id = id
@@ -606,8 +606,8 @@ class Hand():
             bone_1 = self.fingers[i].bones[0]
             if i == 0: bone_1 = self.fingers[i].bones[1]
             bone_4 = self.fingers[i].bones[3]
-            q1 = quaternion_from_euler(0.0, np.arcsin(-bone_1.direction[1]), np.arctan2(bone_1.direction[0], bone_1.direction[2])) # roll, pitch, yaw
-            q2 = quaternion_from_euler(0.0, np.arcsin(-bone_4.direction[1]), np.arctan2(bone_4.direction[0], bone_4.direction[2])) # roll, pitch, yaw
+            q1 = quaternion_from_euler(0.0, np.arcsin(np.clip(-bone_1.direction[1],-1,1)), np.arctan2(bone_1.direction[0], bone_1.direction[2])) # roll, pitch, yaw
+            q2 = quaternion_from_euler(0.0, np.arcsin(np.clip(-bone_4.direction[1],-1,1)), np.arctan2(bone_4.direction[0], bone_4.direction[2])) # roll, pitch, yaw
             oc.append(np.dot(q1, q2))
         return oc
 
@@ -703,18 +703,18 @@ class Hand():
         '''
         # bone directions and angles
         hand_direction = np.array(self.direction())
-        hand_angles = np.array([0., np.arcsin(-self.direction()[1]), np.arctan2(self.direction()[0], self.direction()[2])])
+        hand_angles = np.array([0., np.arcsin(np.clip(-self.direction()[1], -1, 1)), np.arctan2(self.direction()[0], self.direction()[2])])
         v = np.array(self.palm_position()) - np.array(self.wrist_position())
 
         s = np.sum(v**2)
         if s != 0: wrist_direction = v / np.sqrt(s)
         else: wrist_direction = v
-        wrist_angles = np.array([0., np.arcsin(-wrist_direction[1]), np.arctan2(wrist_direction[0], wrist_direction[2])])
+        wrist_angles = np.array([0., np.arcsin(np.clip(-wrist_direction[1], -1, 1)), np.arctan2(wrist_direction[0], wrist_direction[2])])
         bone_direction, bone_angles_pre = np.zeros([5,4,3]), np.zeros([5,4,3])
         for i in range(0,5):
             for j in range(0,4):
                 bone_direction[i][j] = np.array(self.fingers[i].bones[j].direction())
-                bone_angles_pre[i][j] = np.array((0., np.arcsin(-self.fingers[i].bones[j].direction()[1]), np.arctan2(self.fingers[i].bones[j].direction()[0], self.fingers[i].bones[j].direction()[2])))
+                bone_angles_pre[i][j] = np.array((0., np.arcsin(np.clip(-self.fingers[i].bones[j].direction()[1], -1, 1)), np.arctan2(self.fingers[i].bones[j].direction()[0], self.fingers[i].bones[j].direction()[2])))
 
         # bone angles differences (shape = 2)
         self.wrist_angles = (wrist_angles - hand_angles)[1:3]

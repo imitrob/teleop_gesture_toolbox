@@ -7,7 +7,7 @@ import sys,os
 from copy import deepcopy
 
 from scipy.interpolate import interp1d
-from pointing_object_selection.pointing_object_selection.transform import transform_leap_to_base_anyinput
+from pointing_object_selection.transform import transform_leap_to_base_anyinput
 
 class HandDataLoader():
     ext = '.json'

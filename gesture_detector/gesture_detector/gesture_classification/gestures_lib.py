@@ -22,7 +22,7 @@ from std_msgs.msg import Float64MultiArray, MultiArrayDimension, String
 
 import gesture_detector
 from gesture_detector.hand_processing.frame_lib import Frame
-from pointing_object_selection.pointing_object_selection.transform import transform_leap_to_base_anyinput
+from pointing_object_selection.transform import transform_leap_to_base_anyinput
 
 from gesture_msgs.msg import DetectionSolution
 import gesture_msgs.msg as rosm

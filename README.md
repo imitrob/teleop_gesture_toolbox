@@ -34,9 +34,7 @@ See Leap Motion rigged hands by using [leapjs-rigged-hand](https://github.com/le
 
 ## Common Gestures dataset
 
-Sample trained model (containing common gestures) is included with the repository (`gesture_detector/saved_models`) and is loaded by default. 
-
-(optional) The sample dataset can be downloaded from [link](https://drive.google.com/file/d/17L5KEuhW9kLYC073t11jctynQQ6z2Qm0/view?usp=sharing). To train the dataset, save it to `gesture_detector/gesture_data` folder. Then train static gestures by using `pymc_lib.py` script.
+Sample trained model (containing common gestures) is included with the repository (`gesture_detector/saved_models`) and is loaded by default. For more information about training on new dataset, look at section "Gesture dataset collection and detector training".
 
 ## Usage 
 
@@ -121,4 +119,22 @@ Servoing happens in task space (cartesian controller).
     - Default is teleoperate by drawing.
     - Right hand for teleoperation, Left hand to close and open gripper.
 
+## Gesture dataset collection and detector training
+
+The sample dataset can be downloaded from [link](https://drive.google.com/file/d/17L5KEuhW9kLYC073t11jctynQQ6z2Qm0/view?usp=sharing). The dataset needs to be saved to `gesture_detector/gesture_data` folder.
+
+To create your owndataset, run:
+
+`teleopenv; python gesture_detector/hand_processing/leap.py --record_with_enter --recording_gesture_name <your gesture name>`
+
+Use Enter to record 1 sec long gesture demonstration saved as hand movement to `gesture_detector/gesture_data` folder.
+
+I like to also run the marker publisher: `teleopenv; ros2 launch gesture_detector hand_marker_pub`
+and rviz to see the hand: `teleopenv; rviz2 -d gesture_detector/live_display/hand_cfg.rviz`
+
+To train the static gestures, run:
+
+`teleopenv; gesture_classification/pymc_lib.py --gestures <gesture 1 name> <gesture 2 name> <gesture n name>` script, where gesture names are your gesture names. By default, gesture names are the ones from sample dataset.
+
+After training is done, see the  model in `gesture_detector/saved_models` folder. To set the model, adjust model in `launch/gesture_detect_launch.py` file.
 
