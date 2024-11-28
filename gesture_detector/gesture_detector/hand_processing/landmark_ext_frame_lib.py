@@ -1,4 +1,7 @@
-
+''' This is Frame Definition of Hand
+The extension to frame_lib for importing the landmark hand definition
+Landmarks form: Mediapipe hand definition https://ai.google.dev/edge/mediapipe/solutions/vision/hand_landmarker.
+'''
 from copy import deepcopy
 from gesture_detector.hand_processing.frame_lib import Vector, Frame, Hand, Finger, Bone, LeapGestures
 import time

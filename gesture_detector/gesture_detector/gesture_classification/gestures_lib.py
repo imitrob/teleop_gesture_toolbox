@@ -11,7 +11,7 @@ Get timestamped data:
 self.l.static[<stamp> or index].<g1>.probability
 (gestures_lib.GestureDataDetection.GestureDataHand[float or int].static.prob)
 '''
-import sys, os, collections, time, json
+import collections, time
 import numpy as np
 from copy import deepcopy
 import threading
@@ -22,7 +22,7 @@ from std_msgs.msg import Float64MultiArray, MultiArrayDimension, String
 
 import gesture_detector
 from gesture_detector.hand_processing.frame_lib import Frame
-from pointing_object_selection.transform import transform_leap_to_base_anyinput
+from gesture_detector.utils.utils import transform_leap_to_leapdynamicdetector
 
 from gesture_msgs.msg import DetectionSolution
 import gesture_msgs.msg as rosm
@@ -44,8 +44,6 @@ def withsem(func):
         return ret
     return inner
 
-
-
 class ROSComm(Node):
     ''' ROS communication of main thread: Subscribers (init & callbacks) and Publishers
     '''
@@ -55,8 +53,7 @@ class ROSComm(Node):
         # super().__init__(self.topic) # not sure about this one
         super(ROSComm, self).__init__(self.topic)
 
-        self.create_subscription(rosm.Frame, '/hand_frame', self.hand_frame_callback, 10)
-
+        self.create_subscription(rosm.Frame, '/teleop_gesture_toolbox/hand_frame', self.hand_frame_callback, 10)
 
         self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/static_detection_solutions', self.save_static_detection_solutions_callback, 10)
         self.static_detection_observations_pub = self.create_publisher(DetectionObservations,'/teleop_gesture_toolbox/static_detection_observations', 5)
@@ -117,23 +114,12 @@ class ROSComm(Node):
             self.last_time_livin = time.time()
             rclpy.spin_once(self)
 
-    def publish_eef_goal_pose(self, goal_pose):
-        ''' Publish goal_pose /ee_pose_goals to relaxedIK with its transform
-            Publish goal_pose /ee_pose_goals the goal eef pose
-        '''
-        self.ee_pose_goals_pub.publish(goal_pose)
-        #self.ik_bridge.relaxedik.ik_node_publish(pose_r = self.ik_bridge.relaxedik.relaxik_t(goal_pose))
-
-
-
     def hand_frame_callback(self, data):
         ''' Hand data received by ROS msg is saved
         '''
         f = Frame()
         f.import_from_ros(data)
         self.hand_frames.append(f)
-
-
 
     def save_static_detection_solutions_callback(self, data):
         self.new_record(data, type='static')
@@ -201,7 +187,7 @@ class ROSComm(Node):
                         ''' Transform to Leap frame id '''
                         data_composition_ = []
                         for point in data_composition:
-                            data_composition_.append(transform_leap_to_base_anyinput(point, out='position'))
+                            data_composition_.append(transform_leap_to_leapdynamicdetector(point)) # input is list
                         data_composition = data_composition_
 
                         ''' Check if the length of composed data is aorund 1sec '''
@@ -241,9 +227,6 @@ class ROSComm(Node):
             "seq": -1,
         }
         
-        # if ml.md.goal_pose and ml.md.goal_joints:
-        #     structures_str = [structure.object_stack for structure in ml.md.structures]
-        #     textStatus += f"eef: {str(round(ml.md.eef_pose.position.x,2))} {str(round(ml.md.eef_pose.position.y,2))} {str(round(ml.md.eef_pose.position.z,2))}\ng p: {str(round(ml.md.goal_pose.position.x,2))} {str(round(ml.md.goal_pose.position.y,2))} {str(round(ml.md.goal_pose.position.z,2))}\ng q:{str(round(ml.md.goal_pose.orientation.x,2))} {str(round(ml.md.goal_pose.orientation.y,2))} {str(round(ml.md.goal_pose.orientation.z,2))} {str(round(ml.md.goal_pose.orientation.w,2))}\nAttached: {ml.md.attached}\nbuild_mode {ml.md.build_mode}\nobject_touch and focus_id {ml.md.object_focus_id} {ml.md.object_focus_id}\nStructures: {str(structures_str)}\n"
         if self.present():
             dict_to_send["fps"] = round(self.hand_frames[-1].fps)
             dict_to_send["seq"] = self.hand_frames[-1].seq
@@ -810,7 +793,7 @@ class GestureDataDetection(ROSComm):
     def new_record(self, data, type='static'):
         ''' New gesture data arrived and will be saved
         '''
-        if self.hand_frames[-1].seq-data.sensor_seq > 100:
+        if len(self.hand_frames) > 0 and self.hand_frames[-1].seq-data.sensor_seq > 100:
             print(f"[Warning] Program cannot compute gs in time, probably rate is too big! (or fake data are used)")
 
         # choose hand with data.header.frame_id

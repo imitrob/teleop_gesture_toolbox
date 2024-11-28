@@ -71,7 +71,7 @@ Pointing on objects on the scene with your hand will select it. Run: `ros2 run p
 
 Deictic selector requires scene publisher, publishing the scene object locations. Run `ros2 run scene_getter mocked_scene` to publish mocked scene, or see the script [mocked_scene_maker.py](scene_getter/scene_getter/scene_makers/mocked_scene_maker.py) how it is done.
 
-Secondly, calibration of the Leap Motion Controller with your scene base frame is needed. Transform is defined in ([transform.py](pointing_object_selection/pointing_object_selection/transform.py)) is valid for example setup (see image [setup.jpg](setup.jpg)) when the Leap Motion controller is opposite from base.  
+Secondly, calibration of the Leap Motion Controller with your scene base frame is needed. Transforms are defined in ([saved_config folder](pointing_object_selection/pointing_object_selection/saved_setups/)). `a404.yaml` is valid for example setup (see image [setup.jpg](setup.jpg)) when the Leap Motion controller is opposite from base.  
 
 Example setup
 ![setup.jpg](setup.jpg)

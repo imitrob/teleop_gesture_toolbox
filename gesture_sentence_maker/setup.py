@@ -21,6 +21,7 @@ setup(
     entry_points={
         'console_scripts': [
             'sentence_maker = gesture_sentence_maker.gesture_processor:main',
+            'deictic_processor = gesture_sentence_maker.gesture_deictic_processor_standalone:main'
         ],
     },
 )

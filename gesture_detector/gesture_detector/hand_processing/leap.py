@@ -24,10 +24,10 @@ else:
 class LeapPublisherNode(Node):
     def __init__(self, recorder):
         super().__init__('leap_publisher')
-        self.frame_publisher = self.create_publisher(rosm.Frame, '/hand_frame', 5)
+        self.frame_publisher = self.create_publisher(rosm.Frame, '/teleop_gesture_toolbox/hand_frame', 5)
         self.srv = self.create_service(ross.SaveHandRecord, '/save_hand_record', self.save_hand_record_callback)
 
-        self.image_publisher = self.create_publisher(Image, '/leap_image', 5)
+        self.image_publisher = self.create_publisher(Image, '/teleop_gesture_toolbox/leap_image', 5)
         self.recorder = recorder
 
     def save_hand_record_callback(self, request, response):

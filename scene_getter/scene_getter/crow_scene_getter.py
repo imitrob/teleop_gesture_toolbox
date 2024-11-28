@@ -10,7 +10,7 @@ from crow_msgs.msg import StampedString
 
 from scene_getter.scene_lib.scene import Scene
 from scene_getter.scene_lib.scene_object import SceneObject
-from scene_getter import SceneGetter
+from scene_getting import SceneGetter
 
 ONTO_IRI = "http://imitrob.ciirc.cvut.cz/ontologies/crow"
 CROW = Namespace(f"{ONTO_IRI}#")

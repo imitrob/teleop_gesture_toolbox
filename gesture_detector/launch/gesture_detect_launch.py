@@ -92,6 +92,12 @@ def generate_launch_description():
             name='hand_marker_pub',
             output='screen',
         ),
+        Node(
+            package='pointing_object_selection',
+            executable='tf_a404',
+            name='static_tf_a404_node',
+            output='screen',
+        ),
         rviz_config_file_arg,
         rviz_node
     ])

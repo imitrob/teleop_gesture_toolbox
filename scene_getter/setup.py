@@ -20,6 +20,7 @@ setup(
     entry_points={
         'console_scripts': [
             'mocked_scene = scene_getter.scene_makers.mocked_scene_maker:main',
+            'scene_marker_pub = scene_getter.scene_marker_pub:main',
         ],
     },
 )

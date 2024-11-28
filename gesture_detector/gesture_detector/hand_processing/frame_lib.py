@@ -828,7 +828,14 @@ class Vector():
         return angle_between_two_angles(self(), [0.,1.,0.])
         #self.pitch = np.arcsin(-self.y)
         #self.yaw = np.arctan2(self.x, self.z)
-
+    
+    @property
+    def world(self):
+        """ Return in leapworld coordinates. x is forward, y is to the right, z is up.
+            This should not be changed
+        """
+        return [-self.z/1000, -self.x/1000, self.y/1000]
+    
 def angle_between_two_angles(vector_1, vector_2):
     unit_vector_1 = vector_1 / np.linalg.norm(vector_1)
     unit_vector_2 = vector_2 / np.linalg.norm(vector_2)

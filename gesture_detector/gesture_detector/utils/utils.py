@@ -1,8 +1,10 @@
-import sys, os, yaml, inspect, itertools, collections
+import yaml, itertools, collections
 import numpy as np
 from collections import OrderedDict, Counter
-from scipy.signal import argrelextrema
-from numpy.linalg import LinAlgError
+
+def transform_leap_to_leapdynamicdetector(pose):
+    """ Special tf for dynamic detector, if this is changed, the dynamic gesture detector model needs to be updated! """
+    return [pose[0]/1000, -pose[2]/1000, pose[1]/1000]
 
 def ros_enabled():
     try:

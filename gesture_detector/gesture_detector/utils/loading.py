@@ -1,13 +1,12 @@
-import json
+import os, json
 from typing import Iterable
+import numpy as np
+from copy import deepcopy
+from scipy.interpolate import interp1d
+
 import gesture_detector
 from gesture_detector.utils.saving import JSONLoader
-import numpy as np
-import sys,os
-from copy import deepcopy
-
-from scipy.interpolate import interp1d
-from pointing_object_selection.transform import transform_leap_to_base_anyinput
+from gesture_detector.utils.utils import transform_leap_to_leapdynamicdetector
 
 class HandDataLoader():
     ext = '.json'
@@ -313,7 +312,7 @@ class DatasetLoader():
         def transform_leap_to_base_3D(paths):
             for n,path in enumerate(paths):
                 for m,point in enumerate(path):
-                    paths[n][m] = transform_leap_to_base_anyinput(point)
+                    paths[n][m] = transform_leap_to_leapdynamicdetector(point)
             return paths
         Xpath = transform_leap_to_base_3D(Xpalm)
 

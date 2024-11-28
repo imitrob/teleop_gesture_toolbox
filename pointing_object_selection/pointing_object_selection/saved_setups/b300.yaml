@@ -1,0 +1,12 @@
+leapworld:
+  parent: xtion_rgb_optical_frame
+  position: [0.0, 0.0, 1.0]
+  orientation: [0.0, 0.0, 0.0, 1.0]
+xtion_rgb_optical_frame:
+  parent: base_footprint  
+  position: [0.0, 0.0, 0.0]
+  orientation: [0.0, 0.0, 0.0, 1.0]
+base_footprint:
+  parent: base
+  position: [0.0, 0.0, 0.0]
+  orientation: [0.0, 0.0, 0.0, 1.0]

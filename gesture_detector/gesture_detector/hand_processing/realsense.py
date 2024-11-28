@@ -3,7 +3,6 @@ import mediapipe as mp
 import pyrealsense2 as rs
 import numpy as np
 from gesture_detector.hand_processing.landmark_ext_frame_lib import FrameAdder
-from pointing_object_selection.transform import transform_realsense_to_leap
 
 import rclpy
 from rclpy.node import Node
@@ -15,6 +14,9 @@ PLOT = True
 MIN_DEPTH = 0.2
 MAX_DEPTH = 1.2  # Adjust based on your environment
 MAX_POINT_DISTANCE = 0.1  # Max acceptable movement between frames
+
+def transform_realsense_to_leap(pose): # Static transform
+    return [-pose[0] * 1000, pose[2] * 1000, pose[1] * 1000] # [m] to [mm], tf to toolbox
 
 def main():
     # Initialize MediaPipe and RealSense
@@ -39,7 +41,7 @@ def main():
     rclpy.init()
     rosnode = Node("frame_adder")
     frame_adder = FrameAdder()
-    frame_publisher = rosnode.create_publisher(Frame, '/hand_frame', 5)
+    frame_publisher = rosnode.create_publisher(Frame, '/teleop_gesture_toolbox/hand_frame', 5)
 
     # Initialize filters
     spatial = rs.spatial_filter()
@@ -89,6 +91,7 @@ def main():
             if result.multi_hand_landmarks:
                 hand_landmarks_3d = np.empty((len(result.multi_hand_landmarks), 21, 3))
                 hand_landmarks_3d.fill(np.nan)
+                nans_count = 0
                 for hand, hand_landmarks in enumerate(result.multi_hand_landmarks):
                     for i, lm in enumerate(hand_landmarks.landmark):
                         # Convert normalized coordinates to pixel coordinates
@@ -96,6 +99,7 @@ def main():
                         cx, cy = int(lm.x * w), int(lm.y * h)
 
                         if not (0 <= cx < w) or not (0 <= cy < h):  # Corrected boundary check
+                            nans_count += 1
                             continue 
                         # Get depth at the landmark's pixel
                         depth = depth_frame.get_distance(cx, cy)
@@ -103,6 +107,7 @@ def main():
                             # Invalid depth, attempt to interpolate or skip
                             depth = get_valid_depth_average(depth_frame, cx, cy)
                             if depth is None:
+                                nans_count =+ 1
                                 continue  # Skip if still invalid
 
                         # Map to 3D point
@@ -124,8 +129,11 @@ def main():
                             # Draw landmark on the color image
                             cv2.circle(color_image, (cx, cy), 3, (0, 255, 0), -1)
 
-                frame = frame_adder.add_frame(hand_landmarks_3d)
-                frame_publisher.publish(frame.to_ros())
+                if nans_count == 0:
+                    frame = frame_adder.add_frame(hand_landmarks_3d)
+                    frame_publisher.publish(frame.to_ros())
+                else:
+                    print("Not constructing hand frame, there are nans: ", nans_count, flush=True)
 
             # Display the image
             if PLOT:

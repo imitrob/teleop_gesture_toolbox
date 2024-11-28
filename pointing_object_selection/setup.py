@@ -23,6 +23,8 @@ setup(
     entry_points={
         'console_scripts': [
             'selector_node = pointing_object_selection.deictic_node:run_node_default',
+            'tf_a404 = pointing_object_selection.transform_pub:a404_static_pub_main',
+            'tf_b300 = pointing_object_selection.transform_pub:b300_static_pub_main',
         ],
     },
 )

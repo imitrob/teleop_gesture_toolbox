@@ -9,7 +9,7 @@ class RosNode(Node):
         super(RosNode, self).__init__("TransformUpdater")
 
 class TransformUpdater():
-    def __init__(self, target_frame="base_footprint", source_frame="xtion_rgb_optical_frame"):
+    def __init__(self):
         super(TransformUpdater, self).__init__()
         
         # Set up the tf2 buffer and listener
@@ -17,8 +17,8 @@ class TransformUpdater():
         self.tf_listener = TransformListener(self.tf_buffer, self)
         
         # Store the target and source frames
-        self.target_frame = target_frame
-        self.source_frame = source_frame
+        self.target_frame = None
+        self.source_frame = None
         
         # Initialize transformation variable
         self.latest_transform = None
@@ -93,7 +93,15 @@ class TransformUpdater():
             new_orientation = self.quaternion_multiply(tf_orientation, pose_orientation)
             return np.concatenate((rotated_position, new_orientation))
 
-class TransformUpdaterTestClass(TransformUpdater, RosNode):
+
+class TFBaseLeapworld(TransformUpdater):
+    def __init__(self):
+        super(TFBaseLeapworld, self).__init__()
+        self.target_frame = "base"
+        self.source_frame = "leapworld"
+
+
+class TransformUpdaterTestClass(TFBaseLeapworld, RosNode):
     pass
 
 
