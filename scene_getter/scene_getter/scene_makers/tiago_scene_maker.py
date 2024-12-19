@@ -13,7 +13,7 @@ class TiagoScenePublisher(Node):
         super().__init__("tiago_scene_publisher_node")
 
         self.scene_pub = self.create_publisher(scene_ros.Scene, "/scene", 5)
-        self.gdrnet_pub = self.create_publisher(GDRNSolution, "/gdrn_from_tiago")
+        self.gdrnet_pub = self.create_publisher(scene_ros.GDRNSolution, "/gdrn_from_tiago")
         
         self.gdrn = self.get_gdrnet()
         objects = [SceneObject(
