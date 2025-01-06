@@ -16,6 +16,7 @@ class NamedRosNode(Node):
         super(NamedRosNode, self).__init__("deitic_ros_node")
 
 class DeicticLibRos(DeiticLib, TFBaseLeapworld, HandListener, SceneGetter, NamedRosNode):
+    # Note: TFBaseLeapworld (Leapworld frame) exists for both Leap and RealSense 
     def __init__(self, hand):
         self.hand = hand
         super(DeicticLibRos, self).__init__()

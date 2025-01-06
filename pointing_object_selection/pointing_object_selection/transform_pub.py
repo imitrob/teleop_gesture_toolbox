@@ -15,12 +15,14 @@ class StaticTFPublisher(Node):
         super(StaticTFPublisher, self).__init__('static_tf_pub')
 
         # Static Transform Broadcaster
-        self.static_broadcaster = StaticTransformBroadcaster(self)
+        self.static_broadcasters = []
 
         with open(pointing_object_selection.path+"/saved_setups/"+tf_file) as f:
             tf_dict = yaml.safe_load(f)
 
         for tf_name, tf_values in tf_dict.items():
+            self.static_broadcasters.append(StaticTransformBroadcaster(self))
+
             static_transform = TransformStamped()
             static_transform.header.stamp = self.get_clock().now().to_msg()
             static_transform.header.frame_id = tf_values['parent']
@@ -32,7 +34,7 @@ class StaticTFPublisher(Node):
             static_transform.transform.rotation.y = tf_values['orientation'][1]
             static_transform.transform.rotation.z = tf_values['orientation'][2]
             static_transform.transform.rotation.w = tf_values['orientation'][3]
-            self.static_broadcaster.sendTransform(static_transform)
+            self.static_broadcasters[-1].sendTransform(static_transform)
 
 def a404_static_pub_main():
     rclpy.init(args=None)
