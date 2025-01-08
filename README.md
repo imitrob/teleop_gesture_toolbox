@@ -115,6 +115,8 @@ Servoing happens in task space (cartesian controller).
 
 #### Usage:
 
+Make sure you're at the same network with Franka Emika Panda robot. E.g., Panda has IP 192.168.89.140, so set the your static IP 192.168.89.X with netmask 255.255.255.0 
+
 1. Run Leap Motion backend: `sudo leapd`
 2. Run Leap Motion ROS2 publisher: `teleopenv; ros2 run gesture_detector leap`
 3. Run servo: `python servoing.py`
