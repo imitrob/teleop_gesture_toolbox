@@ -3,6 +3,7 @@ import mediapipe as mp
 import pyrealsense2 as rs
 import numpy as np
 from gesture_detector.hand_processing.landmark_ext_frame_lib import FrameAdder
+import gesture_detector.hand_processing.frame_lib as frame_lib
 
 import rclpy
 from rclpy.node import Node
@@ -134,7 +135,9 @@ def main():
                     frame_publisher.publish(frame.to_ros())
                 else:
                     print("Not constructing hand frame, there are nans: ", nans_count, flush=True)
-
+            else:
+                # If hand not visible, publish empty frame
+                frame_publisher.publish(frame_lib.Frame().to_ros())
             # Display the image
             if PLOT:
                 cv2.imshow('Hand Landmarks', color_image)

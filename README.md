@@ -1,7 +1,7 @@
 
 # Teleoperation gesture toolbox v1.1
 
-Welcome to **teleoperation gesture toolbox** package made for **Leap Motion Controller**.
+Welcome to **teleoperation gesture toolbox** package made for **Leap Motion Controller** or D400 series RealSense.
 Most of the package utilize **ROS2**. 
 
 ## Installation 
@@ -44,7 +44,7 @@ Run Leap Motion backend: `sudo leapd`
 
 Run gesture detector:
 ```Shell
-teleopenv; ros2 launch gesture_detector gesture_detect_launch.py
+teleopenv; ros2 launch gesture_detector gesture_detect_launch.py sensor:=leap # or realsense
 ```
 
 See the gesture detections on your browser `localhost:8000`.

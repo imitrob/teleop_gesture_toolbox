@@ -96,6 +96,7 @@ class OneToOneMapping(GestureToMeaningNode):
         'five':               'stop',
         'thumbsup':           'pour',
         'no_moving':          '',
+        'thumb':              '',
     }
 
     def __init__(self):
