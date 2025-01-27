@@ -71,7 +71,7 @@
         op: 'subscribe',
         id: 'your_subscription_id',
         topic: "/teleop_gesture_toolbox/hricommand_original",
-        type: "gesture_msgs/HRICommand"
+        type: "hri_msgs/HRICommand"
       };
 
       socket.send(JSON.stringify(subscribeMessage));
@@ -82,7 +82,7 @@
         op: 'subscribe',
         id: 'your_subscription_id',
         topic: "/modality/gestures",
-        type: "gesture_msgs/HRICommand"
+        type: "hri_msgs/HRICommand"
       };
 
       socket.send(JSON.stringify(subscribeMessage));
@@ -268,27 +268,27 @@
       
       // Print gesture probabilities as progress bars
       // For every gesture there is progress bar
-      for (var i = 0; i < parsed_message['gestures'].length; i++) {
+      for (var i = 0; i < parsed_message['gesture_names'].length; i++) {
         
         var perc = parsed_message['gesture_probs'][i] * 100;
         // Sec. passed since gesture shown, to 1 decimal point 
         var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
         // HTML
         theinnerHTML1 = theinnerHTML1.concat(
-          `${parsed_message['gestures'][i]}, <span class="w3-tag w3-red">${timestamp}s</span>
+          `${parsed_message['gesture_names'][i]}, <span class="w3-tag w3-red">${timestamp}s</span>
           <div class="w3-light-grey w3-round"> 
             <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
           </div>`);
       }
       // Object probabilties
-      for (var i = 0; i < parsed_message['objects'].length; i++) {
+      for (var i = 0; i < parsed_message['object_names'].length; i++) {
         
         var perc = parsed_message['object_probs'][i] * 100;
         // Sec. passed since gesture shown, to 1 decimal point 
         //var timestamp = Math.round((timeStampNow - parsed_message['object_timestamp'][i]) * 10) / 10;
         // HTML
         theinnerHTML2 = theinnerHTML2.concat(
-          `${parsed_message['objects'][i]}, <span class="w3-tag w3-red">s</span>, <span class="w3-tag w3-red">${parsed_message['object_classes'][i]}s</span>
+          `${parsed_message['object_names'][i]}, <span class="w3-tag w3-red">s</span>, <span class="w3-tag w3-red">${parsed_message['object_classes'][i]}s</span>
           <div class="w3-light-grey w3-round"> 
             <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
           </div>`);
@@ -309,27 +309,27 @@
       
       // Print gesture probabilities as progress bars
       // For every gesture there is progress bar
-      for (var i = 0; i < parsed_message['actions'].length; i++) {
+      for (var i = 0; i < parsed_message['action_names'].length; i++) {
         
         var perc = parsed_message['action_probs'][i] * 100;
         // Sec. passed since gesture shown, to 1 decimal point 
         var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
         // HTML
         theinnerHTML1 = theinnerHTML1.concat(
-          `${parsed_message['actions'][i]}, <span class="w3-tag w3-red">${timestamp}s</span>
+          `${parsed_message['action_names'][i]}, <span class="w3-tag w3-red">${timestamp}s</span>
           <div class="w3-light-grey w3-round"> 
             <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
           </div>`);
       }
       // Object probabilties
-      for (var i = 0; i < parsed_message['objects'].length; i++) {
+      for (var i = 0; i < parsed_message['object_names'].length; i++) {
         
         var perc = parsed_message['object_probs'][i] * 100;
         // Sec. passed since gesture shown, to 1 decimal point 
         //var timestamp = Math.round((timeStampNow - parsed_message['object_timestamp'][i]) * 10) / 10;
         // HTML
         theinnerHTML2 = theinnerHTML2.concat(
-          `${parsed_message['objects'][i]}, <span class="w3-tag w3-red">s</span>, <span class="w3-tag w3-red">${parsed_message['object_classes'][i]}s</span>
+          `${parsed_message['object_names'][i]}, <span class="w3-tag w3-red">s</span>, <span class="w3-tag w3-red">${parsed_message['object_classes'][i]}s</span>
           <div class="w3-light-grey w3-round"> 
             <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
           </div>`);

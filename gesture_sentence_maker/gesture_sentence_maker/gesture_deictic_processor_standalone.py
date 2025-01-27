@@ -8,7 +8,6 @@ from gesture_sentence_maker.hricommand_export import export_only_objects_to_HRIC
 from gesture_sentence_maker.segmentation_task.deictic_solutions_plot import deictic_solutions_plot_save
 from gesture_sentence_maker.segmentation_task.deictic_segment import find_pointed_objects_timewindowmax
 
-from gesture_msgs.msg import HRICommand
 from hri_msgs.msg import HRICommand as HRICommandMSG
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy
 

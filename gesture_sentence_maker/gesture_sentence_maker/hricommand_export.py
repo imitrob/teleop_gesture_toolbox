@@ -1,7 +1,7 @@
 
 
 import numpy as np
-from gesture_msgs.msg import HRICommand
+from hri_msgs.msg import HRICommand
 
 
 def get_object_probs(s, target_object_solutions):
@@ -73,20 +73,20 @@ def export_original_to_HRICommand(s, target_object_solutions, max_probs, max_tim
     sentence_as_dict = {
         'target_object': argmax(target_object_names, target_object_probs),
         'target_storage': argmax(target_storage_names, target_storage_probs),
-        'gestures': Gs, # Gesture names 
+        'gesture_names': Gs, # Gesture names 
         'gesture_probs': list(max_probs), # Gesture probabilities 
         'gesture_timestamp': list(max_timestamps), # One timestamp
-        'objects': target_object_names, # This should be all object names detected on the scene
+        'object_names': target_object_names, # This should be all object names detected on the scene
         'object_probs': list(target_object_probs), # This should be all object likelihoods 
         # 'object_timestamps': None, # TODO
         'object_classes': object_types, # Object type names as cbgo types 
         # Each object type should reference to object class
-        # 'storages': [''], # TODO: some objects are storages, received by Ontology get function
+        # 'storage_names': [''], # TODO: some objects are storages, received by Ontology get function
         # 'storage_probs': [],
         # 'storage_timestamps': [],
         # 'parameter_values': [], 
         # 'parameter_timestamps': [],
-        'storages': target_storage_names, # TODO: some objects are storages, received by Ontology get function
+        'storage_names': target_storage_names, # TODO: some objects are storages, received by Ontology get function
         'storage_probs': list(target_storage_probs),
     }
     
@@ -106,16 +106,16 @@ def export_only_objects_to_HRICommand(s, target_object_solutions):
         # 'target_action': str(intent.target_action),
         'target_object': argmax(target_object_names, target_object_probs),
         'target_storage': argmax(target_storage_names, target_storage_probs),
-        # 'actions': action_names, # Gesture names 
+        # 'action_names': action_names, # Gesture names 
         # 'action_probs': list(action_probs), # Gesture probabilities 
         # 'action_timestamp': action_timestamp, # One timestamp
         # (Note: I can get timestamp for every activation)
-        'objects': target_object_names, # This should be all object names detected on the scene
+        'object_names': target_object_names, # This should be all object names detected on the scene
         'object_probs': list(target_object_probs), # This should be all object likelihoods 
         # 'object_timestamps': None, # TODO
         'object_classes': list(object_types), # Object type names as cbgo types 
         # Each object type should reference to object class
-        'storages': target_storage_names, # TODO: some objects are storages, received by Ontology get function
+        'storage_names': target_storage_names, # TODO: some objects are storages, received by Ontology get function
         'storage_probs': list(target_storage_probs),
         # 'storage_timestamps': [],
         # 'parameters': intent.auxiliary_parameters, 
@@ -150,22 +150,22 @@ def export_mapped_to_HRICommand(s, intent, target_object_solutions):
         'target_action': str(intent.target_action),
         'target_object': argmax(target_object_names, target_object_probs),
         'target_storage': argmax(target_storage_names, target_storage_probs),
-        'actions': action_names, # Gesture names 
+        'action_names': action_names, # Gesture names 
         'action_probs': list(action_probs), # Gesture probabilities 
         'action_timestamp': action_timestamp, # One timestamp
         # (Note: I can get timestamp for every activation)
-        'objects': target_object_names, # This should be all object names detected on the scene
+        'object_names': target_object_names, # This should be all object names detected on the scene
         'object_probs': list(target_object_probs), # This should be all object likelihoods 
         # 'object_timestamps': None, # TODO
         'object_classes': list(object_types), # Object type names as cbgo types 
         # Each object type should reference to object class
-        # 'storages': [''], # TODO: some objects are storages, received by Ontology get function
+        # 'storage_names': [''], # TODO: some objects are storages, received by Ontology get function
         # 'storage_probs': [],
         # 'storage_timestamps': [],
         'parameters': intent.auxiliary_parameters, 
         # 'parameter_values': [], 
         # 'parameter_timestamps': [],
-        'storages': target_storage_names, # TODO: some objects are storages, received by Ontology get function
+        'storage_names': target_storage_names, # TODO: some objects are storages, received by Ontology get function
         'storage_probs': list(target_storage_probs),
     }
     data_as_str = str(sentence_as_dict)

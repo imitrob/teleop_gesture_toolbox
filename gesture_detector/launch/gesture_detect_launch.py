@@ -32,7 +32,7 @@ def generate_launch_description():
     # Declare the 'sensor' argument
     sensor_arg = DeclareLaunchArgument(
         'sensor',
-        default_value='realsense',
+        default_value='leap',
         description='Choose which sensor node to launch: "realsense" or "leap"'
     )
 

@@ -14,13 +14,13 @@ from gesture_sentence_maker.hricommand_export import export_only_objects_to_HRIC
 from pointing_object_selection.pointing_object_getter import PointingObjectGetter
 from gesture_sentence_maker.utils import get_dist_by_extremes
 
-from gesture_msgs.msg import HRICommand
+from hri_msgs.msg import HRICommand
 from gesture_detector.utils.utils import CustomDeque
 from gesture_sentence_maker.segmentation_task.deictic_solutions_plot import deictic_solutions_plot_save
 from gesture_sentence_maker.segmentation_task.deictic_segment import find_pointed_objects_timewindowmax
 
 from hri_msgs.msg import HRICommand as HRICommandMSG
-
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
 class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def __init__(self,
@@ -34,7 +34,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.topic = "sentence_processor_node"
         super(GestureSentence, self).__init__()
 
-        self.gesture_sentence_publisher = self.create_publisher(HRICommand, "/teleop_gesture_toolbox/hricommand_original", 5)
+        self.gesture_sentence_publisher = self.create_publisher(HRICommand, "/teleop_gesture_toolbox/hricommand_original", qos_profile=QoSProfile(depth=10, reliability=QoSReliabilityPolicy.BEST_EFFORT))
 
         # sentence data
         self.prev_gesture_type = None
