@@ -19,6 +19,7 @@ Build as ROS2 package:
 ```Shell
 mkdir -p <your_ws>/src
 git clone https://github.com/imitrob/teleop_gesture_toolbox.git --depth 1 --branch dev
+git clone https://github.com/ichores-research/modality_merging.git # needs HRICommand msg (hri_msgs.msgs)
 cd <your_ws>
 colcon build --symlink-install
 ```
