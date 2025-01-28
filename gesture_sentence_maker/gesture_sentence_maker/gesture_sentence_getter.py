@@ -24,11 +24,11 @@ class GestureSentenceGetter():
         self.hricommand_queue = collections.deque(maxlen=5)
 
         self.get_static_model_config = self.rosnode.create_client(GetModelConfig, '/teleop_gesture_toolbox/static_detection_info')
-        while not self.get_static_model_config.wait_for_service(timeout_sec=1.0):
-            print('service not available, waiting again...')
+        # while not self.get_static_model_config.wait_for_service(timeout_sec=1.0):
+        #     print('service not available, waiting again...')
         self.get_dynamic_model_config = self.rosnode.create_client(GetModelConfig, '/teleop_gesture_toolbox/dynamic_detection_info')
-        while not self.get_dynamic_model_config.wait_for_service(timeout_sec=1.0):
-            print('service not available, waiting again...')
+        # while not self.get_dynamic_model_config.wait_for_service(timeout_sec=1.0):
+        #     print('service not available, waiting again...')
 
         self._Gs_static = None
         self._Gs_dynamic = None
