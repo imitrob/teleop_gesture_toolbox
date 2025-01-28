@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os, time, argparse, json
-from typing import Dict, Optional
+from typing import Optional
 from warnings import filterwarnings; filterwarnings("ignore")
 from copy import deepcopy
 import matplotlib.pyplot as plt
@@ -13,13 +13,9 @@ import pytensor as pt
 
 from sklearn.model_selection import train_test_split
 floatX = pt.config.floatX
-from sklearn.metrics import confusion_matrix
 from collections import Counter
 import arviz as az
-try:
-    from pretty_confusion_matrix import pp_matrix_from_data
-except ModuleNotFoundError:
-    pass # Not needed when doing inference
+from gesture_detector.utils.pretty_confusion_matrix import pp_matrix_from_data
 
 # Initialize random number generator
 np.random.seed(0)
@@ -34,6 +30,8 @@ rc = {'xtick.labelsize': 20, 'ytick.labelsize': 20, 'axes.labelsize': 20, 'font.
         'legend.fontsize': 12.0, 'axes.titlesize': 10, "figure.figsize": [12, 6]}
 sns.set(rc = rc)
 sns.set_style("white")
+import logging
+logging.getLogger("pymc").setLevel(logging.ERROR)
 
 class PyMCModel():
     def __init__(self, model_config):
@@ -98,6 +96,7 @@ class PyMCModel():
     def import_records(self, gesture_names):
         ''' Import static gestures, Import all data from learning folder
         '''
+        print(f"Loading dataset from: {gesture_detector.gesture_data_path}")
         if self.model_config['gesture_type'] == 'static':
             X, y = DatasetLoader({'input_definition_version':1, 'take_every': self.model_config['take_every']}).load_static(gesture_detector.gesture_data_path, gesture_names)
         elif self.model_config['gesture_type'] == 'dynamic':
@@ -173,7 +172,7 @@ class PyMCModel():
             print(f"Accurracy {save_name} = {acc}%")
             self.model_config[save_name] = acc
 
-            pp_matrix_from_data(y_true, y_pred, self.model_config['gestures'], annot=True, cmap = 'Oranges', cbar=False, figsize=(9,9)) # pip install pp_matrix_from_data
+            pp_matrix_from_data(y_true, y_pred, self.model_config['gestures'], annot=True, cmap = 'Oranges', cbar=False, figsize=(9,9))
             return acc
 
         acc = eval(X_train, y_train, 'acc_train', draws=300)
@@ -428,7 +427,6 @@ def _args():
     parser.add_argument('--layers', default=2, type=int, help='(default=%(default))')
     parser.add_argument('--gesture_type', default="static", type=str, help='(default=%(default))')
     parser.add_argument('--engine', default="PyMC", type=str, help='(default=%(default))')
-    parser.add_argument('--seed_wrapper', default=False, type=bool, help='(default=%(default))')
     parser.add_argument('--input_definition_version', default=1, type=int, help='Train hand features')
 
 

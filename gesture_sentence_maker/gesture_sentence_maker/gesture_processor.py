@@ -3,7 +3,7 @@ from collections import Counter
 from copy import deepcopy
 import time
 
-from scene_getter.scene_getter import SceneGetter
+from scene_getter.scene_getting import SceneGetter
 from gesture_detector.gesture_classification.gestures_lib import GestureDataDetection
 import numpy as np
 import rclpy
@@ -14,12 +14,18 @@ from gesture_sentence_maker.hricommand_export import export_only_objects_to_HRIC
 from pointing_object_selection.pointing_object_getter import PointingObjectGetter
 from gesture_sentence_maker.utils import get_dist_by_extremes
 
-from gesture_msgs.msg import HRICommand
+from hri_msgs.msg import HRICommand
 from gesture_detector.utils.utils import CustomDeque
+from gesture_sentence_maker.segmentation_task.deictic_solutions_plot import deictic_solutions_plot_save
+from gesture_sentence_maker.segmentation_task.deictic_segment import find_pointed_objects_timewindowmax
+
+from hri_msgs.msg import HRICommand as HRICommandMSG
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
 class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def __init__(self,
                  ignored_gestures = ['point', 'no_moving', 'five', 'pinch'],
+                 step_period = 0.2, # seconds
                  ):
         """
         Args:
@@ -28,7 +34,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.topic = "sentence_processor_node"
         super(GestureSentence, self).__init__()
 
-        self.gesture_sentence_publisher = self.create_publisher(HRICommand, "/teleop_gesture_toolbox/hricommand_original", 5)
+        self.gesture_sentence_publisher = self.create_publisher(HRICommand, "/teleop_gesture_toolbox/hricommand_original", qos_profile=QoSProfile(depth=10, reliability=QoSReliabilityPolicy.BEST_EFFORT))
 
         # sentence data
         self.prev_gesture_type = None
@@ -42,14 +48,19 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.evidence_gesture_type_to_activate = CustomDeque()
 
         self.ignored_gestures = ignored_gestures
+
+        self.step_period = step_period
+
+        self.continue_episode = self.present
         print(f"[Gesture Processor] Note that gesture processor is discarding gestures: {ignored_gestures}")
         print("[GS] Done ")
 
     def step(self):
-        if self.present():
+        time.sleep(self.step_period)
+        if self.continue_episode(): # Hand not visible is condition for Episode to End 
             self.gesturing_step()
         
-        else:
+        else: # End episode
             if not self.gestures_queue.empty:
                 time.sleep(0.5)
 
@@ -111,10 +122,6 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
              aaaaa|dddddddddddddddddddd aaaaa
                    < -------- x ------> x True
              <-y->|< ----- delay -----> y False
-
-                    |< -------- x ------> x True
-               <-y->|< ----- delay -----> y False
-
         '''
         if (time.time()-self.evidence_gesture_type_to_activate_last_added) > (1/rate):
             self.evidence_gesture_type_to_activate_last_added = time.time()
@@ -244,17 +251,6 @@ def main():
     while rclpy.ok():
         sentence_processor.step()
 
-    '''
-    # DEPRECATED
-    # Update focus target
-    if self.seq % (settings.yaml_config_gestures['misc']['rate'] * 2) == 0: # every sec
-        if sl.scene and len(sl.scene.object_poses) > 0:
-            try:
-                rc.roscm.r.add_or_edit_object(name='Focus_target', pose=sl.scene.objects[self.object_focus_id].position_real, timeout=0.2)
-            except IndexError:
-                print("Detections warning, check objects!")
-    self.seq += 1
-    '''
 
 if __name__ == '__main__':
     main()

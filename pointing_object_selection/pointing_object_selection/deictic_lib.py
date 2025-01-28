@@ -2,9 +2,6 @@
 from typing import Iterable
 import numpy as np
 
-from pointing_object_selection.transform import transform_leap_to_base
-
-
 class DeiticLib():
     def __init__(self):
         super(DeiticLib, self).__init__()
@@ -38,10 +35,15 @@ class DeiticLib():
 
         if np.min(distances_from_line) > max_dist: 
             return None, np.min(distances_from_line), distances_from_line
-        print(f"[Deictic] Chosen: {np.argmin(distances_from_line)}, {np.min(distances_from_line)}, {distances_from_line}")
         return int(np.argmin(distances_from_line)), np.min(distances_from_line), distances_from_line
 
-    def compute_deictic_solution(self, f, h: str, object_poses: Iterable[list], object_names: Iterable[str]):
+    def compute_deictic_solution(self,
+                                f, 
+                                h: str,
+                                object_poses: Iterable[list],
+                                object_names: Iterable[str],
+                                tf_fun,
+        ):
         """
         Args:
             f (Frame): self.hand_frames[-1] (take last detection frame)
@@ -66,14 +68,13 @@ class DeiticLib():
         hand = getattr(f, h)
 
         if not hand.visible:
-            print("[Deictic] Hand is not visible!")
             return None
 
-        p1, p2 = np.array(hand.palm_position()), np.array(hand.palm_position())+np.array(hand.direction())
+        p1, p2 = np.array(hand.palm_position.world), np.array(hand.palm_position.world)+np.array(hand.direction.world)
         #p1, p2 = np.array(hand.fingers[1].bones[3].prev_joint()), np.array(hand.fingers[1].bones[3].next_joint())
-        p1s = np.array(transform_leap_to_base(p1))
-        p2s = np.array(transform_leap_to_base(p2))
-        v = 1000*(p2s-p1s)
+        p1s = np.array(tf_fun(p1))
+        p2s = np.array(tf_fun(p2))
+        v = 1000*(p2s-p1s) # extrapolate, make the line longer
         line_points = [list(p1s), list(p2s+v)]
 
         if isinstance(object_poses[0], (list, tuple, np.ndarray)):
@@ -81,9 +82,10 @@ class DeiticLib():
         else:
             object_positions = [[pose.position.x,pose.position.y,pose.position.z] for pose in object_poses]
         idobj, _, distances_from_line = self.get_id_of_closest_point_to_line(line_points, object_positions, max_dist=np.inf)
+        print(f"[Deictic] Chosen: {object_names[int(np.argmin(distances_from_line))]}", flush=True)
         
         assert len(object_poses) == len(distances_from_line)
-
+        
         deictic_solution = {
             "object_id": idobj,
             "object_name": object_names[idobj],
@@ -92,6 +94,7 @@ class DeiticLib():
             "line_point_1": line_points[0],
             "line_point_2": line_points[1],
             "target_object_position": object_positions[idobj],
+            "hand_velocity": np.linalg.norm(hand.palm_velocity()) / 1000 # from mm/s to m/s, make magnitude
         }
         return deictic_solution
     

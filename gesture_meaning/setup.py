@@ -18,6 +18,8 @@ setup(
     entry_points={
         'console_scripts': [
             'gesture_meaning_service = gesture_meaning.gesture_meaning_service:main',
+            'compound_gesture_meaning = gesture_meaning.gesture_meaning_service:compound_gesture_meaning',
+            'compound_gesture_user_meaning = gesture_meaning.gesture_meaning_service:compound_gesture_user_meaning',
         ],
     },
 )

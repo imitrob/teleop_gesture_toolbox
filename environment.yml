@@ -4,7 +4,7 @@ channels:
 - robostack-staging
 dependencies:
 - python=3.11 # Make sure the correct Leap Python version is installed (https://github.com/petrvancjr/LeapAPI)
-- numpy
+- numpy=1.26.4
 - pymc
 - fastdtw
 - scikit-learn
@@ -18,5 +18,3 @@ dependencies:
 - make
 - colcon-common-extensions
 - rosdep
-- pip:
-  - transformations==2021.6.6

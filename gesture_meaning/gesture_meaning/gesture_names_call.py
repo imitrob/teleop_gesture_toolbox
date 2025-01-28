@@ -12,10 +12,10 @@ class GestureListService():
 
         self.get_static_model_config = self.create_client(GetModelConfig, '/teleop_gesture_toolbox/static_detection_info')
         while not self.get_static_model_config.wait_for_service(timeout_sec=1.0):
-            print('service not available, waiting again...')
+            print('service not available, waiting again...', flush=True)
         self.get_dynamic_model_config = self.create_client(GetModelConfig, '/teleop_gesture_toolbox/dynamic_detection_info')
         while not self.get_dynamic_model_config.wait_for_service(timeout_sec=1.0):
-            print('service not available, waiting again...')
+            print('service not available, waiting again...', flush=True)
 
         self._Gs_static = None
         self._Gs_dynamic = None

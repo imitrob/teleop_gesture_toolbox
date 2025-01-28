@@ -1,7 +1,7 @@
 
 
 import time
-from scene_getter.scene_getter import SceneGetterNode
+from scene_getter.scene_getting import SceneGetterNode
 from scene_getter.scene_lib.scene import Scene
 from scene_getter.scene_lib.scene_object import SceneObject
 

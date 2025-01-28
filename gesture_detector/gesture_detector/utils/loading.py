@@ -1,14 +1,12 @@
-import json
+import os, json
 from typing import Iterable
-import gesture_detector
-from gesture_detector.utils.saving import JSONLoader
 import numpy as np
-import sys,os
 from copy import deepcopy
-
 from scipy.interpolate import interp1d
 
-from gesture_detector.utils.transformations import Transformations as tfm
+import gesture_detector
+from gesture_detector.utils.saving import JSONLoader
+from gesture_detector.utils.utils import transform_leap_to_leapdynamicdetector
 
 class HandDataLoader():
     ext = '.json'
@@ -26,14 +24,14 @@ class HandDataLoader():
         X, Y = [], []
         for n, G in enumerate(Gs):
             i=0
-            print(f"{dir}{G}/{str(i)}{self.ext}")
+            print(f"Loading demonstrations in folder {dir} for gesture {G}")
             while os.path.isfile(f"{dir}/{G}/{str(i)}{self.ext}"):
                 i_file = f"{G}/{str(i)}{self.ext}"
-                print(f"File {i_file}")
                 with open(f"{dir}/{i_file}", 'rb') as input:
                     X.append(self.load_file(f"{dir}/{i_file}"))
                     Y.append(n)
                 i+=1
+            print(f"-> Total {i} demonstrations loaded")
 
         if X == []:
             print(('[WARN*] No data was imported! Check parameters path folder (learn_path) and gesture names (Gs)'))
@@ -311,7 +309,12 @@ class DatasetLoader():
         '''
         if 'scene_frame' in self.args:
         '''
-        Xpath = tfm.transformLeapToBase_3D(Xpalm)
+        def transform_leap_to_base_3D(paths):
+            for n,path in enumerate(paths):
+                for m,point in enumerate(path):
+                    paths[n][m] = transform_leap_to_leapdynamicdetector(point)
+            return paths
+        Xpath = transform_leap_to_base_3D(Xpalm)
 
         ''' scale limit
         '''

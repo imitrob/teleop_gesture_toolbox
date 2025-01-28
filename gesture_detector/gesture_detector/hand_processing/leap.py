@@ -24,10 +24,10 @@ else:
 class LeapPublisherNode(Node):
     def __init__(self, recorder):
         super().__init__('leap_publisher')
-        self.frame_publisher = self.create_publisher(rosm.Frame, '/hand_frame', 5)
+        self.frame_publisher = self.create_publisher(rosm.Frame, '/teleop_gesture_toolbox/hand_frame', 5)
         self.srv = self.create_service(ross.SaveHandRecord, '/save_hand_record', self.save_hand_record_callback)
 
-        self.image_publisher = self.create_publisher(Image, '/leap_image', 5)
+        self.image_publisher = self.create_publisher(Image, '/teleop_gesture_toolbox/leap_image', 5)
         self.recorder = recorder
 
     def save_hand_record_callback(self, request, response):
@@ -177,7 +177,7 @@ def spin_record_with_enter(listener, record_settings):
 
 def main(args):
     
-    directory = f"{gesture_detector.path}/gesture_data"
+    directory = f"{gesture_detector.path}/gesture_data/{args['recording_gesture_name']}"
 
     print(f"[Leap] printer: {args['printer']}")
     print(f"[Leap] record_with_enter: {args['record_with_enter']}")
@@ -227,6 +227,7 @@ def ros_run():
         'record_with_enter': False,
         'recording_length': 1.0,
         'send_images': False,
+        'recording_gesture_name': "",
     })
 
 if __name__ == "__main__":
@@ -240,6 +241,7 @@ if __name__ == "__main__":
     parser.add_argument("--no_record_with_enter", dest="record_with_enter", action="store_false")
     parser.set_defaults(record_with_enter=False)
 
+    parser.add_argument('--recording_gesture_name', default="", type=str)
     parser.add_argument('--recording_length', default=1.0, type=float, help='(default=%(default)s)') # [s]
     # TODO:
     parser.add_argument("--send_images", default=False, type=bool)
