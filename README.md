@@ -19,9 +19,9 @@ Build as ROS2 package:
 ```Shell
 mkdir -p <your_ws>/src
 git clone https://github.com/imitrob/teleop_gesture_toolbox.git --depth 1 --branch dev
-git clone https://github.com/ichores-research/modality_merging.git # needs HRICommand msg (hri_msgs.msgs)
 cd <your_ws>
 colcon build --symlink-install
+ln -s ~/<your_ws>/src/teleop_gesture_toolbox/gesture_detector/saved_models ~/<your_ws>/build/gesture_detector/gesture_detector/saved_models
 ```
 
 I use following alias to source the environment:
@@ -49,15 +49,6 @@ teleopenv; ros2 launch gesture_detector gesture_detect_launch.py sensor:=leap # 
 ```
 
 See the gesture detections on your browser `localhost:8000`.
-
-#### (optional) Create link for saved_models
-
-You may want to create link to gesture detection models, so that models in `src` folder are also recognized in `install` folder.
-
-```Shell
-rm ~/<your_ws>/build/gesture_detector/gesture_detector
-ln -s ~/<your_ws>/src/teleop_gesture_toolbox/gesture_detector/saved_models ~/<your_ws>/build/gesture_detector/gesture_detector
-```
 
 #### (optional) Run websocket server on specific port 
 
@@ -113,8 +104,6 @@ Tested robot is Franka Emika Panda and [panda_py](https://github.com/JeanElsner/
 Servoing happens in task space (cartesian controller).
 
 #### Usage:
-
-Make sure you're at the same network with Franka Emika Panda robot. E.g., Panda has IP 192.168.89.140, so set the your static IP 192.168.89.X with netmask 255.255.255.0 
 
 1. Run Leap Motion backend: `sudo leapd`
 2. Run Leap Motion ROS2 publisher: `teleopenv; ros2 run gesture_detector leap`

@@ -7,7 +7,8 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 import time
 import collections
 import numpy as np
-from naive_merger.HriCommand import HriCommand
+
+from hri_manager.HriCommand import HriCommand
 
 
 class GestureSentenceGetter():
