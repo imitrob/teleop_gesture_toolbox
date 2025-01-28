@@ -155,14 +155,13 @@ class OneToOneCompoundMapping(GestureToMeaningNode): # Compound = Combination of
         return np.max(self.T * x, axis=1)
 
 import yaml
-import gesture_actions
 
 class OneToOneCompoundUserMapping(GestureToMeaningNode): # Compound = Combination of Static and Dynamic Gesture
     def __init__(self):
         super(OneToOneCompoundUserMapping, self).__init__()
 
-
-        links_dict = yaml.safe_load(open(f"{gesture_actions.package_path}/links/{self.user}_links.yaml", mode='r'))
+        import hri_manager
+        links_dict = yaml.safe_load(open(f"{hri_manager.package_path}/links/{self.user}_links.yaml", mode='r'))
         self.A = links_dict['actions']
         print(f"Actions: {self.A}", flush=True)
         print(f"Gestures: {self.Gs}, static: {self.Gs_static}, dynamic: {self.Gs_dynamic}", flush=True)
