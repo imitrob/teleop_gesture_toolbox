@@ -20,38 +20,41 @@
 </head>
 <body>
 
-  <div class="w3-row min-height-div">
-    <div class="w3-half w3-container">
-  <h1 align="center">Gesture detector</h1>
-  <p>Displaying solutions from single hand (Left hand has priority).</p>
-  <div id="message-container"></div>
-  <img id="activatedGestureImage"></img>
-  <img id="activatedGestureImage2"></img>
+<div class="w3-row min-height-div">
+  <div class="w3-quarter w3-container">
+    <h1 align="center">Pose detector</h1>
+    <div id="static-gesture-container"></div>
+    <p>Displaying solutions from single hand (Left hand has priority).</p>
   </div>
-  <div class="w3-half w3-container">
-    
-    <div class="w3-row">
-      <div class="w3-half w3-container">
-        <h1 align="center">Episode-catched gestures</h1>
-        Gesture sentence (HRI Gestures)
-        <div id="hricOriginal1Container"></div>
-        <hr>
-        <div id="hricOriginal2Container"></div>
-      </div>
-      <div class="w3-half w3-container">
-        <h1 align="center">Gesture Meaning</h1>
-        Mapped Robotic Actions (HRI Command)</h3>
-        <div id="hricMapped1Container"></div>
-        <hr>
-        <div id="hricMapped2Container"></div>
-      </div>
-    </div>
 
-
+  <div class="w3-quarter w3-container">
+    <h1 align="center">Swipe detector</h1>
+    <div id="dynamic-gesture-container"></div>
   </div>
+  
+  <div class="w3-quarter w3-container">
+    <h1 align="center">Episode-catched gestures</h1>
+    Gesture sentence (HRI Gestures)
+    <div id="hricOriginal1Container"></div>
+    <hr>
+    <div id="hricOriginal2Container"></div>
+  </div>
+
+  <div class="w3-quarter w3-container">
+    <h1 align="center">Gesture Meaning</h1>
+    <div id="meaning-container"></div>
+    Mapped Robotic Actions (HRI Command)</h3>
+    <div id="hricMapped1Container"></div>
+    <hr>
+    <div id="hricMapped2Container"></div>
+  </div>
+  
+
+</div>
+
 
   <script>
-    const ip = `127.0.0.1`;
+    const ip = `192.168.88.146`;
     const port = 9090;
     const socket = new WebSocket(`ws://${ip}:${port}`);  // Adjust the URL based on your ROS 2 setup
 
@@ -60,6 +63,17 @@
         op: 'subscribe',
         id: 'your_subscription_id',
         topic: "/teleop_gesture_toolbox/all_states",
+        type: "std_msgs/String"
+      };
+
+      socket.send(JSON.stringify(subscribeMessage));
+    });
+
+    socket.addEventListener('open', (event) => {
+      const subscribeMessage = {
+        op: 'subscribe',
+        id: 'your_subscription_id',
+        topic: "/teleop_gesture_toolbox/gesture_meaning_info",
         type: "std_msgs/String"
       };
 
@@ -101,36 +115,52 @@
 
     socket.addEventListener('message', (event) => {
       // Handle incoming messages
-      const messageContainer = document.getElementById('message-container');
+      const staticGesturesContainer = document.getElementById('static-gesture-container');
+      const dynamicGesturesContainer = document.getElementById('dynamic-gesture-container');
+      const messageGestureMeaningData = document.getElementById('meaning-container');
       const hricOriginal1Container = document.getElementById('hricOriginal1Container');
       const hricOriginal2Container = document.getElementById('hricOriginal2Container');
       const hricMapped1Container = document.getElementById('hricMapped1Container');
       const hricMapped2Container = document.getElementById('hricMapped2Container');
-      const activatedGestureImage = document.getElementById('activatedGestureImage');
-      const activatedGestureImage2 = document.getElementById('activatedGestureImage2');
       const data = JSON.parse(event.data);
+
+      if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_meaning_info") {
+        const message = data.msg.data;
+        
+        var parsed_message = JSON.parse(message);
+
+        
+        var meaningInfoContainerInnerHTML = "";
+        if (parsed_message.hasOwnProperty('user')) {
+          meaningInfoContainerInnerHTML = meaningInfoContainerInnerHTML.concat(
+              `<h3>user: ${parsed_message['user']}</h3>`);
+              
+          }
+        messageGestureMeaningData.innerHTML = meaningInfoContainerInnerHTML;
+      }
 
       if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/all_states") {
         const message = data.msg.data;
         
         var parsed_message = JSON.parse(message);
 
-        var messageContainerInnerHTML = "";
+        var staticGestureContainerInnerHTML = "";
+        var dynamicGestureContainerInnerHTML = "";
         if (parsed_message.hasOwnProperty('fps') && parsed_message.hasOwnProperty('seq') && parsed_message.hasOwnProperty('gesture_type_selected') && parsed_message.hasOwnProperty('gs_state_action') && parsed_message.hasOwnProperty('gs_state_objects') && parsed_message.hasOwnProperty('gs_state_ap')) {
-          messageContainerInnerHTML = `FPS: <span class="w3-tag w3-red w3-round">${parsed_message['fps']}</span> Msg:<span class="w3-tag w3-blue w3-round">${parsed_message['seq']}</span> Doing:
+          staticGestureContainerInnerHTML = `FPS: <span class="w3-tag w3-red w3-round">${parsed_message['fps']}</span> Msg:<span class="w3-tag w3-blue w3-round">${parsed_message['seq']}</span> Doing:
           <span class="w3-tag w3-black w3-xround">${parsed_message['gesture_type_selected']}</span> current gs: 
           <br> 
           `;
         }
         
         /*if (parsed_message.hasOwnProperty('scene_objects')) {
-          messageContainerInnerHTML = messageContainerInnerHTML.concat(`Object names:`);
+          staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(`Object names:`);
           for (var i = 0; i < parsed_message['scene_objects'].length; i++) {
-            messageContainerInnerHTML = messageContainerInnerHTML.concat(`${parsed_message['scene_objects'][i]}, `);
+            staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(`${parsed_message['scene_objects'][i]}, `);
           //${parsed_message['scene_object_positions']}`);
           }
         }
-        messageContainerInnerHTML = messageContainerInnerHTML.concat(`<br>`);*/
+        staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(`<br>`);*/
 
         if (parsed_message.hasOwnProperty('l_static_probs')) {
           staticGestureNames = parsed_message['l_static_names'];
@@ -152,7 +182,7 @@
 
           var perc = staticGestureProbs[i] * 100;
           if (staticBiggestID == i) {
-            var activ_str = `w3-yellow`;
+            var activ_str = `w3-green`;
           } else if (staticGesturesActivated[i] == 'true') {
             var activ_str = `w3-red`;
           } else {
@@ -161,11 +191,13 @@
           // Sec. passed since gesture shown, to 1 decimal point 
           //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
           // HTML
-          messageContainerInnerHTML = messageContainerInnerHTML.concat(
-            `${staticGestureNames[i]}, <span class="w3-tag w3-red"></span>
-            <div class="w3-light-grey w3-round"> 
-              <div class="w3-container w3-round ${activ_str}" style="width:${perc}%">${perc}%</div>
-            </div>`);
+          staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(
+            `<span class="w3-tag w3-red"></span>
+              <div class="w3-light-grey w3-round" style="display: flex; align-items: center;">
+              <img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${staticGestureNames[i]}.png" width="50" style="margin-right: 10px;" />
+              <div class="w3-container w3-round ${activ_str}" style="width:${perc}%; height: 50px;"></div>
+            </div>
+            `);
         }
         
         if (parsed_message.hasOwnProperty('l_dynamic_probs')) {
@@ -183,44 +215,13 @@
           dynamicGesturesActivated = Array(dynamicGestureNames.length).fill('false');
           dynamicBiggestID = -1;
         }
-        
-        // TODO:
-        /*
-        var gid = parsed_message['l_static_relevant_biggest_id'];
-        if (gid == 0) {
-          activatedGestureImage.setAttribute("src", "grab.png")
-        } else if (gid == 1) {
-          activatedGestureImage.setAttribute("src", "pinch.png")
-        } else if (gid == 2) {
-          activatedGestureImage.setAttribute("src", "point.png")
-        } else if (gid == 3) {
-          activatedGestureImage.setAttribute("src", "two.png")
-        } else if (gid == 4) {
-          activatedGestureImage.setAttribute("src", "three.png")
-        } else if (gid == 5) {
-          activatedGestureImage.setAttribute("src", "four.png")
-        } else if (gid == 6) {
-          activatedGestureImage.setAttribute("src", "five.png")
-        } else if (gid == 7) {
-          activatedGestureImage.setAttribute("src", "thumbsup.png")        
-        }
-        var gid2 = parsed_message['l_dynamic_relevant_biggest_id'];
-        if (gid2 == 0) {
-          activatedGestureImage2.setAttribute("src", "swipe_down.png")
-        } else if (gid2 == 1) {
-          activatedGestureImage2.setAttribute("src", "swipe_right.png")
-        } else if (gid2 == 2) {
-          activatedGestureImage2.setAttribute("src", "swipe_left.png")
-        } else if (gid2 == 3) {
-          activatedGestureImage2.setAttribute("src", "swipe_up.png")
-        }
-          */
+      
 
         for (var i = 0; i < dynamicGestureProbs.length; i++) {
         
           var perc = dynamicGestureProbs[i] * 100;
           if (dynamicBiggestID == i) {
-            var activ_str = `w3-yellow`;
+            var activ_str = `w3-green`;
           } else  if (dynamicGesturesActivated[i] == 'true') {
             var activ_str = `w3-red`;
           } else {
@@ -229,11 +230,13 @@
           // Sec. passed since gesture shown, to 1 decimal point 
           //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
           // HTML
-          messageContainerInnerHTML = messageContainerInnerHTML.concat(
-            `${dynamicGestureNames[i]}, <span class="w3-tag w3-red"></span>
-            <div class="w3-light-grey w3-round"> 
-              <div class="w3-container w3-round ${activ_str}" style="width:${perc}%">${perc}%</div>
-            </div>`);
+          dynamicGestureContainerInnerHTML = dynamicGestureContainerInnerHTML.concat(
+            `<span class="w3-tag w3-red"></span>
+            <div class="w3-light-grey w3-round" style="display: flex; align-items: center;">
+              <img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${dynamicGestureNames[i]}.png" width="50" style="margin-right: 10px;" />
+              <div class="w3-container w3-round ${activ_str}" style="width:${perc}%; height: 50px;"></div>
+            </div>
+            `);
         }
         
         /*
@@ -244,17 +247,18 @@
               compoundGestureActivated = `w3-yellow`;
             }
             // HTML
-            messageContainerInnerHTML = messageContainerInnerHTML.concat(
+            staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(
               `<span class="w3-tag ${compoundGestureActivated}">${parsed_message['compound_names'][i]}</span>`);
           }
         }*/
 
         /*for (var key in parsed_message) {
             if (parsed_message.hasOwnProperty(key)) { // this will check if key is owned by data object and not by any of it's ancestors
-            messageContainerInnerHTML = messageContainerInnerHTML.concat(`<p>${key}: ${parsed_message[key]}</p>`);    
+            staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(`<p>${key}: ${parsed_message[key]}</p>`);    
             }
         }*/
-        messageContainer.innerHTML = messageContainerInnerHTML;
+        staticGesturesContainer.innerHTML = staticGestureContainerInnerHTML;
+        dynamicGesturesContainer.innerHTML = dynamicGestureContainerInnerHTML;
       }
     
     // Received message is HRICommand original
@@ -275,10 +279,12 @@
         var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
         // HTML
         theinnerHTML1 = theinnerHTML1.concat(
-          `${parsed_message['gesture_names'][i]}, <span class="w3-tag w3-red">${timestamp}s</span>
-          <div class="w3-light-grey w3-round"> 
-            <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
-          </div>`);
+          `<div class="w3-light-grey w3-round" style="display: flex; align-items: center;">
+              <img class="w3-aqua w3-round-xxlarge" src="http://imitrob.ciirc.cvut.cz/images/gestures/${parsed_message['gesture_names'][i]}.png" width="50" style="margin-right: 10px;" />
+              <span class="w3-tag w3-red">${timestamp}s</span>
+              <div class="w3-container w3-round w3-blue" style="width:${perc}%; height: 20px;">${perc}%</div>
+            </div>
+          `);
       }
       // Object probabilties
       for (var i = 0; i < parsed_message['object_names'].length; i++) {

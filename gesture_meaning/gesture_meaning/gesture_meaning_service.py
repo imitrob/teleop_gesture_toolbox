@@ -9,6 +9,9 @@ import numpy as np
 
 from gesture_meaning.gesture_names_call import GestureListService
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
+from std_msgs.msg import String
+import threading
+import time
 
 class RosNode(Node):
     def __init__(self):
@@ -25,8 +28,25 @@ class GestureToMeaningNode(GestureListService, RosNode):
 
         self.user = self.declare_parameter("user_name", "").get_parameter_value().string_value
 
+        self.meaning_info_pub = self.create_publisher(String, "/teleop_gesture_toolbox/gesture_meaning_info", 5)
+        self.links_str = {}
+        thr = threading.Thread(target=self.send_info_thread, daemon=True)    
+        thr.start()
+
         if self.user == "":
             print("No user specified!", flush=True)
+
+    def send_info_thread(self):
+        
+        while rclpy.ok():
+            time.sleep(1.0)
+
+            self.links_str["user"] = self.user
+
+            data_as_str = str(self.links_str)
+            data_as_str = data_as_str.replace("'", '"')
+        
+            self.meaning_info_pub.publish(String(data=data_as_str))
 
     def G2I_message_callback(self, msg):
         d = import_original_HRICommand_to_dict(msg)
@@ -168,7 +188,9 @@ class OneToOneCompoundUserMapping(GestureToMeaningNode): # Compound = Combinatio
         mapping = []
         self.T = np.zeros((len(self.Gs_static), len(self.Gs_dynamic), len(self.A)))
         
+        
         for name,link in links_dict['links'].items():
+            self.links_str[name] = link['action_words']
             link['user'] # "melichar"
             link['action_template'] # "push"
             link['object_template'] # "cube_template"
