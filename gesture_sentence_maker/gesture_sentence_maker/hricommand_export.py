@@ -65,7 +65,7 @@ def argmax(names, probs):
 
 
 
-def export_original_to_HRICommand(s, target_object_solutions, max_probs, max_timestamps, Gs):
+def export_original_to_HRICommand(s, target_object_solutions, max_probs, max_timestamps, Gs, params):
 
     target_object_names, target_object_probs, object_types, target_storage_names, target_storage_probs = get_object_probs(s, target_object_solutions)
 
@@ -81,15 +81,14 @@ def export_original_to_HRICommand(s, target_object_solutions, max_probs, max_tim
         # 'object_timestamps': None, # TODO
         'object_classes': object_types, # Object type names as cbgo types 
         # Each object type should reference to object class
-        # 'storage_names': [''], # TODO: some objects are storages, received by Ontology get function
-        # 'storage_probs': [],
-        # 'storage_timestamps': [],
-        # 'parameter_values': [], 
-        # 'parameter_timestamps': [],
+        
         'storage_names': target_storage_names, # TODO: some objects are storages, received by Ontology get function
         'storage_probs': list(target_storage_probs),
     }
-    
+    # fill in gesture parameters
+    for name,value in params.items():
+        sentence_as_dict[f"parameter_{name}"] = value
+
     data_as_str = str(sentence_as_dict)
     data_as_str = data_as_str.replace("'", '"')
 
@@ -103,73 +102,16 @@ def export_only_objects_to_HRICommand(s, target_object_solutions):
     target_object_names, target_object_probs, object_types, target_storage_names, target_storage_probs = get_object_probs(s, target_object_solutions)
 
     sentence_as_dict = {
-        # 'target_action': str(intent.target_action),
         'target_object': argmax(target_object_names, target_object_probs),
         'target_storage': argmax(target_storage_names, target_storage_probs),
-        # 'action_names': action_names, # Gesture names 
-        # 'action_probs': list(action_probs), # Gesture probabilities 
-        # 'action_timestamp': action_timestamp, # One timestamp
-        # (Note: I can get timestamp for every activation)
         'object_names': target_object_names, # This should be all object names detected on the scene
         'object_probs': list(target_object_probs), # This should be all object likelihoods 
-        # 'object_timestamps': None, # TODO
         'object_classes': list(object_types), # Object type names as cbgo types 
         # Each object type should reference to object class
         'storage_names': target_storage_names, # TODO: some objects are storages, received by Ontology get function
         'storage_probs': list(target_storage_probs),
-        # 'storage_timestamps': [],
-        # 'parameters': intent.auxiliary_parameters, 
-        # 'parameter_values': [], 
-        # 'parameter_timestamps': [],
     }
     data_as_str = str(sentence_as_dict)
     data_as_str = data_as_str.replace("'", '"')
 
     return HRICommand(data=[str(data_as_str)])        
-
-def export_mapped_to_HRICommand(s, intent, target_object_solutions):
-    action_names = intent.action_names
-    action_probs = intent.action_probs
-    action_timestamp = 0.
-    
-    target_object_names, target_object_probs, object_types, target_storage_names, target_storage_probs = get_object_probs(s, target_object_solutions)
-    # I think I don't need to do this, it is filled before with real values
-    # try:
-    #     object_probs[object_names.index(intent.target_object)] = 1.0
-    # except:
-    #     # return HRICommand(data=['{"status": "invalid"}'])
-    #     pass
-
-    if len(action_names) != len(action_probs): return HRICommand(data=[str("")])
-    
-    for p in action_probs:
-        if p > 1.0:
-            raise Exception("DEBUG here, probability is over 1, something happnned here !,... ", action_probs)
-
-    sentence_as_dict = {
-        'target_action': str(intent.target_action),
-        'target_object': argmax(target_object_names, target_object_probs),
-        'target_storage': argmax(target_storage_names, target_storage_probs),
-        'action_names': action_names, # Gesture names 
-        'action_probs': list(action_probs), # Gesture probabilities 
-        'action_timestamp': action_timestamp, # One timestamp
-        # (Note: I can get timestamp for every activation)
-        'object_names': target_object_names, # This should be all object names detected on the scene
-        'object_probs': list(target_object_probs), # This should be all object likelihoods 
-        # 'object_timestamps': None, # TODO
-        'object_classes': list(object_types), # Object type names as cbgo types 
-        # Each object type should reference to object class
-        # 'storage_names': [''], # TODO: some objects are storages, received by Ontology get function
-        # 'storage_probs': [],
-        # 'storage_timestamps': [],
-        'parameters': intent.auxiliary_parameters, 
-        # 'parameter_values': [], 
-        # 'parameter_timestamps': [],
-        'storage_names': target_storage_names, # TODO: some objects are storages, received by Ontology get function
-        'storage_probs': list(target_storage_probs),
-    }
-    data_as_str = str(sentence_as_dict)
-    print(data_as_str)
-    data_as_str = data_as_str.replace("'", '"')
-
-    return HRICommand(data=[str(data_as_str)])

@@ -199,3 +199,13 @@ def customdeque_tester():
     gq.append((124,'abc',678))
     gq.append((124,'abc',678))
     gq.get_last_common(10, threshold=0.0)
+
+def normalize_data(data):
+    return (data - np.min(data)) / (np.max(data) - np.min(data))
+
+
+class GHeader():
+    def __init__(self, stamp, seq, approach):
+        self.stamp = stamp
+        self.seq = seq
+        self.approach = approach

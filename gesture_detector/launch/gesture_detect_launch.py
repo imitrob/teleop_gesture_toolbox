@@ -72,8 +72,8 @@ def generate_launch_description():
             package='gesture_detector',
             executable='gesture_detect',
             name='gesture_detector_node',
-            output='log',
-            parameters=[{'l': 'static+dynamic', 'r': 'static+dynamic'}]
+            output='screen',
+            parameters=[{'l_hand_mode': 'static+dynamic', 'r_hand_mode': 'static+dynamic'}]
         ),
         Node(
             package='rosbridge_server',

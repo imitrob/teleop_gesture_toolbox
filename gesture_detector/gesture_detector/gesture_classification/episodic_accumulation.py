@@ -16,11 +16,14 @@ class AccumulatedGestures(CustomDeque):
         GesturesRos()
         '''
         rostemplate.probabilities.data = list(np.array(np.zeros(len(self.Gs)), dtype=float))
-        
 
         return rostemplate
 
-    def processing(self, ignored_gestures, Gs):
+    def processing(self, ignored_gestures):
+        """Note: Parameters are extracted from the last detected gesture
+        Args:
+            ignored_gestures (List[Str]): Those gestures will be ignored
+        """        
 
         gestures_queue_processed = self.get_not_ignored_gestures(ignored_gestures)
         gestures_queue_processed = self.get_unique_gestures(gestures_queue_processed)
@@ -29,15 +32,12 @@ class AccumulatedGestures(CustomDeque):
             publish = True
         else:
             publish = False
-            return publish, None, None
+            return publish, None, None, {}
 
         max_probs = self.max_extraction(gestures_queue_processed)
         max_timestamps = self.get_max_timestamps()
 
-        # OLD APPROACH - maybe to complicated:
-        # gestures_queue_processed = self.process_gesture_queue(gestures_queue_processed)
-
-        return publish, max_probs, max_timestamps
+        return publish, max_probs, max_timestamps, gestures_queue_processed[-1]['params']
     
     def get_max_timestamps(self):
         ''' for every gesture from set, get the timestamp,
@@ -88,55 +88,3 @@ class AccumulatedGestures(CustomDeque):
                 gestures_dict[name] = gesture_trigger
 
         return list(gestures_dict.values())
-
-    ### DEPRECATED
-    def process_gesture_queue(self, gestures_queue):
-        ''' gestures_queue has combinations of
-        Parameters:
-            gesture_queue (String[]): Activated action gestures within episode
-                - Can be mix static and dynamic ones
-        Experimental:
-        1. There needs to be some regulation of static and dynamic ones
-        2. Weigthing based on when they were generated
-        '''
-        total_count = len(gestures_queue)
-        if total_count <= 0: return []
-
-        gestures_queue_names = [g['name'] for g in gestures_queue]
-
-        sta, dyn = self.get_most_probable_sta_dyn(gestures_queue_names,2)
-
-        if sta == [] and dyn == []: return []
-        out_gestures_queue_names = [max([*sta, *dyn])]
-
-        out_gestures_queue = []
-
-
-        return out_gestures_queue
-    
-    ### DEPRECATED
-    def get_most_probable_sta_dyn(self, gesture_queue, n):
-        ''' Gets the most 'n' occurings from static and dynamic gestures
-            - I sorts gestures_queue list into static and dynamic gesture lists
-        e.g. gesture_queue = ['apple','apple','banana','banana','banana', 'coco', 'coco', 'coco','coco']
-        Returns: for (n=2): ['coco','banana']
-        '''
-        static_gestures, dynamic_gestures = [], []
-
-        #gesture_queue = ['apple','apple','banana','banana','banana', 'coco', 'coco', 'coco','coco']
-        counts = Counter(gesture_queue)
-        while len(counts) > 0:
-
-            # get max
-            gesture_name = max(counts)
-            m = counts.pop(gesture_name)
-
-            gt = self.get_gesture_type(gesture_name)
-
-            if gt == 'static' and len(static_gestures) < n and gesture_name not in self.ignored_gestures:
-                static_gestures.append(gesture_name)
-            elif gt == 'dynamic' and len(dynamic_gestures) < n and gesture_name not in self.ignored_gestures:
-                dynamic_gestures.append(gesture_name)
-            else: continue
-
-        return static_gestures, dynamic_gestures

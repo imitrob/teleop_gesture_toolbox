@@ -6,7 +6,7 @@ import sys, os, time, threading, rclpy
 def main():
     rclpy.init(args=None)
 
-    gd = GestureDataDetection(silent=False, load_trained=True)
+    gd = GestureDataDetection(silent=False)
     
     # Read from launch file
     # Recognizers (static,dynamic) to work on left,right,both hands

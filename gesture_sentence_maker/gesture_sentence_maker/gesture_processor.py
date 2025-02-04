@@ -9,7 +9,6 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 
-from gesture_sentence_maker.aux_gestures import load_auxiliary_parameter, misc_gesture_handle
 from gesture_sentence_maker.hricommand_export import export_only_objects_to_HRICommand, export_original_to_HRICommand
 from pointing_object_selection.pointing_object_getter import PointingObjectGetter
 from gesture_sentence_maker.utils import get_dist_by_extremes
@@ -68,11 +67,11 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
                 if not self.prev_deictic_solutions.empty:
                     self.save_accumulated_deictic_gesture_data()
 
-                publish, max_probs, max_timestamps = self.gestures_queue.processing(self.ignored_gestures, self.Gs)
+                publish, max_probs, max_timestamps, params = self.gestures_queue.processing(self.ignored_gestures)
 
                 if publish > 0:
                     self.gesture_sentence_publisher.publish(export_original_to_HRICommand(
-                        self.scene, self.target_object_solutions, max_probs, max_timestamps, self.Gs
+                        self.scene, self.target_object_solutions, max_probs, max_timestamps, self.Gs, params
                         ))
                     self.clearing()
                 elif len(self.target_object_solutions) > 0:
@@ -101,8 +100,6 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         # elif activated_gesture_type_action == 'approvement':
         #     self.step_approvement()
 
-        # elif activated_gesture_type_action == 'measurement_distance':
-        #     self.step_auxgesture()
         
         else:
             # Evaluate when action gesturing ends
@@ -159,11 +156,6 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         res = misc_gesture_handle(f"Approve? (y/n)", new_episode=False)
         print(f"Added approvement {res}")
         self.target_auxgesture_solutions.append(res)
-
-    def step_auxgesture(self):
-        dist = load_auxiliary_parameter()
-        self.prev_gesture_type = 'measurement_distance'
-        self.prev_auxgesture_solutions.append(dist)
 
     def clearing(self, wait=True):
         self.gestures_queue.clear()

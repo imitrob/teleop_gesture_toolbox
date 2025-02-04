@@ -13,6 +13,32 @@
         min-height: 520px; /* Adjust the value as needed */
         border: 1px solid #ccc; /* Just for visibility */
     }
+    .circle-progress {
+        position: relative;
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        background: conic-gradient(
+            #ff0000 var(--progress), 
+            #ddd var(--progress)
+        );
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+    }
+    .circle-progress::after {
+        content: "";
+        position: absolute;
+        width: 25px;
+        height: 25px;
+        background: white;
+        border-radius: 50%;
+    }
+    .progress-text {
+        position: absolute;
+        font-size: 18px;
+    }
   </style>
 
   <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
@@ -101,7 +127,8 @@
 
       socket.send(JSON.stringify(subscribeMessage));
     });
-    
+    var stat_evidence = 0.0;    
+    var dyn_evidence = 0.0;    
 
     var staticGestureNames = [];
     var staticGestureProbs = [];
@@ -152,6 +179,17 @@
           <br> 
           `;
         }
+        if (parsed_message.hasOwnProperty('l_static_evidence')) {
+          stat_evidence = parsed_message['l_static_evidence'];
+        } else if (parsed_message.hasOwnProperty('r_static_evidence')) {
+          stat_evidence = parsed_message['r_static_evidence'];
+        }
+        if (parsed_message.hasOwnProperty('l_dynamic_evidence')) {
+          dyn_evidence = parsed_message['l_dynamic_evidence'];
+        } else if (parsed_message.hasOwnProperty('r_dynamic_evidence')) {
+          dyn_evidence = parsed_message['r_dynamic_evidence'];
+        }
+
         
         /*if (parsed_message.hasOwnProperty('scene_objects')) {
           staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(`Object names:`);
@@ -180,13 +218,17 @@
 
         for (var i = 0; i < staticGestureProbs.length; i++) {
 
+          var progressCircleCode = ``;
           var perc = staticGestureProbs[i] * 100;
           if (staticBiggestID == i) {
             var activ_str = `w3-green`;
+            progressCircleCode = `<div class="circle-progress" style="--progress: ${360*stat_evidence}deg; width: 50px"> <span class="progress-text" id="progressText"></span> </div>`;
           } else if (staticGesturesActivated[i] == 'true') {
             var activ_str = `w3-red`;
+            progressCircleCode = ``;
           } else {
             var activ_str = `w3-blue`;
+            progressCircleCode = ``;
           }
           // Sec. passed since gesture shown, to 1 decimal point 
           //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
@@ -195,9 +237,12 @@
             `<span class="w3-tag w3-red"></span>
               <div class="w3-light-grey w3-round" style="display: flex; align-items: center;">
               <img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${staticGestureNames[i]}.png" width="50" style="margin-right: 10px;" />
-              <div class="w3-container w3-round ${activ_str}" style="width:${perc}%; height: 50px;"></div>
+              ${progressCircleCode}
+              <div class="w3-container w3-round ${activ_str}" style="width:${0.8*perc}%; height: 50px;"></div>
+              
             </div>
             `);
+            
         }
         
         if (parsed_message.hasOwnProperty('l_dynamic_probs')) {
@@ -219,13 +264,18 @@
 
         for (var i = 0; i < dynamicGestureProbs.length; i++) {
         
+          var progressCircleCode = ``;
           var perc = dynamicGestureProbs[i] * 100;
+
           if (dynamicBiggestID == i) {
             var activ_str = `w3-green`;
+            progressCircleCode = `<div class="circle-progress" style="--progress: ${360*dyn_evidence}deg; width: 50px"> <span class="progress-text" id="progressText"></span> </div>`;
           } else  if (dynamicGesturesActivated[i] == 'true') {
             var activ_str = `w3-red`;
+            progressCircleCode = ``;
           } else {
             var activ_str = `w3-blue`;
+            progressCircleCode = ``;
           }
           // Sec. passed since gesture shown, to 1 decimal point 
           //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
@@ -234,7 +284,8 @@
             `<span class="w3-tag w3-red"></span>
             <div class="w3-light-grey w3-round" style="display: flex; align-items: center;">
               <img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${dynamicGestureNames[i]}.png" width="50" style="margin-right: 10px;" />
-              <div class="w3-container w3-round ${activ_str}" style="width:${perc}%; height: 50px;"></div>
+              ${progressCircleCode}
+              <div class="w3-container w3-round ${activ_str}" style="width:${0.8*perc}%; height: 50px;"></div>
             </div>
             `);
         }
