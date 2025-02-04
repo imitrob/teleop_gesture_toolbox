@@ -17,6 +17,7 @@ def generate_launch_description():
         'sensor', LaunchConfiguration('sensor')
     )
     user_name_arg = DeclareLaunchArgument('user_name', default_value='', description='User name.')
+    scene_name_arg = DeclareLaunchArgument('scene_name', default_value='', description='Scene yaml file.')
 
 
     return LaunchDescription([
@@ -69,6 +70,7 @@ def generate_launch_description():
             output='screen',
         ),
         user_name_arg,
+        scene_name_arg,
         Node(
             package='gesture_meaning',
             executable='compound_gesture_user_meaning', #'gesture_meaning_service',
@@ -76,6 +78,7 @@ def generate_launch_description():
             output='screen',
             parameters=[{
                 'user_name': LaunchConfiguration('user_name'),
+                'scene_name': LaunchConfiguration('scene_name'),
             }]
         ),
     ])
