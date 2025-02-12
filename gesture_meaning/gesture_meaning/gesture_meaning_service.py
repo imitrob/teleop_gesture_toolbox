@@ -93,6 +93,7 @@ def export_mapped_to_HRICommand(
     d["action_names"] = target_action_names
     print("here: ", str(target_action_probs))
     d["action_probs"] = target_action_probs
+    d["target_action_timestamp"] = d["target_gesture_timestamp"]
 
     data_as_str = str(d)
     data_as_str = data_as_str.replace("'", '"')
@@ -191,7 +192,7 @@ class OneToOneCompoundUserMapping(GestureToMeaningNode): # Compound = Combinatio
         
         for name,link in links_dict['links'].items():
             self.links_str[name] = link['action_words']
-            link['user'] # "melichar"
+            link['user'] # e.g., "casper"
             link['action_template'] # "push"
             link['object_template'] # "cube_template"
             link['action_words'] # "push"
