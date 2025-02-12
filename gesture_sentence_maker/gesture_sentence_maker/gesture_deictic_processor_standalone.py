@@ -4,7 +4,6 @@ import time, rclpy, json
 from scene_getter.scene_getting import SceneGetter
 from pointing_object_selection.pointing_object_getter import PointingObjectGetter
 from gesture_detector.utils.utils import CustomDeque
-from gesture_sentence_maker.hricommand_export import export_only_objects_to_HRICommand
 from gesture_sentence_maker.segmentation_task.deictic_solutions_plot import deictic_solutions_plot_save
 from gesture_sentence_maker.segmentation_task.deictic_segment import find_pointed_objects_timewindowmax
 
@@ -81,16 +80,12 @@ class GestureDeicticSentence(PointingObjectGetter, SceneGetter, RosNode):
                 
 
                 print("pointed_objects: ", pointed_objects)
-                self.gesture_sentence_publisher.publish(export_only_objects_to_HRICommand(pointed_objects))
+                self.gesture_sentence_publisher.publish(export_to_HRICommand(pointed_objects))
                 self.deictic_solutions = CustomDeque()
 
-def export_only_objects_to_HRICommand(pointed_objects):
+def export_to_HRICommand(pointed_objects):
+    sentence_as_dict = {'target_object': pointed_objects}
 
-    sentence_as_dict = {
-        'target_object': pointed_objects,
-        # 'objects': target_object_names, # This should be all object names detected on the scene
-        # 'object_probs': list(target_object_probs), # This should be all object likelihoods 
-    }
     data_as_str = str(sentence_as_dict)
     data_as_str = data_as_str.replace("'", '"')
 

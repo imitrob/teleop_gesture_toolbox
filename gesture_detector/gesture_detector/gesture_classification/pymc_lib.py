@@ -211,7 +211,7 @@ class PyMCModel():
 
         print(f"Network: {name}.npy saved")
 
-    def build_model_from_values(self, X_train, y_train, mu, sigma, model_config, out_n=None):
+    def build_model_from_values(self, X_train, y_train, mu, sigma, model_config, out_n=None, init_appr=True):
 
         if out_n is None:
             out_n = len(list(dict.fromkeys(y_train)))
@@ -259,9 +259,10 @@ class PyMCModel():
                 total_size=y_train.shape[0],  # IMPORTANT for minibatches
                 dims="obs_id"
             )
-
-            loaded_model = pm.fit(n=0, method=ADVI(), progressbar=False)
-        
+            if init_appr:
+                loaded_model = pm.fit(n=0, method=ADVI(), progressbar=False)
+            else:
+                loaded_model = None
         return loaded_model
     
 
@@ -279,9 +280,6 @@ class PyMCModel():
         return loaded_model, nn['X_train'], nn['y_train'], nn['X_test'], nn['y_test']
 
     def sample(self, built_model, draws=100):
-
-        t1 = time.perf_counter()
-
         trace = built_model.sample(draws=draws)
         with self.model:
             ppc = pm.sample_posterior_predictive(trace)
@@ -289,7 +287,6 @@ class PyMCModel():
         pred = np.array(ppc.posterior_predictive['out'])[0].T
 
         y_pred = Counter(pred[0]).most_common()[0][0]
-        print(f"tt {time.perf_counter()-t1}")
         return y_pred        
 
 
@@ -302,6 +299,9 @@ class PyMC_Sample():
     def sample(self, data):
         data = np.array([data])
         assert data.ndim == 2
+
+        self.pymcmodel.build_model_from_values(self.X_true, self.y_true_1, self.fitted_model.mean.eval(), self.fitted_model.std.eval(), self.pymcmodel.model_config, out_n=self.out_n, init_appr=False)
+
 
         with self.pymcmodel.model:
             self.pymcmodel.model.set_data("ann_input", data)
@@ -319,7 +319,6 @@ class PyMC_Sample():
         y_pred = np.array(y_pred).astype(int)
 
         probs = self.pred_labels_to_probs(pred)
-
         return y_pred, probs
 
     def pred_labels_to_probs(self, labels):
@@ -351,11 +350,11 @@ class PyMC_Sample():
 
         self.pymcmodel = PyMCModel(model_config)
         self.fitted_model, X_train, y_train, X_test, y_test = self.pymcmodel.load()
-        X_true = X_test[0:1]
+        self.X_true = X_test[0:1]
         self.y_true_1 = y_test[0:1]
         out_n = len(list(dict.fromkeys(y_train)))
         self.out_n = out_n
-        self.built_model = self.pymcmodel.build_model_from_values(X_true, self.y_true_1, self.fitted_model.mean.eval(), self.fitted_model.std.eval(), self.pymcmodel.model_config, out_n=out_n)
+        self.built_model = self.pymcmodel.build_model_from_values(self.X_true, self.y_true_1, self.fitted_model.mean.eval(), self.fitted_model.std.eval(), self.pymcmodel.model_config, out_n=self.out_n)
    
 
 class Experiments():

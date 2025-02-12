@@ -178,15 +178,8 @@ class GestureDataDetection(Node):
 
     @property
     def Gs(self):
-        Gs = self.l.static.Gs
+        Gs = self.l.static.Gs.copy()
         Gs.extend(self.l.dynamic.Gs)
-        return Gs
-
-    @property
-    def GsExt(self):
-        Gs = self.l.static.Gs
-        Gs.extend(self.l.dynamic.Gs)
-        Gs.extend(self.l.mp.Gs)
         return Gs
 
     @property
@@ -211,12 +204,17 @@ class GestureDataDetection(Node):
         ''' New gesture data arrived and will be saved
         '''
         if len(self.hand_frames) > 0 and self.hand_frames[-1].seq-data.sensor_seq > 100:
-            print(f"[Warning] Program cannot compute gs in time, probably rate is too big! (or fake data are used)")
+            print(f"[Warning] Program cannot compute gs in time, probably rate is too big! (or fake data are used)", flush=True)
+            return
 
         # choose hand with data.header.frame_id
-        obj_by_hand = getattr(self, data.header.frame_id)
-        # choose static/dynamic with arg: type
-        obj_by_type = getattr(obj_by_hand, type)
+        try:
+            obj_by_hand = getattr(self, data.header.frame_id)
+            # choose static/dynamic with arg: type
+            obj_by_type = getattr(obj_by_hand, type)
+        except AttributeError:
+            print("hand data not available", flush=True)
+            return
 
         if len(data.probabilities.data) != len(obj_by_type.Gs):
             return

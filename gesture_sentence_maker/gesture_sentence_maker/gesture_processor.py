@@ -9,7 +9,7 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 
-from gesture_sentence_maker.hricommand_export import export_only_objects_to_HRICommand, export_original_to_HRICommand
+from gesture_sentence_maker.hricommand_export import export_original_to_HRICommand
 from pointing_object_selection.pointing_object_getter import PointingObjectGetter
 from gesture_sentence_maker.utils import get_dist_by_extremes
 
@@ -71,16 +71,16 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
                 if publish > 0:
                     self.gesture_sentence_publisher.publish(export_original_to_HRICommand(
-                        self.scene, self.target_object_solutions, max_probs, max_timestamps, self.Gs, params
+                        self.scene, self.target_object_solutions, gesture_probabilities=max_probs, gesture_timestamps=max_timestamps, gesture_names=self.Gs, params=params
                         ))
                     self.clearing()
                 elif len(self.target_object_solutions) > 0:
-                    self.gesture_sentence_publisher.publish(export_only_objects_to_HRICommand(self.scene, self.target_object_solutions))
+                    self.gesture_sentence_publisher.publish(export_original_to_HRICommand(self.scene, self.target_object_solutions))
                     self.clearing()
                     return
 
             elif len(self.target_object_solutions) > 0:
-                self.gesture_sentence_publisher.publish(export_only_objects_to_HRICommand(self.scene, self.target_object_solutions))
+                self.gesture_sentence_publisher.publish(export_original_to_HRICommand(self.scene, self.target_object_solutions))
         
             # Whenever hand is not seen clearing
             self.clearing(wait=False)
@@ -191,10 +191,10 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
 class AdaptiveSetup():
     adaptive_setup = {
-        'deictic': ('point'), # TODO: 'steady_point'
-        #'approvement': ('thumbsup', 'five'), # steady five
-        # 'measurement_distance': ('pinch'), # steady pinch
-        #'measurement_rotation': ('five'), # steady pinch
+        'deictic': ('point'),
+        #'approvement': ('thumbsup', 'five'),
+        # 'measurement_distance': ('pinch'),
+        #'measurement_rotation': ('five'),
     }
 
     @staticmethod
@@ -239,7 +239,6 @@ def main():
     sentence_processor = GestureSentence()
     spinning_thread = threading.Thread(target=spinning_threadfn, args=(sentence_processor, ), daemon=True)
     spinning_thread.start()
-    
     while rclpy.ok():
         sentence_processor.step()
 

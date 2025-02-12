@@ -3,92 +3,76 @@
 import numpy as np
 from hri_msgs.msg import HRICommand
 
+PREF_OBJECT_INDEX = -2 # second last pointed object
+PREF_STORAGE_INDEX = -1 # the last pointed object
+OBJECT_INDEX = -1 # the last pointed object, if there is only single pointing
 
-def get_object_probs(s, target_object_solutions):
+def extract_deictic_solution(solution):
     
-    # get object names, this can be easily obtained from the function deictic this definitely was using that 
-    # from that I can easily get object classes 
-    # TODO: This sequence is repeated in this file
-
-    target_object_names, target_object_probs = [], []
-    target_storage_names, target_storage_probs = [], []
-    if len(target_object_solutions) > 0:
-        target_object_solution = target_object_solutions[0]
-
-        target_object_names = target_object_solution["object_names"]
-        # distance to likelihoods
-        target_object_probs = []
-        for dist in target_object_solution["object_distances"]:
-            p = str( 1 / (1 + float(dist)) )
-            target_object_probs.append(p)
-    if len(target_object_solutions) > 1:
-        target_storage_solution = target_object_solutions[1]
-
-        target_storage_names = target_storage_solution["object_names"]
-        # distance to likelihoods
-        target_storage_probs = []
-        for dist in target_storage_solution["object_distances"]:
-            p = str( 1 / (1 + float(dist)) )
-            target_storage_probs.append(p)
-
-    ###############
-
-    # Option 1: s.O all objects in the scene s
-    # object_types = []
-    # for object_name in s.O:
-    #     object_types.append(s.get_object_by_name(object_name).type)
-    
-    # Option 2: All object saved as target_object_solutions
-    object_types = []
-    for object_name in target_object_names:
-        o_ = s.get_object_by_name(object_name)
-        if o_ is not None:
-            object_types.append(o_.type)
-        else:
-            object_types.append('object')
-
-    if len(target_object_names) != len(target_object_probs):
-        return HRICommand(data=['{"invalid": "True"}'])
-    # Collect the data
-    if len(target_object_names) != len(target_object_probs): HRICommand(data=[str("")])
-    
-    return target_object_names, target_object_probs, object_types, target_storage_names, target_storage_probs
-
+    target_object_names = solution["object_names"]
+    target_object_stamp = solution["target_object_stamp"]
+    # distance to likelihoods
+    target_object_probs = []
+    for dist in solution["object_distances"]:
+        p = str( 1 / (1 + float(dist)) )
+        target_object_probs.append(p)
+    assert len(target_object_names) == len(target_object_probs)
+    return target_object_names, target_object_probs, target_object_stamp
+        
 def argmax(names, probs):
     assert len(names) == len(probs)
 
     if len(names) == 0:
         return ""
     
-    return str(names[np.argmax(np.array(probs))])
+    return names[np.argmax(np.array(probs))]
 
+def export_original_to_HRICommand(
+        s, # Scene object 
+        target_object_solutions, # Queue of each pointings
+        gesture_probabilities = None, # List
+        gesture_timestamps = None, # List
+        gesture_names = None, # List 
+        params = None, # Auxiliary parameters
+    ):
+    sentence_as_dict = {}
 
+    if gesture_probabilities is not None:
+        sentence_as_dict['target_gesture'] = str(argmax(gesture_names, gesture_probabilities))
+        sentence_as_dict['target_gesture_timestamp'] = float(argmax(gesture_timestamps, gesture_probabilities))
+        sentence_as_dict['gesture_names'] = gesture_names
+        sentence_as_dict['gesture_probs'] = list(gesture_probabilities)
+        sentence_as_dict['gesture_timestamp'] = list(gesture_timestamps)
 
+        # fill in gesture parameters
+        for name,value in params.items():
+            sentence_as_dict[f"parameter_{name}"] = value
 
-def export_original_to_HRICommand(s, target_object_solutions, max_probs, max_timestamps, Gs, params):
+    if len(target_object_solutions) > 1:
+        target_object_names,target_object_probs,tos = extract_deictic_solution(target_object_solutions[PREF_STORAGE_INDEX])
+        target_storage_names,target_storage_probs,tss = extract_deictic_solution(target_object_solutions[PREF_OBJECT_INDEX])
+        sentence_as_dict["object_names"] = target_object_names
+        sentence_as_dict["object_probs"] = list(target_object_probs)
+        sentence_as_dict['target_object'] = str(argmax(target_object_names, target_object_probs))
+        sentence_as_dict['target_object_timestamp'] = tos
+        sentence_as_dict['object_classes'] = s.get_object_types(target_object_names),
 
-    target_object_names, target_object_probs, object_types, target_storage_names, target_storage_probs = get_object_probs(s, target_object_solutions)
-
-    # Collect the data
-    sentence_as_dict = {
-        'target_object': argmax(target_object_names, target_object_probs),
-        'target_storage': argmax(target_storage_names, target_storage_probs),
-        'gesture_names': Gs, # Gesture names 
-        'gesture_probs': list(max_probs), # Gesture probabilities 
-        'gesture_timestamp': list(max_timestamps), # One timestamp
-        'object_names': target_object_names, # This should be all object names detected on the scene
-        'object_probs': list(target_object_probs), # This should be all object likelihoods 
-        # 'object_timestamps': None, # TODO
-        'object_classes': object_types, # Object type names as cbgo types 
-        # Each object type should reference to object class
+        sentence_as_dict['storage_names'] = target_storage_names
+        sentence_as_dict['storage_probs'] = list(target_storage_probs)
+        sentence_as_dict['target_storage'] = str(argmax(target_storage_names, target_storage_probs))
+        sentence_as_dict['target_object_timestamp'] = tss
+        sentence_as_dict['storage_classes'] = s.get_object_types(target_storage_names)
+    elif len(target_object_solutions) == 1:
+        target_object_names,target_object_probs,tos = extract_deictic_solution(target_object_solutions[OBJECT_INDEX])
+        sentence_as_dict["object_names"] = target_object_names
+        sentence_as_dict["object_probs"] = list(target_object_probs)
+        sentence_as_dict['target_object'] = str(argmax(target_object_names, target_object_probs))
+        sentence_as_dict['target_object_timestamp'] = tos
+        sentence_as_dict['object_classes'] = s.get_object_types(target_object_names)
+    else:
+        sentence_as_dict["object_names"] = []
+        sentence_as_dict["object_probs"] = []
         
-        'storage_names': target_storage_names, # TODO: some objects are storages, received by Ontology get function
-        'storage_probs': list(target_storage_probs),
-    }
-    # fill in gesture parameters
-    for name,value in params.items():
-        sentence_as_dict[f"parameter_{name}"] = value
-
     data_as_str = str(sentence_as_dict)
     data_as_str = data_as_str.replace("'", '"')
 
@@ -97,21 +81,3 @@ def export_original_to_HRICommand(s, target_object_solutions, max_probs, max_tim
 def import_original_HRICommand_to_dict(hricommand):
     sentence_as_str = hricommand.data[0]
     return eval(sentence_as_str)
-
-def export_only_objects_to_HRICommand(s, target_object_solutions):
-    target_object_names, target_object_probs, object_types, target_storage_names, target_storage_probs = get_object_probs(s, target_object_solutions)
-
-    sentence_as_dict = {
-        'target_object': argmax(target_object_names, target_object_probs),
-        'target_storage': argmax(target_storage_names, target_storage_probs),
-        'object_names': target_object_names, # This should be all object names detected on the scene
-        'object_probs': list(target_object_probs), # This should be all object likelihoods 
-        'object_classes': list(object_types), # Object type names as cbgo types 
-        # Each object type should reference to object class
-        'storage_names': target_storage_names, # TODO: some objects are storages, received by Ontology get function
-        'storage_probs': list(target_storage_probs),
-    }
-    data_as_str = str(sentence_as_dict)
-    data_as_str = data_as_str.replace("'", '"')
-
-    return HRICommand(data=[str(data_as_str)])        

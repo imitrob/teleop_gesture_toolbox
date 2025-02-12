@@ -90,6 +90,16 @@ class Scene():
                 return obj
         return None
 
+    def get_object_types(self, names):
+        ret = []
+        for object_name in names:
+            o_ = self.get_object_by_name(object_name)
+            if o_ is not None:
+                ret.append(o_.type)
+            else:
+                ret.append('object')
+        return ret
+
     def has_duplicate_objects(self):
         O = []
         for object in self.objects:
