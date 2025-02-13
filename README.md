@@ -111,7 +111,8 @@ Servoing happens in task space (cartesian controller).
 1. Run Leap Motion backend: `sudo leapd`
 2. Run Leap Motion ROS2 publisher: `teleopenv; ros2 run gesture_detector leap`
 3. Run servo: `python servoing.py`
-    - Default is teleoperate by drawing.
+    - Teleoperate robot with fist (grab) gesture, so close hand and move the robot.
+    - Open your hand for the robot to stop following your hand movements.
     - Right hand for teleoperation, Left hand to close and open gripper.
 
 ## Gesture dataset collection and detector training
