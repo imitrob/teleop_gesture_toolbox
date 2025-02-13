@@ -44,7 +44,13 @@ def withsem(func):
     return inner
 
 class GestureDataDetection(Node):
-    def __init__(self, silent=False):
+    def __init__(self, 
+                 silent: bool = False, # No printing
+                 activate_length: int = 10 # Time for gesture to activate 
+                 # depends on gesture_detect.py:GESTURE_DETECTOR_RATE, time_to_activate = activate_length/GESTURE_DETECTOR_RATE
+                 ):
+        self.activate_length = activate_length
+
         super(GestureDataDetection, self).__init__('ros_comm_main')
 
         self.create_subscription(rosm.Frame, '/teleop_gesture_toolbox/hand_frame', self.hand_frame_callback, 10)
@@ -94,9 +100,6 @@ class GestureDataDetection(Node):
             print(f"Static gestures: {self.l.static.Gs}, \nDynamic gestures {self.l.dynamic.Gs}")
 
         self.gestures_queue = AccumulatedGestures()
-        
-        self.activate_length=10
-
 
         # Gesture prediction
         self.static_gesture_action_prediction = [""] * len(self.l.static.Gs)

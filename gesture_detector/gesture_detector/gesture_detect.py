@@ -2,6 +2,7 @@
 from gesture_detector.gesture_classification.gestures_lib import GestureDataDetection
 import sys, os, time, threading, rclpy
 
+GESTURE_DETECTOR_RATE = 10
 
 def main():
     rclpy.init(args=None)
@@ -19,7 +20,7 @@ def main():
     spinning_thread = threading.Thread(target=spinning_threadfn, args=(gd, ), daemon=True)
     spinning_thread.start()
 
-    rate = gd.create_rate_(10) 
+    rate = gd.create_rate_(GESTURE_DETECTOR_RATE) 
     while rclpy.ok():
         # print("..")
         if gd.present():
