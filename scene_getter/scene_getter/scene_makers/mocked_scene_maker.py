@@ -4,6 +4,10 @@ from rclpy.node import Node
 import scene_msgs.msg as scene_ros
 from scene_getter.scene_lib.scene import Scene
 from scene_getter.scene_lib.scene_object import SceneObject
+import yaml 
+import scene_getter
+
+SCENE_FILE = "scene_1"
 
 class MockedScenePublisher(Node):
     def __init__(self):
@@ -11,13 +15,12 @@ class MockedScenePublisher(Node):
 
         self.scene_pub = self.create_publisher(scene_ros.Scene, "/scene", 5)
         
-        self.scene = Scene(name="scene_1", objects=[
-            SceneObject("open_drawer", [0.5,-0.1,0.06]),
-            SceneObject("sponge_wipe", [0.5,0.2,0.06]),
-            SceneObject("pick_lid", [0.4,0.2,0.06]),
-            SceneObject("handle_screwdriver", [0.4,0.0,0.06]),
-            SceneObject("pour_potatoes", [0.4,-0.2,0.06]),
-        ])
+        data_dict = yaml.safe_load(open(f"{scene_getter.path}/scene_makers/scenes/{SCENE_FILE}.yaml", mode="r"))
+        scene_objects = []
+        for name,loc in data_dict.items():
+            scene_objects.append(SceneObject(name, loc))
+
+        self.scene = Scene(name=SCENE_FILE, objects=scene_objects)
 
     def __call__(self):
         self.scene_pub.publish(self.scene.to_ros())

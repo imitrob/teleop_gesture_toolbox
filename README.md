@@ -17,18 +17,21 @@ mamba activate teleopenv
 
 Build as ROS2 package:
 ```Shell
-mkdir -p <your_ws>/src
-git clone https://github.com/imitrob/teleop_gesture_toolbox.git --depth 1 --branch dev
-cd <your_ws>
+mkdir -p ~/teleop_ws/src
+cd ~/teleop_ws/src
+git clone https://github.com/imitrob/teleop_gesture_toolbox.git --depth 1
+cd ..
 colcon build --symlink-install
-ln -s ~/<your_ws>/src/teleop_gesture_toolbox/gesture_detector/saved_models ~/<your_ws>/build/gesture_detector/gesture_detector/saved_models
+rm ~/teleop_ws/build/gesture_detector/gesture_detector/saved_models
+ln -s ~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/saved_models ~/teleop_ws/build/gesture_detector/gesture_detector/saved_models
+ln -s ~/teleop_ws/src/teleop_gesture_toolbox/scene_getter/scene_getter/scene_makers/scenes ~/teleop_ws/build/scene_getter/scene_getter/scene_makers/scenes
 ```
 
 I use following alias to source the environment:
 ```Shell
 alias teleopenv='conda activate teleopenv;
 LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/LeapAPI/lib/x64/;
-source install/setup.bash'
+source ~/teleop_ws/install/setup.bash'
 ```
 
 See Leap Motion rigged hands by using [leapjs-rigged-hand](https://github.com/leapmotion/leapjs-rigged-hand).
