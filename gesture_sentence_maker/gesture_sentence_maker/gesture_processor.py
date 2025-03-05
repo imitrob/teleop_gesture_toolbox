@@ -23,7 +23,7 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 
 class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def __init__(self,
-                 ignored_gestures = ['point', 'no_moving', 'five', 'pinch'],
+                 ignored_gestures = ['point', 'no_moving'],
                  step_period = 0.2, # seconds
                  ):
         """

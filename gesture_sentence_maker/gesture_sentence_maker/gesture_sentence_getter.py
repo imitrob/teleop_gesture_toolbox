@@ -52,6 +52,7 @@ class GestureSentenceGetter():
 
 
     def gestures_receive_callback(self, msg):
+        print(msg)
         self.hricommand_queue.append(HriCommand.from_ros(msg))
 
 
