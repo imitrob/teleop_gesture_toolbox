@@ -29,7 +29,6 @@ class GestureToMeaningNode(GestureListService, RosNode):
         self.user = self.declare_parameter("user_name", "").get_parameter_value().string_value
 
         self.meaning_info_pub = self.create_publisher(String, "/teleop_gesture_toolbox/gesture_meaning_info", 5)
-        self.links_str = {}
         thr = threading.Thread(target=self.send_info_thread, daemon=True)    
         thr.start()
 
@@ -40,10 +39,11 @@ class GestureToMeaningNode(GestureListService, RosNode):
         
         while rclpy.ok():
             time.sleep(1.0)
+            
+            d = {}
+            d["user"] = self.user
 
-            self.links_str["user"] = self.user
-
-            data_as_str = str(self.links_str)
+            data_as_str = str(d)
             data_as_str = data_as_str.replace("'", '"')
         
             self.meaning_info_pub.publish(String(data=data_as_str))
@@ -191,11 +191,6 @@ class OneToOneCompoundUserMapping(GestureToMeaningNode): # Compound = Combinatio
         
         
         for name,link in links_dict['links'].items():
-            self.links_str[name] = link['action_words']
-            link['user'] # e.g., "casper"
-            link['action_template'] # "push"
-            link['object_template'] # "cube_template"
-            link['action_words'] # "push"
             assert len(link['action_gestures']) == 1, "There are more more mapping from gesture to action! NotImplementedError"
             static_action_gesture, dynamic_action_gesture = link['action_gestures'][-1] # [grab, swipe right]
 

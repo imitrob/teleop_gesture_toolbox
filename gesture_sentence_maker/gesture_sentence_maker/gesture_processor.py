@@ -191,7 +191,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
 class AdaptiveSetup():
     adaptive_setup = {
-        'deictic': ('point'),
+        'deictic': ('point', 'two'),
         #'approvement': ('thumbsup', 'five'),
         # 'measurement_distance': ('pinch'),
         #'measurement_rotation': ('five'),

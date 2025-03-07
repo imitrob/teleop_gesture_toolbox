@@ -83,7 +83,7 @@ class ClassificationSampler(Node):
 def run_static():
     print(f"Launching static sampling thread!")
     rclpy.init()
-    rosnode = ClassificationSampler(network_name='network99')
+    rosnode = ClassificationSampler(network_name='common_gestures')
     rclpy.spin(rosnode)
 
 def run_dynamic():
