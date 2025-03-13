@@ -17,8 +17,8 @@ class MockedScenePublisher(Node):
         
         data_dict = yaml.safe_load(open(f"{scene_getter.path}/scene_makers/scenes/{SCENE_FILE}.yaml", mode="r"))
         scene_objects = []
-        for name,loc in data_dict.items():
-            scene_objects.append(SceneObject(name, loc))
+        for name,objectdata in data_dict.items():
+            scene_objects.append(SceneObject.from_dict(name, objectdata))
 
         self.scene = Scene(name=SCENE_FILE, objects=scene_objects)
 

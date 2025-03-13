@@ -10,12 +10,14 @@ class SceneObject():
     def __init__(self, name: str, # String
                        position: Iterable[float], # Point
                        orientation: Iterable[float] = np.array([0., 0., 0., 1.]), # x y z w
+                       params: str = "", # (optional) description of parameters of the object
                        ):
 
         self.position = np.array(position)
         self.orientation = np.array(orientation)
 
         self.name = name
+        self.params = str(params)
 
         assert isinstance(position, Iterable) and len(position) == 3
         assert isinstance(orientation, Iterable) and len(orientation) == 4
@@ -34,3 +36,16 @@ class SceneObject():
 
     def __str__(self):
         return f'{self.name},\t{self.type},\t{np.array(self.position).round(2)}'
+
+    @classmethod
+    def from_dict(cls, name: str, d: dict):
+        if isinstance(d, (tuple,list)): # d is just position
+            return cls(name, d)
+
+        o = cls(name, d['position'])
+        if 'orientation' in d.keys():
+            o.orientation = d['orientation']
+        if 'params' in d.keys():
+            o.params = str(d['params'])
+
+        return o

@@ -19,10 +19,18 @@
 # box: [0.65,-0.15, 0.04] # E
 # bowl: [0.35, -0.15, 0.04] # G 
 
-cube: [0.5, 0.25, 0.04] # B
-cup: [0.35,-0.15, 0.04] # G 
-box: [0.65,-0.15, 0.04] # E
-bowl: [0.5, 0.0, 0.04] # A
+cube: 
+  position: [0.5, 0.25, 0.04] # B
+  params: cube is small red cube.
+cup: 
+  position: [0.35,-0.15, 0.04] # G
+  params: cup is medium red cup.
+box: 
+  position: [0.65,-0.15, 0.04] # E
+  params: box is small black box.
+bowl: 
+  position: [0.5, 0.0, 0.04] # A
+  params: bowl is red bowl.
 
 # cube: [0.5, 0.0, 0.04]
 # cup: [0.65, 0.15, 0.04]

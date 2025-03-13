@@ -6,7 +6,6 @@ from scene_getter.scene_lib.scene_object import SceneObject
 import scene_getter.scene_lib.scene_object as scene_object
 import scene_msgs.msg as scene_msgs
 
-from copy import deepcopy
 from geometry_msgs.msg import Point, Quaternion, Pose
 
 class Scene():
@@ -19,7 +18,7 @@ class Scene():
         self.name = name
 
     @property
-    def n(self):
+    def n(self): # number of objects in the scene
         return len(self.O)
     
     @property
@@ -125,19 +124,7 @@ class Scene():
             scene_state['objects'][o.name]['position'] = o.position
             scene_state['objects'][o.name]['orientation'] = o.orientation
             scene_state['objects'][o.name]['type'] = o.type
-            # scene_state['objects'][o.name]['graspable'] = o.graspable
-            # scene_state['objects'][o.name]['pushable'] = o.pushable
-            # scene_state['objects'][o.name]['free'] = o.free
-            # scene_state['objects'][o.name]['size'] = o.size
-            # scene_state['objects'][o.name]['above_str'] = o.above_str
-            # scene_state['objects'][o.name]['under_str'] = o.under_str
-
-            if o.type == 'drawer':
-                scene_state['objects'][o.name]['opened'] = o.opened
-                scene_state['objects'][o.name]['contains_list'] = o.contains_list
-
-            if o.type == 'cup':
-                scene_state['objects'][o.name]['full'] = o.full
+            scene_state['objects'][o.name]['params'] = o.params
 
         return scene_state
 
@@ -158,15 +145,7 @@ class Scene():
                 w=o.orientation[3],
             )
             ros_sceneobject.type = o.type
-
-            if o.type == 'drawer':
-                sceneros.objects[n].opened = float(o.opened_)
-                if o.contains_list != []:
-                    sceneros.objects[n].contains_list = o.contains_list[0]
-                else:
-                    sceneros.objects[n].contains_list = ''
-            if o.type == 'cup':
-                sceneros.objects[n].full = float(o.full)
+            ros_sceneobject.params = o.params
 
             ros_sceneobjects.append(ros_sceneobject)
 
@@ -186,24 +165,8 @@ class Scene():
         o.objects = []
         for n,name in enumerate(objects.keys()):
             o.objects.append(getattr(scene_object, objects[name]['type'])(name=name, position=objects[name]['position']))
-            # o.objects[n].graspable = objects[name]['graspable']
-            # o.objects[n].pushable = objects[name]['pushable']
-            # o.objects[n].size = objects[name]['size']
+            o.objects[n].params = objects[name]['params']
 
-            if objects[name]['type'] == 'drawer':
-                o.objects[n].opened = objects[name]['opened']
-            if objects[name]['type'] == 'cup':
-                if 'full' in objects[name].keys():
-                    o.objects[n].full = objects[name]['full']
-
-            if objects[name]['type'] == 'drawer':
-                if 'contains_list' in objects[name]:
-                    contains_list = objects[name]['contains_list']
-                    for contain_item in contains_list:
-                        for o in o.objects:
-                            if o.name == contain_item:
-                                o.objects[n].contains.append(o)
-                                break
         return o
 
     @classmethod
@@ -220,41 +183,21 @@ class Scene():
             orientation = [objects[n].pose.orientation.x, objects[n].pose.orientation.y, objects[n].pose.orientation.z, objects[n].pose.orientation.w]
 
             o.objects.append(getattr(scene_object, objects[n].type)(name=name, position=position, orientation=orientation))
-            # o.objects[n].graspable = objects[n].graspable
-            # o.objects[n].pushable = objects[n].pushable
-            # o.objects[n].size = objects[n].size
-
-            if objects[n].type == 'drawer':
-                o.objects[n].opened = objects[n].opened
-            if objects[n].type == 'cup':
-                o.objects[n].full = objects[n].full
+            
+            o.objects[n].params = objects[n].params
 
         return o
 
-    def __eq__(self, obj2):
-        ''' Reward function
-        '''
+    def __eq__(self, other_scene):
+        if len(self.object_positions) != len(other_scene.object_positions):
+            return False
+        for o1,o2 in zip(self.object_positions, other_scene.object_positions):
+            if sum(abs(o1 - o2)) > 0.001:
+                return False
+        return True
 
-        if len(self.object_positions) != len(obj2.object_positions):
-            raise Exception("scenes havent got same objects")
-        reward = 0.
-        max_reward = 0.
-        for n,(o1,o2) in enumerate(zip(self.object_positions, obj2.object_positions)):
-            reward -= sum(abs(o1 - o2))
-
-        for n,(o1,o2) in enumerate(zip(self.objects, obj2.objects)):
-            max_reward += 2
-            if o1.under == o2.under:
-                reward += 1
-            if o1.above == o2.above:
-                reward += 1
-            if o1.type == 'drawer':
-                if o2.type != 'drawer': raise Exception("scenes havent got same objects")
-                reward += len(list(set(o2.contains_list).intersection(o1.contains_list)))
-                max_reward += len(o2.contains_list)
-                max_reward += 1
-                if o1.opened == o2.opened:
-                    reward += 1
-
-        if reward == max_reward: return True
-        return reward
+    def get_scene_param_description(self): 
+        s = ""
+        for o in self.objects:
+            s += o.param + " "
+        return s
