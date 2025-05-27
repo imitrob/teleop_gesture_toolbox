@@ -199,5 +199,5 @@ class Scene():
     def get_scene_param_description(self): 
         s = ""
         for o in self.objects:
-            s += o.param + " "
+            s += o.params + " "
         return s
