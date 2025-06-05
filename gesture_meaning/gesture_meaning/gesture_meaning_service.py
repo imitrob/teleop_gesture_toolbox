@@ -52,7 +52,11 @@ class GestureToMeaningNode(GestureListService, RosNode):
         d = import_original_HRICommand_to_dict(msg)
 
         if 'gesture_names' not in d.keys() or 'gesture_probs' not in d.keys():
-            print("HRICommand wihtout gesture solutions, returning", flush=True)
+            if 'object_names' in d.keys() or 'object_probs' in d.keys():
+                self.pub.publish(msg)
+                print("HRICommand with object solutions, returning", flush=True)
+            else:       
+                print("HRICommand wihtout gesture solutions, returning", flush=True)
             return
 
         gesture_names = d['gesture_names']
