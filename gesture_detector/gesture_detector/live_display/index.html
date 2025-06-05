@@ -5,400 +5,370 @@
   <title>Teleop Gesture Toolbox</title>
 
   <style>
-    body{
-      margin: 0;
-    }
-    /* Set the minimum height of the div */
-    .min-height-div {
-        min-height: 520px; /* Adjust the value as needed */
-        border: 1px solid #ccc; /* Just for visibility */
-    }
-    .circle-progress {
-        position: relative;
-        width: 50px;
-        height: 50px;
-        border-radius: 50%;
-        background: conic-gradient(
-            #ff0000 var(--progress), 
-            #ddd var(--progress)
-        );
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-weight: bold;
-    }
-    .circle-progress::after {
-        content: "";
-        position: absolute;
-        width: 25px;
-        height: 25px;
-        background: white;
-        border-radius: 50%;
-    }
-    .progress-text {
-        position: absolute;
-        font-size: 18px;
-    }
+    body{ margin:0; }
+    .min-height-div{min-height:20px;border:0px solid #ccc;}
+    .circle-progress{position:relative;width:50px;height:50px;border-radius:50%;background:conic-gradient(#ff0000 var(--progress),#ddd var(--progress));display:flex;align-items:center;justify-content:center;font-weight:bold;}
+    .circle-progress::after{content:"";position:absolute;width:25px;height:25px;background:white;border-radius:50%;}
+    .progress-text{position:absolute;font-size:18px;}
+    .item-gap{margin-bottom:1px;}
+    .hand-warn{background:#f44336;color:#fff;padding:4px 8px;border-radius:4px;}
+    .bar-bg   {width:100%;height:12px;background:#eee;border-radius:6px;overflow:hidden;}
+    .bar-fill {height:100%;background:#4caf50;width:0%;transition:width 0.05s linear;}
+    .bar-warn {background:#f44336;}        /* turns red if stale */
+    
+    .links-container      {position:relative;display:inline-block;}
+    .links-popup          {position:absolute;right:0;top:100%;min-width:240px;
+                          max-height:300px;overflow:auto;display:none;z-index:20;}
+    .links-container:hover .links-popup{display:block;}   /* show on hover */
+    .link-row:nth-child(odd){background:#d7e1f0;}
+    
+    .links-grid{display:flex;flex-direction:column;gap:12px;margin-top:12px;}
+    .link-row{display:flex;align-items:center;justify-content:left;gap:10px;font-size:66px;padding-left: 20px;}
+    .link-gestures img{width:200px;height:200px;background:#f3f6fb;padding:2px;object-fit:contain;}
+    .link-arrow{font-size:46px;font-weight:bold;color:#000000;}
+    .link-action{font-weight:bold;font-size:66px;color:#000000;}
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4/dist/js-yaml.min.js"></script>
+
 
   <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
-
+  <link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-blue.css">
 </head>
 <body>
 
-<div class="w3-row min-height-div">
+<div class="w3-row w3-row-padding w3-margin-top">
   <div class="w3-quarter w3-container">
+    <div id="linksModal" class="w3-modal" onclick="this.style.display='none'">
+      <div class="w3-modal-content w3-animate-top" style="padding:24px;max-width:960px;margin:auto;" onclick="event.stopPropagation();">
+        <span onclick="document.getElementById('linksModal').style.display='none'" class="w3-button w3-display-topright">&times;</span>
+        <h1 class="w3-center">Gesture ➜ Action Links</h1>
+        <div id="linksModalBody" class="links-grid"></div>
+        <hr>
+        TODO: add automatic linking to the YAML file localied in hri_manager package
+      </div>
+    </div>
+
+
+
+
     <h1 align="center">Pose detector</h1>
-    <div id="static-gesture-container"></div>
-    <p>Displaying solutions from single hand (Left hand has priority).</p>
+    <div id="static-gesture-container" class="w3-container w3-padding-16"></div>
+    <p>Displaying solutions from single hand (Left hand has priority).</p>  
   </div>
 
   <div class="w3-quarter w3-container">
     <h1 align="center">Swipe detector</h1>
-    <div id="dynamic-gesture-container"></div>
+    <div id="dynamic-gesture-container" class="w3-container w3-padding-16"></div>
   </div>
-  
   <div class="w3-quarter w3-container">
     <h1 align="center">Episode-catched gestures</h1>
+    <div class="w3-center" style="margin:4px 0;"><b>hricommand_original</b><br><div id="origBar" class="bar-bg"><div class="bar-fill" ></div></div></div>
     Gesture sentence (HRI Gestures)
-    <div id="hricOriginal1Container"></div>
+    <div id="hricOriginal1Container" class="w3-center min-height-div"></div>
     <hr>
-    <div id="hricOriginal2Container"></div>
+    <div id="hricOriginal2Container" class="w3-center min-height-div"></div>
   </div>
-
   <div class="w3-quarter w3-container">
-    <h1 align="center">Gesture Meaning</h1>
-    <div id="meaning-container"></div>
-    Mapped Robotic Actions (HRI Command)</h3>
-    <div id="hricMapped1Container"></div>
+    <div id="handFrameStatus" class=""></div>
+    <div id="meaning-container" class=""></div>
     <hr>
-    <div id="hricMapped2Container"></div>
+    <h1 align="center"><button id="linksBtn" class="w3-blue w3-button">Gesture Meaning</button></h1>
+    <div class="w3-center" style="margin:4px 0;"><b>modality/gestures</b><br><div id="mapBar" class="bar-bg"><div class="bar-fill" ></div></div></div>
+    Mapped Robotic Actions (HRI Command)
+    <div id="hricMapped1Container" class="w3-center min-height-div"></div>
+    <hr>
+    <div id="hricMapped2Container" class="w3-center min-height-div"></div>
+    <!-- heartbeat bars – filled from JS -->
   </div>
+</div>
+
+<script>
+(function(){
+  const ip   = "127.0.0.1";
+  const port = 9090;
+
+  // [topic, msgType]
+  const topics = [
+    ["/teleop_gesture_toolbox/all_states",           "std_msgs/String"],
+    ["/teleop_gesture_toolbox/gesture_meaning_info", "std_msgs/String"],
+    ["/teleop_gesture_toolbox/hricommand_original",  "hri_msgs/HRICommand"],
+    ["/modality/gestures",                           "hri_msgs/HRICommand"],
+    ["/teleop_gesture_toolbox/hand_frame",           "gesture_msgs/Frame"],
+  ];
+
+  /* -------------------------------------------------------------------- */
+  /* Global state used by the UI                                          */
+  /* -------------------------------------------------------------------- */
+  let stat_evidence  = 0.0;
+  let dyn_evidence   = 0.0;
+
+  let linksData = null;       // parsed YAML
+  let currentUser = null;
+
+  let lastHandFrame = 0; // ms timestamp of the most-recent frame
+  let lastOrig = 0, lastMap = 0; // ms timestamps<br>
+  const timeoutMs = 2000; // “stale” threshold
+
+  let staticGestureNames        = [];
+  let staticGestureProbs        = [];
+  let staticGesturesActivated   = [];
+  let staticBiggestID           = -1;
+
+  let dynamicGestureNames       = [];
+  let dynamicGestureProbs       = [];
+  let dynamicGesturesActivated  = [];
+  let dynamicBiggestID          = -1;
+
+
+  async function loadLinksYaml(username){
+    try{
+      // TODO: make the path not hardcoded
+      const text = await fetch(`${username}_links.yaml`).then(r=>r.text());
+      linksData = jsyaml.load(text);
+      buildLinksModal();
+    }catch(e){ console.warn('links-yaml load failed', e); }
+  }
+
+function buildLinksModal(){
+  if (!linksData || !linksData.links) return;
   
+  const body = document.getElementById('linksModalBody');
+  let html = '';
+  Object.values(linksData.links).forEach(l=>{
+  const gesturesHTML = l.action_gestures.map(arr => arr.map(g=>`<img class="w3-border w3-round-xxlarge" src="http://imitrob.ciirc.cvut.cz/images/gestures/${g}.png" alt="${g}">`).join(' <span class="link-arrow">+</span> ')).join(', ');
 
-</div>
+  html += `<div class="link-row">
+  <span class="link-gestures">${gesturesHTML}</span>
+  <span class="link-arrow">➜</span>
+  <span class="link-action">${l.action_template}</span>
+  </div>`;
+  });
+  body.innerHTML = html;
+  }
 
 
-  <script>
-    const ip = `127.0.0.1`;
-    const port = 9090;
-    const socket = new WebSocket(`ws://${ip}:${port}`);  // Adjust the URL based on your ROS 2 setup
 
-    socket.addEventListener('open', (event) => {
-      const subscribeMessage = {
-        op: 'subscribe',
-        id: 'your_subscription_id',
-        topic: "/teleop_gesture_toolbox/all_states",
-        type: "std_msgs/String"
-      };
 
-      socket.send(JSON.stringify(subscribeMessage));
+
+  /* -------------------------------------------------------------------- */
+  /* WebSocket management (reconnect + keep‑alive)                        */
+  /* -------------------------------------------------------------------- */
+  let ws;          // active WebSocket
+  let pingTimer;   // keep‑alive interval id
+
+  function connect(){
+    document.getElementById('linksBtn').onclick = ()=>
+      document.getElementById('linksModal').style.display = 'block';
+
+    ws = new WebSocket(`ws://${ip}:${port}`);
+
+    ws.addEventListener("open", ()=>{
+      topics.forEach(([topic,type],idx)=>{
+        ws.send(JSON.stringify({op:"subscribe", id:`sub_${idx}`, topic, type}));
+      });
+      pingTimer = setInterval(()=>{
+        if(ws.readyState===WebSocket.OPEN){ ws.send('{"op":"ping"}'); }
+      },15000);
     });
-
-    socket.addEventListener('open', (event) => {
-      const subscribeMessage = {
-        op: 'subscribe',
-        id: 'your_subscription_id',
-        topic: "/teleop_gesture_toolbox/gesture_meaning_info",
-        type: "std_msgs/String"
-      };
-
-      socket.send(JSON.stringify(subscribeMessage));
-    });
-
-    socket.addEventListener('open', (event) => {
-      const subscribeMessage = {
-        op: 'subscribe',
-        id: 'your_subscription_id',
-        topic: "/teleop_gesture_toolbox/hricommand_original",
-        type: "hri_msgs/HRICommand"
-      };
-
-      socket.send(JSON.stringify(subscribeMessage));
-    });
-    
-    socket.addEventListener('open', (event) => {
-      const subscribeMessage = {
-        op: 'subscribe',
-        id: 'your_subscription_id',
-        topic: "/modality/gestures",
-        type: "hri_msgs/HRICommand"
-      };
-
-      socket.send(JSON.stringify(subscribeMessage));
-    });
-    var stat_evidence = 0.0;    
-    var dyn_evidence = 0.0;    
-
-    var staticGestureNames = [];
-    var staticGestureProbs = [];
-    var staticGesturesActivated = [];
-    var staticBiggestID = -1;
-
-    var dynamicGestureNames = [];
-    var dynamicGestureProbs = [];
-    var dynamicGesturesActivated = [];
-    var dynamicBiggestID = -1;
-
-    socket.addEventListener('message', (event) => {
-      // Handle incoming messages
-      const staticGesturesContainer = document.getElementById('static-gesture-container');
-      const dynamicGesturesContainer = document.getElementById('dynamic-gesture-container');
-      const messageGestureMeaningData = document.getElementById('meaning-container');
-      const hricOriginal1Container = document.getElementById('hricOriginal1Container');
-      const hricOriginal2Container = document.getElementById('hricOriginal2Container');
-      const hricMapped1Container = document.getElementById('hricMapped1Container');
-      const hricMapped2Container = document.getElementById('hricMapped2Container');
-      const data = JSON.parse(event.data);
-
-      if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_meaning_info") {
-        const message = data.msg.data;
-        
-        var parsed_message = JSON.parse(message);
-
-        
-        var meaningInfoContainerInnerHTML = "";
-        if (parsed_message.hasOwnProperty('user')) {
-          meaningInfoContainerInnerHTML = meaningInfoContainerInnerHTML.concat(
-              `<h3>user: ${parsed_message['user']}</h3>`);
-              
-          }
-        messageGestureMeaningData.innerHTML = meaningInfoContainerInnerHTML;
-      }
-
-      if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/all_states") {
-        const message = data.msg.data;
-        
-        var parsed_message = JSON.parse(message);
-
-        var staticGestureContainerInnerHTML = "";
-        var dynamicGestureContainerInnerHTML = "";
-        if (parsed_message.hasOwnProperty('fps') && parsed_message.hasOwnProperty('seq') && parsed_message.hasOwnProperty('gesture_type_selected') && parsed_message.hasOwnProperty('gs_state_action') && parsed_message.hasOwnProperty('gs_state_objects') && parsed_message.hasOwnProperty('gs_state_ap')) {
-          staticGestureContainerInnerHTML = `FPS: <span class="w3-tag w3-red w3-round">${parsed_message['fps']}</span> Msg:<span class="w3-tag w3-blue w3-round">${parsed_message['seq']}</span> Doing:
-          <span class="w3-tag w3-black w3-xround">${parsed_message['gesture_type_selected']}</span> current gs: 
-          <br> 
-          `;
-        }
-        if (parsed_message.hasOwnProperty('l_static_evidence')) {
-          stat_evidence = parsed_message['l_static_evidence'];
-        } else if (parsed_message.hasOwnProperty('r_static_evidence')) {
-          stat_evidence = parsed_message['r_static_evidence'];
-        }
-        if (parsed_message.hasOwnProperty('l_dynamic_evidence')) {
-          dyn_evidence = parsed_message['l_dynamic_evidence'];
-        } else if (parsed_message.hasOwnProperty('r_dynamic_evidence')) {
-          dyn_evidence = parsed_message['r_dynamic_evidence'];
-        }
-
-        
-        /*if (parsed_message.hasOwnProperty('scene_objects')) {
-          staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(`Object names:`);
-          for (var i = 0; i < parsed_message['scene_objects'].length; i++) {
-            staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(`${parsed_message['scene_objects'][i]}, `);
-          //${parsed_message['scene_object_positions']}`);
-          }
-        }
-        staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(`<br>`);*/
-
-        if (parsed_message.hasOwnProperty('l_static_probs')) {
-          staticGestureNames = parsed_message['l_static_names'];
-          staticGestureProbs = parsed_message['l_static_probs'];
-          staticGesturesActivated = parsed_message['l_static_activated'];
-          staticBiggestID = parsed_message['l_static_relevant_biggest_id'];
-        } else if (parsed_message.hasOwnProperty('r_static_probs')) {
-          staticGestureNames = parsed_message['r_static_names'];
-          staticGestureProbs = parsed_message['r_static_probs'];
-          staticGesturesActivated = parsed_message['r_static_activated'];
-          staticBiggestID = parsed_message['r_static_relevant_biggest_id'];
+      // every second warn if no /hand_frame seen
+      setInterval(()=>{
+        const statusEl = document.getElementById('handFrameStatus');
+        if (Date.now() - lastHandFrame > 1000) {
+            statusEl.innerHTML = '<span class="hand-warn">No /hand_frame data in the last second</span>';
         } else {
-          staticGestureProbs = Array(staticGestureNames.length).fill(0);
-          staticGesturesActivated = Array(staticGestureNames.length).fill('false');
-          staticBiggestID = -1;
+            statusEl.innerHTML = '<span class="w3-green w3-round w3-tag">All fine</span>';
         }
+      }, 1000);
+      // visual heartbeat bars – run 10×/s
+    setInterval(()=>{
+    const now = Date.now();
+    const oFill = document.querySelector('#origBar .bar-fill');
+    const mFill = document.querySelector('#mapBar  .bar-fill');
 
-        for (var i = 0; i < staticGestureProbs.length; i++) {
+    // skip until the elements exist (first run happens before DOM is ready)
+    if(!oFill || !mFill) return;
 
-          var progressCircleCode = ``;
-          var perc = staticGestureProbs[i] * 100;
-          if (staticBiggestID == i) {
-            var activ_str = `w3-green`;
-            progressCircleCode = `<div class="circle-progress" style="--progress: ${360*stat_evidence}deg; width: 50px"> <span class="progress-text" id="progressText"></span> </div>`;
-          } else if (staticGesturesActivated[i] == 'true') {
-            var activ_str = `w3-red`;
-            progressCircleCode = ``;
-          } else {
-            var activ_str = `w3-blue`;
-            progressCircleCode = ``;
-          }
-          // Sec. passed since gesture shown, to 1 decimal point 
-          //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
-          // HTML
-          staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(
-            `<span class="w3-tag w3-red"></span>
-              <div class="w3-light-grey w3-round" style="display: flex; align-items: center;">
-              <img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${staticGestureNames[i]}.png" width="50" style="margin-right: 10px;" />
-              ${progressCircleCode}
-              <div class="w3-container w3-round ${activ_str}" style="width:${0.8*perc}%; height: 50px;"></div>
-              
-            </div>
-            `);
-            
-        }
-        
-        if (parsed_message.hasOwnProperty('l_dynamic_probs')) {
-          dynamicGestureNames = parsed_message['l_dynamic_names'];
-          dynamicGestureProbs = parsed_message['l_dynamic_probs'];
-          dynamicGesturesActivated = parsed_message['l_dynamic_activated'];
-          dynamicBiggestID = parsed_message['l_dynamic_relevant_biggest_id'];
-        } else if (parsed_message.hasOwnProperty('r_dynamic_probs')) {
-          dynamicGestureNames = parsed_message['r_dynamic_names'];
-          dynamicGestureProbs = parsed_message['r_dynamic_probs'];
-          dynamicGesturesActivated = parsed_message['r_dynamic_activated'];
-          dynamicBiggestID = parsed_message['r_dynamic_relevant_biggest_id'];
-        } else {
-          dynamicGestureProbs = Array(dynamicGestureNames.length).fill(0);
-          dynamicGesturesActivated = Array(dynamicGestureNames.length).fill('false');
-          dynamicBiggestID = -1;
-        }
-      
+    const pctOrig = Math.min(1, (now-lastOrig)/timeoutMs)*100;
+    const pctMap  = Math.min(1, (now-lastMap )/timeoutMs)*100;
 
-        for (var i = 0; i < dynamicGestureProbs.length; i++) {
-        
-          var progressCircleCode = ``;
-          var perc = dynamicGestureProbs[i] * 100;
+    oFill.style.width = pctOrig + "%";
+    mFill.style.width = pctMap  + "%";
 
-          if (dynamicBiggestID == i) {
-            var activ_str = `w3-green`;
-            progressCircleCode = `<div class="circle-progress" style="--progress: ${360*dyn_evidence}deg; width: 50px"> <span class="progress-text" id="progressText"></span> </div>`;
-          } else  if (dynamicGesturesActivated[i] == 'true') {
-            var activ_str = `w3-red`;
-            progressCircleCode = ``;
-          } else {
-            var activ_str = `w3-blue`;
-            progressCircleCode = ``;
-          }
-          // Sec. passed since gesture shown, to 1 decimal point 
-          //var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
-          // HTML
-          dynamicGestureContainerInnerHTML = dynamicGestureContainerInnerHTML.concat(
-            `<span class="w3-tag w3-red"></span>
-            <div class="w3-light-grey w3-round" style="display: flex; align-items: center;">
-              <img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${dynamicGestureNames[i]}.png" width="50" style="margin-right: 10px;" />
-              ${progressCircleCode}
-              <div class="w3-container w3-round ${activ_str}" style="width:${0.8*perc}%; height: 50px;"></div>
-            </div>
-            `);
-        }
-        
-        /*
-        if (parsed_message.hasOwnProperty('compound_names')) {
-          for (var i = 0; i < parsed_message['compound_names'].length; i++) {
-            var compoundGestureActivated = `w3-white`;
-            if (parsed_message['compound_activated'] == true) {
-              compoundGestureActivated = `w3-yellow`;
-            }
-            // HTML
-            staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(
-              `<span class="w3-tag ${compoundGestureActivated}">${parsed_message['compound_names'][i]}</span>`);
-          }
-        }*/
-
-        /*for (var key in parsed_message) {
-            if (parsed_message.hasOwnProperty(key)) { // this will check if key is owned by data object and not by any of it's ancestors
-            staticGestureContainerInnerHTML = staticGestureContainerInnerHTML.concat(`<p>${key}: ${parsed_message[key]}</p>`);    
-            }
-        }*/
-        staticGesturesContainer.innerHTML = staticGestureContainerInnerHTML;
-        dynamicGesturesContainer.innerHTML = dynamicGestureContainerInnerHTML;
-      }
+    oFill.classList.toggle('bar-warn', now-lastOrig > timeoutMs);
+    mFill.classList.toggle('bar-warn', now-lastMap  > timeoutMs);
+    }, 100);
     
-    // Received message is HRICommand original
-    if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/hricommand_original") {
-      var message = data.msg.data; // Extract message data
-      var parsed_message = JSON.parse(message); // Parse string dict into javascript obj.
-      var timeStampNow = Date.now() / 1000; // JS Timestamp 1700xxxxxxxxx vs ROS 1700xxxxxx 
-      
-      var theinnerHTML1 = ``;
-      var theinnerHTML2 = ``;
-      
-      // Print gesture probabilities as progress bars
-      // For every gesture there is progress bar
-      for (var i = 0; i < parsed_message['gesture_names'].length; i++) {
-        
-        var perc = parsed_message['gesture_probs'][i] * 100;
-        // Sec. passed since gesture shown, to 1 decimal point 
-        var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
-        // HTML
-        theinnerHTML1 = theinnerHTML1.concat(
-          `<div class="w3-light-grey w3-round" style="display: flex; align-items: center;">
-              <img class="w3-aqua w3-round-xxlarge" src="http://imitrob.ciirc.cvut.cz/images/gestures/${parsed_message['gesture_names'][i]}.png" width="50" style="margin-right: 10px;" />
-              <span class="w3-tag w3-red">${timestamp}s</span>
-              <div class="w3-container w3-round w3-blue" style="width:${perc}%; height: 20px;">${perc}%</div>
-            </div>
-          `);
-      }
-      // Object probabilties
-      for (var i = 0; i < parsed_message['object_names'].length; i++) {
-        
-        var perc = parsed_message['object_probs'][i] * 100;
-        // Sec. passed since gesture shown, to 1 decimal point 
-        //var timestamp = Math.round((timeStampNow - parsed_message['object_timestamp'][i]) * 10) / 10;
-        // HTML
-        theinnerHTML2 = theinnerHTML2.concat(
-          `${parsed_message['object_names'][i]}, <span class="w3-tag w3-red">s</span>, <span class="w3-tag w3-red">${parsed_message['object_classes'][i]}s</span>
-          <div class="w3-light-grey w3-round"> 
-            <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
-          </div>`);
-      }
 
-      hricOriginal1Container.innerHTML = theinnerHTML1;
-      hricOriginal2Container.innerHTML = theinnerHTML2;
-    }
+    ws.addEventListener("message", (event)=>{
+      try {
+        /* ------------------------- ORIGINAL UI ------------------------- */
+        const staticGesturesContainer   = document.getElementById('static-gesture-container');
+        const dynamicGesturesContainer  = document.getElementById('dynamic-gesture-container');
+        const messageGestureMeaningData = document.getElementById('meaning-container');
+        const hricOriginal1Container    = document.getElementById('hricOriginal1Container');
+        const hricOriginal2Container    = document.getElementById('hricOriginal2Container');
+        const hricMapped1Container      = document.getElementById('hricMapped1Container');
+        const hricMapped2Container      = document.getElementById('hricMapped2Container');
 
-    // Received message is HRICommand mapped
-    if (data.op === 'publish' && data.topic === "/modality/gestures") {
-      var message = data.msg.data; // Extract message data
-      var parsed_message = JSON.parse(message); // Parse string dict into javascript obj.
-      var timeStampNow = Date.now() / 1000; // JS Timestamp 1700xxxxxxxxx vs ROS 1700xxxxxx 
-      
-      var theinnerHTML1 = ``;
-      var theinnerHTML2 = ``;
-      
-      // Print gesture probabilities as progress bars
-      // For every gesture there is progress bar
-      for (var i = 0; i < parsed_message['action_names'].length; i++) {
-        
-        var perc = parsed_message['action_probs'][i] * 100;
-        // Sec. passed since gesture shown, to 1 decimal point 
-        var timestamp = Math.round((timeStampNow - parsed_message['gesture_timestamp'][i]) * 10) / 10;
-        // HTML
-        theinnerHTML1 = theinnerHTML1.concat(
-          `${parsed_message['action_names'][i]}, <span class="w3-tag w3-red">${timestamp}s</span>
-          <div class="w3-light-grey w3-round"> 
-            <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
-          </div>`);
-      }
-      // Object probabilties
-      for (var i = 0; i < parsed_message['object_names'].length; i++) {
-        
-        var perc = parsed_message['object_probs'][i] * 100;
-        // Sec. passed since gesture shown, to 1 decimal point 
-        //var timestamp = Math.round((timeStampNow - parsed_message['object_timestamp'][i]) * 10) / 10;
-        // HTML
-        theinnerHTML2 = theinnerHTML2.concat(
-          `${parsed_message['object_names'][i]}, <span class="w3-tag w3-red">s</span>, <span class="w3-tag w3-red">${parsed_message['object_classes'][i]}s</span>
-          <div class="w3-light-grey w3-round"> 
-            <div class="w3-container w3-round w3-blue" style="width:${perc}%">${perc}%</div>
-          </div>`);
-      }
+        const data = JSON.parse(event.data);
 
-      hricMapped1Container.innerHTML = theinnerHTML1;
-      hricMapped2Container.innerHTML = theinnerHTML2;
-    }
+        /* ---------------- Gesture meaning info ----------------- */
+        if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_meaning_info") {
+          const parsed_message = JSON.parse(data.msg.data);
+          let html = "";
+          if (parsed_message.hasOwnProperty('user')) {
+            html += `<span class="w3-blue w3-round w3-tag">User: ${parsed_message['user']}</span>`;
+
+            const u = parsed_message.user;
+            if (u && u !== currentUser){
+              currentUser = u;
+              loadLinksYaml(u);
+            }
+          }
+          messageGestureMeaningData.innerHTML = html;
+        }
+
+
+        // hand-frame heartbeat
+        if (data.op === 'publish' && data.topic === '/teleop_gesture_toolbox/hand_frame') {
+            lastHandFrame = Date.now();
+        }
+
+        /* ---------------- All states (static + dynamic) ----------------- */
+        if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/all_states") {
+          const parsed_message = JSON.parse(data.msg.data);
+
+          let staticHTML  = "";
+          let dynamicHTML = "";
+
+          if (parsed_message.hasOwnProperty('fps')) {
+            staticHTML += `FPS: <span class="w3-tag w3-red w3-round">${parsed_message['fps']}</span> Msg:<span class="w3-tag w3-blue w3-round">${parsed_message['seq']}</span> Doing: <span class="w3-tag w3-black w3-round">${parsed_message['gesture_type_selected']}</span><br>`;
+          }
+
+          // evidence values
+          stat_evidence = parsed_message['l_static_evidence'] ?? parsed_message['r_static_evidence'] ?? stat_evidence;
+          dyn_evidence  = parsed_message['l_dynamic_evidence'] ?? parsed_message['r_dynamic_evidence'] ?? dyn_evidence;
+
+          // static gesture arrays
+          if (parsed_message.hasOwnProperty('l_static_probs')) {
+            staticGestureNames      = parsed_message['l_static_names'];
+            staticGestureProbs      = parsed_message['l_static_probs'];
+            staticGesturesActivated = parsed_message['l_static_activated'];
+            staticBiggestID         = parsed_message['l_static_relevant_biggest_id'];
+          } else if (parsed_message.hasOwnProperty('r_static_probs')) {
+            staticGestureNames      = parsed_message['r_static_names'];
+            staticGestureProbs      = parsed_message['r_static_probs'];
+            staticGesturesActivated = parsed_message['r_static_activated'];
+            staticBiggestID         = parsed_message['r_static_relevant_biggest_id'];
+          }
+
+          // dynamic gesture arrays
+          if (parsed_message.hasOwnProperty('l_dynamic_probs')) {
+            dynamicGestureNames       = parsed_message['l_dynamic_names'];
+            dynamicGestureProbs       = parsed_message['l_dynamic_probs'];
+            dynamicGesturesActivated  = parsed_message['l_dynamic_activated'];
+            dynamicBiggestID          = parsed_message['l_dynamic_relevant_biggest_id'];
+          } else if (parsed_message.hasOwnProperty('r_dynamic_probs')) {
+            dynamicGestureNames       = parsed_message['r_dynamic_names'];
+            dynamicGestureProbs       = parsed_message['r_dynamic_probs'];
+            dynamicGesturesActivated  = parsed_message['r_dynamic_activated'];
+            dynamicBiggestID          = parsed_message['r_dynamic_relevant_biggest_id'];
+          }
+
+          /* --- Build static gesture HTML (progress bars) --- */
+          staticGestureProbs.forEach((p,i)=>{
+            const perc = p*100;
+            const activ_str = (staticBiggestID===i)?'w3-green':(staticGesturesActivated[i]==='true'?'w3-red':'w3-blue');
+            const progressCircleCode = (staticBiggestID===i)?`<div class="circle-progress" style="--progress:${360*stat_evidence}deg;"></div>`:"";
+            staticHTML += `<div class="w3-light-grey w3-round item-gap" style="display:flex;align-items:center;">`+
+                          `<img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${staticGestureNames[i]}.png" width="50" style="margin-right:10px;"/>`+
+                          `${progressCircleCode}`+
+                          `<div class="w3-container w3-round ${activ_str}" style="width:${0.8*perc}%; height: 50px;"></div>`+
+                          `</div>`;
+          });
+
+          /* --- Build dynamic gesture HTML (progress bars) --- */
+          dynamicGestureProbs.forEach((p,i)=>{
+            const perc = p*100;
+            const activ_str = (dynamicBiggestID===i)?'w3-green':(dynamicGesturesActivated[i]==='true'?'w3-red':'w3-blue');
+            const progressCircleCode = (dynamicBiggestID===i)?`<div class="circle-progress" style="--progress:${360*dyn_evidence}deg;"></div>`:"";
+            dynamicHTML += `<div class="w3-light-grey w3-round item-gap" style="display:flex;align-items:center;">`+
+                           `<img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${dynamicGestureNames[i]}.png" width="50" style="margin-right:10px;"/>`+
+                           `${progressCircleCode}`+
+                           `<div class="w3-container w3-round ${activ_str}" style="width:${0.8*perc}%; height: 50px;"></div>`+
+                           `</div>`;
+          });
+
+          staticGesturesContainer.innerHTML  = staticHTML;
+          dynamicGesturesContainer.innerHTML = dynamicHTML;
+        }
+
+        /* ---------------- HRICommand original ---------------- */
+        if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/hricommand_original") {
+          lastOrig = Date.now()
+          const msg              = JSON.parse(data.msg.data);
+          const now              = Date.now()/1000;
+          let inner1="", inner2="";
+
+          if (msg.hasOwnProperty('gesture_names')) {
+            msg.gesture_names.forEach((name, i)=>{
+                const perc = msg.gesture_probs[i]*100;
+                const ts   = (now - msg.gesture_timestamp[i]).toFixed(1);
+                inner1 += `<div class="w3-light-grey w3-round item-gap" style="display:flex;align-items:center;">`+
+                        `<img class="w3-aqua w3-round-xxlarge" src="http://imitrob.ciirc.cvut.cz/images/gestures/${name}.png" width="50" style="margin-right:10px;"/>`+
+                        `<span class="w3-tag w3-red">${ts}s</span>`+
+                        `<div class="w3-round w3-blue" style="width:${perc}%;height:20px;"></div>`+
+                        `</div>`;
+            });
+          }
+          msg.object_names.forEach((name,i)=>{
+            const perc = msg.object_probs[i]*100;
+            inner2 += `${name}, <span class="w3-tag w3-red item-gap">s</span>, <span class="w3-tag w3-red">${msg.object_classes[i]}s</span>`+
+                      `<div class="w3-light-grey w3-round"><div class="w3-round w3-blue" style="width:${perc}%;height:20px"></div></div>`;
+          });
+
+          hricOriginal1Container.innerHTML = inner1;
+          hricOriginal2Container.innerHTML = inner2;
+        }
+
+        /* ---------------- HRICommand mapped ------------------- */
+        if (data.op === 'publish' && data.topic === "/modality/gestures") {
+          lastMap = Date.now();
+          const msg = JSON.parse(data.msg.data);
+          const now = Date.now()/1000;
+          let inner1="", inner2="";
+
+          msg.action_names.forEach((name,i)=>{
+            const perc = msg.action_probs[i]*100;
+            const ts   = (now - msg.gesture_timestamp[i]).toFixed(1);
+            inner1 += `${name}, <span class="w3-tag w3-red item-gap">${ts}s</span>`+
+                      `<div class="w3-light-grey w3-round"><div class="w3-container w3-round w3-blue" style="width:${perc}%;height:20px"></div></div>`;
+          });
+
+          msg.object_names.forEach((name,i)=>{
+            const perc = msg.object_probs[i]*100;
+            inner2 += `${name}, <span class="w3-tag w3-red item-gap">s</span>, <span class="w3-tag w3-red">${msg.object_classes[i]}s</span>`+
+                      `<div class="w3-light-grey w3-round"><div class="w3-container w3-round w3-blue" style="width:${perc}%;height:20px"></div></div>`;
+          });
+
+          hricMapped1Container.innerHTML = inner1;
+          hricMapped2Container.innerHTML = inner2;
+        }
+        /* ----------------------- END UI ----------------------- */
+      } catch(err){
+        console.error("Unhandled rosbridge packet", err, event.data);
+      }
     });
-  </script>
 
-</div>
+    ws.addEventListener("close", ()=>{ clearInterval(pingTimer); setTimeout(connect,1000); });
+    ws.addEventListener("error", ()=> ws.close());
+  }
+
+  // start
+  connect();
+  window.addEventListener("beforeunload", ()=> ws && ws.close());
+})();
+</script>
 
 </body>
 </html>
