@@ -20,19 +20,23 @@
 # bowl: [0.35, -0.15, 0.04] # G 
 
 cube: 
-  position: [0.5, 0.25, 0.04] # B
-  params: cube is small red cube.
-cup: 
-  position: [0.35,-0.15, 0.04] # G
-  params: cup is medium red cup.
+  position: [0.65,-0.15, 0.04] # B
+  params: cube is small green cube. You cannot put anything into cube.
 box: 
-  position: [0.65,-0.15, 0.04] # E
-  params: box is small black box.
+  position: [0.5, 0.25, 0.04] # E
+  params: box is medium size paper box. You cannot put anything into box.
 bowl: 
   position: [0.5, 0.0, 0.04] # A
-  params: bowl is red bowl.
+  params: bowl is round red bowl. bowl cannot be picked up.
 
-# cube: [0.5, 0.0, 0.04]
-# cup: [0.65, 0.15, 0.04]
-# box: [0.65,-0.15, 0.04]
-# bowl: [0.35, 0.15, 0.04]
+
+
+# cube: 
+#   position: [0.5, 0.25, 0.04] # B
+#   params: cube is small green cube. You cannot put anything into cube.
+# box: 
+#   position: [0.5, 0.0, 0.04] # E
+#   params: box is medium size paper box. You cannot put anything into box.
+# bowl: 
+#   position: [0.65,-0.15, 0.04]  # A
+#   params: bowl is round red bowl. bowl cannot be picked up.

@@ -1,0 +1,33 @@
+user: demo
+actions:
+- pick
+- touch
+- put
+objects:
+- cube
+- bowl
+- box
+all_action_words:
+- pick
+- touch
+- put
+all_object_action_words:
+- cube
+- bowl
+- box
+links:
+  link1:
+    user: demo
+    action_template: pick
+    action_gestures:
+    - [grab, swipe_up]
+  link3:
+    user: demo
+    action_template: touch
+    action_gestures:
+    - [pinch, swipe_down]
+  link4:
+    user: demo
+    action_template: put
+    action_gestures:
+    - [thumbsup, swipe_left]
