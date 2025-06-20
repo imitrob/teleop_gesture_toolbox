@@ -195,6 +195,11 @@ class OneToOneCompoundUserMapping(GestureToMeaningNode): # Compound = Combinatio
         
         
         for name,link in links_dict['links'].items():
+            self.links_str[name] = link['action_words']
+            # link['user'] # e.g., "casper"
+            # link['action_template'] # "push"
+            # link['object_template'] # "cube_template"
+            # link['action_words'] # "push"
             assert len(link['action_gestures']) == 1, "There are more more mapping from gesture to action! NotImplementedError"
             static_action_gesture, dynamic_action_gesture = link['action_gestures'][-1] # [grab, swipe right]
 
