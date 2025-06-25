@@ -35,7 +35,7 @@ class SceneObject():
         print(self.__str__())
 
     def __str__(self):
-        return f'{self.name},\t{self.type},\t{np.array(self.position).round(2)}'
+        return f'{self.name},\t{self.type},\t{np.array(self.position).round(2)},\t{self.params}'
 
     @classmethod
     def from_dict(cls, name: str, d: dict):

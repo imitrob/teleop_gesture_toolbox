@@ -195,7 +195,7 @@ class OneToOneCompoundUserMapping(GestureToMeaningNode): # Compound = Combinatio
         
         
         for name,link in links_dict['links'].items():
-            self.links_str[name] = link['action_words']
+            # self.links_str[name] = link['action_words']
             # link['user'] # e.g., "casper"
             # link['action_template'] # "push"
             # link['object_template'] # "cube_template"
