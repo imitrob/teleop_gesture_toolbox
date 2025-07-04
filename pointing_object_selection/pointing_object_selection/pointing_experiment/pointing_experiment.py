@@ -226,26 +226,12 @@ def main():
                                 )
             predicted_objects = node.select_target(sample)
             valid_objects.append(predicted_objects.to_bools(sample.scene.n))
-            print(valid_objects)
-            print(sample.whisper_texts)
-            input()
-
-
+            
         plot_data = sample.to_pointing_experiment_plot()
         plot_data["valid_objects"] = valid_objects
         print(valid_objects)
-        print(sample)
         show_pointing_experiment_plot(**plot_data)
         break
-
-
-        
-
-        # rate.sleep()
-        # 3. Tune the initial baseline merging, add more
-        
-        # 5. Fix the tf error
-
 
 # =====================================================
 # SCENE
