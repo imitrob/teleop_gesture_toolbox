@@ -1,8 +1,5 @@
 from __future__ import annotations
 from copy import deepcopy
-from typing import List
-from pydantic import BaseModel, Field, conlist
-
 import time
 import rclpy
 import scene_msgs.msg as scene_ros
@@ -14,75 +11,95 @@ from natural_language_processing.text_to_speech.kokoro_model import Chatterbox
 from gesture_msgs.msg import DeicticSolution
 from typing import Sequence
 from std_msgs.msg import Float32
+from hri_msgs.msg import WhisperText as WhisperTextMSG
 
-# ====================
-# pydantic definitions
-# ====================
-class Point3D(BaseModel):
-    """A single 3‑D point in metres, expressed in the robot/world frame."""
-    x: float = Field(..., description="X‑coordinate (m)")
-    y: float = Field(..., description="Y‑coordinate (m)")
-    z: float = Field(..., description="Z‑coordinate (m)")
+from pointing_object_selection.deictic_lib import PointingSequence, SelectionResult
+from pointing_object_selection.pointing_experiment.utils import print_table_scene, show_pointing_experiment_plot
+from pointing_object_selection.pointing_object_getter import PointingObjectGetter
+from skills_manager.lfd import LfD
 
-class Line3D(BaseModel):
-    """A directed line segment between *start* and *end* for one time sample."""
-    start: Point3D
-    end: Point3D
+from scene_getter.scene_getting import SceneGetter
 
-class PointingSequence(BaseModel):
-    """Time‑ordered list of 3‑D line segments that make up the pointing gesture."""
-    lines: List[Line3D] = Field(
-        ...,
-        min_length=1,
-        description="Sequence of line segments, one per time sample, oldest → newest.",
-    )
+from pydantic import BaseModel, Field, conlist
+from typing import List
+
+from panda_control.panda_extended import top_of_object
+
+DEICTIC_HZ = 10
+
+class WhisperText(BaseModel):
+    """ Natural‑language description of the target object (can be partial/incomplete). """
+    stamp: float = Field(..., description="Timestamps")
+    text: str = Field(..., description="Transcription Texts")
+
+class WhisperTextList(BaseModel):
+    texts: List[WhisperText] = Field(default_factory=list, description="oldest → newest.")
+
+    def cut(self, t_start: float, t: float):
+        t_end = t_start + t
+        idx_start = None
+        idx_end = None
+        for i, text in enumerate(self.texts):
+            if idx_start is None and text.stamp > t_start:
+                idx_start = i
+            if text.stamp > t_end:
+                break
+        idx_end = i
+        return WhisperTextList(texts=self.texts[idx_start:idx_end])
+
 
 class InputSample(BaseModel):
     """All data needed to decide which object the user is referring to."""
-    description: str = Field(
-        ...,
-        description=(
-            "Natural‑language description of the target object (can be partial/incomplete)."
-        ),
-    )
+    whisper_texts: WhisperTextList
     pointing: PointingSequence
+    scene: Scene
+    time_start: float # time.time() float format
 
-class SelectionResult(BaseModel):
-    """Just the ID of the object that the system thinks the user meant."""
+    def to_pointing_experiment_plot(self):
+        return {
+            "T": len(self.pointing.lines),
+            "object_names": self.scene.object_names,
+            "descriptions": {item.stamp: item.text for item in self.whisper_texts.texts},
+            "object_positions": self.scene.object_positions_xy,
+            "target_pointing": self.pointing.get_contacts_with_ground(),
+            "valid_objects": np.zeros((len(self.pointing.lines), self.scene.n)),
+            "pointing_likelihoods": np.array([item.object_likelihoods for item in self.pointing.lines]),
+            "time_start": self.time_start,
+        }
+    
 
-    object_id: str = Field(..., description="Unique identifier of the selected object")
+class RealtimeWhisperGetter:
+    def __init__(self):
+        super(RealtimeWhisperGetter, self).__init__()
+        self.create_subscription(WhisperTextMSG, "/nlp/whisper", self.receive_whisper_callback, 5)
+        self.transcriptions = WhisperTextList()
 
-# ============================================
-# PointingExperiment
-# ============================================
-class PointingExperimentBase(SpinningRosNode):
+    def receive_whisper_callback(self, msg):
+        self.transcriptions.texts.append(
+            WhisperText(stamp = msg.header.stamp.sec+msg.header.stamp.nanosec*1e-9, text=str(msg.new_text))
+        )
+
+class PointingExperimentBase(RealtimeWhisperGetter, SceneGetter, PointingObjectGetter, LfD):
     def __init__(self):
         super(PointingExperimentBase, self).__init__()
-        self.scene_pub = self.create_publisher(scene_ros.Scene, "/scene", 5)
         self.angle_error_pub = self.create_publisher(Float32, "/angle_error", 5)
-        self.deictic_sub = self.create_subscription(DeicticSolution, "/teleop_gesture_toolbox/deictic_solution", self.receive_deictic, 5)
-
+        
         self.tts = Chatterbox(device="cuda")
 
-    def send_scene(self):
-        scene = self.get_random_scene()
-        self.scene_pub.publish(scene.to_ros())
-
     def receive_deictic(self, msg):
-        # msg.header # = Header(stamp=self.get_clock().now().to_msg(), frame_id="leapworld"),
-        # msg.object_id # = deictic_solution['object_id'],
-        # msg.object_name # = deictic_solution['object_name'],
-        # msg.object_names # = deictic_solution['object_names'],
-        # msg.distances_from_line # = deictic_solution['distances_from_line'],
-        # msg.line_point_1 # = Point(x=line_point_1[0], y=line_point_1[1], z=line_point_1[2]),
-        # msg.line_point_2 # = Point(x=line_point_2[0], y=line_point_2[1], z=line_point_2[2]),
-        # msg.target_object_position # = Point(x=to_position[0],y=to_position[1],z=to_position[2]),
-        # msg.hand_velocity # = deictic_solution['hand_velocity'],
-        line_point_1 = [msg.line_point_1.x, msg.line_point_1.y, msg.line_point_1.z]
-        line_point_2 = [msg.line_point_2.x, msg.line_point_2.y, msg.line_point_2.z]
-        target_object_position = [msg.target_object_position.x, msg.target_object_position.y, msg.target_object_position.z]
-        
-        ang = self.compute_error(line_point_1, line_point_2, target_object_position)
+        ang = self.compute_error([
+                self._target_object.line_points.start.x,
+                self._target_object.line_points.start.y,
+                self._target_object.line_points.start.z
+            ], [
+                self._target_object.line_points.end.x,
+                self._target_object.line_points.end.y,
+                self._target_object.line_points.end.z
+            ], [
+                self._target_object.target_object_position.x, 
+                self._target_object.target_object_position.y,
+                self._target_object.target_object_position.z
+            ])
         self.angle_error_pub.publish(Float32(data=ang))
 
     def compute_error(self,
@@ -113,18 +130,121 @@ class PointingExperimentBase(SpinningRosNode):
 
         return angle_rad
 
-    def select_target(self, sample: InputSample) -> SelectionResult:
+    @staticmethod
+    def select_target(sample: InputSample) -> SelectionResult:
         """Return a dummy object ID.
         selection logic (e.g. language grounding + spatial reasoning).
         """
+        raise BaseException
         return SelectionResult(object_id="none")
-
-
 
 
 class PointingExperiment(PointingExperimentBase):
     def __init__(self):
         super(PointingExperiment, self).__init__()
+
+    @staticmethod
+    def select_target(sample: InputSample) -> SelectionResult:
+        """Return a dummy object ID.
+        selection logic (e.g. language grounding + spatial reasoning).
+        """
+        # Convert UTC to relative time from the start
+        considered_words = ""
+        for text in sample.whisper_texts.texts:
+            if text.stamp - sample.time_start > 0.0:
+                considered_words += text.text
+
+        object_scores = [0] * sample.scene.n
+        for word in considered_words:
+            # process word
+            word.strip().lower()
+            word = ''.join(e for e in word if e.isalnum())
+            for i, obj in enumerate(sample.scene.objects):
+                if word in obj.params:
+                    object_scores[i] += i
+
+        ids = np.argwhere(object_scores == np.amax(object_scores)).flatten().tolist()
+        if len(sample.pointing.lines) > 0:
+            ids.append(sample.pointing.lines[-1].target_object_id)
+
+        ids = list(set(ids))
+
+        return SelectionResult(object_ids=ids)
+    
+def main():
+    np.random.seed(42)
+
+    rclpy.init()
+    node = PointingExperiment()
+    node.start()
+
+    node.start_publishing_scene()
+    node.wait_for_scene()
+    node.stop_publishing_scene()
+
+    node.home()
+
+    while rclpy.ok():
+        # 1. Setup scene with one object with random location
+        scene, locs, of = generate_random_scene(3, 1)
+        node.tts.speak(f"Put the object on locations")
+        # 2. Put the object on the scene
+        if False:
+            while node.scene != scene:
+                time.sleep(1.0)
+                print_scene = scene.copy()
+        
+                print_table_scene(print_scene, locs, of, scene2=node.scene)
+                print(node.scene)
+        node.tts.speak(f"3, 2, 1, capture!")
+        # 3. evaluate continuously
+        time_start = time.time()
+        
+        while rclpy.ok():
+            obj_id = node.target_object_solutions[-1].target_object_id
+            object1 = node.scene.objects[obj_id]
+
+            print("object1", flush=True)
+            print(object1, flush=True)
+            print(object1.position, flush=True)
+
+            node.go_to_pose_ik(top_of_object(object1))
+
+            # TODO: Check if the correct object is not selected 
+            # if predicted_object == scene.target_object:
+            #     return
+            if time.time() - time_start > 3.0:
+                break
+
+        valid_objects = []
+        for t in range(len(node.target_object_solutions)):
+            # InputSample at this t
+            sample = InputSample(whisper_texts= node.transcriptions.cut(time_start, float(t)*(1.0/DEICTIC_HZ)), 
+                                scene=node.scene,
+                                pointing=PointingSequence(lines=list(node.target_object_solutions)[:t+1]),
+                                time_start = time_start,
+                                )
+            predicted_objects = node.select_target(sample)
+            valid_objects.append(predicted_objects.to_bools(sample.scene.n))
+            print(valid_objects)
+            print(sample.whisper_texts)
+            input()
+
+
+        plot_data = sample.to_pointing_experiment_plot()
+        plot_data["valid_objects"] = valid_objects
+        print(valid_objects)
+        print(sample)
+        show_pointing_experiment_plot(**plot_data)
+        break
+
+
+        
+
+        # rate.sleep()
+        # 3. Tune the initial baseline merging, add more
+        
+        # 5. Fix the tf error
 
 
 # =====================================================
@@ -298,6 +418,7 @@ def generate_random_scene(
         object_locs.extend(locs)
         
     object_names = list(object_names)
+    object_classes = [o.split(" ")[-1] for o in object_names]
     
     # 3. add positional description
     for i, (name, loc) in enumerate(zip(object_names, object_locs)):
@@ -322,41 +443,12 @@ def generate_random_scene(
             n = "target_object"
             is_there_target_object = True
         else:
-            n = f"object_number{o}"
+            n = f"{object_classes[o]}{o}"
         
         scene_objects.append( SceneObject.from_dict(n, {"position": object_locs[o], "params": object_names[o] }) )
 
     assert is_there_target_object == True, "No target object!"
-    return Scene(name="target_object_scene", objects=scene_objects)
-
-
-
-def main():
-    rclpy.init()
-    node = PointingExperiment()
-
-    while rclpy.ok():
-        
-        # 1. Setup scene with one object with random location
-        scene = generate_random_scene(3, 1)
-        time.sleep(1.0)
-        # 2. Put the object on the scene and let the user point to it
-        node.tts.speak(f"Put the object on locations")
-        input()
-        node.tts.speak(f"3, 2, 1, capture!")
-        # 3. evaluate continuously
-        time_start = time.perf_counter()
-        while True:
-            predicted_object = node.select_target(sample)
-
-            if predicted_object == scene.target_object:
-                return
-
-            time.sleep(0.5)
-
-
-
-
+    return Scene(name="target_object_scene", objects=scene_objects), locs, offset
 
 if __name__ == "__main__":
     main()

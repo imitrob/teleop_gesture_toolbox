@@ -9,11 +9,11 @@ OBJECT_INDEX = -1 # the last pointed object, if there is only single pointing
 
 def extract_deictic_solution(solution):
     
-    target_object_names = solution["object_names"]
-    target_object_stamp = solution["target_object_stamp"]
+    target_object_names = solution.object_names
+    target_object_stamp = solution.target_object_stamp
     # distance to likelihoods
     target_object_probs = []
-    for dist in solution["object_distances"]:
+    for dist in solution.object_distances:
         p = str( 1 / (1 + float(dist)) )
         target_object_probs.append(p)
     assert len(target_object_names) == len(target_object_probs)

@@ -1,11 +1,11 @@
 import argparse
 import time
-from pointing_object_selection.deictic_lib import DeiticLib
+from pointing_object_selection.deictic_lib import DeiticLib, DeicticSolution
 import rclpy
 
 from scene_getter.scene_getting import SceneGetter
 from rclpy.node import Node
-from gesture_msgs.msg import DeicticSolution
+from gesture_msgs.msg import DeicticSolution as DeicticSolutionMSG
 from gesture_detector.hand_processing.hand_listener import HandListener
 from geometry_msgs.msg import Point
 from std_msgs.msg import Header
@@ -21,23 +21,23 @@ class DeicticLibRos(DeiticLib, TFBaseLeapworld, HandListener, SceneGetter, Named
         self.hand = hand
         super(DeicticLibRos, self).__init__()
         
-        self.deictic_solutions_pub = self.create_publisher(DeicticSolution, "/teleop_gesture_toolbox/deictic_solution", 5)
+        self.deictic_solutions_pub = self.create_publisher(DeicticSolutionMSG, "/teleop_gesture_toolbox/deictic_solution", 5)
 
-    def deictic_solution_to_ros(self, deictic_solution: dict):
-        line_point_1 = deictic_solution['line_point_1']
-        line_point_2 = deictic_solution['line_point_2']
-        to_position = deictic_solution['target_object_position']
+    def deictic_solution_to_ros(self, deictic_solution: DeicticSolution):
+        line_point_1 = deictic_solution.line_points.start
+        line_point_2 = deictic_solution.line_points.end
+        to_position =  deictic_solution.target_object_position
 
-        return DeicticSolution(
+        return DeicticSolutionMSG(
             header = Header(stamp=self.get_clock().now().to_msg(), frame_id="leapworld"),
-            object_id = deictic_solution['object_id'],
-            object_name = deictic_solution['object_name'],
-            object_names = deictic_solution['object_names'],
-            distances_from_line = deictic_solution['distances_from_line'],
-            line_point_1 = Point(x=line_point_1[0], y=line_point_1[1], z=line_point_1[2]),
-            line_point_2 = Point(x=line_point_2[0], y=line_point_2[1], z=line_point_2[2]),
-            target_object_position = Point(x=to_position[0],y=to_position[1],z=to_position[2]),
-            hand_velocity = deictic_solution['hand_velocity'],
+            target_object_id = deictic_solution.target_object_id,
+            target_object_name = deictic_solution.target_object_name,
+            object_names = deictic_solution.object_names,
+            object_distances = deictic_solution.object_distances,
+            line_point_1 = Point(x=line_point_1.x, y=line_point_1.y, z=line_point_1.z),
+            line_point_2 = Point(x=line_point_2.x, y=line_point_2.y, z=line_point_2.z),
+            target_object_position = Point(x=to_position.x,y=to_position.y,z=to_position.z),
+            hand_velocity = deictic_solution.hand_velocity,
         )
 
     def step(self):

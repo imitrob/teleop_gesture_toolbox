@@ -1,51 +1,61 @@
 # Pose = np.array([x,y,z,roll,pitch,yaw])
 # Point = np.array([x,y,z]) or Vector3 np.array([xlen, ylen, zlen])
 
-from typing import Iterable
+from __future__ import annotations
+from typing import Iterable, Sequence
 import numpy as np
+from pydantic import BaseModel, Field, field_validator, ConfigDict
 
-class SceneObject():
-    ''' Static attributes
-    '''
-    def __init__(self, name: str, # String
-                       position: Iterable[float], # Point
-                       orientation: Iterable[float] = np.array([0., 0., 0., 1.]), # x y z w
-                       params: str = "", # (optional) description of parameters of the object
-                       ):
 
-        self.position = np.array(position)
-        self.orientation = np.array(orientation)
+class SceneObject(BaseModel):
+    """Static description of an object in the scene."""
+    name: str = Field(..., description="Object name / identifier")
+    position: np.ndarray = Field(..., description="3-element XYZ position (metres, world frame)")
+    orientation: np.ndarray = Field(
+        default_factory=lambda: np.array([0.0, 0.0, 0.0, 1.0]),
+        description="Quaternion [x, y, z, w]",
+    )
+    params: str = Field(default="", description="Optional free-form parameter string")
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
+    
+    @field_validator("position", mode="before")
+    @classmethod
+    def _as_pos_array(cls, value: Iterable[float]) -> np.ndarray:
+        arr = np.asarray(value, dtype=float)
+        if arr.shape != (3,):
+            raise ValueError("`position` must have exactly 3 elements (x, y, z)")
+        return arr
 
-        self.name = name
-        self.params = str(params)
-
-        assert isinstance(position, Iterable) and len(position) == 3
-        assert isinstance(orientation, Iterable) and len(orientation) == 4
+    @field_validator("orientation", mode="before")
+    @classmethod
+    def _as_quat_array(cls, value: Iterable[float]) -> np.ndarray:
+        arr = np.asarray(value, dtype=float)
+        if arr.shape != (4,):
+            raise ValueError("`orientation` must have exactly 4 elements (x, y, z, w)")
+        return arr
 
     @property
-    def type(self):
+    def type(self) -> str:
         return self.__class__.__name__
 
     @property
-    def quaternion(self):
+    def quaternion(self) -> np.ndarray:
         return self.orientation
 
     @property
     def info(self):
         print(self.__str__())
 
-    def __str__(self):
-        return f'{self.name},\t{self.type},\t{np.array(self.position).round(2)},\t{self.params}'
+    def __str__(self) -> str:  # noqa: Dunder
+        pos = np.round(self.position, 2)
+        return f"{self.name},\t{self.type},\t{pos},\t{self.params}"
 
     @classmethod
-    def from_dict(cls, name: str, d: dict):
-        if isinstance(d, (tuple,list)): # d is just position
-            return cls(name, d)
+    def from_dict(cls, name: str, data):
+        """Mimic the original convenience constructor."""
+        # If the caller passes only a position (tuple / list / array)
+        if isinstance(data, (tuple, list, np.ndarray)):
+            return cls(name=name, position=data)
 
-        o = cls(name, d['position'])
-        if 'orientation' in d.keys():
-            o.orientation = d['orientation']
-        if 'params' in d.keys():
-            o.params = str(d['params'])
-
-        return o
+        # Otherwise assume a full mapping with 'position' key (and optional others)
+        return cls(name=name, **data)

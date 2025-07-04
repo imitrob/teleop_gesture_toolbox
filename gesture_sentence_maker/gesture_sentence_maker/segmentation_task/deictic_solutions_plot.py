@@ -10,16 +10,16 @@ def deictic_solutions_plot_save(
         T=1.0,  # Maximum allowed time gap [seconds]
     ):
     # Get the first timestamp to normalize the time axis
-    first_stamp = deictic_solutions[0]["target_object_stamp"]
+    first_stamp = deictic_solutions[0].target_object_stamp
 
     # Build the DataFrame
     data = []
     for solution in deictic_solutions:
         # Normalize the timestamps
-        stamp = solution["target_object_stamp"] - first_stamp
-        object_names = solution["object_names"]
-        hand_velocity = solution["hand_velocity"]  # Assuming hand_velocity is a list or array
-        object_likelihoods = solution["object_likelihoods"]
+        stamp = solution.target_object_stamp - first_stamp
+        object_names = solution.object_names
+        hand_velocity = solution.hand_velocity  # Assuming hand_velocity is a list or array
+        object_likelihoods = solution.object_likelihoods
         row = {'stamp': stamp, 'hand_velocity': hand_velocity}
         for name, likelihood in zip(object_names, object_likelihoods):
             row[name] = likelihood

@@ -91,11 +91,10 @@ def export_mapped_to_HRICommand(
     assert isinstance(target_action_probs, list)
     
     # keep dict as it is
-    d
+    # d
     # add action solutions
     d["target_action"] = target_action_name
     d["action_names"] = target_action_names
-    print("here: ", str(target_action_probs))
     d["action_probs"] = target_action_probs
     d["target_action_timestamp"] = d["target_gesture_timestamp"]
 

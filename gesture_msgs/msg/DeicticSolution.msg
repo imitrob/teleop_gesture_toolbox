@@ -1,11 +1,11 @@
 
 std_msgs/Header header
 
-int32 object_id
-string object_name
+int32 target_object_id
+string target_object_name
 
 string[] object_names
-float32[] distances_from_line
+float32[] object_distances
 
 geometry_msgs/Point line_point_1
 geometry_msgs/Point line_point_2

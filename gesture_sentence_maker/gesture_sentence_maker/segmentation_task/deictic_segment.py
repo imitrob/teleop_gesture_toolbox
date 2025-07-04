@@ -1,8 +1,9 @@
 
-from typing import List, Dict, Any
+from typing import List
+# from pointing_object_selection.deictic_lib import DeicticSolution
 
 def find_pointed_objects_timewindowmax(
-        deictic_solutions: Dict[str, Any],
+        deictic_solutions, #: List[DeicticSolution],
         target_pointings_stamp: List[str], 
         window_size: float = 1.0,
         velocity_threshold: float = 0.05,
@@ -14,7 +15,7 @@ def find_pointed_objects_timewindowmax(
     - Reduces false positives from periods when the hand is moving.
 
     Args:
-        deictic_solutions (Dict[str, Any]): 
+        deictic_solutions (DeicticSolution): 
         target_pointings_stamp (List[str]): 
         window_size (float, optional): Defaults to 1.0.
         velocity_threshold (float, optional): Defaults to 0.05.
@@ -32,7 +33,7 @@ def find_pointed_objects_timewindowmax(
         # Filter deictic_solutions within the time window
         window_solutions = [
             sol for sol in deictic_solutions
-            if start_time <= sol["target_object_stamp"] <= end_time
+            if start_time <= sol.target_object_stamp <= end_time
         ]
         
         # Further filter based on hand velocity
@@ -44,7 +45,7 @@ def find_pointed_objects_timewindowmax(
         # Accumulate likelihoods for each object
         object_likelihoods = {}
         for sol in steady_hand_solutions:
-            for name, likelihood in zip(sol["object_names"], sol["object_likelihoods"]):
+            for name, likelihood in zip(sol.object_names, sol.object_likelihoods):
                 if name not in object_likelihoods or likelihood > object_likelihoods[name]:
                     object_likelihoods[name] = likelihood
         

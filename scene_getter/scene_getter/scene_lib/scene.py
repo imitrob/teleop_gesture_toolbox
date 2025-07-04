@@ -3,31 +3,82 @@ from typing import Iterable
 import numpy as np
 
 from scene_getter.scene_lib.scene_object import SceneObject
-import scene_getter.scene_lib.scene_object as scene_object
-import scene_msgs.msg as scene_msgs
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+from typing import Iterable, List, Sequence
 
-from geometry_msgs.msg import Point, Quaternion, Pose
+OBJECT__eq__THRESHOLD = 0.02 # 2cm
 
-class Scene():
-    def __init__(self, 
-                 name: str,
-                 objects: Iterable[SceneObject] = [],
-                 ):
-        self.objects = []
-        self.objects = objects
-        self.name = name
+class Scene(BaseModel):
+    name: str = Field(..., description="Scene name")
+    objects: List[SceneObject] = Field(
+        default_factory=list,
+        description="Objects present in the scene",
+    )
+    model_config = ConfigDict(arbitrary_types_allowed=True, validate_assignment=True)
+
+    @field_validator("objects", mode="before")
+    @classmethod
+    def _coerce_objects(cls, value: object) -> List[SceneObject]:  # type: ignore[override]
+        # Accept iterables of dicts / SceneObjects
+        if isinstance(value, Iterable):
+            return [SceneObject.model_validate(v) for v in value]
+        raise TypeError("`objects` must be an iterable of SceneObject‑like data")
+
+    @model_validator(mode="after")
+    def _check_duplicates(self):  # noqa: D401
+        names = [obj.name for obj in self.objects]
+        if len(names) != len(set(names)):
+            raise ValueError("Duplicate object names are not allowed in a Scene")
+        return self
 
     @property
-    def n(self): # number of objects in the scene
-        return len(self.O)
-    
+    def n(self) -> int:
+        """Number of objects in the scene."""
+        return len(self.objects)
+
     @property
-    def empty_scene(self):
-        if len(self.O) > 0:
-            return False
-        else: 
-            return True
-    
+    def empty_scene(self) -> bool:
+        return self.n == 0
+
+    @property
+    def O(self) -> List[str]:
+        """List of object names."""
+        return [obj.name for obj in self.objects]
+
+    @property
+    def object_positions(self) -> List[np.ndarray]:
+        return [obj.position for obj in self.objects]
+
+    @property
+    def object_positions_xy(self) -> List[np.ndarray]:
+        return [obj.position[0:2] for obj in self.objects]
+
+    @property
+    def object_types(self) -> List[str]:
+        return [obj.type for obj in self.objects]
+
+    @property
+    def object_poses(self) -> List[Sequence[float]]:
+        return [[*obj.position, *obj.quaternion] for obj in self.objects]
+
+    @property
+    def object_names(self) -> List[str]:
+        return self.O
+
+
+    def get_object_id(self, name: str) -> int:
+        return self.O.index(name)
+
+    def get_object_by_type(self, typ: str) -> SceneObject | None:
+        return next((obj for obj in self.objects if obj.type == typ), None)
+
+    def get_object_by_name(self, name: str) -> SceneObject | None:
+        return next((obj for obj in self.objects if obj.name == name), None)
+
+    def get_scene_param_description(self) -> str:
+        return " ".join(obj.params for obj in self.objects)
+
+
     @property
     def info(self):
         print(self.__str__())
@@ -35,59 +86,13 @@ class Scene():
     def __repr__(self):
         return self.__str__()
 
-    def __str__(self):
-        s = f"Scene info:\n"
-        for n, o in enumerate(self.objects):
-            s += f'{n}. '
-            s += str(o)
-            s += '\n'
-        return s
+    def __str__(self) -> str:  # noqa: D401
+        header = "Scene info:" if self.objects else "Scene (empty):"
+        lines = [f"{idx}. {obj}" for idx, obj in enumerate(self.objects)]
+        return f"{header}\n" + "\n".join(lines)
 
-    def get_object_id(self, name):
-        return self.O.index(name)
-
-    def get_object(self, id):
-        return self.O[id]
-
-    @property
-    def O(self):
-        return [object.name for object in self.objects]
-
-    @property
-    def object_positions(self):
-        return [obj.position for obj in self.objects]
-
-    @property
-    def object_sizes(self):
-        return [obj.size for obj in self.objects]
-
-    @property
-    def object_types(self):
-        return [obj.type for obj in self.objects]
-
-    @property
-    def object_poses(self):
-        return [[*obj.position, *obj.quaternion] for obj in self.objects]
-
-    @property
-    def object_poses_ros(self):
-        return [Pose(position=Point(x=obj.position[0], y=obj.position[1], z=obj.position[2]), orientation=Quaternion(x=obj.quaternion[0],y=obj.quaternion[1],z=obj.quaternion[2],w=obj.quaternion[3])) for obj in self.objects]
-
-    @property
-    def object_names(self):
-        return [obj.name for obj in self.objects]
-
-    def get_object_by_type(self, type):
-        for obj in self.objects:
-            if obj.type == type:
-                return obj
-        return None
-
-    def get_object_by_name(self, name):
-        for obj in self.objects:
-            if obj.name == name:
-                return obj
-        return None
+    def copy(self):
+        return self.from_dict(self.to_dict())
 
     def get_object_types(self, names):
         ret = []
@@ -99,105 +104,107 @@ class Scene():
                 ret.append('object')
         return ret
 
-    def has_duplicate_objects(self):
-        O = []
-        for object in self.objects:
-            if object.name in O:
-                return True
-            O.append(object.name)
-        return False
-
     def in_scene(self, position):
         if (np.array([0,0,0]) <= position).all() and (position < self.grid_lens).all():
             return True
         return False
 
-    def __getattr__(self, attr):
-        return self.objects[self.O.index(attr)]
+    def __getattr__(self, attr):  # dot‑access to objects
+        if attr in self.O:
+            return self.objects[self.get_object_id(attr)]
+        raise AttributeError(attr)
 
-    def to_dict(self):
-        scene_state = {}
-        scene_state['objects'] = {}
-        scene_state['name'] = self.name
-        for o in self.objects:
-            scene_state['objects'][o.name] = {}
-            scene_state['objects'][o.name]['position'] = o.position
-            scene_state['objects'][o.name]['orientation'] = o.orientation
-            scene_state['objects'][o.name]['type'] = o.type
-            scene_state['objects'][o.name]['params'] = o.params
 
+    def to_dict(self) -> dict:
+        scene_state: dict = {
+            "name": self.name,
+            "objects": {},
+        }
+        for obj in self.objects:
+            scene_state["objects"][obj.name] = {
+                "position": obj.position.tolist(),
+                "orientation": obj.orientation.tolist(),
+                "type": obj.type,
+                "params": obj.params,
+            }
         return scene_state
 
-    def to_ros(self):
+    @classmethod
+    def from_dict(cls, data: dict):
+        objects_payload = data.get("objects", {})
+        objects: list[SceneObject] = []
+        for name, spec in objects_payload.items():
+            obj_data = {
+                "name": name,
+                "position": spec["position"],
+                "orientation": spec.get("orientation"),
+                "params": spec.get("params", ""),
+            }
+            objects.append(SceneObject(**obj_data))
+
+        return cls(name=data["name"], objects=objects)
+
+    def to_ros(self):  # noqa: D401
+        try:
+            import scene_msgs.msg as scene_msgs
+            from geometry_msgs.msg import Point, Quaternion, Pose
+        except ImportError as exc:  # pragma: no cover
+            raise RuntimeError("ROS dependencies are missing") from exc
+
         sceneros = scene_msgs.Scene()
         
         ros_sceneobjects = []
-        for n in range(len(self.objects)):
-            o = self.objects[n]
-            
-            ros_sceneobject = scene_msgs.SceneObject()
-            ros_sceneobject.name = o.name
-            ros_sceneobject.pose.position = Point(x=o.position[0], y=o.position[1], z=o.position[2])
-            ros_sceneobject.pose.orientation = Quaternion(
-                x=o.orientation[0],
-                y=o.orientation[1],
-                z=o.orientation[2],
-                w=o.orientation[3],
+        for obj in self.objects:
+            ros_obj = scene_msgs.SceneObject()
+            ros_obj.name = obj.name
+            ros_obj.pose = Pose(
+                position=Point(x=float(obj.position[0]), y=float(obj.position[1]), z=float(obj.position[2])),
+                orientation=Quaternion(
+                    x=float(obj.orientation[0]),
+                    y=float(obj.orientation[1]),
+                    z=float(obj.orientation[2]),
+                    w=float(obj.orientation[3]),
+                ),
             )
-            ros_sceneobject.type = o.type
-            ros_sceneobject.params = o.params
-
-            ros_sceneobjects.append(ros_sceneobject)
-
+            ros_obj.type = obj.type
+            ros_obj.params = obj.params
+            ros_sceneobjects.append(ros_obj)
         sceneros.objects = ros_sceneobjects
         sceneros.name = self.name
         return sceneros
-
-    def copy(self):
-        return Scene(init='from_dict', import_data=self.to_dict())
-
-
-    @classmethod
-    def from_dict(cls, dict_data):
-        o = cls(dict_data['name'])
     
-        objects = dict_data['objects']
-        o.objects = []
-        for n,name in enumerate(objects.keys()):
-            o.objects.append(getattr(scene_object, objects[name]['type'])(name=name, position=objects[name]['position']))
-            o.objects[n].params = objects[name]['params']
-
-        return o
-
     @classmethod
-    def from_ros(cls, scene_state):
-        o = cls(scene_state.name)
+    def from_ros(cls, sceneros):  # noqa: D401
+        objs = []
+        for ros_obj in sceneros.objects:
+            position = [ros_obj.pose.position.x, ros_obj.pose.position.y, ros_obj.pose.position.z]
+            orientation = [
+                ros_obj.pose.orientation.x,
+                ros_obj.pose.orientation.y,
+                ros_obj.pose.orientation.z,
+                ros_obj.pose.orientation.w,
+            ]
+            objs.append(
+                SceneObject(
+                    name=ros_obj.name,
+                    position=position,
+                    orientation=orientation,
+                    params=ros_obj.params,
+                )
+            )
+        return cls(name=sceneros.name, objects=objs)
 
-        objects = scene_state.objects
-
-        o.objects = []
-        for n in range(len(objects)):
-            name = objects[n].name
-
-            position = [objects[n].pose.position.x, objects[n].pose.position.y, objects[n].pose.position.z]
-            orientation = [objects[n].pose.orientation.x, objects[n].pose.orientation.y, objects[n].pose.orientation.z, objects[n].pose.orientation.w]
-
-            o.objects.append(getattr(scene_object, objects[n].type)(name=name, position=position, orientation=orientation))
-            
-            o.objects[n].params = objects[n].params
-
-        return o
-
-    def __eq__(self, other_scene):
-        if len(self.object_positions) != len(other_scene.object_positions):
+    def __eq__(self, other):  # noqa: D401
+        if not isinstance(other, Scene):
+            return NotImplemented
+        if len(self.objects) != len(other.objects):
             return False
-        for o1,o2 in zip(self.object_positions, other_scene.object_positions):
-            if sum(abs(o1 - o2)) > 0.001:
+
+        for p1, p2 in zip(self.object_positions, other.object_positions):
+            if np.linalg.norm(p1 - p2) > OBJECT__eq__THRESHOLD:
                 return False
         return True
 
-    def get_scene_param_description(self): 
-        s = ""
-        for o in self.objects:
-            s += o.params + " "
-        return s
+
+
+

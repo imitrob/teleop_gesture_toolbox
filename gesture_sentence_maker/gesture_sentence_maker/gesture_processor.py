@@ -183,7 +183,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         else:
             self.target_object_solutions.append(self.prev_deictic_solutions[-4])
         
-        print(f"New scene object selected: {self.target_object_solutions[-1]['target_object_name']}")
+        print(f"New scene object selected: {self.target_object_solutions[-1].target_object_name}")
         self.prev_deictic_solutions = CustomDeque()
 
 
