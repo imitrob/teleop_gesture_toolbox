@@ -1,7 +1,5 @@
 
-from pointing_object_selection.pointing_experiment.pointing_experiment import generate_random_scene
-from pointing_object_selection.pointing_experiment.utils import print_table_scene
-
+from pointing_object_selection.pointing_experiment.scene_gen import generate_random_scene
 
 def test_scene_generation():
     n = 100
@@ -27,10 +25,14 @@ def test_scene_generation():
 
 def test_scene_printing():
     s, locs, of = generate_random_scene(3, 1)
-    print_table_scene(s, locs, of)
+    s.print_table_scene(locs, of)
     s, locs, of = generate_random_scene(3, 1)
-    print_table_scene(s, locs, of)
+    s.print_table_scene(locs, of)
     s, locs, of = generate_random_scene(3, 1)
-    print_table_scene(s, locs, of)
+    s.print_table_scene(locs, of)
     s, locs, of = generate_random_scene(3, 1)
-    print_table_scene(s, locs, of)
+    s.print_table_scene(locs, of)
+
+if __name__ == "__main__":
+    s, locs, of = generate_random_scene(3, 1)
+    s.print_table_scene(locs, of)

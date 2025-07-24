@@ -1,10 +1,11 @@
-
+from __future__ import annotations
 from typing import Iterable
 import numpy as np
 
 from scene_getter.scene_lib.scene_object import SceneObject
 from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
 from typing import Iterable, List, Sequence
+from scene_getter.scene_lib.utils import print_table_scene
 
 OBJECT__eq__THRESHOLD = 0.02 # 2cm
 
@@ -89,9 +90,12 @@ class Scene(BaseModel):
     def __str__(self) -> str:  # noqa: D401
         header = "Scene info:" if self.objects else "Scene (empty):"
         lines = [f"{idx}. {obj}" for idx, obj in enumerate(self.objects)]
-        return f"{header}\n" + "\n".join(lines)
+        return f"{header}\n" + "\n".join(lines) + "\n"
 
-    def copy(self):
+    def print_table_scene(self, locs, of, scene2=None):
+        print(print_table_scene(self, locs, of, scene2))
+
+    def copy(self) -> Scene:
         return self.from_dict(self.to_dict())
 
     def get_object_types(self, names):
