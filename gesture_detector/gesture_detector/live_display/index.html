@@ -123,7 +123,7 @@
   async function loadLinksYaml(username){
     try{
       // TODO: make the path not hardcoded
-      const text = await fetch(`${username}_links.yaml`).then(r=>r.text());
+      const text = await fetch(`../../../../franka_hri/hri_manager/links/${username}_links.yaml`).then(r=>r.text());
       linksData = jsyaml.load(text);
       buildLinksModal();
     }catch(e){ console.warn('links-yaml load failed', e); }
