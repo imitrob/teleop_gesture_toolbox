@@ -296,3 +296,59 @@ def pp_matrix_from_data(
         name = name,
         savepath=savepath,
     )
+
+
+def pp_matrix_from_string_data(
+    y_test,
+    predictions,
+    columns=None,
+    annot=True,
+    cmap="Oranges",
+    fmt=".2f",
+    fz=11,
+    lw=0.5,
+    cbar=False,
+    figsize=[3, 3],
+    show_null_values=0,
+    pred_val_axis="lin",
+    name="Confusion matrix",
+    savepath=None,
+):
+    """
+    Plot a pretty confusion matrix where y_test and predictions are lists of strings.
+
+    Args:
+        y_test (list[str]): Ground-truth labels (strings).
+        predictions (list[str]): Predicted labels (strings).
+        columns (list[str] | None): Optional class order. If None, inferred from the
+            union of y_test and predictions, preserving first-appearance order.
+        annot, cmap, fmt, fz, lw, cbar, figsize, show_null_values, pred_val_axis, name, savepath:
+            Same meaning as in pp_matrix().
+    """
+    from pandas import DataFrame
+    from sklearn.metrics import confusion_matrix
+
+    # Determine class order
+    if columns is None:
+        # Preserve order of first appearance across y_test then predictions
+        columns = list(dict.fromkeys(list(y_test) + list(predictions)))
+
+    # Build confusion matrix using string labels directly
+    confm = confusion_matrix(y_test, predictions, labels=columns)
+
+    # Create DataFrame and delegate to pretty printer
+    df_cm = DataFrame(confm, index=columns, columns=columns)
+    pp_matrix(
+        df_cm,
+        annot=annot,
+        cmap=cmap,
+        fmt=fmt,
+        fz=fz,
+        lw=lw,
+        cbar=cbar,
+        figsize=figsize,
+        show_null_values=show_null_values,
+        pred_val_axis=pred_val_axis,
+        name=name,
+        savepath=savepath,
+    )

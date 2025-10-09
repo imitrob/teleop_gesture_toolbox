@@ -2,6 +2,7 @@
 import numpy as np
 from spatialmath.base import r2q
 from quaternion_algebra.slerp import intrinsic
+from quaternion import quaternion
 
 def get_speed(hand_frames, hand_tag, max_search = 200, velocity_thr = 1):
     velocities = []
@@ -41,10 +42,8 @@ def crossed_distance(hand_frames, hand_tag, max_search = 200, velocity_thr = 1):
     
     return max_dist
 
-
 def to_q(basis):
-    return np.quaternion(*r2q(np.array([b() for b in basis])))
-
+    return quaternion(*r2q(np.array([b() for b in basis])))
 
 def get_rotation(hand_frames, hand_tag, max_search = 200, velocity_thr = 1):
     i = 1

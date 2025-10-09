@@ -1,6 +1,6 @@
 import numpy as np
 
-def transform_leap_to_scene(data, scale=1.0, start=[0.5, 0.0, 0.2]):
+def transform_leap_to_scene(data, scale=1.0, start=[0.5, 0.0, 0.02]):
     x, y, z = data[0], data[1], data[2]
     
     x_ =  x/1000
