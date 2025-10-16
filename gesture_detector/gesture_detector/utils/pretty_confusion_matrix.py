@@ -146,6 +146,7 @@ def pp_matrix(
     pred_val_axis="y",
     name = "Confusion matrix",
     savepath=None,
+    show=True,
 ):
     """
     print conf matrix with default layout (like matlab)
@@ -166,6 +167,12 @@ def pp_matrix(
         xlbl = "Actual"
         ylbl = "Predicted"
         df_cm = df_cm.T
+
+
+    if figsize is None:
+        ncls = len(list(set(df_cm.to_numpy().flatten())))
+        figsize = (ncls + 2, ncls + 2)
+    # figsize = (5, 5)
 
     # create "Total" column
     insert_totals(df_cm)
@@ -235,7 +242,7 @@ def pp_matrix(
         ax.text(item["x"], item["y"], item["text"], **item["kw"])
 
     # titles and legends
-    ax.set_title("Confusion matrix")
+    ax.set_title(name)
     ax.set_xlabel(xlbl)
     ax.set_ylabel(ylbl)
     plt.tight_layout()  # set layout slim
@@ -245,7 +252,8 @@ def pp_matrix(
         plt.show(block=False)
         plt.close()
     else:
-        plt.show()
+        if show:
+            plt.show()
     # plt.show(block=False)
     # plt.pause(1)
     # input()
@@ -266,6 +274,7 @@ def pp_matrix_from_data(
     pred_val_axis="lin",
     name = "Confusion matrix",
     savepath=None,
+    show=True
 ):
     """
     plot confusion matrix function with y_test (actual values) and predictions (predic),
@@ -295,6 +304,7 @@ def pp_matrix_from_data(
         pred_val_axis=pred_val_axis,
         name = name,
         savepath=savepath,
+        show=show
     )
 
 
@@ -313,6 +323,7 @@ def pp_matrix_from_string_data(
     pred_val_axis="lin",
     name="Confusion matrix",
     savepath=None,
+    show=True,
 ):
     """
     Plot a pretty confusion matrix where y_test and predictions are lists of strings.
@@ -351,4 +362,5 @@ def pp_matrix_from_string_data(
         pred_val_axis=pred_val_axis,
         name=name,
         savepath=savepath,
+        show=show,
     )
