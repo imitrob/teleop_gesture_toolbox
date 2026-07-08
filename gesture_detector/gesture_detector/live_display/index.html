@@ -23,14 +23,12 @@
     .link-row:nth-child(odd){background:#d7e1f0;}
     
     .links-grid{display:flex;flex-direction:column;gap:12px;margin-top:12px;}
-    .link-row{display:flex;align-items:center;justify-content:left;gap:10px;font-size:66px;padding-left: 20px;}
-    .link-gestures img{width:200px;height:200px;background:#f3f6fb;padding:2px;object-fit:contain;}
-    .link-arrow{font-size:46px;font-weight:bold;color:#000000;}
-    .link-action{font-weight:bold;font-size:66px;color:#000000;}
+    .link-row{display:flex;align-items:center;justify-content:left;gap:10px;font-size:clamp(28px,4vw,66px);padding-left:20px;flex-wrap:wrap;}
+    .link-gestures{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;}
+    .link-gestures img{width:clamp(90px,11vw,200px);height:clamp(90px,11vw,200px);background:#f3f6fb;padding:2px;object-fit:contain;}
+    .link-arrow{font-size:clamp(22px,2.8vw,46px);font-weight:bold;color:#000000;}
+    .link-action{font-weight:bold;font-size:clamp(28px,4vw,66px);color:#000000;word-break:break-word;min-width:0;}
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4/dist/js-yaml.min.js"></script>
-
-
   <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
   <link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-blue.css">
 </head>
@@ -39,12 +37,10 @@
 <div class="w3-row w3-row-padding w3-margin-top">
   <div class="w3-quarter w3-container">
     <div id="linksModal" class="w3-modal" onclick="this.style.display='none'">
-      <div class="w3-modal-content w3-animate-top" style="padding:24px;max-width:960px;margin:auto;" onclick="event.stopPropagation();">
+      <div class="w3-modal-content w3-animate-top" style="padding:24px;width:92%;max-width:1600px;margin:auto;" onclick="event.stopPropagation();">
         <span onclick="document.getElementById('linksModal').style.display='none'" class="w3-button w3-display-topright">&times;</span>
         <h1 class="w3-center">Gesture ➜ Action Links</h1>
         <div id="linksModalBody" class="links-grid"></div>
-        <hr>
-        TODO: add automatic linking to the YAML file localied in hri_manager package
       </div>
     </div>
 
@@ -87,13 +83,14 @@
   const ip   = "127.0.0.1";
   const port = 9090;
 
-  // [topic, msgType]
+  // [topic, msgType, throttle_rate ms] — throttled server-side by rosbridge,
+  // the page only renders; unthrottled hand_frame (~100Hz full frames) melts the tab
   const topics = [
-    ["/teleop_gesture_toolbox/all_states",           "std_msgs/String"],
-    ["/teleop_gesture_toolbox/gesture_meaning_info", "std_msgs/String"],
-    ["/teleop_gesture_toolbox/hricommand_original",  "hri_msgs/HRICommand"],
-    ["/modality/gestures",                           "hri_msgs/HRICommand"],
-    ["/teleop_gesture_toolbox/hand_frame",           "gesture_msgs/Frame"],
+    ["/teleop_gesture_toolbox/all_states",           "std_msgs/String",      100],
+    ["/teleop_gesture_toolbox/gesture_meaning_info", "std_msgs/String",      0],
+    ["/teleop_gesture_toolbox/hricommand_original",  "hri_msgs/HRICommand",  0],
+    ["/modality/gestures",                           "hri_msgs/HRICommand",  0],
+    ["/teleop_gesture_toolbox/hand_frame",           "gesture_msgs/Frame",   200],
   ];
 
   /* -------------------------------------------------------------------- */
@@ -102,7 +99,7 @@
   let stat_evidence  = 0.0;
   let dyn_evidence   = 0.0;
 
-  let linksData = null;       // parsed YAML
+  let linksData = null;       // links dict from hri_manager (<user>_links.yaml), received via gesture_meaning_info
   let currentUser = null;
 
   let lastHandFrame = 0; // ms timestamp of the most-recent frame
@@ -119,15 +116,6 @@
   let dynamicGesturesActivated  = [];
   let dynamicBiggestID          = -1;
 
-
-  async function loadLinksYaml(username){
-    try{
-      // TODO: make the path not hardcoded
-      const text = await fetch(`../../../../franka_hri/hri_manager/links/${username}_links.yaml`).then(r=>r.text());
-      linksData = jsyaml.load(text);
-      buildLinksModal();
-    }catch(e){ console.warn('links-yaml load failed', e); }
-  }
 
 function buildLinksModal(){
   if (!linksData || !linksData.links) return;
@@ -156,36 +144,26 @@ function buildLinksModal(){
   let ws;          // active WebSocket
   let pingTimer;   // keep‑alive interval id
 
-  function connect(){
-    document.getElementById('linksBtn').onclick = ()=>
-      document.getElementById('linksModal').style.display = 'block';
+  /* One-time UI setup — must stay outside connect(): connect() re-runs on
+     every reconnect and stacked intervals eventually freeze the page */
+  document.getElementById('linksBtn').onclick = ()=>
+    document.getElementById('linksModal').style.display = 'block';
 
-    ws = new WebSocket(`ws://${ip}:${port}`);
+  // every second warn if no /hand_frame seen
+  setInterval(()=>{
+    const statusEl = document.getElementById('handFrameStatus');
+    if (Date.now() - lastHandFrame > 1000) {
+        statusEl.innerHTML = '<span class="hand-warn">No /hand_frame data in the last second</span>';
+    } else {
+        statusEl.innerHTML = '<span class="w3-green w3-round w3-tag">All fine</span>';
+    }
+  }, 1000);
 
-    ws.addEventListener("open", ()=>{
-      topics.forEach(([topic,type],idx)=>{
-        ws.send(JSON.stringify({op:"subscribe", id:`sub_${idx}`, topic, type}));
-      });
-      pingTimer = setInterval(()=>{
-        if(ws.readyState===WebSocket.OPEN){ ws.send('{"op":"ping"}'); }
-      },15000);
-    });
-      // every second warn if no /hand_frame seen
-      setInterval(()=>{
-        const statusEl = document.getElementById('handFrameStatus');
-        if (Date.now() - lastHandFrame > 1000) {
-            statusEl.innerHTML = '<span class="hand-warn">No /hand_frame data in the last second</span>';
-        } else {
-            statusEl.innerHTML = '<span class="w3-green w3-round w3-tag">All fine</span>';
-        }
-      }, 1000);
-      // visual heartbeat bars – run 10×/s
-    setInterval(()=>{
+  // visual heartbeat bars – run 10×/s
+  setInterval(()=>{
     const now = Date.now();
     const oFill = document.querySelector('#origBar .bar-fill');
     const mFill = document.querySelector('#mapBar  .bar-fill');
-
-    // skip until the elements exist (first run happens before DOM is ready)
     if(!oFill || !mFill) return;
 
     const pctOrig = Math.min(1, (now-lastOrig)/timeoutMs)*100;
@@ -196,8 +174,20 @@ function buildLinksModal(){
 
     oFill.classList.toggle('bar-warn', now-lastOrig > timeoutMs);
     mFill.classList.toggle('bar-warn', now-lastMap  > timeoutMs);
-    }, 100);
-    
+  }, 100);
+
+  function connect(){
+    ws = new WebSocket(`ws://${ip}:${port}`);
+
+    ws.addEventListener("open", ()=>{
+      topics.forEach(([topic,type,throttle],idx)=>{
+        ws.send(JSON.stringify({op:"subscribe", id:`sub_${idx}`, topic, type,
+                                throttle_rate: throttle, queue_length: 1}));
+      });
+      pingTimer = setInterval(()=>{
+        if(ws.readyState===WebSocket.OPEN){ ws.send('{"op":"ping"}'); }
+      },15000);
+    });
 
     ws.addEventListener("message", (event)=>{
       try {
@@ -222,8 +212,12 @@ function buildLinksModal(){
             const u = parsed_message.user;
             if (u && u !== currentUser){
               currentUser = u;
-              loadLinksYaml(u);
+              linksData = null; // user changed, rebuild links from next message
             }
+          }
+          if (parsed_message.links && !linksData){
+            linksData = parsed_message;
+            buildLinksModal();
           }
           messageGestureMeaningData.innerHTML = html;
         }

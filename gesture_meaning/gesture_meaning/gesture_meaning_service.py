@@ -10,6 +10,7 @@ import numpy as np
 from gesture_meaning.gesture_names_call import GestureListService
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 from std_msgs.msg import String
+import json
 import threading
 import time
 
@@ -28,6 +29,16 @@ class GestureToMeaningNode(GestureListService, RosNode):
 
         self.user = self.declare_parameter("user_name", "").get_parameter_value().string_value
 
+        # gesture->action links from hri_manager (optional dependency), forwarded
+        # to the live display via the info topic
+        self.links_dict = None
+        if self.user != "":
+            try:
+                from hri_manager.user_links import load_user_links
+                self.links_dict = load_user_links(self.user)
+            except Exception as e:
+                print(f"User links not loaded ({e}), live display won't show them", flush=True)
+
         self.meaning_info_pub = self.create_publisher(String, "/teleop_gesture_toolbox/gesture_meaning_info", 5)
         thr = threading.Thread(target=self.send_info_thread, daemon=True)    
         thr.start()
@@ -42,11 +53,10 @@ class GestureToMeaningNode(GestureListService, RosNode):
             
             d = {}
             d["user"] = self.user
+            if self.links_dict is not None and self.links_dict.get("links"):
+                d["links"] = self.links_dict["links"]
 
-            data_as_str = str(d)
-            data_as_str = data_as_str.replace("'", '"')
-        
-            self.meaning_info_pub.publish(String(data=data_as_str))
+            self.meaning_info_pub.publish(String(data=json.dumps(d)))
 
     def G2I_message_callback(self, msg):
         d = import_original_HRICommand_to_dict(msg)
@@ -185,7 +195,7 @@ class OneToOneCompoundUserMapping(GestureToMeaningNode): # Compound = Combinatio
         super(OneToOneCompoundUserMapping, self).__init__()
 
         from hri_manager.user_links import load_user_links
-        links_dict = load_user_links(self.user)  # `actions` derived from the arity lists
+        links_dict = self.links_dict or load_user_links(self.user)  # `actions` derived from the arity lists
         self.A = links_dict['actions']
         print(f"Actions: {self.A}", flush=True)
         print(f"Gestures: {self.Gs}, static: {self.Gs_static}, dynamic: {self.Gs_dynamic}", flush=True)
