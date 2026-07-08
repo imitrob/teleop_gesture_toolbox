@@ -82,7 +82,7 @@ def generate_launch_description():
             output='screen',
         ),
         ExecuteProcess(
-            cmd=['python', '-m', 'http.server', '--directory', gesture_detector.path+"/live_display", '8000'],
+            cmd=['python', '-m', 'http.server', '--directory', gesture_detector.path+"/live_display", '6357'],
             output='screen',
             shell=True
         ),
