@@ -133,16 +133,16 @@ class JSONLoader():
 
     @staticmethod
     def load(path_: str):
+        renames = {'nanosec': 'nsecs', 'sec': 'secs'} # compatibility for both ROS2 and ROS1
+
+        def clean(x):
+            if isinstance(x, dict):
+                return decode_frame({renames.get(k, k): clean(v) for k, v in x.items()})
+            if isinstance(x, list):
+                return [clean(v) for v in x]
+            if x is None:
+                return 0.0
+            return x
+
         with open(f"{path_}", 'r') as openfile:
-            json_data = str(json.load(openfile))
-
-        json_data = json_data.replace("'", '"')
-        json_data = json_data.replace("False", "false")
-        json_data = json_data.replace("True", "true")
-        json_data = json_data.replace("None", "0.0")
-        json_data = json_data.replace('"nanosec"', '"nsecs"') # compatibility for both ROS2 and ROS1
-        json_data = json_data.replace('"sec"', '"secs"') # compatibility for both ROS2 and ROS1
-
-        frame_copy = json.loads(json_data, object_hook=decode_frame)
-
-        return frame_copy
+            return clean(json.load(openfile))

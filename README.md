@@ -1,5 +1,5 @@
 
-# Teleoperation gesture toolbox v1.1
+# Teleoperation gesture toolbox v1.2
 
 Welcome to **teleoperation gesture toolbox** package made for **Leap Motion Controller** or D400 series RealSense.
 Most of the package utilize **ROS2**. 
@@ -22,15 +22,15 @@ cd ~/teleop_ws/src
 git clone https://github.com/imitrob/teleop_gesture_toolbox.git --depth 1
 cd ..
 colcon build --symlink-install
-rm ~/teleop_ws/build/gesture_detector/gesture_detector/saved_models
-ln -s ~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/saved_models ~/teleop_ws/build/gesture_detector/gesture_detector/saved_models
-ln -s ~/teleop_ws/src/teleop_gesture_toolbox/scene_getter/scene_getter/scene_makers/scenes ~/teleop_ws/build/scene_getter/scene_getter/scene_makers/scenes
 ```
 
-I use following alias to source the environment:
+I use following alias to source the environment. The `*_PATH` variables define recordings, trained models, scenes:
 ```Shell
 alias teleopenv='conda activate teleopenv;
 LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/LeapAPI/lib/x64/;
+export GESTURE_DATA_PATH=~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/gesture_data;
+export GESTURE_MODELS_PATH=~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/saved_models;
+export SCENES_PATH=~/teleop_ws/src/teleop_gesture_toolbox/scene_getter/scene_getter/scene_makers/scenes;
 source ~/teleop_ws/install/setup.bash'
 ```
 
@@ -130,7 +130,7 @@ and rviz to see the hand: `teleopenv; rviz2 -d gesture_detector/live_display/han
 
 To train the static gestures, run:
 
-`teleopenv; gesture_classification/pymc_lib.py --gestures <gesture 1 name> <gesture 2 name> <gesture n name>` script, where gesture names are your gesture names. By default, gesture names are the ones from sample dataset.
+`teleopenv; python gesture_detector/gesture_classification/torch_lib.py --gestures <gesture 1 name> <gesture 2 name> <gesture n name>` script, where gesture names are your gesture names. By default, gesture names are the ones from sample dataset.
 
 After training is done, see the  model in `gesture_detector/saved_models` folder. To set the model, adjust model in `launch/gesture_detect_launch.py` file.
 

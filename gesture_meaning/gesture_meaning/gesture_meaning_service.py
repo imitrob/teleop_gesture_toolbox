@@ -184,8 +184,8 @@ class OneToOneCompoundUserMapping(GestureToMeaningNode): # Compound = Combinatio
     def __init__(self):
         super(OneToOneCompoundUserMapping, self).__init__()
 
-        import hri_manager
-        links_dict = yaml.safe_load(open(f"{hri_manager.package_path}/links/{self.user}_links.yaml", mode='r'))
+        from hri_manager.user_links import load_user_links
+        links_dict = load_user_links(self.user)  # `actions` derived from the arity lists
         self.A = links_dict['actions']
         print(f"Actions: {self.A}", flush=True)
         print(f"Gestures: {self.Gs}, static: {self.Gs_static}, dynamic: {self.Gs_dynamic}", flush=True)
