@@ -7,10 +7,12 @@
 
   <style>
     body{margin:0;background:#f3f6fb;}
-    .dashboard-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;
-                    align-items:start;max-width:1920px;margin:0 auto;padding:12px;}
-    .dashboard-card{align-self:start;background:#fff;border:1px solid #d5dbe5;border-radius:6px;
-                    box-shadow:0 2px 6px rgba(0,0,0,.12);overflow:hidden;transition:opacity .15s,box-shadow .15s;}
+    .dashboard-grid{--dashboard-columns:4;position:relative;display:block;box-sizing:border-box;
+                    max-width:1920px;margin:0 auto;padding:12px;}
+    .dashboard-grid:not(.is-laid-out) .dashboard-card{visibility:hidden;}
+    .dashboard-card{position:absolute;top:0;left:0;box-sizing:border-box;background:#fff;
+                    border:1px solid #d5dbe5;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.12);
+                    overflow:hidden;transition:opacity .15s,box-shadow .15s,transform .18s ease;}
     .dashboard-card.is-dragging{opacity:.42;}
     .dashboard-card.drop-before{box-shadow:-5px 0 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
     .dashboard-card.drop-after{box-shadow:5px 0 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
@@ -48,10 +50,10 @@
     .link-arrow{font-size:14px;font-weight:bold;color:#000;}
     .link-action{font-weight:bold;font-size:14px;color:#000;word-break:break-word;min-width:0;}
 
-    @media (max-width:1300px){.dashboard-grid{grid-template-columns:repeat(3,minmax(0,1fr));}}
-    @media (max-width:900px){.dashboard-grid{grid-template-columns:repeat(2,minmax(0,1fr));}}
+    @media (max-width:1300px){.dashboard-grid{--dashboard-columns:3;}}
+    @media (max-width:900px){.dashboard-grid{--dashboard-columns:2;}}
     @media (max-width:600px){
-      .dashboard-grid{grid-template-columns:minmax(0,1fr);padding:8px;}
+      .dashboard-grid{--dashboard-columns:1;padding:8px;}
       .dashboard-card.drop-before{box-shadow:0 -5px 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
       .dashboard-card.drop-after{box-shadow:0 5px 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
     }
@@ -249,6 +251,46 @@
   let draggedCard = null;
   let dropTarget = null;
   let dropPosition = 'after';
+  let dashboardLayoutFrame = 0;
+
+  function layoutDashboardCards(){
+    dashboardLayoutFrame = 0;
+    const cards = Array.from(dashboardGrid.querySelectorAll('.dashboard-card'));
+    const gridStyle = getComputedStyle(dashboardGrid);
+    const columnCount = Number.parseInt(
+      gridStyle.getPropertyValue('--dashboard-columns'),
+      10,
+    ) || 1;
+    const columnGap = 12;
+    const paddingLeft = Number.parseFloat(gridStyle.paddingLeft) || 0;
+    const paddingRight = Number.parseFloat(gridStyle.paddingRight) || 0;
+    const paddingTop = Number.parseFloat(gridStyle.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(gridStyle.paddingBottom) || 0;
+    const contentWidth = dashboardGrid.clientWidth - paddingLeft - paddingRight;
+    const cardWidth = (contentWidth - columnGap * (columnCount - 1)) / columnCount;
+    const columnHeights = Array(columnCount).fill(0);
+
+    cards.forEach(card=>{
+      card.style.width = `${cardWidth}px`;
+    });
+
+    cards.forEach((card, index)=>{
+      const column = index % columnCount;
+      const x = paddingLeft + column * (cardWidth + columnGap);
+      const y = paddingTop + columnHeights[column];
+      card.style.transform = `translate(${x}px, ${y}px)`;
+      columnHeights[column] += card.offsetHeight + columnGap;
+    });
+
+    const contentHeight = Math.max(0, ...columnHeights) - (cards.length ? columnGap : 0);
+    dashboardGrid.style.height = `${paddingTop + contentHeight + paddingBottom}px`;
+    dashboardGrid.classList.add('is-laid-out');
+  }
+
+  function scheduleDashboardLayout(){
+    if (dashboardLayoutFrame) return;
+    dashboardLayoutFrame = requestAnimationFrame(layoutDashboardCards);
+  }
 
   function orderedCardIds(){
     return Array.from(dashboardGrid.querySelectorAll('.dashboard-card'))
@@ -277,6 +319,7 @@
       const card = dashboardGrid.querySelector(`[data-card-id="${cardId}"]`);
       if (card) dashboardGrid.appendChild(card);
     });
+    scheduleDashboardLayout();
   }
 
   function restoreCardOrder(){
@@ -296,6 +339,14 @@
   }
 
   restoreCardOrder();
+
+  if ('ResizeObserver' in window) {
+    const cardResizeObserver = new ResizeObserver(scheduleDashboardLayout);
+    dashboardGrid.querySelectorAll('.dashboard-card')
+      .forEach(card=>cardResizeObserver.observe(card));
+  }
+  window.addEventListener('resize', scheduleDashboardLayout);
+  scheduleDashboardLayout();
 
   dashboardGrid.querySelectorAll('.card-header').forEach(header=>{
     header.addEventListener('dragstart', event=>{
@@ -345,6 +396,7 @@
       dashboardGrid.appendChild(draggedCard);
     }
     saveCardOrder();
+    scheduleDashboardLayout();
     draggedCard.classList.remove('is-dragging');
     draggedCard = null;
     clearDropPreview();
