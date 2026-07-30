@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getSelectedObjectName } from "../core/deictic.mjs";
+import {
+  getSelectedObjectName,
+  getSelectionStrength,
+} from "../core/deictic.mjs";
 
 test("uses the selected object name carried by a deictic solution", () => {
   assert.equal(
@@ -35,4 +38,16 @@ test("rejects incomplete deictic solutions", () => {
     }),
     null,
   );
+});
+
+test("scales the highlight by how much evidence the object has", () => {
+  assert.equal(getSelectionStrength({ evidence: 0, evidence_threshold: 5 }), 0);
+  assert.equal(getSelectionStrength({ evidence: 1, evidence_threshold: 5 }), 0.2);
+  assert.equal(getSelectionStrength({ evidence: 5, evidence_threshold: 5 }), 1);
+  assert.equal(getSelectionStrength({ evidence: 9, evidence_threshold: 5 }), 1);
+});
+
+test("highlights fully when the publisher counts no evidence", () => {
+  assert.equal(getSelectionStrength({ target_object_name: "cube" }), 1);
+  assert.equal(getSelectionStrength(null), 1);
 });

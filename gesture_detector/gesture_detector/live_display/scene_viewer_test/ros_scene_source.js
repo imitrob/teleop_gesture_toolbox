@@ -1,5 +1,8 @@
 import { FreshnessTracker } from "./core/freshness.mjs";
-import { getSelectedObjectName } from "./core/deictic.mjs";
+import {
+  getSelectedObjectName,
+  getSelectionStrength,
+} from "./core/deictic.mjs";
 import { TfGraph } from "./core/tf_graph.mjs";
 import {
   applyTransform,
@@ -258,7 +261,12 @@ export class RosSceneSource {
       }
       this.freshness.mark("selection", now);
       this.selectedObject = selectedObject;
-      this.onSelection(selectedObject);
+      // Strength is how much evidence the object has gathered so far, so the
+      // highlight grows while the user keeps pointing at the same thing.
+      this.onSelection({
+        name: selectedObject,
+        strength: getSelectionStrength(packet.msg),
+      });
       this.scheduleSelectionExpiry();
     }
   }

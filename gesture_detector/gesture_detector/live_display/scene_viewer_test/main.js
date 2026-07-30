@@ -11,7 +11,7 @@ const callbacks = {
   onHands: (hands) => viewer.setHands(hands),
   onScene: (objects) => viewer.setSceneObjects(objects),
   onBeam: (points) => viewer.setBeam(points),
-  onSelection: (name) => viewer.setSelectedObject(name),
+  onSelection: (selection) => viewer.setSelectedObject(selection),
 };
 const source = demoMode
   ? new DemoSceneSource({ handRate, ...callbacks })

@@ -31,6 +31,7 @@ class PointingObjectGetter():
                                  end=Point3D(x=msg.line_point_2.x, y=msg.line_point_2.y, z=msg.line_point_2.z)),
             target_object_position = Point3D(x=msg.target_object_position.x, y=msg.target_object_position.y, z=msg.target_object_position.z),
             hand_velocity = msg.hand_velocity,
+            evidence = msg.evidence,
         )
         self.target_object_solutions.append(self._target_object)
     def target_object_valid(self):

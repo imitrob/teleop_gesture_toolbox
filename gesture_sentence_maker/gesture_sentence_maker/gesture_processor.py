@@ -16,13 +16,12 @@ from gesture_sentence_maker.hricommand_export import (
 from gesture_meaning.gesture_icons import GESTURE_ICONS
 from gesture_meaning.one_to_one_mapping import OneToOneMapping, load_links
 from pointing_object_selection.pointing_object_getter import PointingObjectGetter
+from pointing_object_selection.deictic_evidence import EVIDENCE, select as select_deictic
 from gesture_sentence_maker.utils import get_dist_by_extremes
 
 from hri_msgs.msg import HRICommand
 from std_msgs.msg import String
 from gesture_detector.utils.utils import CustomDeque
-from gesture_sentence_maker.segmentation_task.deictic_solutions_plot import deictic_solutions_plot_save
-from gesture_sentence_maker.segmentation_task.deictic_segment import find_pointed_objects_timewindowmax
 
 from hri_msgs.msg import HRICommand as HRICommandMSG
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
@@ -235,13 +234,19 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         if self.prev_deictic_solutions.empty:
             print("No object to be added, returning")
             return
-        elif len(self.prev_deictic_solutions)<4: # If there are less than 4 samples -> use the last
-            self.target_object_solutions.append(self.prev_deictic_solutions[-1])
-        else:
-            self.target_object_solutions.append(self.prev_deictic_solutions[-4])
-        
-        print(f"New scene object selected: {self.target_object_solutions[-1].target_object_name}")
+
+        # The user may point for as long as they like and wander over several
+        # objects on the way; what they meant is the last object that stayed
+        # selected long enough (see deictic_evidence.py). Never settling on one
+        # selects nothing, which beats naming whatever the hand passed last.
+        solution = select_deictic(self.prev_deictic_solutions)
         self.prev_deictic_solutions = CustomDeque()
+        if solution is None:
+            print(f"No object held for {EVIDENCE} frames, nothing selected")
+            return
+
+        self.target_object_solutions.append(solution)
+        print(f"New scene object selected: {solution.target_object_name}")
 
 
 

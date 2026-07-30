@@ -63,6 +63,7 @@ class DeicticSolution(BaseModel):
     target_object_position: Point3D
     hand_velocity: float # palm velocity
     target_object_stamp: Optional[float] = None # ROS clock fills this
+    evidence: int = 0 # consecutive frames on this object, see deictic_evidence.py
 
 
 

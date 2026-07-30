@@ -1,5 +1,8 @@
 import argparse
+import time
+
 from pointing_object_selection.deictic_lib import DeiticLib, DeicticSolution
+from pointing_object_selection.deictic_evidence import DeicticEvidence
 import rclpy
 
 from scene_getter.scene_getting import SceneGetter
@@ -21,6 +24,9 @@ class DeicticLibRos(DeiticLib, TFBaseLeapworld, HandListener, SceneGetter, Named
         super(DeicticLibRos, self).__init__()
         
         self.deictic_solutions_pub = self.create_publisher(DeicticSolutionMSG, "/teleop_gesture_toolbox/deictic_solution", 5)
+        # Counted here, once, so every subscriber (the sentence maker, the web
+        # viewer) sees the same evidence instead of recounting its own.
+        self.evidence = DeicticEvidence()
 
     def deictic_solution_to_ros(self, deictic_solution: DeicticSolution):
         line_point_1 = deictic_solution.line_points.start
@@ -37,6 +43,8 @@ class DeicticLibRos(DeiticLib, TFBaseLeapworld, HandListener, SceneGetter, Named
             line_point_2 = Point(x=line_point_2.x, y=line_point_2.y, z=line_point_2.z),
             target_object_position = Point(x=to_position.x,y=to_position.y,z=to_position.z),
             hand_velocity = deictic_solution.hand_velocity,
+            evidence = deictic_solution.evidence,
+            evidence_threshold = self.evidence.threshold,
         )
 
     def step(self):
@@ -62,7 +70,10 @@ class DeicticLibRos(DeiticLib, TFBaseLeapworld, HandListener, SceneGetter, Named
         )
         if deictic_solution is None:
             return None
-            
+
+        deictic_solution.evidence = self.evidence.update(
+            deictic_solution.target_object_name, now=time.time())
+
         self.deictic_solutions_pub.publish(
             self.deictic_solution_to_ros(deictic_solution)
         )

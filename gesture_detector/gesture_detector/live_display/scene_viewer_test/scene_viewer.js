@@ -101,6 +101,7 @@ export class SceneViewer {
     this.objectCount = 0;
     this.objectCenters = new Map();
     this.selectedObjectName = null;
+    this.selectionStrength = 1;
     this.objectCenterGeometry = new THREE.SphereGeometry(0.022, 18, 12);
     this.objectCenterMaterial = new THREE.MeshStandardMaterial({
       color: 0xffa726,
@@ -196,8 +197,14 @@ export class SceneViewer {
     this.syncSelectedObject();
   }
 
-  setSelectedObject(name) {
+  setSelectedObject(selection) {
+    // Either a plain name (demo source) or {name, strength}, where strength is
+    // how much deictic evidence the object has, 0..1.
+    const { name, strength } = typeof selection === "string" || !selection
+      ? { name: selection, strength: 1 }
+      : selection;
     this.selectedObjectName = name || null;
+    this.selectionStrength = Math.min(1, Math.max(0, strength ?? 1));
     this.syncSelectedObject();
   }
 
@@ -241,8 +248,9 @@ export class SceneViewer {
     const delta = Math.min(this.clock.getDelta(), 0.1);
     if (this.selectionHalo.visible) {
       const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.007);
-      this.selectionHalo.scale.setScalar(1.05 + pulse * 0.5);
-      this.selectionHalo.material.opacity = 0.28 + pulse * 0.42;
+      const strength = this.selectionStrength;
+      this.selectionHalo.scale.setScalar(1.05 + pulse * 0.5 * strength);
+      this.selectionHalo.material.opacity = (0.28 + pulse * 0.42) * strength;
     }
     this.handRenderer.update(delta);
     this.controls.update();

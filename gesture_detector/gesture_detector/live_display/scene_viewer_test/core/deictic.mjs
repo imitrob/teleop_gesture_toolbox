@@ -1,3 +1,15 @@
+export function getSelectionStrength(message) {
+  const threshold = Number(message?.evidence_threshold);
+  const evidence = Number(message?.evidence);
+  if (!Number.isFinite(threshold) || threshold <= 0) {
+    return 1; // publisher counts no evidence: highlight fully, as it always did
+  }
+  if (!Number.isFinite(evidence) || evidence <= 0) {
+    return 0;
+  }
+  return Math.min(1, evidence / threshold);
+}
+
 export function getSelectedObjectName(message) {
   if (!message || typeof message !== "object") {
     return null;
