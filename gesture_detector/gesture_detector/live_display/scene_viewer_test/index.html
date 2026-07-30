@@ -16,31 +16,43 @@
   </script>
 </head>
 <body>
-  <header class="toolbar">
-    <div>
-      <h1>ROS Hand Scene Viewer</h1>
-      <p id="modeDescription">Connecting to ROS…</p>
-    </div>
-    <button id="resetCamera" type="button">Reset camera</button>
-  </header>
-
   <main>
-    <div id="viewer" aria-label="Interactive 3D ROS scene"></div>
+    <div id="viewer" aria-label="Interactive 3D ROS scene">
+      <div class="viewer-controls">
+        <button id="resetCamera" type="button" title="Reset camera">
+          Reset
+        </button>
+        <button
+          id="toggleStats"
+          type="button"
+          aria-controls="diagnostics"
+          aria-expanded="false"
+        >
+          Stats
+        </button>
+      </div>
 
-    <section class="diagnostics" aria-label="Viewer diagnostics">
-      <div><span>Source</span><strong id="diagSource">—</strong></div>
-      <div><span>Rosbridge</span><strong id="diagConnection">—</strong></div>
-      <div><span>Transform</span><strong id="diagTransform">—</strong></div>
-      <div><span>Hand cap</span><strong id="diagCap">—</strong></div>
-      <div><span>Hand rate</span><strong id="diagHandRate">—</strong></div>
-      <div><span>Render FPS</span><strong id="diagRenderFps">—</strong></div>
-      <div><span>Visible hands</span><strong id="diagHands">—</strong></div>
-      <div><span>Hand age</span><strong id="diagHandAge">—</strong></div>
-      <div><span>Objects</span><strong id="diagObjects">—</strong></div>
-      <div><span>Beam age</span><strong id="diagBeamAge">—</strong></div>
-    </section>
+      <section
+        id="diagnostics"
+        class="diagnostics"
+        aria-label="Viewer diagnostics"
+        hidden
+      >
+        <div><span>Source</span><strong id="diagSource">—</strong></div>
+        <div><span>Rosbridge</span><strong id="diagConnection">—</strong></div>
+        <div><span>Transform</span><strong id="diagTransform">—</strong></div>
+        <div><span>Hand cap</span><strong id="diagCap">—</strong></div>
+        <div><span>Hand rate</span><strong id="diagHandRate">—</strong></div>
+        <div><span>Render FPS</span><strong id="diagRenderFps">—</strong></div>
+        <div><span>Visible hands</span><strong id="diagHands">—</strong></div>
+        <div><span>Hand age</span><strong id="diagHandAge">—</strong></div>
+        <div><span>Objects</span><strong id="diagObjects">—</strong></div>
+        <div><span>Selected</span><strong id="diagSelected">—</strong></div>
+        <div><span>Beam age</span><strong id="diagBeamAge">—</strong></div>
+      </section>
 
-    <p id="warning" class="warning" hidden></p>
+      <p id="warning" class="warning" hidden></p>
+    </div>
   </main>
 
   <script type="module" src="./main.js"></script>

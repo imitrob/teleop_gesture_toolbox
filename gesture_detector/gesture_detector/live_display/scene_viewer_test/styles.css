@@ -12,41 +12,21 @@
 html,
 body {
   width: 100%;
-  min-height: 100%;
+  height: 100%;
   margin: 0;
-}
-
-body {
-  padding: 18px;
-}
-
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  max-width: 1400px;
-  margin: 0 auto 12px;
-}
-
-h1 {
-  margin: 0;
-  font-size: 1.35rem;
-}
-
-.toolbar p {
-  margin: 4px 0 0;
-  color: #bdc1c6;
-  font-size: 0.9rem;
+  overflow: hidden;
 }
 
 button {
   border: 1px solid #5f6368;
-  border-radius: 5px;
-  padding: 8px 12px;
-  background: #303134;
+  border-radius: 4px;
+  padding: 5px 8px;
+  background: rgba(48, 49, 52, 0.86);
   color: #f1f3f4;
+  font: inherit;
+  font-size: 0.7rem;
   cursor: pointer;
+  backdrop-filter: blur(5px);
 }
 
 button:hover {
@@ -54,42 +34,59 @@ button:hover {
 }
 
 main {
-  max-width: 1400px;
-  margin: 0 auto;
+  width: 100%;
+  height: 100%;
 }
 
 #viewer {
   position: relative;
   width: 100%;
-  height: min(72vh, 820px);
-  min-height: 440px;
+  height: 100%;
   overflow: hidden;
-  border: 1px solid #5f6368;
-  border-radius: 7px;
   background: #303030;
 }
 
 #viewer canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
 }
 
+.viewer-controls {
+  position: absolute;
+  z-index: 2;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 5px;
+}
+
 .diagnostics {
+  position: absolute;
+  z-index: 2;
+  top: 39px;
+  right: 8px;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(105px, 1fr));
+  grid-template-columns: repeat(2, minmax(105px, 1fr));
   gap: 1px;
-  margin-top: 10px;
+  width: min(360px, calc(100% - 16px));
   overflow: hidden;
   border: 1px solid #5f6368;
   border-radius: 6px;
   background: #5f6368;
+  box-shadow: 0 5px 18px rgba(0, 0, 0, 0.32);
+}
+
+.diagnostics[hidden] {
+  display: none;
 }
 
 .diagnostics div {
   min-width: 0;
-  padding: 8px 10px;
-  background: #292a2d;
+  padding: 6px 8px;
+  background: rgba(41, 42, 45, 0.94);
 }
 
 .diagnostics span,
@@ -109,26 +106,30 @@ main {
 }
 
 .diagnostics strong {
-  font-size: 0.88rem;
+  font-size: 0.78rem;
   font-weight: 600;
 }
 
 .warning {
-  margin: 10px 0 0;
-  padding: 9px 11px;
+  position: absolute;
+  z-index: 2;
+  bottom: 8px;
+  left: 50%;
+  max-width: calc(100% - 16px);
+  margin: 0;
+  padding: 7px 9px;
   border: 1px solid #f9ab00;
   border-radius: 5px;
   background: #3c2f05;
   color: #fdd663;
+  font-size: 0.78rem;
+  transform: translateX(-50%);
 }
 
 @media (max-width: 700px) {
-  body {
-    padding: 10px;
-  }
-
-  #viewer {
-    height: 65vh;
-    min-height: 360px;
+  .diagnostics {
+    grid-template-columns: 1fr;
+    max-height: calc(100% - 55px);
+    overflow-y: auto;
   }
 }

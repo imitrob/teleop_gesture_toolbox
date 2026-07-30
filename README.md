@@ -28,12 +28,10 @@ cd ..
 colcon build --symlink-install --cmake-args -DPython3_FIND_VIRTUALENV=ONLY
 ```
 
-I use following alias to source the environment. The `*_PATH` variables define recordings, trained models, scenes:
+I use following alias to source the environment. It defines recording, trained model, and scene paths:
 ```Shell
 alias teleopenv='conda activate teleopenv; export GESTURE_DATA_PATH=~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/gesture_data; export GESTURE_MODELS_PATH=~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/saved_models; export SCENES_PATH=~/teleop_ws/src/teleop_gesture_toolbox/scene_getter/scene_getter/scene_makers/scenes; source ~/teleop_ws/install/setup.bash'
 ```
-
-See Leap Motion rigged hands by using [leapjs-rigged-hand](https://github.com/leapmotion/leapjs-rigged-hand).
 
 ## Common Gestures dataset
 
@@ -63,21 +61,6 @@ Secondly, calibration of the Leap Motion Controller with your scene base frame i
 Example setup
 ![setup.jpg](setup.jpg)
 
-### Gesture sentence processor
-
-Combining Gesture detector and Pointing object selection.
-Multiple gesture types and a gesture sentence generation. When pointing gesture is detected, object selection is activated. See example video [here](http://imitrob.ciirc.cvut.cz/publications/chi23/2023_IROS_GESTURE_SENTENCE_VIDEO.mp4).
-
-Requires gesture detector (`teleopenv; ros2 launch gesture_detector gesture_detect_launch.py`) and deictic node (`ros2 run pointing_object_selection selector_node`) running.
-
-Then gesture sentence processor is launch with
-
-```
-ros2 run gesture_sentence_maker sentence_maker
-```
-
-After gesture sentence finishes (hand no longer visible), processed gestures are sent and you should see `HRI Command original` results on your browser (`localhost:6357`).
-
 ### Mapping gestures to Robotic Actions
 
 A gesture meaning are defined in `links.yaml`.
@@ -88,10 +71,21 @@ Try without any hardware &mdash; click gestures, see which action fires:
 python -m gesture_meaning.link_game  # http://127.0.0.1:8078
 ```
 
+### Gesture sentence processor
+
+Combining Gesture detector and Pointing object selection.
+Multiple gesture types and a gesture sentence generation. When pointing gesture is detected, object selection is activated. See example video [here](http://imitrob.ciirc.cvut.cz/publications/chi23/2023_IROS_GESTURE_SENTENCE_VIDEO.mp4).
+
+```
+ros2 launch gesture_sentence_maker sentence_maker_launch.py user_name:=demo
+```
+
+After gesture sentence finishes (hand no longer visible), processed robot actions are sent at `/modality/gestures`.
+
+
 ### Action execution by the robotic manipulator
 
-Part that executes the actions with robitic manipulator is moved to separate [repository](https://github.com/imitrob/imitrob_templates) compatibility with this package is currently under development.
-
+See the following [repository](https://github.com/imitrob/franka_hri) to execute the robotic actions based on `/modality/gestures`.
 
 ### Gesture Direct Teleoperation (requires robotics setup)
 

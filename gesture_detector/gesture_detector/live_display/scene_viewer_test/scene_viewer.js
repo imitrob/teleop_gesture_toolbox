@@ -66,7 +66,11 @@ export class SceneViewer {
     this.camera.up.set(0, 0, 1);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // Supersample: render at >=2x and let CSS downscale, so thin markers stay
+    // crisp in a small embedded card on a 1x display. Cap keeps 4K sane.
+    this.renderer.setPixelRatio(
+      Math.min(Math.max(window.devicePixelRatio, 2), 3),
+    );
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.container.appendChild(this.renderer.domElement);
 
@@ -95,11 +99,26 @@ export class SceneViewer {
     this.objectGroup.name = "scene-object-centers";
     this.scene.add(this.objectGroup);
     this.objectCount = 0;
+    this.objectCenters = new Map();
+    this.selectedObjectName = null;
     this.objectCenterGeometry = new THREE.SphereGeometry(0.022, 18, 12);
     this.objectCenterMaterial = new THREE.MeshStandardMaterial({
       color: 0xffa726,
       roughness: 0.5,
     });
+    this.selectionHalo = new THREE.Mesh(
+      new THREE.SphereGeometry(0.034, 24, 16),
+      new THREE.MeshBasicMaterial({
+        color: 0xb2ff59,
+        transparent: true,
+        opacity: 0.5,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+      }),
+    );
+    this.selectionHalo.visible = false;
+    this.selectionHalo.renderOrder = 2;
+    this.scene.add(this.selectionHalo);
 
     const beamGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(),
@@ -146,6 +165,7 @@ export class SceneViewer {
   }
 
   setSceneObjects(objects) {
+    this.objectCenters.clear();
     for (const child of [...this.objectGroup.children]) {
       this.objectGroup.remove(child);
       if (child.isSprite) {
@@ -162,6 +182,7 @@ export class SceneViewer {
       center.position.set(...object.position);
       center.name = object.name;
       this.objectGroup.add(center);
+      this.objectCenters.set(object.name, center);
 
       const label = makeLabel(object.name);
       label.position.set(
@@ -172,6 +193,24 @@ export class SceneViewer {
       this.objectGroup.add(label);
     }
     this.objectCount = objects.length;
+    this.syncSelectedObject();
+  }
+
+  setSelectedObject(name) {
+    this.selectedObjectName = name || null;
+    this.syncSelectedObject();
+  }
+
+  syncSelectedObject() {
+    const center = this.selectedObjectName
+      ? this.objectCenters.get(this.selectedObjectName)
+      : null;
+    if (!center) {
+      this.selectionHalo.visible = false;
+      return;
+    }
+    this.selectionHalo.position.copy(center.position);
+    this.selectionHalo.visible = true;
   }
 
   setBeam(points) {
@@ -200,6 +239,11 @@ export class SceneViewer {
 
   render() {
     const delta = Math.min(this.clock.getDelta(), 0.1);
+    if (this.selectionHalo.visible) {
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.007);
+      this.selectionHalo.scale.setScalar(1.05 + pulse * 0.5);
+      this.selectionHalo.material.opacity = 0.28 + pulse * 0.42;
+    }
     this.handRenderer.update(delta);
     this.controls.update();
     this.renderer.render(this.scene, this.camera);

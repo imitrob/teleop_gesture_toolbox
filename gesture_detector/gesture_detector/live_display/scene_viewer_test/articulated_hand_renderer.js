@@ -48,9 +48,8 @@ class HandVisual {
       return { segment, joint };
     });
 
-    this.palm = new THREE.Mesh(new THREE.BoxGeometry(1, 1, 1), material);
     this.wrist = new THREE.Mesh(jointGeometry, material);
-    this.group.add(this.palm, this.wrist);
+    this.group.add(this.wrist);
     this.group.visible = false;
 
     this.target = null;
@@ -85,29 +84,9 @@ class HandVisual {
     };
 
     lerpPoint(this.current.wrist, this.target.wrist);
-    lerpPoint(this.current.palm.position, this.target.palm.position);
     this.current.palm.width +=
       (this.target.palm.width - this.current.palm.width) * alpha;
-    for (let index = 0; index < 3; index += 1) {
-      lerpPoint(
-        this.current.palm.basis[index],
-        this.target.palm.basis[index],
-      );
-    }
-
-    const palmPosition = new THREE.Vector3(...this.current.palm.position);
-    this.palm.position.copy(palmPosition);
-    const basis = this.current.palm.basis.map((axis) =>
-      new THREE.Vector3(...axis).normalize()
-    );
-    const basisMatrix = new THREE.Matrix4().makeBasis(
-      basis[0],
-      basis[1],
-      basis[2],
-    );
-    this.palm.quaternion.setFromRotationMatrix(basisMatrix);
     const palmWidth = Math.max(this.current.palm.width, 0.04);
-    this.palm.scale.set(palmWidth, palmWidth * 0.16, palmWidth * 0.72);
 
     this.wrist.position.set(...this.current.wrist);
     const wristRadius = Math.max(palmWidth * 0.11, 0.007);

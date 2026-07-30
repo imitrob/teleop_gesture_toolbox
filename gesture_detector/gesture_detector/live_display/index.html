@@ -22,6 +22,10 @@
     .card-header h2{font-size:24px;line-height:1.2;margin:0;text-align:center;flex:1;}
     .drag-grip{font-size:22px;line-height:1;letter-spacing:-4px;padding-right:4px;opacity:.9;}
     .card-body{padding:12px;}
+    .card-body.is-flush{padding:0;}
+    .scene-frame{display:block;width:100%;aspect-ratio:1;border:0;background:#303030;}
+    /* an iframe swallows dragover, so the card cannot be a drop target while it does */
+    .dashboard-grid.is-reordering .scene-frame{pointer-events:none;}
     .empty-state{margin:8px 0;color:#607d8b;font-style:italic;text-align:center;}
     .status-grid{display:grid;grid-template-columns:max-content 1fr;gap:8px 12px;align-items:center;margin:0 0 12px;}
     .status-grid dt{font-weight:700;}
@@ -144,6 +148,18 @@
     </div>
   </section>
 
+  <section class="dashboard-card" data-card-id="scene">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <h2>Hand Scene</h2>
+    </header>
+    <div class="card-body is-flush">
+      <!-- served from the same live_display root (port 6357), so no extra server -->
+      <iframe class="scene-frame" src="./scene_viewer_test/index.html"
+              title="Interactive 3D hand scene" loading="lazy"></iframe>
+    </div>
+  </section>
+
   <section class="dashboard-card" data-card-id="status">
     <header class="card-header" draggable="true">
       <span class="drag-grip" aria-hidden="true">⋮⋮</span>
@@ -246,6 +262,7 @@
     'episodes',
     'mapped-actions',
     'gesture-meaning',
+    'scene',
     'status',
   ];
   const dashboardGrid = document.getElementById('dashboardGrid');
@@ -275,8 +292,11 @@
       card.style.width = `${cardWidth}px`;
     });
 
-    cards.forEach((card, index)=>{
-      const column = index % columnCount;
+    cards.forEach(card=>{
+      // Masonry: drop each card into the currently shortest column instead of
+      // index % columnCount. A full-height card keeps its column to itself and
+      // the following cards stack up in the shorter ones.
+      const column = columnHeights.indexOf(Math.min(...columnHeights));
       const x = paddingLeft + column * (cardWidth + columnGap);
       const y = paddingTop + columnHeights[column];
       card.style.transform = `translate(${x}px, ${y}px)`;
@@ -355,10 +375,12 @@
       draggedCard = card;
       event.dataTransfer.effectAllowed = 'move';
       event.dataTransfer.setData('text/plain', card.dataset.cardId);
+      dashboardGrid.classList.add('is-reordering');
       requestAnimationFrame(()=>card.classList.add('is-dragging'));
     });
 
     header.addEventListener('dragend', ()=>{
+      dashboardGrid.classList.remove('is-reordering');
       if (draggedCard) draggedCard.classList.remove('is-dragging');
       draggedCard = null;
       clearDropPreview();
@@ -398,6 +420,7 @@
     }
     saveCardOrder();
     scheduleDashboardLayout();
+    dashboardGrid.classList.remove('is-reordering');
     draggedCard.classList.remove('is-dragging');
     draggedCard = null;
     clearDropPreview();

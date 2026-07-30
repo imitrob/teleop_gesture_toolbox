@@ -86,6 +86,13 @@ def generate_launch_description():
             output='screen',
             shell=True
         ),
+        # Standalone full-screen hand scene viewer. The dashboard's embedded. "Hand Scene" card is served by 6357 above and does not need this.
+        ExecuteProcess(
+            cmd=['python3', gesture_detector.path+"/live_display/scene_viewer_test/server.py",
+                 '--port', '6358'],
+            output='screen',
+            shell=True
+        ),
         Node(
             package='gesture_detector',
             executable='hand_marker_pub',
@@ -98,8 +105,9 @@ def generate_launch_description():
             name='static_tf_a404_node',
             output='screen',
         ),
-        rviz_config_file_arg,
-        rviz_node
+        # Note: rViz replaced by visualization in browser 
+        # rviz_config_file_arg,
+        # rviz_node
     ])
 
 

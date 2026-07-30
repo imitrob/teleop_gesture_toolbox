@@ -1,4 +1,5 @@
 import { FreshnessTracker } from "./core/freshness.mjs";
+import { getSelectedObjectName } from "./core/deictic.mjs";
 import { TfGraph } from "./core/tf_graph.mjs";
 import {
   applyTransform,
@@ -14,6 +15,7 @@ const TOPICS = Object.freeze({
   hand: "/teleop_gesture_toolbox/hand_frame",
   scene: "/scene",
   beam: "/teleop_gesture_toolbox/line_marker",
+  selection: "/teleop_gesture_toolbox/deictic_solution",
   tfStatic: "/tf_static",
 });
 
@@ -29,11 +31,12 @@ function normalizeVector(vector) {
 }
 
 export class RosSceneSource {
-  constructor({ handRate, onHands, onScene, onBeam }) {
+  constructor({ handRate, onHands, onScene, onBeam, onSelection }) {
     this.handRate = handRate;
     this.onHands = onHands;
     this.onScene = onScene;
     this.onBeam = onBeam;
+    this.onSelection = onSelection;
 
     this.tfGraph = new TfGraph();
     this.freshness = new FreshnessTracker(STALE_TIMEOUT_MS);
@@ -42,6 +45,7 @@ export class RosSceneSource {
     this.latestHandFrame = null;
     this.visibleHands = 0;
     this.objectCount = 0;
+    this.selectedObject = null;
     this.sceneSignature = "";
     this.handArrivals = [];
     this.socket = null;
@@ -51,6 +55,7 @@ export class RosSceneSource {
     this.beamShown = false;
     this.handExpiryTimer = null;
     this.beamExpiryTimer = null;
+    this.selectionExpiryTimer = null;
   }
 
   start() {
@@ -63,6 +68,7 @@ export class RosSceneSource {
     window.clearTimeout(this.reconnectTimer);
     window.clearTimeout(this.handExpiryTimer);
     window.clearTimeout(this.beamExpiryTimer);
+    window.clearTimeout(this.selectionExpiryTimer);
     if (this.socket) {
       const socket = this.socket;
       this.socket = null;
@@ -101,6 +107,12 @@ export class RosSceneSource {
           id: "scene_viewer_beam",
           topic: TOPICS.beam,
           type: "visualization_msgs/MarkerArray",
+          throttle_rate: 50,
+        },
+        {
+          id: "scene_viewer_selection",
+          topic: TOPICS.selection,
+          type: "gesture_msgs/DeicticSolution",
           throttle_rate: 50,
         },
         {
@@ -154,12 +166,16 @@ export class RosSceneSource {
     this.visibleHands = 0;
     this.freshness.clear("hand");
     this.freshness.clear("beam");
+    this.freshness.clear("selection");
     window.clearTimeout(this.handExpiryTimer);
     window.clearTimeout(this.beamExpiryTimer);
+    window.clearTimeout(this.selectionExpiryTimer);
     this.handsShown = false;
     this.beamShown = false;
     this.onHands([]);
     this.onBeam(null);
+    this.selectedObject = null;
+    this.onSelection(null);
     this.reconnectTimer = window.setTimeout(
       () => this.connect(),
       RECONNECT_MS,
@@ -228,6 +244,22 @@ export class RosSceneSource {
       this.scheduleBeamExpiry();
       this.beamShown = true;
       this.onBeam(marker.points.map(pointFromRos));
+      return;
+    }
+
+    if (packet.topic === TOPICS.selection) {
+      const selectedObject = getSelectedObjectName(packet.msg);
+      window.clearTimeout(this.selectionExpiryTimer);
+      if (!selectedObject) {
+        this.freshness.clear("selection");
+        this.selectedObject = null;
+        this.onSelection(null);
+        return;
+      }
+      this.freshness.mark("selection", now);
+      this.selectedObject = selectedObject;
+      this.onSelection(selectedObject);
+      this.scheduleSelectionExpiry();
     }
   }
 
@@ -302,6 +334,16 @@ export class RosSceneSource {
     }, STALE_TIMEOUT_MS);
   }
 
+  scheduleSelectionExpiry() {
+    window.clearTimeout(this.selectionExpiryTimer);
+    this.selectionExpiryTimer = window.setTimeout(() => {
+      if (!this.freshness.isFresh("selection")) {
+        this.selectedObject = null;
+        this.onSelection(null);
+      }
+    }, STALE_TIMEOUT_MS);
+  }
+
   pruneHandArrivals(now) {
     const cutoff = now - 1000;
     while (this.handArrivals.length && this.handArrivals[0] < cutoff) {
@@ -321,6 +363,7 @@ export class RosSceneSource {
       visibleHands: this.visibleHands,
       handAge: this.freshness.age("hand", now),
       objectCount: this.objectCount,
+      selectedObject: this.selectedObject,
       beamAge: this.freshness.age("beam", now),
     };
   }

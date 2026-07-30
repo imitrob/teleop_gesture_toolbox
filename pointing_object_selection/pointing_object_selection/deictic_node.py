@@ -1,5 +1,4 @@
 import argparse
-import time
 from pointing_object_selection.deictic_lib import DeiticLib, DeicticSolution
 import rclpy
 
@@ -77,13 +76,16 @@ def main(args):
 
     print("[Info] Ctrl+C to leave")
     try:
-        while True:
-            rclpy.spin_once(dl)
-            time.sleep(1/args['frequency'])
-            dl.step()
-            
+        dl.deictic_timer = dl.create_timer(
+            1.0 / args['frequency'],
+            dl.step,
+        )
+        rclpy.spin(dl)
     except KeyboardInterrupt:
         print("KeyboardInterrupt: Test deictic ended\n\n")
+    finally:
+        dl.destroy_node()
+        rclpy.shutdown()
 
 def run_node_default():
     main(args = {

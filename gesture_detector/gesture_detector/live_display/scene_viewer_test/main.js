@@ -11,6 +11,7 @@ const callbacks = {
   onHands: (hands) => viewer.setHands(hands),
   onScene: (objects) => viewer.setSceneObjects(objects),
   onBeam: (points) => viewer.setBeam(points),
+  onSelection: (name) => viewer.setSelectedObject(name),
 };
 const source = demoMode
   ? new DemoSceneSource({ handRate, ...callbacks })
@@ -20,9 +21,13 @@ document.getElementById("resetCamera").addEventListener(
   "click",
   () => viewer.resetCamera(),
 );
-document.getElementById("modeDescription").textContent = demoMode
-  ? "Synthetic demo mode — no ROS connection required"
-  : "Live ROS mode — ws://127.0.0.1:9090";
+const diagnosticsPanel = document.getElementById("diagnostics");
+const toggleStats = document.getElementById("toggleStats");
+toggleStats.addEventListener("click", () => {
+  const show = diagnosticsPanel.hidden;
+  diagnosticsPanel.hidden = !show;
+  toggleStats.setAttribute("aria-expanded", String(show));
+});
 
 const warning = document.getElementById("warning");
 if (handRate.warning) {
@@ -40,6 +45,7 @@ const fields = {
   hands: document.getElementById("diagHands"),
   handAge: document.getElementById("diagHandAge"),
   objects: document.getElementById("diagObjects"),
+  selected: document.getElementById("diagSelected"),
   beamAge: document.getElementById("diagBeamAge"),
 };
 
@@ -65,6 +71,7 @@ function updateDiagnostics() {
   fields.hands.textContent = String(diagnostics.visibleHands);
   fields.handAge.textContent = formatAge(diagnostics.handAge, "Hand");
   fields.objects.textContent = String(diagnostics.objectCount);
+  fields.selected.textContent = diagnostics.selectedObject || "—";
   fields.beamAge.textContent = formatAge(diagnostics.beamAge, "Beam");
 }
 

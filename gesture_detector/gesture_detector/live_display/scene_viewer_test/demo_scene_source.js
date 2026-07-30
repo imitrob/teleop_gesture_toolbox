@@ -53,11 +53,12 @@ function openHand(offsetZ) {
 }
 
 export class DemoSceneSource {
-  constructor({ handRate, onHands, onScene, onBeam }) {
+  constructor({ handRate, onHands, onScene, onBeam, onSelection }) {
     this.handRate = handRate;
     this.onHands = onHands;
     this.onScene = onScene;
     this.onBeam = onBeam;
+    this.onSelection = onSelection;
     this.freshness = new FreshnessTracker(500);
     this.timer = null;
     this.handArrivals = [];
@@ -70,6 +71,7 @@ export class DemoSceneSource {
       { name: "robothon_box", position: [0.92, 0.08, 0.15] },
       { name: "robothon_peg", position: [1.12, -0.02, 0.3] },
     ]);
+    this.onSelection("robothon_box");
     const publishHand = () => {
       const now = performance.now();
       const offsetZ = Math.sin(now / 700) * 0.012;
@@ -92,6 +94,7 @@ export class DemoSceneSource {
 
   stop() {
     window.clearInterval(this.timer);
+    this.onSelection(null);
   }
 
   pruneHandArrivals(now) {
@@ -111,6 +114,7 @@ export class DemoSceneSource {
       visibleHands: 1,
       handAge: this.freshness.age("hand", now),
       objectCount: this.objectCount,
+      selectedObject: "robothon_box",
       beamAge: this.freshness.age("beam", now),
     };
   }
