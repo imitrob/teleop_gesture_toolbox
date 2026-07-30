@@ -19,7 +19,7 @@
     .card-header{display:flex;align-items:center;gap:8px;margin:0;padding:9px 12px;background:#2196f3;
                  color:#fff;cursor:grab;user-select:none;}
     .card-header:active{cursor:grabbing;}
-    .card-header h2{font-size:22px;line-height:1.2;margin:0;text-align:center;flex:1;}
+    .card-header h2{font-size:24px;line-height:1.2;margin:0;text-align:center;flex:1;}
     .drag-grip{font-size:22px;line-height:1;letter-spacing:-4px;padding-right:4px;opacity:.9;}
     .card-body{padding:12px;}
     .empty-state{margin:8px 0;color:#607d8b;font-style:italic;text-align:center;}
@@ -41,14 +41,15 @@
     
     .link-row:nth-child(odd){background:#d7e1f0;}
 
-    .links-grid{display:flex;flex-direction:column;gap:6px;}
-    .link-row{display:flex;align-items:center;justify-content:flex-start;gap:6px;font-size:14px;padding:6px;flex-wrap:wrap;}
-    .link-gestures{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;}
-    .link-gesture{display:inline-flex;flex-direction:column;align-items:center;min-width:48px;}
-    .link-gesture-emoji{font-size:28px;line-height:1;}
-    .link-gesture-name{font-size:11px;font-weight:600;overflow-wrap:anywhere;}
-    .link-arrow{font-size:14px;font-weight:bold;color:#000;}
-    .link-action{font-weight:bold;font-size:14px;color:#000;word-break:break-word;min-width:0;}
+    .links-grid{display:flex;flex-direction:column;align-items:stretch;gap:6px;}
+    .link-row{display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;
+              padding:9px 6px;text-align:center;flex-wrap:wrap;}
+    .link-gestures{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;}
+    .link-gesture{display:inline-flex;flex-direction:column;align-items:center;min-width:56px;}
+    .link-gesture-emoji{font-size:34px;line-height:1;}
+    .link-gesture-name{font-size:13px;font-weight:600;overflow-wrap:anywhere;}
+    .link-arrow{font-size:18px;font-weight:bold;color:#000;}
+    .link-action{font-weight:bold;font-size:16px;color:#000;word-break:break-word;min-width:0;}
 
     @media (max-width:1300px){.dashboard-grid{--dashboard-columns:3;}}
     @media (max-width:900px){.dashboard-grid{--dashboard-columns:2;}}
@@ -417,6 +418,10 @@
   /* -------------------------------------------------------------------- */
   let ws;          // active WebSocket
 
+  function displayStatusMetric(value){
+    return value === -1 || value === '-1' || value == null ? '—' : value;
+  }
+
   function updateConnectionStatus(){
     const statusEl = document.getElementById('handFrameStatus');
     statusEl.className = 'w3-tag w3-round';
@@ -526,10 +531,12 @@
           let dynamicHTML = "";
 
           if (parsed_message.hasOwnProperty('fps')) {
-            document.getElementById('statusFps').textContent = parsed_message.fps;
+            document.getElementById('statusFps').textContent =
+              displayStatusMetric(parsed_message.fps);
           }
           if (parsed_message.hasOwnProperty('seq')) {
-            document.getElementById('statusMsg').textContent = parsed_message.seq ?? '—';
+            document.getElementById('statusMsg').textContent =
+              displayStatusMetric(parsed_message.seq);
           }
           if (parsed_message.hasOwnProperty('gesture_type_selected')) {
             document.getElementById('statusDoing').textContent =
