@@ -17,11 +17,11 @@ def generate_launch_description():
         'sensor', LaunchConfiguration('sensor')
     )
     user_name_arg = DeclareLaunchArgument('user_name', default_value='', description='User name.')
-    scene_name_arg = DeclareLaunchArgument('scene_name', default_value='', description='Scene yaml file.')
 
 
     return LaunchDescription([
         sensor_arg,
+        user_name_arg,
         set_sensor_config,
         # ros2 launch gesture_detector gesture_detect_launch.py
         IncludeLaunchDescription( 
@@ -57,29 +57,21 @@ def generate_launch_description():
         # ),
         ## ALL
         # ros2 run gesture_sentence_maker sentence_maker # Gesture Sentence Processor
-        Node( 
+        Node(
             package='gesture_sentence_maker',
             executable='sentence_maker',
             name='sentence_maker_node',
             output='screen',
+            # ignored_gestures + activate_length come from this user's links file
+            parameters=[{'user_name': LaunchConfiguration('user_name')}],
         ),
         Node(
             package='scene_getter',
             executable='mocked_scene',
             name='mocked_scene_node',
             output='screen',
-        ),
-        user_name_arg,
-        scene_name_arg,
-        Node(
-            package='gesture_meaning',
-            executable='compound_gesture_user_meaning', #'gesture_meaning_service',
-            name='gesture_meaning_service_node',
-            output='screen',
-            parameters=[{
-                'user_name': LaunchConfiguration('user_name'),
-                'scene_name': LaunchConfiguration('scene_name'),
-            }]
+            # which scene to publish comes from this user's links file
+            parameters=[{'user_name': LaunchConfiguration('user_name')}],
         ),
     ])
 

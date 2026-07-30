@@ -1,0 +1,38 @@
+# Fallback links, used when hri_manager is not installed -- gesture_meaning is
+# usable on its own, and a gesture has no meaning without a links file.
+#
+# Same format as hri_manager/links/<user>_links.yaml. With hri_manager present
+# that file is read instead and this one is ignored, so edit it there.
+#
+# One entry of action_gestures is a combination: every gesture in it has to be
+# shown for the action to be named. Several entries are alternatives.
+user: default
+objects:
+- cube
+- bowl
+directional_actions: []
+zero_object_actions: []
+single_object_actions:
+- pick
+- touch
+double_object_actions:
+- put
+adjectives: []
+prepositions:
+- to
+links:
+  link1:
+    user: default
+    action_template: pick
+    action_gestures:
+    - [grab, swipe_up]
+  link2:
+    user: default
+    action_template: touch
+    action_gestures:
+    - [pinch, swipe_down]
+  link3:
+    user: default
+    action_template: put
+    action_gestures:
+    - [thumbsup, swipe_left]

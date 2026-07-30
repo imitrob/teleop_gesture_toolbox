@@ -31,6 +31,7 @@ from gesture_detector.gesture_classification.episodic_accumulation import Accumu
 
 
 DEBUGSEMAPHORE = False
+MODEL_CONFIG_RESPONSE_TIMEOUT = 2.0
 
 rossem = threading.Semaphore()
 
@@ -53,12 +54,8 @@ class GestureDataDetection(Node):
 
         super(GestureDataDetection, self).__init__('ros_comm_main')
 
-        self.create_subscription(rosm.Frame, '/teleop_gesture_toolbox/hand_frame', self.hand_frame_callback, 10)
-
-        self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/static_detection_solutions', self.save_static_detection_solutions_callback, 10)
         self.static_detection_observations_pub = self.create_publisher(DetectionObservations,'/teleop_gesture_toolbox/static_detection_observations', 5)
 
-        self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/dynamic_detection_solutions', self.save_dynamic_detection_solutions_callback, 10)
         self.dynamic_detection_observations_pub = self.create_publisher(DetectionObservations, '/teleop_gesture_toolbox/dynamic_detection_observations', 5)
 
         self.save_hand_record_cli = self.create_client(SaveHandRecord, '/save_hand_record')
@@ -100,6 +97,14 @@ class GestureDataDetection(Node):
             print(f"Static gestures: {self.l.static.Gs}, \nDynamic gestures {self.l.dynamic.Gs}")
 
         self.gestures_queue = AccumulatedGestures()
+
+        # Do not accept frames or detection results until the model config and
+        # per-hand state above are ready. spin_until_future_complete() processes
+        # subscriptions, so creating these earlier lets callbacks observe a
+        # half-initialized object when a config response is delayed or lost.
+        self.create_subscription(rosm.Frame, '/teleop_gesture_toolbox/hand_frame', self.hand_frame_callback, 10)
+        self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/static_detection_solutions', self.save_static_detection_solutions_callback, 10)
+        self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/dynamic_detection_solutions', self.save_dynamic_detection_solutions_callback, 10)
 
         # Gesture prediction
         self.static_gesture_action_prediction = [""] * len(self.l.static.Gs)
@@ -310,14 +315,51 @@ class GestureDataDetection(Node):
 
 
     def call_static_model_config_service(self):
-        self.future = self.get_static_model_config.call_async(GetModelConfig.Request())
-        rclpy.spin_until_future_complete(self, self.future)
-        return list(self.future.result().gestures)
+        return self._call_model_config_service(
+            self.get_static_model_config,
+            '/teleop_gesture_toolbox/static_detection_info',
+        )
     
     def call_dynamic_model_config_service(self):
-        self.future = self.get_dynamic_model_config.call_async(GetModelConfig.Request())
-        rclpy.spin_until_future_complete(self, self.future)
-        return list(self.future.result().gestures)
+        return self._call_model_config_service(
+            self.get_dynamic_model_config,
+            '/teleop_gesture_toolbox/dynamic_detection_info',
+        )
+
+    def _call_model_config_service(self, client, service_name):
+        attempt = 0
+        while rclpy.ok():
+            attempt += 1
+            future = client.call_async(GetModelConfig.Request())
+            rclpy.spin_until_future_complete(
+                self,
+                future,
+                timeout_sec=MODEL_CONFIG_RESPONSE_TIMEOUT,
+            )
+
+            retry_reason = (
+                f"timed out after {MODEL_CONFIG_RESPONSE_TIMEOUT:.1f}s"
+            )
+            if future.done():
+                try:
+                    response = future.result()
+                except Exception as error:  # noqa: BLE001 - retry transport failures
+                    retry_reason = f"request failed: {error}"
+                else:
+                    if response is not None:
+                        return list(response.gestures)
+                    retry_reason = "received an empty response"
+
+            client.remove_pending_request(future)
+            print(
+                f"[GestureDataDetection] {service_name} {retry_reason} "
+                f"on attempt {attempt}; retrying",
+                flush=True,
+            )
+
+        raise RuntimeError(
+            f"ROS shutdown while waiting for model config from {service_name}"
+        )
 
     @withsem
     def save_hand_record(self, dir):
@@ -783,6 +825,4 @@ class GestureDataHand():
     def __init__(self, gesture_config):
         self.static = StaticGs(gesture_config['static'])
         self.dynamic = DynamicGs(gesture_config['dynamic'])
-
-
 

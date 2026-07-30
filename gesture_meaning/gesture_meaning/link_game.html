@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gesture Link Lab</title>
+<style>
+  :root {
+    --bg: #10131a; --card: #191d28; --edge: #2b3242; --text: #e8ecf5;
+    --dim: #8f9bb3; --hot: #ffcc55; --good: #4fd08a; --cold: #6f7ce0;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f4f6fb; --card: #fff; --edge: #dde3ee; --text: #1a2030;
+            --dim: #667089; --hot: #d98800; --good: #12925c; --cold: #4b56c9; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 1.4rem 1rem 4rem; background: var(--bg); color: var(--text);
+         font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .wrap { max-width: 940px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 .2rem; }
+  h1 small { color: var(--dim); font-weight: 400; font-size: .8rem; display: block; margin-top: .25rem; }
+  .card { background: var(--card); border: 1px solid var(--edge); border-radius: 14px;
+          padding: 1rem 1.1rem; margin-top: 1rem; }
+  .row { display: flex; flex-wrap: wrap; gap: .6rem; align-items: center; }
+  .between { justify-content: space-between; }
+  button { font: inherit; color: var(--text); background: var(--card); cursor: pointer;
+           border: 1px solid var(--edge); border-radius: 10px; padding: .45rem .8rem; }
+  button:hover { border-color: var(--cold); }
+  .gestures { display: grid; grid-template-columns: repeat(auto-fill, minmax(104px, 1fr)); gap: .6rem; }
+  .g { display: flex; flex-direction: column; align-items: center; gap: .25rem;
+       padding: .75rem .4rem; font-size: .82rem; }
+  .g .emoji { font-size: 1.9rem; line-height: 1; }
+  .g.armed { border-color: var(--hot); box-shadow: 0 0 0 2px color-mix(in srgb, var(--hot) 28%, transparent); }
+  .chip { border: 1px solid var(--edge); border-radius: 999px; padding: .16rem .6rem; font-size: .8rem;
+          white-space: nowrap; }
+  .chip.lit { border-color: var(--hot); color: var(--hot);
+              background: color-mix(in srgb, var(--hot) 12%, transparent); }
+  .combos { display: flex; flex-direction: column; gap: .45rem; margin-top: .7rem; }
+  .combo { display: flex; flex-wrap: wrap; gap: .4rem; align-items: center; }
+  .combo .plus, .combo .arrow { color: var(--dim); font-size: .85rem; }
+  .combo .act { font-weight: 600; }
+  .combo.done .act { color: var(--good); }
+  .combo .tick { color: var(--good); }
+  .never { color: var(--dim); font-size: .85rem; margin-top: .7rem; }
+  .never b { color: var(--text); font-weight: 600; }
+  .hint { color: var(--dim); font-size: .85rem; }
+  #pop { position: fixed; inset: 0; display: none; place-items: center; pointer-events: none; }
+  #pop.show { display: grid; }
+  #pop div { background: var(--card); border: 2px solid var(--good); border-radius: 18px;
+             padding: 1.6rem 2.4rem; text-align: center; animation: pop .45s ease-out;
+             box-shadow: 0 18px 50px rgba(0,0,0,.35); }
+  #pop .who { color: var(--dim); font-size: .8rem; }
+  #pop .what { font-size: 2.2rem; font-weight: 700; color: var(--good); }
+  @keyframes pop { from { transform: scale(.7); opacity: 0 } to { transform: scale(1); opacity: 1 } }
+  @media (prefers-reduced-motion: reduce) { #pop div { animation: none } }
+  code { background: color-mix(in srgb, var(--cold) 14%, transparent); padding: .05rem .3rem;
+         border-radius: 5px; font-size: .85em; }
+  .err { color: #ff6b6b; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Gesture Link Lab
+    <small>Click gestures. Every gesture of one <code>action_gestures</code> entry has to be
+    shown before its action fires &mdash; answered by the same mapping the robot uses.</small>
+  </h1>
+
+  <div class="card">
+    <div class="row">
+      <span class="row" id="offered"></span>
+      <input type="file" id="file" accept=".yaml,.yml">
+      <span class="hint" id="who"></span>
+    </div>
+    <div class="hint err" id="err"></div>
+  </div>
+
+  <div class="card" id="board" hidden>
+    <div class="row between">
+      <strong>Gestures</strong>
+      <span class="row">
+        <span class="hint" id="score"></span>
+        <button id="clear">Reset</button>
+      </span>
+    </div>
+    <div class="gestures" id="gestures" style="margin-top:.7rem"></div>
+  </div>
+
+  <div class="card" id="linkcard" hidden>
+    <strong>Links</strong>
+    <span class="hint">&mdash; what this file can command. Lit gestures are the ones you have shown.</span>
+    <div class="combos" id="combos"></div>
+    <div class="never" id="never"></div>
+  </div>
+</div>
+
+<div id="pop"><div><span class="who" id="popwho"></span><div class="what" id="popwhat"></div></div></div>
+
+<script>
+const el = id => document.getElementById(id);
+let gestureIcons = {};
+const emoji = g => gestureIcons[g] || "\u{1F44B}";
+let linksYaml = "", clicks = [], discovered = new Set();
+
+async function ask() {
+  const res = await fetch("/api/state", {
+    method: "POST", headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({links: linksYaml, clicks}),
+  });
+  return res.json();
+}
+
+async function refresh() {
+  let state = await ask();
+  // A completed combination is the end of a gesture episode: it fires and the
+  // hand starts over, so the shown gestures clear themselves.
+  if (state.triggered && state.triggered.length) {
+    const last = state.triggered[state.triggered.length - 1];
+    state.triggered.forEach(t => discovered.add(t.action));
+    popup(last);
+    clicks = [];
+    state = await ask();
+  }
+  draw(state);
+}
+
+function draw(s) {
+  el("err").textContent = s.error || "";
+  if (s.error) return;
+  gestureIcons = s.gesture_icons || {};
+  el("who").textContent = s.user ? `links of "${s.user}"` : "";
+  el("board").hidden = el("linkcard").hidden = false;
+
+  if (!s.gestures.length) {
+    el("err").textContent = "No gesture is linked in this file, so nothing can fire.";
+  }
+  el("gestures").replaceChildren(...s.gestures.map(g => {
+    const b = document.createElement("button");
+    b.className = "g" + (s.leftover.includes(g) ? " armed" : "");
+    b.innerHTML = `<span class="emoji">${emoji(g)}</span>${g}`;
+    b.onclick = () => { clicks.push(g); refresh(); };
+    return b;
+  }));
+
+  el("combos").replaceChildren(...s.combinations.map(c => {
+    const row = document.createElement("div");
+    row.className = "combo" + (discovered.has(c.action) ? " done" : "");
+    const parts = [];
+    c.gestures.forEach((g, i) => {
+      if (i) parts.push(`<span class="plus">+</span>`);
+      const lit = s.leftover.includes(g) ? " lit" : "";
+      parts.push(`<span class="chip${lit}">${emoji(g)} ${g}</span>`);
+    });
+    parts.push(`<span class="arrow">&rarr;</span><span class="act">${c.action}</span>`);
+    if (discovered.has(c.action)) parts.push(`<span class="tick">&check;</span>`);
+    row.innerHTML = parts.join(" ");
+    return row;
+  }));
+
+  const never = s.actions.filter(a => !s.combinations.some(c => c.action === a));
+  el("never").innerHTML = never.length
+    ? `No gesture names <b>${never.join("</b>, <b>")}</b> &mdash; only voice can ask for `
+      + `${never.length > 1 ? "those" : "that"}.`
+    : "";
+
+  el("score").textContent =
+    `${discovered.size} of ${s.combinations.length} link${s.combinations.length === 1 ? "" : "s"} triggered`;
+}
+
+let popTimer;
+function popup(t) {
+  el("popwho").textContent = t.gestures.map(g => `${emoji(g)} ${g}`).join(" + ");
+  el("popwhat").textContent = t.action;
+  el("pop").classList.add("show");
+  clearTimeout(popTimer);
+  popTimer = setTimeout(() => el("pop").classList.remove("show"), 1400);
+}
+
+function load(text) { linksYaml = text; clicks = []; discovered = new Set(); refresh(); }
+
+el("file").onchange = e => {
+  const f = e.target.files[0];
+  if (f) f.text().then(load);
+};
+el("clear").onclick = () => { clicks = []; refresh(); };
+
+// One button per links file this workspace has: the one shipped with
+// gesture_meaning, plus every user's file in hri_manager when it is installed.
+fetch("/api/links").then(r => r.json()).then(names => {
+  el("offered").replaceChildren(...names.map(name => {
+    const b = document.createElement("button");
+    b.textContent = name;
+    b.onclick = () => fetch(`/api/links?name=${encodeURIComponent(name)}`)
+      .then(r => r.text()).then(load);
+    return b;
+  }));
+});
+</script>
+</body>
+</html>

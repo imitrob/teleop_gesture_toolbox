@@ -1,8 +1,12 @@
 
-# Teleoperation gesture toolbox v1.2
+# Teleoperation gesture toolbox v1.3
 
 Welcome to **teleoperation gesture toolbox** package made for **Leap Motion Controller** or D400 series RealSense.
 Most of the package utilize **ROS2**. 
+
+News and updates:
+- Hand visualization web dashboard (`localhost:6357`) updated with real hand visualization.
+- Gesture Meaning: Added a mapping game (`python -m gesture_meaning.link_game`).
 
 ## Installation 
 
@@ -11,7 +15,7 @@ Install Leap Motion SDK and API for Python (v3.11), see [script](gesture_detecto
 I use [miniconda](docs.anaconda.com/miniconda) packaging. Dependency packages are stored in `environment.yml` file.
 ```Shell
 conda install mamba -c conda-forge
-mamba env create -f environment.yml # Installs ROS2 Humble via RoboStack utilized for this conda environemnt
+mamba env create -f environment.yml
 mamba activate teleopenv
 ```
 
@@ -21,17 +25,12 @@ mkdir -p ~/teleop_ws/src
 cd ~/teleop_ws/src
 git clone https://github.com/imitrob/teleop_gesture_toolbox.git --depth 1
 cd ..
-colcon build --symlink-install
+colcon build --symlink-install --cmake-args -DPython3_FIND_VIRTUALENV=ONLY
 ```
 
 I use following alias to source the environment. The `*_PATH` variables define recordings, trained models, scenes:
 ```Shell
-alias teleopenv='conda activate teleopenv;
-LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:$HOME/LeapAPI/lib/x64/;
-export GESTURE_DATA_PATH=~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/gesture_data;
-export GESTURE_MODELS_PATH=~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/saved_models;
-export SCENES_PATH=~/teleop_ws/src/teleop_gesture_toolbox/scene_getter/scene_getter/scene_makers/scenes;
-source ~/teleop_ws/install/setup.bash'
+alias teleopenv='conda activate teleopenv; export GESTURE_DATA_PATH=~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/gesture_data; export GESTURE_MODELS_PATH=~/teleop_ws/src/teleop_gesture_toolbox/gesture_detector/saved_models; export SCENES_PATH=~/teleop_ws/src/teleop_gesture_toolbox/scene_getter/scene_getter/scene_makers/scenes; source ~/teleop_ws/install/setup.bash'
 ```
 
 See Leap Motion rigged hands by using [leapjs-rigged-hand](https://github.com/leapmotion/leapjs-rigged-hand).
@@ -51,14 +50,7 @@ Run gesture detector:
 teleopenv; ros2 launch gesture_detector gesture_detect_launch.py sensor:=leap # or realsense
 ```
 
-See the gesture detections on your browser `localhost:8000`.
-
-#### (optional) Run websocket server on specific port 
-
-To run websocket (for live gesture display) on scecific port, first, comment `websocket` node in launch file description and run:
-```Shell
-teleopenv; ros2 launch rosbridge_server rosbridge_websocket_launch.xml port:=9095
-```
+See the gesture detections on your browser `localhost:6357`.
 
 ### Deictic gesture (Pointing object selection)
 
@@ -73,7 +65,8 @@ Example setup
 
 ### Gesture sentence processor
 
-By combining multiple gesture types creates a gesture sentence. When pointing gesture is detected, object selection is activated. See example video [here](http://imitrob.ciirc.cvut.cz/publications/chi23/2023_IROS_GESTURE_SENTENCE_VIDEO.mp4).
+Combining Gesture detector and Pointing object selection.
+Multiple gesture types and a gesture sentence generation. When pointing gesture is detected, object selection is activated. See example video [here](http://imitrob.ciirc.cvut.cz/publications/chi23/2023_IROS_GESTURE_SENTENCE_VIDEO.mp4).
 
 Requires gesture detector (`teleopenv; ros2 launch gesture_detector gesture_detect_launch.py`) and deictic node (`ros2 run pointing_object_selection selector_node`) running.
 
@@ -83,15 +76,17 @@ Then gesture sentence processor is launch with
 ros2 run gesture_sentence_maker sentence_maker
 ```
 
-After gesture sentence finishes (hand no longer visible), processed gestures are sent and you should see `HRI Command original` results on your browser (`localhost:8000`).
+After gesture sentence finishes (hand no longer visible), processed gestures are sent and you should see `HRI Command original` results on your browser (`localhost:6357`).
 
 ### Mapping gestures to Robotic Actions
 
-Get gesture meaning and convert detected gestures to (robotic) actions. Run: `ros2 run gesture_meaning gesture_meaning_service`
+A gesture meaning are defined in `links.yaml`.
 
-Service is launching 1 to 1 constant mapping by default. Note that gesture set must match the current gesture set. See *OneToOneMapping* class in [gesture_meaning_service.py](src/teleop_gesture_toolbox/gesture_meaning/gesture_meaning/gesture_meaning_service.py).
+Try without any hardware &mdash; click gestures, see which action fires:
 
-By running the service, mappings are published to `/hri/command` topic.
+```Shell
+python -m gesture_meaning.link_game  # http://127.0.0.1:8078
+```
 
 ### Action execution by the robotic manipulator
 

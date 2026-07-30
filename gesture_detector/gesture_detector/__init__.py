@@ -1,6 +1,6 @@
 
 import os
-path = os.path.dirname(os.path.abspath(__file__))
+path = os.path.dirname(os.path.realpath(__file__))
 package_path = "/".join(path.split("/")[:-1])
 
 def _env_dir(var, default):

@@ -1,5 +1,7 @@
 
 
+import json
+
 import numpy as np
 from hri_msgs.msg import HRICommand
 
@@ -84,3 +86,45 @@ def export_original_to_HRICommand(
 def import_original_HRICommand_to_dict(hricommand):
     sentence_as_str = hricommand.data[0]
     return eval(sentence_as_str)
+
+
+def export_mapped_to_HRICommand(
+        sentence_as_dict: dict,     # the original sentence, as published raw
+        mapping,                    # gesture_meaning.one_to_one_mapping.OneToOneMapping
+        gesture_names: list = None,
+        gesture_probs: list = None,
+        gesture_timestamps: list = None,
+    ):
+    """The same sentence with the gesture meaning added, for /modality/gestures.
+
+    Action fields are added only when a linked combination of gestures was
+    actually shown. Without them HriCommand.from_ros yields no action slot,
+    which is the honest answer for a gesture nobody linked -- naming the argmax
+    of an all-zero distribution would publish the first action of the
+    vocabulary as a confident command.
+    """
+    d = dict(sentence_as_dict)
+    shown = (mapping.best_combination(gesture_names, gesture_probs)
+             if gesture_probs is not None else None)
+    if shown is not None:
+        gestures, action = shown
+        actions, action_probs = mapping.map_probs(gesture_names, gesture_probs)
+        d["action_names"] = list(actions)
+        d["action_probs"] = [float(p) for p in action_probs]
+        d["target_action"] = action
+        # Stamp of the earliest gesture of the combination that was shown: the
+        # moment the user began commanding it, which is what the merger
+        # interleaves the voice words against.
+        d["target_action_timestamp"] = _combination_stamp(
+            gestures, gesture_names, gesture_timestamps,
+            default=d.get("target_gesture_timestamp", -1.0))
+
+    return HRICommand(data=[json.dumps(d)])
+
+
+def _combination_stamp(gestures, gesture_names, gesture_timestamps, default):
+    if not gesture_timestamps:
+        return default
+    stamp_of = {g.lower(): t for g, t in zip(gesture_names, gesture_timestamps)}
+    stamps = [stamp_of[g] for g in gestures if g in stamp_of]
+    return float(min(stamps)) if stamps else default
