@@ -4,6 +4,8 @@
 Welcome to **teleoperation gesture toolbox** package made for **Leap Motion Controller** or D400 series RealSense.
 Most of the package utilize **ROS2**. 
 
+<img src="./gesture_sentence.gif" alt="Gesture sentence instruction" />
+
 News and updates:
 - Hand visualization web dashboard (`localhost:6357`) updated with real hand visualization.
 - Gesture Meaning: Added a mapping game (`python -m gesture_meaning.link_game`).
