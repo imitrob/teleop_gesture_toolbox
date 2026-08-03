@@ -10,6 +10,7 @@ setup(
     packages=[package_name],
     install_requires=['setuptools'],
     data_files=[
+        ('share/' + package_name, ['package.xml']),
     ],
     zip_safe=True,
     maintainer='Petr Vanc',
