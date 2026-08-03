@@ -163,10 +163,8 @@ class DatasetLoader():
 
     def postprocessing(self, X, Y):
         
-        import pytensor as pt
-        floatX = pt.config.floatX
-        X = X.astype(floatX)
-        Y = Y.astype(floatX)
+        X = X.astype(np.float32)
+        Y = Y.astype(np.float32)
         X = np.array(X)
         Y = np.array(Y)
         return X,Y

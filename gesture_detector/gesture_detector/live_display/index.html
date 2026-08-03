@@ -2,98 +2,202 @@
 <html>
 <head>
   <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
   <title>Teleop Gesture Toolbox</title>
 
   <style>
-    body{ margin:0; }
+    body{margin:0;background:#f3f6fb;}
+    .dashboard-grid{--dashboard-columns:4;position:relative;display:block;box-sizing:border-box;
+                    max-width:1920px;margin:0 auto;padding:12px;}
+    .dashboard-grid:not(.is-laid-out) .dashboard-card{visibility:hidden;}
+    .dashboard-card{position:absolute;top:0;left:0;box-sizing:border-box;background:#fff;
+                    border:1px solid #d5dbe5;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.12);
+                    overflow:hidden;transition:opacity .15s,box-shadow .15s,transform .18s ease;}
+    .dashboard-card.is-dragging{opacity:.42;}
+    .dashboard-card.drop-before{box-shadow:-5px 0 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
+    .dashboard-card.drop-after{box-shadow:5px 0 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
+    .card-header{display:flex;align-items:center;gap:8px;margin:0;padding:9px 12px;background:#2196f3;
+                 color:#fff;cursor:grab;user-select:none;}
+    .card-header:active{cursor:grabbing;}
+    .card-header h2{font-size:24px;line-height:1.2;margin:0;text-align:center;flex:1;}
+    .drag-grip{font-size:22px;line-height:1;letter-spacing:-4px;padding-right:4px;opacity:.9;}
+    .card-body{padding:12px;}
+    .card-body.is-flush{padding:0;}
+    .scene-frame{display:block;width:100%;aspect-ratio:1;border:0;background:#303030;}
+    /* an iframe swallows dragover, so the card cannot be a drop target while it does */
+    .dashboard-grid.is-reordering .scene-frame{pointer-events:none;}
+    .empty-state{margin:8px 0;color:#607d8b;font-style:italic;text-align:center;}
+    .status-grid{display:grid;grid-template-columns:max-content 1fr;gap:8px 12px;align-items:center;margin:0 0 12px;}
+    .status-grid dt{font-weight:700;}
+    .status-grid dd{margin:0;min-width:0;overflow-wrap:anywhere;}
+    .reset-layout{width:100%;}
     .min-height-div{min-height:20px;border:0px solid #ccc;}
     .circle-progress{position:relative;width:50px;height:50px;border-radius:50%;background:conic-gradient(#ff0000 var(--progress),#ddd var(--progress));display:flex;align-items:center;justify-content:center;font-weight:bold;}
     .circle-progress::after{content:"";position:absolute;width:25px;height:25px;background:white;border-radius:50%;}
     .progress-text{position:absolute;font-size:18px;}
     .item-gap{margin-bottom:1px;}
     .hand-warn{background:#f44336;color:#fff;padding:4px 8px;border-radius:4px;}
+    .gesture-icon{width:50px;height:50px;margin-right:10px;display:inline-flex;align-items:center;
+                  justify-content:center;flex:0 0 50px;font-size:34px;line-height:1;}
     .bar-bg   {width:100%;height:12px;background:#eee;border-radius:6px;overflow:hidden;}
     .bar-fill {height:100%;background:#4caf50;width:0%;transition:width 0.05s linear;}
     .bar-warn {background:#f44336;}        /* turns red if stale */
     
-    .links-container      {position:relative;display:inline-block;}
-    .links-popup          {position:absolute;right:0;top:100%;min-width:240px;
-                          max-height:300px;overflow:auto;display:none;z-index:20;}
-    .links-container:hover .links-popup{display:block;}   /* show on hover */
     .link-row:nth-child(odd){background:#d7e1f0;}
-    
-    .links-grid{display:flex;flex-direction:column;gap:12px;margin-top:12px;}
-    .link-row{display:flex;align-items:center;justify-content:left;gap:10px;font-size:66px;padding-left: 20px;}
-    .link-gestures img{width:200px;height:200px;background:#f3f6fb;padding:2px;object-fit:contain;}
-    .link-arrow{font-size:46px;font-weight:bold;color:#000000;}
-    .link-action{font-weight:bold;font-size:66px;color:#000000;}
+
+    .links-grid{display:flex;flex-direction:column;align-items:stretch;gap:6px;}
+    .link-row{display:flex;align-items:center;justify-content:center;gap:8px;font-size:16px;
+              padding:9px 6px;text-align:center;flex-wrap:wrap;}
+    .link-gestures{display:inline-flex;align-items:center;justify-content:center;gap:7px;flex-wrap:wrap;}
+    .link-gesture{display:inline-flex;flex-direction:column;align-items:center;min-width:56px;}
+    .link-gesture-emoji{font-size:34px;line-height:1;}
+    .link-gesture-name{font-size:13px;font-weight:600;overflow-wrap:anywhere;}
+    .link-arrow{font-size:18px;font-weight:bold;color:#000;}
+    .link-action{font-weight:bold;font-size:16px;color:#000;word-break:break-word;min-width:0;}
+
+    @media (max-width:1300px){.dashboard-grid{--dashboard-columns:3;}}
+    @media (max-width:900px){.dashboard-grid{--dashboard-columns:2;}}
+    @media (max-width:600px){
+      .dashboard-grid{--dashboard-columns:1;padding:8px;}
+      .dashboard-card.drop-before{box-shadow:0 -5px 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
+      .dashboard-card.drop-after{box-shadow:0 5px 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
+    }
   </style>
-  <script src="https://cdn.jsdelivr.net/npm/js-yaml@4/dist/js-yaml.min.js"></script>
-
-
   <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
   <link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-blue.css">
 </head>
 <body>
 
-<div class="w3-row w3-row-padding w3-margin-top">
-  <div class="w3-quarter w3-container">
-    <div id="linksModal" class="w3-modal" onclick="this.style.display='none'">
-      <div class="w3-modal-content w3-animate-top" style="padding:24px;max-width:960px;margin:auto;" onclick="event.stopPropagation();">
-        <span onclick="document.getElementById('linksModal').style.display='none'" class="w3-button w3-display-topright">&times;</span>
-        <h1 class="w3-center">Gesture ➜ Action Links</h1>
-        <div id="linksModalBody" class="links-grid"></div>
-        <hr>
-        TODO: add automatic linking to the YAML file localied in hri_manager package
+<main id="dashboardGrid" class="dashboard-grid">
+  <section class="dashboard-card" data-card-id="pose">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <h2>Pose Detector</h2>
+    </header>
+    <div class="card-body">
+      <div id="static-gesture-container">
+        <p class="empty-state">Waiting for pose gesture data…</p>
+      </div>
+      <p>Displaying solutions from single hand (Left hand has priority).</p>
+    </div>
+  </section>
+
+  <section class="dashboard-card" data-card-id="swipe">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <h2>Swipe Detector</h2>
+    </header>
+    <div class="card-body">
+      <div id="dynamic-gesture-container">
+        <p class="empty-state">Waiting for swipe gesture data…</p>
       </div>
     </div>
+  </section>
 
+  <section class="dashboard-card" data-card-id="episodes">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <h2>Episode-catched Gestures</h2>
+    </header>
+    <div class="card-body">
+      <div class="w3-center" style="margin:4px 0;">
+        <b>hricommand_original</b><br>
+        <div id="origBar" class="bar-bg"><div class="bar-fill"></div></div>
+      </div>
+      <p><b>Gesture sentence (HRI Gestures)</b></p>
+      <div id="hricOriginal1Container" class="w3-center min-height-div">
+        <p class="empty-state">Waiting for episode gesture data…</p>
+      </div>
+      <hr>
+      <div id="hricOriginal2Container" class="w3-center min-height-div">
+        <p class="empty-state">Waiting for selected object data…</p>
+      </div>
+    </div>
+  </section>
 
+  <section class="dashboard-card" data-card-id="mapped-actions">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <h2>Mapped Robotic Actions</h2>
+    </header>
+    <div class="card-body">
+      <div class="w3-center" style="margin:4px 0;">
+        <b>modality/gestures</b><br>
+        <div id="mapBar" class="bar-bg"><div class="bar-fill"></div></div>
+      </div>
+      <p><b>Mapped Actions (HRI Command)</b></p>
+      <div id="hricMapped1Container" class="w3-center min-height-div">
+        <p class="empty-state">Waiting for mapped action data…</p>
+      </div>
+      <hr>
+      <div id="hricMapped2Container" class="w3-center min-height-div">
+        <p class="empty-state">Waiting for mapped object data…</p>
+      </div>
+    </div>
+  </section>
 
+  <section class="dashboard-card" data-card-id="gesture-meaning">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <h2>Gesture Meaning</h2>
+    </header>
+    <div class="card-body">
+      <div id="linksCardBody" class="links-grid">
+        <p class="empty-state">Waiting for gesture mappings…</p>
+      </div>
+    </div>
+  </section>
 
-    <h1 align="center">Pose detector</h1>
-    <div id="static-gesture-container" class="w3-container w3-padding-16"></div>
-    <p>Displaying solutions from single hand (Left hand has priority).</p>  
-  </div>
+  <section class="dashboard-card" data-card-id="scene">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <h2>Hand Scene</h2>
+    </header>
+    <div class="card-body is-flush">
+      <!-- served from the same live_display root (port 6357), so no extra server -->
+      <iframe class="scene-frame" src="./scene_viewer_test/index.html"
+              title="Interactive 3D hand scene" loading="lazy"></iframe>
+    </div>
+  </section>
 
-  <div class="w3-quarter w3-container">
-    <h1 align="center">Swipe detector</h1>
-    <div id="dynamic-gesture-container" class="w3-container w3-padding-16"></div>
-  </div>
-  <div class="w3-quarter w3-container">
-    <h1 align="center">Episode-catched gestures</h1>
-    <div class="w3-center" style="margin:4px 0;"><b>hricommand_original</b><br><div id="origBar" class="bar-bg"><div class="bar-fill" ></div></div></div>
-    Gesture sentence (HRI Gestures)
-    <div id="hricOriginal1Container" class="w3-center min-height-div"></div>
-    <hr>
-    <div id="hricOriginal2Container" class="w3-center min-height-div"></div>
-  </div>
-  <div class="w3-quarter w3-container">
-    <div id="handFrameStatus" class=""></div>
-    <div id="meaning-container" class=""></div>
-    <hr>
-    <h1 align="center"><button id="linksBtn" class="w3-blue w3-button">Gesture Meaning</button></h1>
-    <div class="w3-center" style="margin:4px 0;"><b>modality/gestures</b><br><div id="mapBar" class="bar-bg"><div class="bar-fill" ></div></div></div>
-    Mapped Robotic Actions (HRI Command)
-    <div id="hricMapped1Container" class="w3-center min-height-div"></div>
-    <hr>
-    <div id="hricMapped2Container" class="w3-center min-height-div"></div>
-    <!-- heartbeat bars – filled from JS -->
-  </div>
-</div>
+  <section class="dashboard-card" data-card-id="status">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <h2>Status</h2>
+    </header>
+    <div class="card-body">
+      <dl class="status-grid">
+        <dt>FPS</dt>
+        <dd><span id="statusFps" class="w3-tag w3-red w3-round">—</span></dd>
+        <dt>Msg</dt>
+        <dd><span id="statusMsg" class="w3-tag w3-blue w3-round">—</span></dd>
+        <dt>Doing</dt>
+        <dd><span id="statusDoing" class="w3-tag w3-black w3-round">—</span></dd>
+        <dt>Status</dt>
+        <dd><span id="handFrameStatus" class="w3-tag w3-amber w3-round">Connecting…</span></dd>
+        <dt>User</dt>
+        <dd><span id="statusUser" class="w3-tag w3-blue w3-round">—</span></dd>
+      </dl>
+      <button id="resetLayoutBtn" class="w3-button w3-light-grey w3-border w3-round reset-layout">
+        Reset Layout
+      </button>
+    </div>
+  </section>
+</main>
 
 <script>
 (function(){
   const ip   = "127.0.0.1";
   const port = 9090;
 
-  // [topic, msgType]
+  // [topic, msgType, throttle_rate ms] — throttled server-side by rosbridge,
+  // the page only renders; unthrottled hand_frame (~100Hz full frames) melts the tab
   const topics = [
-    ["/teleop_gesture_toolbox/all_states",           "std_msgs/String"],
-    ["/teleop_gesture_toolbox/gesture_meaning_info", "std_msgs/String"],
-    ["/teleop_gesture_toolbox/hricommand_original",  "hri_msgs/HRICommand"],
-    ["/modality/gestures",                           "hri_msgs/HRICommand"],
-    ["/teleop_gesture_toolbox/hand_frame",           "gesture_msgs/Frame"],
+    ["/teleop_gesture_toolbox/all_states",           "std_msgs/String",      100],
+    ["/teleop_gesture_toolbox/gesture_meaning_info", "std_msgs/String",      0],
+    ["/teleop_gesture_toolbox/hricommand_original",  "hri_msgs/HRICommand",  0],
+    ["/modality/gestures",                           "hri_msgs/HRICommand",  0],
+    ["/teleop_gesture_toolbox/hand_frame",           "gesture_msgs/Frame",   200],
   ];
 
   /* -------------------------------------------------------------------- */
@@ -102,11 +206,14 @@
   let stat_evidence  = 0.0;
   let dyn_evidence   = 0.0;
 
-  let linksData = null;       // parsed YAML
+  let linksData = null;       // links dict from hri_manager (<user>_links.yaml), received via gesture_meaning_info
   let currentUser = null;
+  let gestureIcons = {};
+  let linksCardSignature = null;
 
   let lastHandFrame = 0; // ms timestamp of the most-recent frame
   let lastOrig = 0, lastMap = 0; // ms timestamps<br>
+  let websocketState = 'connecting';
   const timeoutMs = 2000; // “stale” threshold
 
   let staticGestureNames        = [];
@@ -120,73 +227,249 @@
   let dynamicBiggestID          = -1;
 
 
-  async function loadLinksYaml(username){
-    try{
-      // TODO: make the path not hardcoded
-      const text = await fetch(`${username}_links.yaml`).then(r=>r.text());
-      // const text = await fetch(`../../../../franka_hri/hri_manager/links/${username}_links.yaml`).then(r=>r.text());
-      linksData = jsyaml.load(text);
-      buildLinksModal();
-    }catch(e){ console.warn('links-yaml load failed', e); }
+  function buildLinksCard(){
+    if (!linksData || !linksData.links) return;
+
+    const body = document.getElementById('linksCardBody');
+    const links = Object.values(linksData.links);
+    if (!links.length) {
+      body.innerHTML = '<p class="empty-state">No gesture mappings are configured.</p>';
+      return;
+    }
+
+    body.innerHTML = links.map(link=>{
+      const gesturesHTML = link.action_gestures.map(gestureGroup => gestureGroup.map(gesture=>`
+        <span class="link-gesture">
+          <span class="link-gesture-emoji" aria-hidden="true">${gestureIcons[gesture] || "👋"}</span>
+          <span class="link-gesture-name">${gesture}</span>
+        </span>`).join(' <span class="link-arrow">+</span> ')).join(', ');
+
+      return `<div class="link-row">
+        <span class="link-gestures">${gesturesHTML}</span>
+        <span class="link-arrow">➜</span>
+        <span class="link-action">${link.action_template}</span>
+      </div>`;
+    }).join('');
   }
 
-function buildLinksModal(){
-  if (!linksData || !linksData.links) return;
-  
-  const body = document.getElementById('linksModalBody');
-  let html = '';
-  Object.values(linksData.links).forEach(l=>{
-  const gesturesHTML = l.action_gestures.map(arr => arr.map(g=>`<img class="w3-border w3-round-xxlarge" src="http://imitrob.ciirc.cvut.cz/images/gestures/${g}.png" alt="${g}">`).join(' <span class="link-arrow">+</span> ')).join(', ');
+  /* -------------------------------------------------------------------- */
+  /* Persisted card ordering                                              */
+  /* -------------------------------------------------------------------- */
+  const layoutStorageKey = 'teleopGestureDashboard.cardOrder.v1';
+  const defaultCardOrder = [
+    'pose',
+    'swipe',
+    'episodes',
+    'mapped-actions',
+    'gesture-meaning',
+    'scene',
+    'status',
+  ];
+  const dashboardGrid = document.getElementById('dashboardGrid');
+  let draggedCard = null;
+  let dropTarget = null;
+  let dropPosition = 'after';
+  let dashboardLayoutFrame = 0;
 
-  html += `<div class="link-row">
-  <span class="link-gestures">${gesturesHTML}</span>
-  <span class="link-arrow">➜</span>
-  <span class="link-action">${l.action_template}</span>
-  </div>`;
+  function layoutDashboardCards(){
+    dashboardLayoutFrame = 0;
+    const cards = Array.from(dashboardGrid.querySelectorAll('.dashboard-card'));
+    const gridStyle = getComputedStyle(dashboardGrid);
+    const columnCount = Number.parseInt(
+      gridStyle.getPropertyValue('--dashboard-columns'),
+      10,
+    ) || 1;
+    const columnGap = 12;
+    const paddingLeft = Number.parseFloat(gridStyle.paddingLeft) || 0;
+    const paddingRight = Number.parseFloat(gridStyle.paddingRight) || 0;
+    const paddingTop = Number.parseFloat(gridStyle.paddingTop) || 0;
+    const paddingBottom = Number.parseFloat(gridStyle.paddingBottom) || 0;
+    const contentWidth = dashboardGrid.clientWidth - paddingLeft - paddingRight;
+    const cardWidth = (contentWidth - columnGap * (columnCount - 1)) / columnCount;
+    const columnHeights = Array(columnCount).fill(0);
+
+    cards.forEach(card=>{
+      card.style.width = `${cardWidth}px`;
+    });
+
+    cards.forEach(card=>{
+      // Masonry: drop each card into the currently shortest column instead of
+      // index % columnCount. A full-height card keeps its column to itself and
+      // the following cards stack up in the shorter ones.
+      const column = columnHeights.indexOf(Math.min(...columnHeights));
+      const x = paddingLeft + column * (cardWidth + columnGap);
+      const y = paddingTop + columnHeights[column];
+      card.style.transform = `translate(${x}px, ${y}px)`;
+      columnHeights[column] += card.offsetHeight + columnGap;
+    });
+
+    const contentHeight = Math.max(0, ...columnHeights) - (cards.length ? columnGap : 0);
+    dashboardGrid.style.height = `${paddingTop + contentHeight + paddingBottom}px`;
+    dashboardGrid.classList.add('is-laid-out');
+  }
+
+  function scheduleDashboardLayout(){
+    if (dashboardLayoutFrame) return;
+    dashboardLayoutFrame = requestAnimationFrame(layoutDashboardCards);
+  }
+
+  function orderedCardIds(){
+    return Array.from(dashboardGrid.querySelectorAll('.dashboard-card'))
+      .map(card=>card.dataset.cardId);
+  }
+
+  function saveCardOrder(){
+    try {
+      localStorage.setItem(layoutStorageKey, JSON.stringify(orderedCardIds()));
+    } catch (error) {
+      console.warn('Could not save dashboard layout', error);
+    }
+  }
+
+  function applyCardOrder(order){
+    const validOrder = [];
+    order.forEach(cardId=>{
+      if (defaultCardOrder.includes(cardId) && !validOrder.includes(cardId)) {
+        validOrder.push(cardId);
+      }
+    });
+    defaultCardOrder.forEach(cardId=>{
+      if (!validOrder.includes(cardId)) validOrder.push(cardId);
+    });
+    validOrder.forEach(cardId=>{
+      const card = dashboardGrid.querySelector(`[data-card-id="${cardId}"]`);
+      if (card) dashboardGrid.appendChild(card);
+    });
+    scheduleDashboardLayout();
+  }
+
+  function restoreCardOrder(){
+    try {
+      const storedOrder = JSON.parse(localStorage.getItem(layoutStorageKey));
+      applyCardOrder(Array.isArray(storedOrder) ? storedOrder : defaultCardOrder);
+    } catch (error) {
+      console.warn('Ignoring invalid saved dashboard layout', error);
+      applyCardOrder(defaultCardOrder);
+    }
+  }
+
+  function clearDropPreview(){
+    dashboardGrid.querySelectorAll('.drop-before,.drop-after')
+      .forEach(card=>card.classList.remove('drop-before', 'drop-after'));
+    dropTarget = null;
+  }
+
+  restoreCardOrder();
+
+  if ('ResizeObserver' in window) {
+    const cardResizeObserver = new ResizeObserver(scheduleDashboardLayout);
+    dashboardGrid.querySelectorAll('.dashboard-card')
+      .forEach(card=>cardResizeObserver.observe(card));
+  }
+  window.addEventListener('resize', scheduleDashboardLayout);
+  scheduleDashboardLayout();
+
+  dashboardGrid.querySelectorAll('.card-header').forEach(header=>{
+    header.addEventListener('dragstart', event=>{
+      const card = header.closest('.dashboard-card');
+      draggedCard = card;
+      event.dataTransfer.effectAllowed = 'move';
+      event.dataTransfer.setData('text/plain', card.dataset.cardId);
+      dashboardGrid.classList.add('is-reordering');
+      requestAnimationFrame(()=>card.classList.add('is-dragging'));
+    });
+
+    header.addEventListener('dragend', ()=>{
+      dashboardGrid.classList.remove('is-reordering');
+      if (draggedCard) draggedCard.classList.remove('is-dragging');
+      draggedCard = null;
+      clearDropPreview();
+    });
   });
-  body.innerHTML = html;
-  }
 
+  dashboardGrid.addEventListener('dragover', event=>{
+    if (!draggedCard) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = 'move';
 
+    const target = event.target.closest('.dashboard-card');
+    clearDropPreview();
+    if (!target || target === draggedCard) return;
 
+    const rect = target.getBoundingClientRect();
+    const singleColumn = target.offsetWidth > dashboardGrid.clientWidth * .75;
+    const afterTarget = singleColumn
+      ? event.clientY >= rect.top + rect.height / 2
+      : event.clientX >= rect.left + rect.width / 2;
+
+    dropTarget = target;
+    dropPosition = afterTarget ? 'after' : 'before';
+    target.classList.add(afterTarget ? 'drop-after' : 'drop-before');
+  });
+
+  dashboardGrid.addEventListener('drop', event=>{
+    if (!draggedCard) return;
+    event.preventDefault();
+    if (dropTarget) {
+      dropTarget.insertAdjacentElement(
+        dropPosition === 'after' ? 'afterend' : 'beforebegin',
+        draggedCard,
+      );
+    } else if (event.target === dashboardGrid) {
+      dashboardGrid.appendChild(draggedCard);
+    }
+    saveCardOrder();
+    scheduleDashboardLayout();
+    dashboardGrid.classList.remove('is-reordering');
+    draggedCard.classList.remove('is-dragging');
+    draggedCard = null;
+    clearDropPreview();
+  });
+
+  document.getElementById('resetLayoutBtn').addEventListener('click', ()=>{
+    try {
+      localStorage.removeItem(layoutStorageKey);
+    } catch (error) {
+      console.warn('Could not clear saved dashboard layout', error);
+    }
+    applyCardOrder(defaultCardOrder);
+  });
 
 
   /* -------------------------------------------------------------------- */
-  /* WebSocket management (reconnect + keep‑alive)                        */
+  /* WebSocket management (reconnect)                                     */
   /* -------------------------------------------------------------------- */
   let ws;          // active WebSocket
-  let pingTimer;   // keep‑alive interval id
 
-  function connect(){
-    document.getElementById('linksBtn').onclick = ()=>
-      document.getElementById('linksModal').style.display = 'block';
+  function displayStatusMetric(value){
+    return value === -1 || value === '-1' || value == null ? '—' : value;
+  }
 
-    ws = new WebSocket(`ws://${ip}:${port}`);
+  function updateConnectionStatus(){
+    const statusEl = document.getElementById('handFrameStatus');
+    statusEl.className = 'w3-tag w3-round';
+    if (websocketState !== 'connected') {
+      statusEl.textContent = websocketState === 'connecting' ? 'Connecting…' : 'Disconnected';
+      statusEl.classList.add(websocketState === 'connecting' ? 'w3-amber' : 'w3-red');
+    } else if (Date.now() - lastHandFrame > 1000) {
+      statusEl.textContent = 'Waiting for hand data';
+      statusEl.classList.add('w3-amber');
+    } else {
+      statusEl.textContent = 'All fine';
+      statusEl.classList.add('w3-green');
+    }
+  }
 
-    ws.addEventListener("open", ()=>{
-      topics.forEach(([topic,type],idx)=>{
-        ws.send(JSON.stringify({op:"subscribe", id:`sub_${idx}`, topic, type}));
-      });
-      pingTimer = setInterval(()=>{
-        if(ws.readyState===WebSocket.OPEN){ ws.send('{"op":"ping"}'); }
-      },15000);
-    });
-      // every second warn if no /hand_frame seen
-      setInterval(()=>{
-        const statusEl = document.getElementById('handFrameStatus');
-        if (Date.now() - lastHandFrame > 1000) {
-            statusEl.innerHTML = '<span class="hand-warn">No /hand_frame data in the last second</span>';
-        } else {
-            statusEl.innerHTML = '<span class="w3-green w3-round w3-tag">All fine</span>';
-        }
-      }, 1000);
-      // visual heartbeat bars – run 10×/s
-    setInterval(()=>{
+  // One-time timers stay outside connect(), which is re-run on reconnect.
+  setInterval(()=>{
+    updateConnectionStatus();
+  }, 1000);
+
+  // visual heartbeat bars – run 10×/s
+  setInterval(()=>{
     const now = Date.now();
     const oFill = document.querySelector('#origBar .bar-fill');
     const mFill = document.querySelector('#mapBar  .bar-fill');
-
-    // skip until the elements exist (first run happens before DOM is ready)
     if(!oFill || !mFill) return;
 
     const pctOrig = Math.min(1, (now-lastOrig)/timeoutMs)*100;
@@ -197,15 +480,25 @@ function buildLinksModal(){
 
     oFill.classList.toggle('bar-warn', now-lastOrig > timeoutMs);
     mFill.classList.toggle('bar-warn', now-lastMap  > timeoutMs);
-    }, 100);
-    
+  }, 100);
+
+  function connect(){
+    ws = new WebSocket(`ws://${ip}:${port}`);
+
+    ws.addEventListener("open", ()=>{
+      websocketState = 'connected';
+      updateConnectionStatus();
+      topics.forEach(([topic,type,throttle],idx)=>{
+        ws.send(JSON.stringify({op:"subscribe", id:`sub_${idx}`, topic, type,
+                                throttle_rate: throttle, queue_length: 1}));
+      });
+    });
 
     ws.addEventListener("message", (event)=>{
       try {
         /* ------------------------- ORIGINAL UI ------------------------- */
         const staticGesturesContainer   = document.getElementById('static-gesture-container');
         const dynamicGesturesContainer  = document.getElementById('dynamic-gesture-container');
-        const messageGestureMeaningData = document.getElementById('meaning-container');
         const hricOriginal1Container    = document.getElementById('hricOriginal1Container');
         const hricOriginal2Container    = document.getElementById('hricOriginal2Container');
         const hricMapped1Container      = document.getElementById('hricMapped1Container');
@@ -216,23 +509,41 @@ function buildLinksModal(){
         /* ---------------- Gesture meaning info ----------------- */
         if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_meaning_info") {
           const parsed_message = JSON.parse(data.msg.data);
-          let html = "";
+          let linksCardChanged = false;
+          if (parsed_message.gesture_icons) {
+            gestureIcons = parsed_message.gesture_icons;
+            linksCardChanged = true;
+          }
           if (parsed_message.hasOwnProperty('user')) {
-            html += `<span class="w3-blue w3-round w3-tag">User: ${parsed_message['user']}</span>`;
+            document.getElementById('statusUser').textContent = parsed_message.user || '—';
 
-            const u = parsed_message.user;
-            if (u && u !== currentUser){
-              currentUser = u;
-              loadLinksYaml(u);
+            const userName = parsed_message.user;
+            if (userName && userName !== currentUser){
+              currentUser = userName;
+              linksData = null; // user changed, rebuild links from next message
+              linksCardSignature = null;
+              document.getElementById('linksCardBody').innerHTML =
+                '<p class="empty-state">Waiting for gesture mappings…</p>';
             }
           }
-          messageGestureMeaningData.innerHTML = html;
+          if (parsed_message.links){
+            linksData = parsed_message;
+            linksCardChanged = true;
+          }
+          if (linksCardChanged && linksData) {
+            const nextSignature = JSON.stringify([linksData.links, gestureIcons]);
+            if (nextSignature !== linksCardSignature) {
+              buildLinksCard();
+              linksCardSignature = nextSignature;
+            }
+          }
         }
 
 
         // hand-frame heartbeat
         if (data.op === 'publish' && data.topic === '/teleop_gesture_toolbox/hand_frame') {
             lastHandFrame = Date.now();
+            updateConnectionStatus();
         }
 
         /* ---------------- All states (static + dynamic) ----------------- */
@@ -243,7 +554,16 @@ function buildLinksModal(){
           let dynamicHTML = "";
 
           if (parsed_message.hasOwnProperty('fps')) {
-            staticHTML += `FPS: <span class="w3-tag w3-red w3-round">${parsed_message['fps']}</span> Msg:<span class="w3-tag w3-blue w3-round">${parsed_message['seq']}</span> Doing: <span class="w3-tag w3-black w3-round">${parsed_message['gesture_type_selected']}</span><br>`;
+            document.getElementById('statusFps').textContent =
+              displayStatusMetric(parsed_message.fps);
+          }
+          if (parsed_message.hasOwnProperty('seq')) {
+            document.getElementById('statusMsg').textContent =
+              displayStatusMetric(parsed_message.seq);
+          }
+          if (parsed_message.hasOwnProperty('gesture_type_selected')) {
+            document.getElementById('statusDoing').textContent =
+              parsed_message.gesture_type_selected ?? '—';
           }
 
           // evidence values
@@ -282,11 +602,14 @@ function buildLinksModal(){
             const activ_str = (staticBiggestID===i)?'w3-green':(staticGesturesActivated[i]==='true'?'w3-red':'w3-blue');
             const progressCircleCode = (staticBiggestID===i)?`<div class="circle-progress" style="--progress:${360*stat_evidence}deg;"></div>`:"";
             staticHTML += `<div class="w3-light-grey w3-round item-gap" style="display:flex;align-items:center;">`+
-                          `<img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${staticGestureNames[i]}.png" width="50" style="margin-right:10px;"/>`+
+                          `<span class="gesture-icon w3-aqua w3-round" role="img" aria-label="${staticGestureNames[i]}" title="${staticGestureNames[i]}">${gestureIcons[staticGestureNames[i]] || "👋"}</span>`+
                           `${progressCircleCode}`+
                           `<div class="w3-container w3-round ${activ_str}" style="width:${0.8*perc}%; height: 50px;"></div>`+
                           `</div>`;
           });
+          if (!staticHTML) {
+            staticHTML = '<p class="empty-state">No pose gestures available.</p>';
+          }
 
           /* --- Build dynamic gesture HTML (progress bars) --- */
           dynamicGestureProbs.forEach((p,i)=>{
@@ -294,11 +617,14 @@ function buildLinksModal(){
             const activ_str = (dynamicBiggestID===i)?'w3-green':(dynamicGesturesActivated[i]==='true'?'w3-red':'w3-blue');
             const progressCircleCode = (dynamicBiggestID===i)?`<div class="circle-progress" style="--progress:${360*dyn_evidence}deg;"></div>`:"";
             dynamicHTML += `<div class="w3-light-grey w3-round item-gap" style="display:flex;align-items:center;">`+
-                           `<img class="w3-aqua w3-round" src="http://imitrob.ciirc.cvut.cz/images/gestures/${dynamicGestureNames[i]}.png" width="50" style="margin-right:10px;"/>`+
+                           `<span class="gesture-icon w3-aqua w3-round" role="img" aria-label="${dynamicGestureNames[i]}" title="${dynamicGestureNames[i]}">${gestureIcons[dynamicGestureNames[i]] || "👋"}</span>`+
                            `${progressCircleCode}`+
                            `<div class="w3-container w3-round ${activ_str}" style="width:${0.8*perc}%; height: 50px;"></div>`+
                            `</div>`;
           });
+          if (!dynamicHTML) {
+            dynamicHTML = '<p class="empty-state">No swipe gestures available.</p>';
+          }
 
           staticGesturesContainer.innerHTML  = staticHTML;
           dynamicGesturesContainer.innerHTML = dynamicHTML;
@@ -311,25 +637,27 @@ function buildLinksModal(){
           const now              = Date.now()/1000;
           let inner1="", inner2="";
 
-          if (msg.hasOwnProperty('gesture_names')) {
+          if (Array.isArray(msg.gesture_names)) {
             msg.gesture_names.forEach((name, i)=>{
                 const perc = msg.gesture_probs[i]*100;
                 const ts   = (now - msg.gesture_timestamp[i]).toFixed(1);
                 inner1 += `<div class="w3-light-grey w3-round item-gap" style="display:flex;align-items:center;">`+
-                        `<img class="w3-aqua w3-round-xxlarge" src="http://imitrob.ciirc.cvut.cz/images/gestures/${name}.png" width="50" style="margin-right:10px;"/>`+
+                        `<span class="gesture-icon w3-aqua w3-round-xxlarge" role="img" aria-label="${name}" title="${name}">${gestureIcons[name] || "👋"}</span>`+
                         `<span class="w3-tag w3-red">${ts}s</span>`+
                         `<div class="w3-round w3-blue" style="width:${perc}%;height:20px;"></div>`+
                         `</div>`;
             });
           }
-          msg.object_names.forEach((name,i)=>{
+          (msg.object_names || []).forEach((name,i)=>{
             const perc = msg.object_probs[i]*100;
             inner2 += `${name}, <span class="w3-tag w3-red item-gap">s</span>, <span class="w3-tag w3-red">${msg.object_classes[i]}s</span>`+
                       `<div class="w3-light-grey w3-round"><div class="w3-round w3-blue" style="width:${perc}%;height:20px"></div></div>`;
           });
 
-          hricOriginal1Container.innerHTML = inner1;
-          hricOriginal2Container.innerHTML = inner2;
+          hricOriginal1Container.innerHTML = inner1 ||
+            '<p class="empty-state">No episode gestures in the latest message.</p>';
+          hricOriginal2Container.innerHTML = inner2 ||
+            '<p class="empty-state">No selected objects in the latest message.</p>';
         }
 
         /* ---------------- HRICommand mapped ------------------- */
@@ -339,21 +667,24 @@ function buildLinksModal(){
           const now = Date.now()/1000;
           let inner1="", inner2="";
 
-          msg.action_names.forEach((name,i)=>{
+          (msg.action_names || []).forEach((name,i)=>{
             const perc = msg.action_probs[i]*100;
-            const ts   = (now - msg.gesture_timestamp[i]).toFixed(1);
-            inner1 += `${name}, <span class="w3-tag w3-red item-gap">${ts}s</span>`+
+            const timestamp = (msg.gesture_timestamp || [])[i];
+            const age = Number.isFinite(timestamp) ? `${(now - timestamp).toFixed(1)}s` : '—';
+            inner1 += `${name}, <span class="w3-tag w3-red item-gap">${age}</span>`+
                       `<div class="w3-light-grey w3-round"><div class="w3-container w3-round w3-blue" style="width:${perc}%;height:20px"></div></div>`;
           });
 
-          msg.object_names.forEach((name,i)=>{
+          (msg.object_names || []).forEach((name,i)=>{
             const perc = msg.object_probs[i]*100;
             inner2 += `${name}, <span class="w3-tag w3-red item-gap">s</span>, <span class="w3-tag w3-red">${msg.object_classes[i]}s</span>`+
                       `<div class="w3-light-grey w3-round"><div class="w3-container w3-round w3-blue" style="width:${perc}%;height:20px"></div></div>`;
           });
 
-          hricMapped1Container.innerHTML = inner1;
-          hricMapped2Container.innerHTML = inner2;
+          hricMapped1Container.innerHTML = inner1 ||
+            '<p class="empty-state">No mapped actions in the latest message.</p>';
+          hricMapped2Container.innerHTML = inner2 ||
+            '<p class="empty-state">No mapped objects in the latest message.</p>';
         }
         /* ----------------------- END UI ----------------------- */
       } catch(err){
@@ -361,7 +692,11 @@ function buildLinksModal(){
       }
     });
 
-    ws.addEventListener("close", ()=>{ clearInterval(pingTimer); setTimeout(connect,1000); });
+    ws.addEventListener("close", ()=>{
+      websocketState = 'disconnected';
+      updateConnectionStatus();
+      setTimeout(connect,1000);
+    });
     ws.addEventListener("error", ()=> ws.close());
   }
 

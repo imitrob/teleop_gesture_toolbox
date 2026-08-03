@@ -12,7 +12,7 @@ from rclpy.node import Node
 from gesture_msgs.msg import DetectionSolution, DetectionObservations
 from gesture_msgs.srv import GetModelConfig
 import gesture_detector
-from gesture_detector.gesture_classification.pymc_lib import PyMC_Sample
+from gesture_detector.gesture_classification.torch_lib import Torch_Sample
 from gesture_detector.gesture_classification.timewarp_lib import fastdtw_
 
 class ClassificationSampler(Node):
@@ -30,8 +30,8 @@ class ClassificationSampler(Node):
         self.sem = threading.Semaphore()
 
         self.detection_approach = model_config['engine']
-        if self.detection_approach == 'PyMC':
-            self.sample_approach = PyMC_Sample()
+        if self.detection_approach in ('Torch', 'PyMC'):  # 'PyMC' kept for old saved model configs
+            self.sample_approach = Torch_Sample()
         elif self.detection_approach == 'DTW':
             self.sample_approach = fastdtw_()
         else: raise Exception(f"No detection approach found! {self.type} detection is now offline, check configs.")

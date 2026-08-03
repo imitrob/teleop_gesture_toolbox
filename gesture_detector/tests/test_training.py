@@ -1,7 +1,12 @@
 
-from gesture_detector.gesture_classification.pymc_lib import Experiments
+import os
+import pytest
+
+import gesture_detector
+from gesture_detector.gesture_classification.torch_lib import Experiments
 
 
+@pytest.mark.skipif(not os.path.isdir(gesture_detector.gesture_data_path), reason="gesture_data dataset not present")
 def test_gesture_training():
     """ Optimal config for 8 gestures, each >30 recordings (~2000 samples) per gestures
     """
@@ -13,12 +18,12 @@ def test_gesture_training():
     'n_hidden': 20,
     'split': 0.3, # 30% for testing
     'take_every': 4, # take every 4th sample from hand records
-    'iter': 70000,
+    'iter': 5000,
     'seed': 93457,
     'inference_type': "ADVI",
     'layers': 2,
     'gesture_type': "static",
-    'engine': "PyMC",
+    'engine': "Torch",
     'input_definition_version': 1,
     }
     experiments = Experiments()
@@ -35,12 +40,12 @@ def test_load_and_evaluate():
     'n_hidden': 20,
     'split': 0.3,
     'take_every': 4,
-    'iter': 70000,
+    'iter': 5000,
     'seed': 93457,
     'inference_type': "ADVI",
     'layers': 2,
     'gesture_type': "static",
-    'engine': "PyMC",
+    'engine': "Torch",
     'input_definition_version': 1,
     }
     experiments = Experiments()
