@@ -5,10 +5,11 @@ from launch_ros.actions import Node
 from launch.actions import ExecuteProcess
 
 from launch.actions import IncludeLaunchDescription
+from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
 from launch.substitutions import LaunchConfiguration
 from launch.actions import DeclareLaunchArgument, SetLaunchConfiguration
-import os 
+import os
 import gesture_detector
 
 def generate_launch_description():
@@ -17,11 +18,16 @@ def generate_launch_description():
         'sensor', LaunchConfiguration('sensor')
     )
     user_name_arg = DeclareLaunchArgument('user_name', default_value='', description='User name.')
+    mocked_scene_arg = DeclareLaunchArgument(
+        'mocked_scene', default_value='true',
+        description='Publish a mocked scene via scene_getter/mocked_scene. Set to false when a real scene source is already running.'
+    )
 
 
     return LaunchDescription([
         sensor_arg,
         user_name_arg,
+        mocked_scene_arg,
         set_sensor_config,
         # ros2 launch gesture_detector gesture_detect_launch.py
         IncludeLaunchDescription( 
@@ -72,6 +78,7 @@ def generate_launch_description():
             output='screen',
             # which scene to publish comes from this user's links file
             parameters=[{'user_name': LaunchConfiguration('user_name')}],
+            condition=IfCondition(LaunchConfiguration('mocked_scene')),
         ),
     ])
 
