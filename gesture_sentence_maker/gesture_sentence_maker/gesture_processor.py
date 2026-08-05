@@ -65,7 +65,11 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.prev_deictic_solutions = CustomDeque()
         self.prev_auxgesture_solutions = CustomDeque()
         
-        self.target_object_solutions = CustomDeque() # Queue of Dicts
+        # One entry per finished pointing, each already decided by
+        # deictic_evidence.select. Deliberately NOT named target_object_solutions:
+        # PointingObjectGetter owns an attribute of that name and appends every
+        # raw frame it receives to it, which would overwrite these decisions.
+        self.selected_object_solutions = CustomDeque() # Queue of DeicticSolutions
         self.target_auxgesture_solutions = CustomDeque() # Queue of (?)
 
         self.evidence_gesture_type_to_activate_last_added = 0.
@@ -104,7 +108,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def publish_sentence(self, **kwargs):
         """The sentence, raw and mapped: gesture names on hricommand_original,
         the action the user linked them to on /modality/gestures."""
-        msg = export_original_to_HRICommand(self.scene, self.target_object_solutions, **kwargs)
+        msg = export_original_to_HRICommand(self.scene, self.selected_object_solutions, **kwargs)
         self.gesture_sentence_publisher.publish(msg)
         self.modality_gestures_publisher.publish(export_mapped_to_HRICommand(
             import_original_HRICommand_to_dict(msg), self.mapping,
@@ -132,12 +136,12 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
                                           gesture_timestamps=max_timestamps,
                                           gesture_names=self.Gs, params=params)
                     self.clearing()
-                elif len(self.target_object_solutions) > 0:
+                elif len(self.selected_object_solutions) > 0:
                     self.publish_sentence()
                     self.clearing()
                     return
 
-            elif len(self.target_object_solutions) > 0:
+            elif len(self.selected_object_solutions) > 0:
                 self.publish_sentence()
         
             # Whenever hand is not seen clearing
@@ -229,7 +233,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.gestures_queue.clear()
         self.evaluate_episode = False
 
-        self.target_object_solutions = CustomDeque()
+        self.selected_object_solutions = CustomDeque()
         self.target_auxgesture_solutions = CustomDeque()
         # Pointing frames belong to the episode they were made in: kept, they
         # would let a previous episode's object win this episode's select().
@@ -263,7 +267,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
             print(f"No object held for {EVIDENCE} frames, nothing selected")
             return
 
-        self.target_object_solutions.append(solution)
+        self.selected_object_solutions.append(solution)
         print(f"New scene object selected: {solution.target_object_name}")
 
 
