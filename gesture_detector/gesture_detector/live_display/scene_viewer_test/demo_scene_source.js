@@ -115,6 +115,7 @@ export class DemoSceneSource {
       handAge: this.freshness.age("hand", now),
       objectCount: this.objectCount,
       selectedObject: "robothon_box",
+      candidateObject: "robothon_box",
       beamAge: this.freshness.age("beam", now),
     };
   }

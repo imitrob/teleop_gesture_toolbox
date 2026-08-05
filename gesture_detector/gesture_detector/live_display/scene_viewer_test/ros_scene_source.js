@@ -1,5 +1,6 @@
 import { FreshnessTracker } from "./core/freshness.mjs";
 import {
+  getPendingSelection,
   getSelectedObjectName,
   getSelectionStrength,
 } from "./core/deictic.mjs";
@@ -19,6 +20,7 @@ const TOPICS = Object.freeze({
   scene: "/scene",
   beam: "/teleop_gesture_toolbox/line_marker",
   selection: "/teleop_gesture_toolbox/deictic_solution",
+  pendingSelection: "/teleop_gesture_toolbox/pending_object_selection",
   tfStatic: "/tf_static",
 });
 
@@ -49,6 +51,8 @@ export class RosSceneSource {
     this.visibleHands = 0;
     this.objectCount = 0;
     this.selectedObject = null;
+    this.candidateObject = null;
+    this.candidateStrength = 0;
     this.sceneSignature = "";
     this.handArrivals = [];
     this.socket = null;
@@ -119,6 +123,12 @@ export class RosSceneSource {
           throttle_rate: 50,
         },
         {
+          id: "scene_viewer_pending_selection",
+          topic: TOPICS.pendingSelection,
+          type: "std_msgs/String",
+          throttle_rate: 0,
+        },
+        {
           id: "scene_viewer_tf_static",
           topic: TOPICS.tfStatic,
           type: "tf2_msgs/TFMessage",
@@ -178,6 +188,8 @@ export class RosSceneSource {
     this.onHands([]);
     this.onBeam(null);
     this.selectedObject = null;
+    this.candidateObject = null;
+    this.candidateStrength = 0;
     this.onSelection(null);
     this.reconnectTimer = window.setTimeout(
       () => this.connect(),
@@ -250,23 +262,31 @@ export class RosSceneSource {
       return;
     }
 
+    if (packet.topic === TOPICS.pendingSelection) {
+      // The sentence maker's decision for the pointing in progress.
+      this.selectedObject = getPendingSelection(packet.msg);
+      this.emitSelection();
+      return;
+    }
+
     if (packet.topic === TOPICS.selection) {
-      const selectedObject = getSelectedObjectName(packet.msg);
+      // Where the ray is right now, which flickers between neighbours and is
+      // not a selection on its own.
+      const candidate = getSelectedObjectName(packet.msg);
       window.clearTimeout(this.selectionExpiryTimer);
-      if (!selectedObject) {
+      if (!candidate) {
         this.freshness.clear("selection");
-        this.selectedObject = null;
-        this.onSelection(null);
+        this.candidateObject = null;
+        this.candidateStrength = 0;
+        this.emitSelection();
         return;
       }
       this.freshness.mark("selection", now);
-      this.selectedObject = selectedObject;
-      // Strength is how much evidence the object has gathered so far, so the
+      this.candidateObject = candidate;
+      // Strength is how much evidence the candidate has gathered so far, so the
       // highlight grows while the user keeps pointing at the same thing.
-      this.onSelection({
-        name: selectedObject,
-        strength: getSelectionStrength(packet.msg),
-      });
+      this.candidateStrength = getSelectionStrength(packet.msg);
+      this.emitSelection();
       this.scheduleSelectionExpiry();
     }
   }
@@ -342,12 +362,25 @@ export class RosSceneSource {
     }, STALE_TIMEOUT_MS);
   }
 
+  emitSelection() {
+    this.onSelection(
+      this.candidateObject || this.selectedObject
+        ? {
+          name: this.candidateObject,
+          strength: this.candidateStrength,
+          confirmed: this.selectedObject,
+        }
+        : null,
+    );
+  }
+
   scheduleSelectionExpiry() {
     window.clearTimeout(this.selectionExpiryTimer);
     this.selectionExpiryTimer = window.setTimeout(() => {
       if (!this.freshness.isFresh("selection")) {
-        this.selectedObject = null;
-        this.onSelection(null);
+        this.candidateObject = null;
+        this.candidateStrength = 0;
+        this.emitSelection();
       }
     }, STALE_TIMEOUT_MS);
   }
@@ -372,6 +405,7 @@ export class RosSceneSource {
       handAge: this.freshness.age("hand", now),
       objectCount: this.objectCount,
       selectedObject: this.selectedObject,
+      candidateObject: this.candidateObject,
       beamAge: this.freshness.age("beam", now),
     };
   }

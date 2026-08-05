@@ -83,6 +83,8 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
         # The live display (gesture_detector/live_display) reads the user and their links from here.
         self.meaning_info_pub = self.create_publisher(String, "/teleop_gesture_toolbox/gesture_meaning_info", 5)
+        # What the current pointing has settled on so far, for the live display.
+        self.pending_selection_pub = self.create_publisher(String, "/teleop_gesture_toolbox/pending_object_selection", 5)
         threading.Thread(target=self.send_info_thread, daemon=True).start()
 
         self.continue_episode = self.present
@@ -207,6 +209,16 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
         self.prev_gesture_type = 'deictic'
         self.prev_deictic_solutions.append(deictic_solution)
+        self.publish_pending_selection()
+
+    def publish_pending_selection(self):
+        """The object this pointing would contribute if it ended now, for viewers.
+
+        Run through the same select() the sentence uses, over the same buffer, so
+        a viewer shows the decision instead of a second guess at it."""
+        solution = select_deictic(self.prev_deictic_solutions)
+        self.pending_selection_pub.publish(String(
+            data=(solution.target_object_name if solution is not None else "")))
 
     def step_approvement(self):
         res = misc_gesture_handle(f"Approve? (y/n)", new_episode=False)
@@ -219,6 +231,11 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
         self.target_object_solutions = CustomDeque()
         self.target_auxgesture_solutions = CustomDeque()
+        # Pointing frames belong to the episode they were made in: kept, they
+        # would let a previous episode's object win this episode's select().
+        self.prev_deictic_solutions = CustomDeque()
+        self.prev_auxgesture_solutions = CustomDeque()
+        self.publish_pending_selection()
 
         if wait:
             print("Move hand out to end the episode!")
@@ -241,6 +258,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         # selects nothing, which beats naming whatever the hand passed last.
         solution = select_deictic(self.prev_deictic_solutions)
         self.prev_deictic_solutions = CustomDeque()
+        self.publish_pending_selection()
         if solution is None:
             print(f"No object held for {EVIDENCE} frames, nothing selected")
             return
