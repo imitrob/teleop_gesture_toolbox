@@ -109,8 +109,7 @@ class OneToOneMapping:
         stay comparable -- a plain product of two probabilities is always below
         either of them, which would make a one-gesture link win over a
         two-gesture one almost regardless of the evidence. With every
-        combination the same length (a static + dynamic pair per link, as
-        link_gesture_to_action writes them) the mean is a monotone transform of
+        combination the same length (a static + dynamic pair per link) the mean is a monotone transform of
         the product, so it does not change which action wins.
         """
         detected = dict(zip((g.lower() for g in gesture_names), gesture_probs))
@@ -210,4 +209,4 @@ class OneToOneMapping:
                   f"shown together with {missing}, ignored on its own", flush=True)
         else:
             print(f"Gesture {gesture!r} has no link, ignored "
-                  f"(add it with link_gesture_to_action)", flush=True)
+                  f"(add it inside the gesture dashboard)", flush=True)

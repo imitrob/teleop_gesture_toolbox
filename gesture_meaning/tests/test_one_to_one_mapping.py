@@ -165,7 +165,7 @@ def test_an_unlinked_gesture_is_named_once(capsys):
     m.map_stamped([[0.2, "five"]], known_gestures=KNOWN)
     out = capsys.readouterr().out
     assert out.count("'five'") == 1, f"reported more than once:\n{out}"
-    assert "link_gesture_to_action" in out, "the note does not say how to fix it"
+    assert "gesture dashboard" in out, "the note does not say how to fix it"
 
 
 def test_a_gesture_linked_twice_keeps_its_first_action_and_says_so(capsys):

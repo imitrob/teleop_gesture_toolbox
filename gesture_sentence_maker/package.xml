@@ -8,10 +8,11 @@
 
   <buildtool_depend>ament_cmake</buildtool_depend>
   <depend>rclpy</depend>
+  <depend>std_msgs</depend>
+  <depend>gesture_msgs</depend>
   <exec_depend>gesture_meaning</exec_depend>
 
   <export>
     <build_type>ament_python</build_type>
   </export>
 </package>
-

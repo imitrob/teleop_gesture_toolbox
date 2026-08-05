@@ -1,5 +1,5 @@
 
-from hri_msgs.msg import HRICommand as HRICommandMSG # Download https://github.com/ichores-research/modality_merging to workspace
+from gesture_sentence_maker.hri_command_msg import HRICommandMSG
 import rclpy
 from gesture_msgs.msg import DetectionSolution, DetectionObservations
 from gesture_msgs.srv import SaveHandRecord, GetModelConfig

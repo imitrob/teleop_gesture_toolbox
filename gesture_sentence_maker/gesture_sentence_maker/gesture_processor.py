@@ -14,26 +14,56 @@ from gesture_sentence_maker.hricommand_export import (
     export_mapped_to_HRICommand, export_original_to_HRICommand,
     import_original_HRICommand_to_dict)
 from gesture_meaning.gesture_icons import GESTURE_ICONS
-from gesture_meaning.one_to_one_mapping import OneToOneMapping, load_links
+from gesture_meaning.one_to_one_mapping import DEFAULT_LINKS, OneToOneMapping, load_links
 from pointing_object_selection.pointing_object_getter import PointingObjectGetter
 from pointing_object_selection.deictic_evidence import EVIDENCE, select as select_deictic
+from gesture_sentence_maker.hri_command_msg import (
+    HRICommand, HRICommandMSG, HRI_COMMAND_TYPE,
+    HRI_COMMAND_ROSBRIDGE_TYPE)
 from gesture_sentence_maker.utils import get_dist_by_extremes
 
-from hri_msgs.msg import HRICommand
+try:
+    from hri_msgs.srv import AddGestureLink, RemoveGestureLink
+except ImportError:
+    AddGestureLink = None
+    RemoveGestureLink = None
 from std_msgs.msg import String
 from gesture_detector.utils.utils import CustomDeque
 
-from hri_msgs.msg import HRICommand as HRICommandMSG
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 import json
+
+try:
+    from hri_manager.user_links import add_gesture_link, remove_gesture_link
+except ImportError:
+    add_gesture_link = None
+    remove_gesture_link = None
+
+HRI_MANAGER_AVAILABLE = (
+    add_gesture_link is not None and remove_gesture_link is not None)
+LINK_SERVICES_AVAILABLE = (
+    AddGestureLink is not None and RemoveGestureLink is not None)
+
+
+def _links_capability(name_user: str):
+    """Return whether links can be edited and the filename shown in the UI."""
+    if HRI_MANAGER_AVAILABLE:
+        return bool(name_user) and LINK_SERVICES_AVAILABLE, (
+            f"{name_user}_links.yaml" if name_user else "<user>_links.yaml")
+    return False, DEFAULT_LINKS.rsplit("/", 1)[-1]
+
 
 def _user_settings(name_user: str) -> dict:
     """The user's links file: their vocabulary, gesture links and cell settings.
 
-    {} when no user is given, or when the file cannot be read -- then the
-    defaults below apply and no gesture names an action, which is printed rather
-    than guessed at. load_links falls back to the links.yaml shipped with
-    gesture_meaning when hri_manager is not installed."""
+    With hri_manager, an absent user or unreadable user file gives no mapping.
+    Without hri_manager, load the standard links.yaml shipped with
+    gesture_meaning, including when no user name was supplied."""
+    # The standalone gesture toolbox deliberately uses gesture_meaning's
+    # standard links.yaml. A user name only has meaning when hri_manager is
+    # installed and owns per-user files.
+    if not HRI_MANAGER_AVAILABLE:
+        return load_links(name_user)
     if not name_user:
         return {}
     try:
@@ -59,6 +89,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.gesture_sentence_publisher = self.create_publisher(HRICommand, "/teleop_gesture_toolbox/hricommand_original", qos_profile=QoSProfile(depth=10, reliability=QoSReliabilityPolicy.RELIABLE))
         # Final output
         self.modality_gestures_publisher = self.create_publisher(HRICommand, "/modality/gestures", qos_profile=QoSProfile(depth=10, reliability=QoSReliabilityPolicy.RELIABLE))
+        self.get_logger().info(f"Using {HRI_COMMAND_TYPE} for gesture commands")
 
         # sentence data
         self.prev_gesture_type = None
@@ -78,10 +109,13 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         # Per-user settings live in links/<user>_links.yaml, so a new cell is configured by editing yaml rather than this file. The arguments above stay the defaults for when no user is given.
         self.user = self.declare_parameter("user_name", "").get_parameter_value().string_value
         self.user_settings = _user_settings(self.user)
+        self.links_editable, self.links_source = _links_capability(self.user)
         self.ignored_gestures = self.user_settings.get("ignored_gestures", ignored_gestures)
         self.activate_length = self.user_settings.get("activate_length", self.activate_length)
-        # A gesture means what this user linked it to and nothing else. Built once: editing the links file takes effect on the next start.
+        # A gesture means what this user linked it to and nothing else. The
+        # dashboard service replaces this mapping after it persists a new link.
         self.mapping = OneToOneMapping(self.user_settings)
+        self.settings_lock = threading.RLock()
         # Which gestures put this user into which mode. Per-user like the rest,
         # so a cell is retuned by editing yaml rather than this file.
         self.adaptive_setup = AdaptiveSetup(self.user_settings.get("adaptive_setup"))
@@ -91,6 +125,17 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
         # The live display (gesture_detector/live_display) reads the user and their links from here.
         self.meaning_info_pub = self.create_publisher(String, "/teleop_gesture_toolbox/gesture_meaning_info", 5)
+        self.add_gesture_link_service = None
+        self.remove_gesture_link_service = None
+        if self.links_editable:
+            self.add_gesture_link_service = self.create_service(
+                AddGestureLink,
+                "/teleop_gesture_toolbox/add_gesture_link",
+                self.add_gesture_link_callback)
+            self.remove_gesture_link_service = self.create_service(
+                RemoveGestureLink,
+                "/teleop_gesture_toolbox/remove_gesture_link",
+                self.remove_gesture_link_callback)
         # What the current pointing has settled on so far, for the live display.
         self.pending_selection_pub = self.create_publisher(String, "/teleop_gesture_toolbox/pending_object_selection", 5)
         # The mode the user is in right now. Its own topic rather than a field of
@@ -108,11 +153,78 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def send_info_thread(self):
         while rclpy.ok():
             time.sleep(1.0)
-            d = {"user": self.user, "gesture_icons": GESTURE_ICONS,
-                 "adaptive_setup": self.adaptive_setup.adaptive_setup}
-            if self.user_settings.get("links"):
-                d["links"] = self.user_settings["links"]
-            self.meaning_info_pub.publish(String(data=json.dumps(d)))
+            self.publish_meaning_info()
+
+    def meaning_info(self):
+        """Configuration snapshot for dashboards, independent of detections."""
+        with self.settings_lock:
+            return {
+                "user": self.user,
+                "gesture_icons": GESTURE_ICONS,
+                "adaptive_setup": self.adaptive_setup.adaptive_setup,
+                "static_gestures": list(self.Gs_static),
+                "dynamic_gestures": list(self.Gs_dynamic),
+                "actions": list(self.user_settings.get("actions") or []),
+                "links": dict(self.user_settings.get("links") or {}),
+                "links_editable": self.links_editable,
+                "links_source": self.links_source,
+                "hri_command_type": HRI_COMMAND_ROSBRIDGE_TYPE,
+            }
+
+    def publish_meaning_info(self):
+        self.meaning_info_pub.publish(String(data=json.dumps(self.meaning_info())))
+
+    def add_gesture_link_callback(self, request, response):
+        """Validate, persist and activate a dashboard-created mapping."""
+        try:
+            if not self.links_editable or add_gesture_link is None:
+                raise RuntimeError("The active mapping file is read-only")
+            link_name, settings, created = add_gesture_link(
+                self.user,
+                request.action_template,
+                request.static_gesture,
+                request.dynamic_gesture,
+                static_gestures=self.Gs_static,
+                dynamic_gestures=self.Gs_dynamic)
+            mapping = OneToOneMapping(settings)
+            with self.settings_lock:
+                self.user_settings = settings
+                self.mapping = mapping
+            response.success = True
+            response.link_name = link_name
+            response.message = (
+                f"Added {link_name}" if created else
+                f"Mapping already exists as {link_name}")
+            response.links_json = json.dumps(settings.get("links") or {})
+            self.publish_meaning_info()
+        except Exception as error:  # service boundary: return validation/I/O errors
+            response.success = False
+            response.message = str(error)
+            response.link_name = ""
+            response.links_json = ""
+            self.get_logger().warning(f"Unable to add gesture link: {error}")
+        return response
+
+    def remove_gesture_link_callback(self, request, response):
+        """Persist a link removal and activate the reduced mapping."""
+        try:
+            if not self.links_editable or remove_gesture_link is None:
+                raise RuntimeError("The active mapping file is read-only")
+            _, settings = remove_gesture_link(self.user, request.link_name)
+            mapping = OneToOneMapping(settings)
+            with self.settings_lock:
+                self.user_settings = settings
+                self.mapping = mapping
+            response.success = True
+            response.message = f"Removed {request.link_name}"
+            response.links_json = json.dumps(settings.get("links") or {})
+            self.publish_meaning_info()
+        except Exception as error:  # service boundary: return validation/I/O errors
+            response.success = False
+            response.message = str(error)
+            response.links_json = ""
+            self.get_logger().warning(f"Unable to remove gesture link: {error}")
+        return response
 
     def publish_sentence(self, **kwargs):
         """The sentence, raw and mapped: gesture names on hricommand_original,

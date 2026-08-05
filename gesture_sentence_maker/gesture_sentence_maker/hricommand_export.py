@@ -3,7 +3,7 @@
 import json
 
 import numpy as np
-from hri_msgs.msg import HRICommand
+from gesture_sentence_maker.hri_command_msg import HRICommand
 
 PREF_OBJECT_INDEX = -1 # second last pointed object
 PREF_STORAGE_INDEX = -2 # the last pointed object

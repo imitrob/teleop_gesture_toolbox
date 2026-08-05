@@ -30,6 +30,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/Hand.msg"
   "msg/Frame.msg"
   "msg/Gestures.msg"
+  "msg/HRICommand.msg"
   "msg/DetectionObservations.msg"
   "msg/DetectionSolution.msg"
   "msg/DeicticSolution.msg"
