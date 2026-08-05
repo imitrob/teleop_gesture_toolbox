@@ -82,6 +82,10 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.activate_length = self.user_settings.get("activate_length", self.activate_length)
         # A gesture means what this user linked it to and nothing else. Built once: editing the links file takes effect on the next start.
         self.mapping = OneToOneMapping(self.user_settings)
+        # Which gestures put this user into which mode. Per-user like the rest,
+        # so a cell is retuned by editing yaml rather than this file.
+        self.adaptive_setup = AdaptiveSetup(self.user_settings.get("adaptive_setup"))
+        print(f"[Gesture Processor] Adaptive setup: {self.adaptive_setup.adaptive_setup}")
 
         self.step_period = step_period
 
@@ -89,6 +93,10 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.meaning_info_pub = self.create_publisher(String, "/teleop_gesture_toolbox/gesture_meaning_info", 5)
         # What the current pointing has settled on so far, for the live display.
         self.pending_selection_pub = self.create_publisher(String, "/teleop_gesture_toolbox/pending_object_selection", 5)
+        # The mode the user is in right now. Its own topic rather than a field of
+        # gesture_meaning_info, which is a 1 Hz config snapshot: a mode arriving
+        # up to a second late would read as a stuck sign. Empty means idle.
+        self.mode_pub = self.create_publisher(String, "/teleop_gesture_toolbox/gesture_mode", 5)
         threading.Thread(target=self.send_info_thread, daemon=True).start()
 
         self.continue_episode = self.present
@@ -100,7 +108,8 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def send_info_thread(self):
         while rclpy.ok():
             time.sleep(1.0)
-            d = {"user": self.user, "gesture_icons": GESTURE_ICONS}
+            d = {"user": self.user, "gesture_icons": GESTURE_ICONS,
+                 "adaptive_setup": self.adaptive_setup.adaptive_setup}
             if self.user_settings.get("links"):
                 d["links"] = self.user_settings["links"]
             self.meaning_info_pub.publish(String(data=json.dumps(d)))
@@ -150,9 +159,15 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def gesturing_step(self):
         activated_gestures = self.load_all_relevant_activated_gestures(relevant_time=2.0, records=3)
 
-        activated_gesture_type = AdaptiveSetup.get_adaptive_gesture_type(activated_gestures)
+        activated_gesture_type = self.adaptive_setup.get_adaptive_gesture_type(activated_gestures)
 
         activated_gesture_type_action = self.activated_gesture_type_to_action(activated_gesture_type)
+
+        # The settled mode, not the raw per-frame detection: the raw one flickers
+        # between modes several times a second. None means not settled yet, and
+        # then the last mode stands rather than the sign blinking to idle.
+        if activated_gesture_type_action is not None:
+            self.publish_mode(activated_gesture_type_action)
 
         self.save_accumulated_data_of_unactivated_gesture_types()
 
@@ -215,6 +230,14 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.prev_deictic_solutions.append(deictic_solution)
         self.publish_pending_selection()
 
+    def publish_mode(self, mode: str = ""):
+        """The mode the user is in, for the live display's Doing sign.
+
+        Sent every step rather than only on a change, so a dashboard opened
+        mid-session fills in within one step instead of waiting for the user to
+        switch modes. Empty string is idle -- no hand, nothing settled."""
+        self.mode_pub.publish(String(data=mode))
+
     def publish_pending_selection(self):
         """The object this pointing would contribute if it ended now, for viewers.
 
@@ -240,6 +263,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.prev_deictic_solutions = CustomDeque()
         self.prev_auxgesture_solutions = CustomDeque()
         self.publish_pending_selection()
+        self.publish_mode()  # episode over: idle until the next gesture settles
 
         if wait:
             print("Move hand out to end the episode!")
@@ -274,18 +298,53 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
 
 class AdaptiveSetup():
-    adaptive_setup = {
-        'deictic': ('point', 'two'),
-        #'approvement': ('thumbsup', 'five'),
-        # 'measurement_distance': ('pinch'),
-        #'measurement_rotation': ('five'),
-    }
+    """Which gesture modes this user has, read from their links file.
 
-    @staticmethod
-    def get_adaptive_gesture_type(activated_gestures):
+    One entry is `mode: [gesture, ...]` and showing *any* of those gestures puts
+    the user in that mode -- a mode is a hand posture, not a combination (unlike
+    links.action_gestures, where every gesture of an entry has to be shown).
+
+    Only modes gesturing_step() actually dispatches are accepted. A mode nobody
+    handles is dropped with a warning rather than kept: it would be detected,
+    fall through to the 'action' branch, and leave the dashboard announcing a
+    mode that does nothing.
+    """
+
+    # Modes with a working handler in gesturing_step. 'approvement' and
+    # 'measurement_distance' are deliberately absent: step_approvement calls an
+    # undefined misc_gesture_handle, and nothing ever fills the buffer
+    # measurement_distance would read. Add a mode here once its step_ works.
+    HANDLED = ('deictic',)
+    # Applies when the links file says nothing, so existing files and the
+    # no-user standalone path keep pointing without an adaptive_setup key.
+    DEFAULT = {'deictic': ['point', 'two']}
+
+    def __init__(self, adaptive_setup: dict | None = None):
+        self.adaptive_setup = self._validate(
+            self.DEFAULT if not adaptive_setup else adaptive_setup)
+
+    @classmethod
+    def _validate(cls, setup: dict) -> dict:
+        accepted = {}
+        for mode, gestures in setup.items():
+            # A bare string is the trap this check exists for: `mode: pinch`
+            # yaml-parses to "pinch", and `gesture in "pinch"` then matches on
+            # substrings, so a gesture named 'pin' or even 'n' would activate it.
+            if isinstance(gestures, str) or not isinstance(gestures, (list, tuple)):
+                print(f"[AdaptiveSetup] mode {mode!r} must list its gestures "
+                      f"(got {gestures!r}), ignoring it", flush=True)
+                continue
+            if mode not in cls.HANDLED:
+                print(f"[AdaptiveSetup] mode {mode!r} has no handler in "
+                      f"gesturing_step, ignoring it", flush=True)
+                continue
+            accepted[mode] = [str(g) for g in gestures]
+        return accepted
+
+    def get_adaptive_gesture_type(self, activated_gestures):
         activated_gesture_types = []
 
-        as_ = AdaptiveSetup.adaptive_setup
+        as_ = self.adaptive_setup
         # activated_gestures = ('point')
         for ag in activated_gestures:
             # as_.keys() = ('deictic', 'approvement', 'measurement')

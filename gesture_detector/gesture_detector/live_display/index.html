@@ -20,7 +20,12 @@
                  color:#fff;cursor:grab;user-select:none;}
     .card-header:active{cursor:grabbing;}
     .card-header h2{font-size:24px;line-height:1.2;margin:0;text-align:center;flex:1;}
-    .drag-grip{font-size:22px;line-height:1;letter-spacing:-4px;padding-right:4px;opacity:.9;}
+    /* The 2x3 grip is drawn, not typed: two U+22EE glyphs pulled together by a
+       negative letter-spacing merged into one grip in Blink but stayed two
+       separate dot columns in Gecko. background-size tiles one dot per cell. */
+    .drag-grip{flex:none;width:10px;height:18px;margin-right:4px;opacity:.9;
+               background-image:radial-gradient(circle,currentColor 1px,transparent 1.3px);
+               background-size:5px 6px;}
     .card-body{padding:12px;}
     .card-body.is-flush{padding:0;}
     .scene-frame{display:block;width:100%;aspect-ratio:1;border:0;background:#303030;}
@@ -30,6 +35,25 @@
     .status-grid{display:grid;grid-template-columns:max-content 1fr;gap:8px 12px;align-items:center;margin:0 0 12px;}
     .status-grid dt{font-weight:700;}
     .status-grid dd{margin:0;min-width:0;overflow-wrap:anywhere;}
+    /* "Doing" is read from across the room, so it leaves the two-column
+       status-grid: inside a 1fr cell it could not grow past the row height. */
+    .doing-caption{margin:0 0 4px;font-size:13px;font-weight:700;color:#607d8b;
+                   text-transform:uppercase;letter-spacing:.5px;}
+    .doing-banner{margin:0 0 12px;padding:8px 6px;border-radius:6px;font-size:34px;
+                  line-height:1.1;font-weight:700;text-align:center;color:#fff;
+                  overflow-wrap:anywhere;transition:background .15s;}
+    .doing-banner.is-deictic{background:#2196f3;}   /* pointing mode */
+    .doing-banner.is-action{background:#4caf50;}    /* symbolic gesturing */
+    .doing-banner.is-other{background:#673ab7;}     /* a mode added since this page */
+    .doing-banner.is-idle{background:#607d8b;}      /* no hand / not settled */
+    .setup-grid{display:flex;flex-direction:column;gap:6px;}
+    .setup-row{display:flex;align-items:center;gap:10px;padding:6px;border-radius:4px;
+               background:#d7e1f0;}
+    .setup-mode{font-weight:700;font-size:16px;overflow-wrap:anywhere;}
+    .setup-gestures{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto;}
+    .setup-gesture{display:inline-flex;flex-direction:column;align-items:center;min-width:44px;}
+    .setup-gesture-emoji{font-size:26px;line-height:1;}
+    .setup-gesture-name{font-size:12px;font-weight:600;overflow-wrap:anywhere;}
     .reset-layout{width:100%;}
     .min-height-div{min-height:20px;border:0px solid #ccc;}
     .circle-progress{position:relative;width:50px;height:50px;border-radius:50%;background:conic-gradient(#ff0000 var(--progress),#ddd var(--progress));display:flex;align-items:center;justify-content:center;font-weight:bold;}
@@ -71,7 +95,7 @@
 <main id="dashboardGrid" class="dashboard-grid">
   <section class="dashboard-card" data-card-id="pose">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Pose Detector</h2>
     </header>
     <div class="card-body">
@@ -84,7 +108,7 @@
 
   <section class="dashboard-card" data-card-id="swipe">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Swipe Detector</h2>
     </header>
     <div class="card-body">
@@ -96,7 +120,7 @@
 
   <section class="dashboard-card" data-card-id="episodes">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Episode-catched Gestures</h2>
     </header>
     <div class="card-body">
@@ -117,7 +141,7 @@
 
   <section class="dashboard-card" data-card-id="mapped-actions">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Mapped Robotic Actions</h2>
     </header>
     <div class="card-body">
@@ -138,7 +162,7 @@
 
   <section class="dashboard-card" data-card-id="gesture-meaning">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Gesture Meaning</h2>
     </header>
     <div class="card-body">
@@ -150,7 +174,7 @@
 
   <section class="dashboard-card" data-card-id="scene">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Hand Scene</h2>
     </header>
     <div class="card-body is-flush">
@@ -160,19 +184,31 @@
     </div>
   </section>
 
+  <section class="dashboard-card" data-card-id="adaptive-setup">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true"></span>
+      <h2>Adaptive Setup</h2>
+    </header>
+    <div class="card-body">
+      <div id="adaptiveSetupBody" class="setup-grid">
+        <p class="empty-state">Waiting for adaptive setup…</p>
+      </div>
+    </div>
+  </section>
+
   <section class="dashboard-card" data-card-id="status">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Status</h2>
     </header>
     <div class="card-body">
+      <p class="doing-caption">Doing</p>
+      <div id="statusDoing" class="doing-banner is-idle">—</div>
       <dl class="status-grid">
         <dt>FPS</dt>
         <dd><span id="statusFps" class="w3-tag w3-red w3-round">—</span></dd>
         <dt>Msg</dt>
         <dd><span id="statusMsg" class="w3-tag w3-blue w3-round">—</span></dd>
-        <dt>Doing</dt>
-        <dd><span id="statusDoing" class="w3-tag w3-black w3-round">—</span></dd>
         <dt>Status</dt>
         <dd><span id="handFrameStatus" class="w3-tag w3-amber w3-round">Connecting…</span></dd>
         <dt>User</dt>
@@ -195,6 +231,7 @@
   const topics = [
     ["/teleop_gesture_toolbox/all_states",           "std_msgs/String",      100],
     ["/teleop_gesture_toolbox/gesture_meaning_info", "std_msgs/String",      0],
+    ["/teleop_gesture_toolbox/gesture_mode",         "std_msgs/String",      100],
     ["/teleop_gesture_toolbox/hricommand_original",  "hri_msgs/HRICommand",  0],
     ["/modality/gestures",                           "hri_msgs/HRICommand",  0],
     ["/teleop_gesture_toolbox/hand_frame",           "gesture_msgs/Frame",   200],
@@ -210,6 +247,8 @@
   let currentUser = null;
   let gestureIcons = {};
   let linksCardSignature = null;
+  let adaptiveSetup = null;       // {mode: [gesture, ...]} from gesture_meaning_info
+  let adaptiveSetupSignature = null;
 
   let lastHandFrame = 0; // ms timestamp of the most-recent frame
   let lastOrig = 0, lastMap = 0; // ms timestamps<br>
@@ -226,6 +265,45 @@
   let dynamicGesturesActivated  = [];
   let dynamicBiggestID          = -1;
 
+
+  function setDoing(mode){
+    // Empty is idle: the sentence maker only names a mode while a hand is
+    // visible and the detection has settled, and clears it when the episode ends.
+    const name = (mode || '').trim();
+    const banner = document.getElementById('statusDoing');
+    banner.textContent = name || '—';
+    // Grey means idle and only idle: a mode this page has no colour for yet
+    // (one implemented after this was written) must not look like no mode.
+    banner.className = 'doing-banner ' + (
+      !name             ? 'is-idle'    :
+      name === 'deictic' ? 'is-deictic' :
+      name === 'action'  ? 'is-action'  : 'is-other');
+  }
+
+  function buildAdaptiveSetupCard(){
+    // adaptive_setup is {mode: [gesture, ...]} -- showing any one of a mode's
+    // gestures puts the user in that mode. The sentence maker has already
+    // dropped modes it cannot dispatch, so every row here is a real mode.
+    const body = document.getElementById('adaptiveSetupBody');
+    const modes = Object.entries(adaptiveSetup || {});
+    if (!modes.length) {
+      body.innerHTML = '<p class="empty-state">No gesture modes are configured.</p>';
+      return;
+    }
+
+    body.innerHTML = modes.map(([mode, gestures])=>{
+      const gesturesHTML = (gestures || []).map(gesture=>`
+        <span class="setup-gesture">
+          <span class="setup-gesture-emoji" aria-hidden="true">${gestureIcons[gesture] || "👋"}</span>
+          <span class="setup-gesture-name">${gesture}</span>
+        </span>`).join('');
+
+      return `<div class="setup-row">
+        <span class="setup-mode">${mode}</span>
+        <span class="setup-gestures">${gesturesHTML}</span>
+      </div>`;
+    }).join('');
+  }
 
   function buildLinksCard(){
     if (!linksData || !linksData.links) return;
@@ -263,6 +341,7 @@
     'mapped-actions',
     'gesture-meaning',
     'scene',
+    'adaptive-setup',
     'status',
   ];
   const dashboardGrid = document.getElementById('dashboardGrid');
@@ -507,6 +586,10 @@
         const data = JSON.parse(event.data);
 
         /* ---------------- Gesture meaning info ----------------- */
+        if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_mode") {
+          setDoing(data.msg.data);
+        }
+
         if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_meaning_info") {
           const parsed_message = JSON.parse(data.msg.data);
           let linksCardChanged = false;
@@ -529,6 +612,17 @@
           if (parsed_message.links){
             linksData = parsed_message;
             linksCardChanged = true;
+          }
+          if (parsed_message.adaptive_setup){
+            adaptiveSetup = parsed_message.adaptive_setup;
+            // Rebuilt only when it actually changes: this arrives at 1 Hz and
+            // replacing the rows every second would fight the masonry layout.
+            const nextSetupSignature = JSON.stringify([adaptiveSetup, gestureIcons]);
+            if (nextSetupSignature !== adaptiveSetupSignature) {
+              buildAdaptiveSetupCard();
+              adaptiveSetupSignature = nextSetupSignature;
+              scheduleDashboardLayout();
+            }
           }
           if (linksCardChanged && linksData) {
             const nextSignature = JSON.stringify([linksData.links, gestureIcons]);
@@ -560,10 +654,6 @@
           if (parsed_message.hasOwnProperty('seq')) {
             document.getElementById('statusMsg').textContent =
               displayStatusMetric(parsed_message.seq);
-          }
-          if (parsed_message.hasOwnProperty('gesture_type_selected')) {
-            document.getElementById('statusDoing').textContent =
-              parsed_message.gesture_type_selected ?? '—';
           }
 
           // evidence values

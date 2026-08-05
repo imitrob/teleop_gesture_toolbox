@@ -506,7 +506,9 @@ class GestureDataDetection(Node):
             dict_to_send["fps"] = round(self.hand_frames[-1].fps)
             dict_to_send["seq"] = self.hand_frames[-1].seq
             
-            # dict_to_send["gesture_type_selected"] = gl.sd.prev_gesture_type
+            # The mode is not available here: this node is the detector, while the
+            # mode lives in the sentence maker, which publishes it on
+            # /teleop_gesture_toolbox/gesture_mode for the dashboard's Doing sign.
             # dict_to_send["gs_state_action"] = GestureSentence.process_gesture_queue(self.gestures_queue)
             # dict_to_send["gs_state_objects"] = self.target_objects
         
