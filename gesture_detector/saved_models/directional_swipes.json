@@ -5,12 +5,20 @@
     "model_name": "directional_swipes",
     "engine": "DTW",
     "method": "promp",
-    "counts": [1,1,1,1,1],
+    "counts": [
+        1,
+        1,
+        1,
+        1,
+        1,
+        1
+    ],
     "gestures": [
-    	"swipe_down",
-	"swipe_front_right",
-	"swipe_left",
-	"swipe_up",
-	"no_moving"
+        "swipe_up",
+        "swipe_down",
+        "swipe_left",
+        "swipe_right",
+        "circle",
+        "no_moving"
     ]
 }

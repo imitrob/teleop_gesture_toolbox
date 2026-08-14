@@ -22,17 +22,14 @@ prepositions:
 - to
 links:
   link1:
-    user: default
     action_template: pick
     action_gestures:
     - [grab, swipe_up]
   link2:
-    user: default
     action_template: touch
     action_gestures:
     - [pinch, swipe_down]
   link3:
-    user: default
     action_template: put
     action_gestures:
     - [thumbsup, swipe_left]

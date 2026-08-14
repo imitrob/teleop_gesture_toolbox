@@ -34,9 +34,10 @@ from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 import json
 
 try:
-    from hri_manager.user_links import add_gesture_link, remove_gesture_link
+    from hri_manager.user_links import add_gesture_link, links_mtime, remove_gesture_link
 except ImportError:
     add_gesture_link = None
+    links_mtime = None
     remove_gesture_link = None
 
 HRI_MANAGER_AVAILABLE = (
@@ -112,10 +113,12 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         self.links_editable, self.links_source = _links_capability(self.user)
         self.ignored_gestures = self.user_settings.get("ignored_gestures", ignored_gestures)
         self.activate_length = self.user_settings.get("activate_length", self.activate_length)
+        self.activate_length_dynamic = self.user_settings.get("activate_length_dynamic", self.activate_length_dynamic)
         # A gesture means what this user linked it to and nothing else. The
         # dashboard service replaces this mapping after it persists a new link.
         self.mapping = OneToOneMapping(self.user_settings)
         self.settings_lock = threading.RLock()
+        self._settings_mtime = self._links_mtime()
         # Which gestures put this user into which mode. Per-user like the rest,
         # so a cell is retuned by editing yaml rather than this file.
         self.adaptive_setup = AdaptiveSetup(self.user_settings.get("adaptive_setup"))
@@ -154,6 +157,28 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
         while rclpy.ok():
             time.sleep(1.0)
             self.publish_meaning_info()
+
+    def _links_mtime(self):
+        if not (self.user and links_mtime is not None):
+            return None
+        try:
+            return links_mtime(self.user)
+        except OSError:
+            return None
+
+    def reload_settings_if_changed(self):
+        """Pick up dashboard edits to the links file without a restart."""
+        mtime = self._links_mtime()
+        if mtime is None or mtime == self._settings_mtime:
+            return
+        self._settings_mtime = mtime
+        settings = _user_settings(self.user)
+        mapping = OneToOneMapping(settings)
+        with self.settings_lock:
+            self.user_settings = settings
+            self.mapping = mapping
+        self.publish_meaning_info()
+        print(f"[Gesture Processor] Reloaded {self.user}_links.yaml", flush=True)
 
     def meaning_info(self):
         """Configuration snapshot for dashboards, independent of detections."""
@@ -239,6 +264,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
     def step(self):
         time.sleep(self.step_period)
+        self.reload_settings_if_changed()
         if self.continue_episode(): # Hand not visible is condition for Episode to End 
             self.gesturing_step()
         
