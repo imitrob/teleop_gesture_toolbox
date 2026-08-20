@@ -35,6 +35,21 @@ MODEL_CONFIG_RESPONSE_TIMEOUT = 2.0
 
 rossem = threading.Semaphore()
 
+
+class DetectionFreshness:
+    """Choose the freshness clock and sequence policy for live or replay input."""
+
+    def __init__(self, replay_mode=False):
+        self.replay_mode = replay_mode
+
+    def accepts_sequence(self, latest_sensor_seq, solution_sensor_seq):
+        return self.replay_mode or latest_sensor_seq-solution_sensor_seq <= 100
+
+    def is_relevant(self, record, relevant_time):
+        if self.replay_mode:
+            return record.header.received_at > time.monotonic()-relevant_time
+        return record.header.stamp > time.time()-relevant_time
+
 def dynamic_sample_indices(n, time_samples):
     ''' Frame indices spanning (time_samples-1)/time_samples of the last n frames '''
     indices = [-1]
@@ -62,6 +77,11 @@ class GestureDataDetection(Node):
         self.activate_length_dynamic = activate_length_dynamic
 
         super(GestureDataDetection, self).__init__('ros_comm_main')
+
+        self.declare_parameter('replay_mode', False)
+        self.replay_mode = self.get_parameter(
+            'replay_mode').get_parameter_value().bool_value
+        self.freshness = DetectionFreshness(replay_mode=self.replay_mode)
 
         self.static_detection_observations_pub = self.create_publisher(DetectionObservations,'/teleop_gesture_toolbox/static_detection_observations', 5)
 
@@ -100,8 +120,8 @@ class GestureDataDetection(Node):
             }
         }
 
-        self.l = GestureDataHand(self.gesture_config)
-        self.r = GestureDataHand(self.gesture_config)
+        self.l = GestureDataHand(self.gesture_config, freshness=self.freshness)
+        self.r = GestureDataHand(self.gesture_config, freshness=self.freshness)
         if not silent:
             print(f"Static gestures: {self.l.static.Gs}, \nDynamic gestures {self.l.dynamic.Gs}")
 
@@ -180,13 +200,13 @@ class GestureDataDetection(Node):
     def relevant(self, hand='r', type='static', relevant_time=1.0, records=1):
         ''' Returns solutions based on hand and type if not older than relevant_time
         '''
-        t = time.time()
         self_h = getattr(self, hand)
         self_h_type = getattr(self_h, type)
 
         gs = []
         i = 1
-        while self_h_type.n > i and (t-self_h_type[-i].header.stamp) < relevant_time:
+        while (self_h_type.n > i and
+               self.freshness.is_relevant(self_h_type[-i], relevant_time)):
             gs.append(self_h_type[-i])
             if i > records:
                 break
@@ -223,7 +243,8 @@ class GestureDataDetection(Node):
     def new_record(self, data, type='static'):
         ''' New gesture data arrived and will be saved
         '''
-        if len(self.hand_frames) > 0 and self.hand_frames[-1].seq-data.sensor_seq > 100:
+        if (len(self.hand_frames) > 0 and not self.freshness.accepts_sequence(
+                self.hand_frames[-1].seq, data.sensor_seq)):
             print(f"[Warning] Program cannot compute gs in time, probably rate is too big! (or fake data are used)", flush=True)
             return
 
@@ -712,17 +733,19 @@ class GestureMorphClassStamped(GestureMorphClass):
         assert isinstance(data, DetectionSolution)
         stamp = data.header.stamp.sec + data.header.stamp.nanosec*1e-9
         self.header = GHeader(stamp, data.seq, data.approach)
+        self.header.received_at = time.monotonic()
 
         for n,g in enumerate(Gs):
             # self.l.static[<time>].<g> = GestureDataAtTime(probability, biggest_probability)
             setattr(self, g, GestureDataAtTime(data.probabilities.data[n], data.id == n))
 
 class TemplateGs():
-    def __init__(self, data=None):
+    def __init__(self, data=None, freshness=None):
         '''
         Get data about gesture at time: self.l.static[<time index>].<g1>.probability
         '''
         self.Gs = data['Gs']
+        self.freshness = freshness or DetectionFreshness()
         self.data_queue = collections.deque(maxlen=300)
 
     def get_times(self):
@@ -813,28 +836,24 @@ class TemplateGs():
     def relevant(self, last_secs=1.0):
         ''' Searches gestures_queue, and returns the last gesture record, None if no records in that time were made
         '''
-        abs_time = time.time() - last_secs
-
-        #abs_time = time.time() - last_secs
-        # if happened within last_secs interval
-        if self.data_queue and self.data_queue[-1].header.stamp > abs_time:
+        if (self.data_queue and
+                self.freshness.is_relevant(self.data_queue[-1], last_secs)):
             return self.data_queue[-1]
         else:
             return None
 
 class StaticGs(TemplateGs):
-    def __init__(self, data=None):
-        super().__init__(data)
+    def __init__(self, data=None, freshness=None):
+        super().__init__(data, freshness=freshness)
 
 class DynamicGs(TemplateGs):
-    def __init__(self, data=None):
-        super().__init__(data)
+    def __init__(self, data=None, freshness=None):
+        super().__init__(data, freshness=freshness)
 
 class GestureDataHand():
     ''' The 2nd class: self.l
                        self.r
     '''
-    def __init__(self, gesture_config):
-        self.static = StaticGs(gesture_config['static'])
-        self.dynamic = DynamicGs(gesture_config['dynamic'])
-
+    def __init__(self, gesture_config, freshness=None):
+        self.static = StaticGs(gesture_config['static'], freshness=freshness)
+        self.dynamic = DynamicGs(gesture_config['dynamic'], freshness=freshness)

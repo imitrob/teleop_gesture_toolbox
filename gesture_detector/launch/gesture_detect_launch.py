@@ -1,39 +1,44 @@
 #!/usr/bin/env python
 from launch import LaunchDescription
 from launch.actions import DeclareLaunchArgument, OpaqueFunction
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
+from launch_ros.parameter_descriptions import ParameterValue
 from launch.actions import ExecuteProcess
 import gesture_detector
 
 def generate_nodes(context, *args, **kwargs):
     # Retrieve the value of 'sensor' argument at runtime
-    sensor = LaunchConfiguration('sensor').perform(context)
+    input_source = LaunchConfiguration('sensor').perform(context)
 
     # Conditional logic for node selection
-    if sensor == 'realsense':
+    if input_source == 'realsense':
         return [Node(
             package='gesture_detector',
             executable='realsense',
             name='realsense_publisher_node',
             output='screen',
         )]
-    elif sensor == 'leap':
+    elif input_source == 'leap':
         return [Node(
             package='gesture_detector',
             executable='leap',
             name='leap_publisher_node',
             output='screen',
         )]
+    elif input_source == 'bag':
+        return []
     else:
-        raise ValueError(f"Invalid sensor argument: {sensor}. Use 'realsense' or 'leap'.")
+        raise ValueError(
+            f"Invalid sensor argument: {input_source}. "
+            "Use 'realsense', 'leap', or 'bag'.")
 
 def generate_launch_description():
     # Declare the 'sensor' argument
     sensor_arg = DeclareLaunchArgument(
         'sensor',
         default_value='leap',
-        description='Choose which sensor node to launch: "realsense" or "leap"'
+        description='Choose an input source: "realsense", "leap", or "bag"'
     )
 
     rviz_config_file_arg = DeclareLaunchArgument(
@@ -73,7 +78,13 @@ def generate_launch_description():
             executable='gesture_detect',
             name='gesture_detector_node',
             output='screen',
-            parameters=[{'l_hand_mode': 'static+dynamic', 'r_hand_mode': 'static+dynamic'}]
+            parameters=[{
+                'l_hand_mode': 'static+dynamic',
+                'r_hand_mode': 'static+dynamic',
+                'replay_mode': ParameterValue(PythonExpression([
+                    "'", LaunchConfiguration('sensor'), "' == 'bag'"
+                ]), value_type=bool),
+            }]
         ),
         Node(
             package='rosbridge_server',
@@ -109,7 +120,5 @@ def generate_launch_description():
         # rviz_config_file_arg,
         # rviz_node
     ])
-
-
 
 
