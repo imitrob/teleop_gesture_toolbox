@@ -1,0 +1,28 @@
+# User-study tabletop block (hri_benchmark/data/study_scenarios.yaml).
+# Grid letters are scene_template.yaml's. cup1 and cup3 are DELIBERATELY
+# identical in every property and differ only in position: no description can
+# separate them, so those targets can only be resolved by pointing.
+#
+#       C
+#   E       F
+#       A              R
+#   D       G
+#       B
+cup1:
+  position: [0.65, 0.15, 0.04]   # D, participant's left
+  params: cup1 is a small red cup.
+cup2:
+  position: [0.5, 0.0, 0.04]     # A, centre
+  params: cup2 is a big red cup.
+cup3:
+  position: [0.35, 0.15, 0.04]   # F, participant's right
+  params: cup3 is a small red cup.
+bowl1:
+  position: [0.5, 0.25, 0.04]    # B
+  params: bowl1 is a green bowl. bowl1 cannot be picked up.
+banana1:
+  position: [0.5, -0.25, 0.04]   # C
+  params: banana1 is a yellow plastic banana.
+box1:
+  position: [0.35, -0.15, 0.04]  # G
+  params: box1 is a paper box. You cannot put anything into box1.
