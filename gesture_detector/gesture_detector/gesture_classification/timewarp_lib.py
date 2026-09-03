@@ -162,10 +162,7 @@ class fastdtw_():
     def sample(self, x, y=None, print_out=False, format='inverse_array', checktype=True):
         if checktype:
             if not isinstance(x, list):
-                x = x.data
-                # # TEMP: # FIXME:
-                if len(x) != 15: raise Exception("TODO: HERE !")
-                x = np.array(x).reshape(5,3)
+                x = np.asarray(x).reshape(-1, 3)
 
         t=time.time()
         if 'eacheach' == self.method:

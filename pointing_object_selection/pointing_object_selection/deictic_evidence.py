@@ -6,7 +6,9 @@ a point are the hand already moving away, so no single frame can be trusted to
 name the object. An object is only accepted once it has stayed the closest one
 for EVIDENCE frames in a row. Users point for as long as they like, so the one
 that counts is the *last* object that reached the threshold; if none ever does,
-nothing was selected.
+nothing was selected. Of that streak, select() hands back its best-aimed frame,
+so whoever reads object_distances/likelihoods off it sees the object clearly
+ahead rather than tied with its neighbour.
 
 The per-frame count is published in DeicticSolution.evidence, so a viewer can
 show a selection growing (0 -> threshold) instead of a binary highlight.
@@ -27,7 +29,6 @@ class DeicticEvidence():
     def reset(self):
         self.name = None        # object of the current streak
         self.evidence = 0       # how long the streak is
-        self.selected = None    # last object that reached the threshold
         self._last_update = None
 
     def update(self, name: str | None, now: float) -> int:
@@ -42,43 +43,63 @@ class DeicticEvidence():
 
         self.evidence = self.evidence + 1 if name == self.name else 1
         self.name = name
-        if self.evidence >= self.threshold:
-            self.selected = name
         return self.evidence
 
 
 def select(solutions, threshold: int = EVIDENCE):
-    """The solution a whole pointing run meant: the last one whose evidence
-    reached the threshold, or None when the user never settled on an object.
+    """The solution a whole pointing run meant: the last streak that reached the
+    threshold, or None when the user never settled on an object.
+
+    Of that streak the frame where the object was *closest* to the ray is
+    returned, not its last frame: the streak ends with the hand already swinging
+    to the next object, so there the distances of both are nearly tied and the
+    object_distances/likelihoods a consumer reads off would be a coin flip
+    between neighbours. The best frame is the one the user actually aimed.
 
     `solutions` are DeicticSolutions in time order, each carrying the evidence
     counted by the publisher (see DeicticEvidence)."""
-    for solution in reversed(list(solutions)):
-        if solution is not None and getattr(solution, "evidence", 0) >= threshold:
-            return solution
+    run = [s for s in solutions if s is not None]
+    for end in reversed(range(len(run))):
+        if getattr(run[end], "evidence", 0) < threshold:
+            continue
+        name = run[end].target_object_name
+        start = end
+        while start > 0 and run[start - 1].target_object_name == name:
+            start -= 1
+        # min(object_distances) is the distance to that frame's own target.
+        return min(run[start:end + 1], key=lambda s: min(s.object_distances))
     return None
 
 
 if __name__ == "__main__":
-    class _Sol():  # stand-in for DeicticSolution: select() only reads .evidence
-        def __init__(self, name, evidence):
+    class _Sol():  # stand-in for DeicticSolution: select() reads these three
+        def __init__(self, name, evidence, distance=0.1):
             self.target_object_name, self.evidence = name, evidence
+            self.object_distances = [distance, 9.0]
 
     counter = DeicticEvidence(threshold=3)
     stream = ["cube", "bowl", "cube", "cube", "cube", "cube", "box", "box"]
     got = [counter.update(name, now=t * 0.1) for t, name in enumerate(stream)]
     assert got == [1, 1, 1, 2, 3, 4, 1, 2], got
-    assert counter.selected == "cube"  # box never got 3 frames in a row
 
     counter.update("box", now=10.0)  # a gap: new point, streak starts over
-    assert counter.evidence == 1 and counter.selected is None
+    assert counter.evidence == 1
 
     counter = DeicticEvidence(threshold=3)
-    assert counter.update(None, now=0.0) == 0 and counter.selected is None
+    assert counter.update(None, now=0.0) == 0
 
     run = [_Sol("cube", e) for e in (1, 2, 3, 4)] + [_Sol("bowl", e) for e in (1, 2)]
     assert select(run, threshold=3).target_object_name == "cube"  # bowl too short
     assert select(run + [_Sol("bowl", 3)], threshold=3).target_object_name == "bowl"
     assert select([_Sol("cube", 1)], threshold=3) is None
     assert select([], threshold=3) is None
+
+    # The frame taken is the best-aimed one of the streak, not its last frame,
+    # where the hand is already on its way to the neighbour.
+    aimed = [_Sol("cube", 1, 0.20), _Sol("cube", 2, 0.02), _Sol("cube", 3, 0.19)]
+    assert select(aimed, threshold=3).object_distances[0] == 0.02
+    # An earlier streak of the same object must not donate its frames.
+    old = [_Sol("cube", 3, 0.001), _Sol("bowl", 1), _Sol("cube", 1, 0.3),
+           _Sol("cube", 2, 0.05), _Sol("cube", 3, 0.2)]
+    assert select(old, threshold=3).object_distances[0] == 0.05
     print("deictic evidence checks ok")

@@ -14,7 +14,11 @@ Open <http://127.0.0.1:6358/>.
 
 The viewport subscribes to the hand frame, scene, pointing beam,
 `/teleop_gesture_toolbox/deictic_solution`, and `/tf_static`. The deictic
-solution's selected object is shown with a pulsing highlight. Use the compact
+solution shows the object the ray is on right now as a blue halo growing with
+its evidence. The steady green ring is the actual selection, taken from
+`/teleop_gesture_toolbox/pending_object_selection`, which the sentence maker
+publishes from the same `deictic_evidence.select` that decides what it sends —
+the viewer never runs a selection rule of its own. Use the compact
 **Stats** overlay button to reveal connection and data diagnostics.
 
 Options:

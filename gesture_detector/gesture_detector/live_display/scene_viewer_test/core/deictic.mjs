@@ -10,6 +10,15 @@ export function getSelectionStrength(message) {
   return Math.min(1, evidence / threshold);
 }
 
+export function getPendingSelection(message) {
+  // /pending_object_selection carries the sentence maker's own decision
+  // (deictic_evidence.select over the current pointing). Read it, never redo it:
+  // recounting evidence here would be a second rule that drifts from the sent
+  // sentence.
+  const name = message?.data;
+  return typeof name === "string" && name.trim() ? name.trim() : null;
+}
+
 export function getSelectedObjectName(message) {
   if (!message || typeof message !== "object") {
     return null;

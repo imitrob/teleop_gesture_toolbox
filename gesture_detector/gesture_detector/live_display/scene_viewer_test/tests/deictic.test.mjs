@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  getPendingSelection,
   getSelectedObjectName,
   getSelectionStrength,
 } from "../core/deictic.mjs";
@@ -50,4 +51,11 @@ test("scales the highlight by how much evidence the object has", () => {
 test("highlights fully when the publisher counts no evidence", () => {
   assert.equal(getSelectionStrength({ target_object_name: "cube" }), 1);
   assert.equal(getSelectionStrength(null), 1);
+});
+
+test("reads the selection the sentence maker published", () => {
+  assert.equal(getPendingSelection({ data: " cube " }), "cube");
+  // Nothing settled yet: an empty payload must not become a selection here.
+  assert.equal(getPendingSelection({ data: "" }), null);
+  assert.equal(getPendingSelection(null), null);
 });

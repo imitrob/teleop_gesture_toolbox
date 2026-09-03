@@ -102,17 +102,20 @@ export class SceneViewer {
     this.objectCenters = new Map();
     this.selectedObjectName = null;
     this.selectionStrength = 1;
+    this.confirmedObjectName = null;
     this.objectCenterGeometry = new THREE.SphereGeometry(0.022, 18, 12);
     this.objectCenterMaterial = new THREE.MeshStandardMaterial({
       color: 0xffa726,
       roughness: 0.5,
     });
+    // Candidate: where the ray points now. Grows with evidence, breathes only
+    // slightly so a switch between neighbours does not read as a selection.
     this.selectionHalo = new THREE.Mesh(
       new THREE.SphereGeometry(0.034, 24, 16),
       new THREE.MeshBasicMaterial({
-        color: 0xb2ff59,
+        color: 0x82b1ff,
         transparent: true,
-        opacity: 0.5,
+        opacity: 0.35,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
       }),
@@ -120,6 +123,18 @@ export class SceneViewer {
     this.selectionHalo.visible = false;
     this.selectionHalo.renderOrder = 2;
     this.scene.add(this.selectionHalo);
+
+    // Confirmed: what the sentence maker would take right now. Steady, no
+    // pulse, so it stays readable while the candidate flickers elsewhere.
+    this.confirmedRing = new THREE.Mesh(
+      new THREE.TorusGeometry(0.05, 0.0055, 12, 48),
+      new THREE.MeshBasicMaterial({ color: 0xb2ff59 }),
+    );
+    // Default torus plane is XY, the ground plane here (scene up is +Z), so it
+    // reads as a collar around the object from the default camera pitch.
+    this.confirmedRing.visible = false;
+    this.confirmedRing.renderOrder = 3;
+    this.scene.add(this.confirmedRing);
 
     const beamGeometry = new THREE.BufferGeometry().setFromPoints([
       new THREE.Vector3(),
@@ -198,26 +213,30 @@ export class SceneViewer {
   }
 
   setSelectedObject(selection) {
-    // Either a plain name (demo source) or {name, strength}, where strength is
-    // how much deictic evidence the object has, 0..1.
-    const { name, strength } = typeof selection === "string" || !selection
-      ? { name: selection, strength: 1 }
-      : selection;
+    // Either a plain name (demo source) or {name, strength, confirmed}, where
+    // strength is how much deictic evidence the candidate has, 0..1, and
+    // confirmed is the object the publisher has already accepted.
+    const { name, strength, confirmed } =
+      typeof selection === "string" || !selection
+        ? { name: selection, strength: 1, confirmed: selection }
+        : selection;
     this.selectedObjectName = name || null;
     this.selectionStrength = Math.min(1, Math.max(0, strength ?? 1));
+    this.confirmedObjectName = confirmed || null;
     this.syncSelectedObject();
   }
 
   syncSelectedObject() {
-    const center = this.selectedObjectName
-      ? this.objectCenters.get(this.selectedObjectName)
-      : null;
-    if (!center) {
-      this.selectionHalo.visible = false;
-      return;
+    for (const [marker, objectName] of [
+      [this.selectionHalo, this.selectedObjectName],
+      [this.confirmedRing, this.confirmedObjectName],
+    ]) {
+      const center = objectName ? this.objectCenters.get(objectName) : null;
+      marker.visible = Boolean(center);
+      if (center) {
+        marker.position.copy(center.position);
+      }
     }
-    this.selectionHalo.position.copy(center.position);
-    this.selectionHalo.visible = true;
   }
 
   setBeam(points) {
@@ -247,10 +266,15 @@ export class SceneViewer {
   render() {
     const delta = Math.min(this.clock.getDelta(), 0.1);
     if (this.selectionHalo.visible) {
-      const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.007);
+      // Evidence reads as size and brightness; the pulse is a faint breath on
+      // top of it, not the signal itself.
+      const pulse = 0.5 + 0.5 * Math.sin(performance.now() * 0.005);
       const strength = this.selectionStrength;
-      this.selectionHalo.scale.setScalar(1.05 + pulse * 0.5 * strength);
-      this.selectionHalo.material.opacity = (0.28 + pulse * 0.42) * strength;
+      this.selectionHalo.scale.setScalar(
+        0.9 + 0.35 * strength + pulse * 0.06,
+      );
+      this.selectionHalo.material.opacity = (0.18 + 0.3 * strength) *
+        (0.9 + pulse * 0.1);
     }
     this.handRenderer.update(delta);
     this.controls.update();

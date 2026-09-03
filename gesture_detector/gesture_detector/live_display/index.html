@@ -20,7 +20,12 @@
                  color:#fff;cursor:grab;user-select:none;}
     .card-header:active{cursor:grabbing;}
     .card-header h2{font-size:24px;line-height:1.2;margin:0;text-align:center;flex:1;}
-    .drag-grip{font-size:22px;line-height:1;letter-spacing:-4px;padding-right:4px;opacity:.9;}
+    /* The 2x3 grip is drawn, not typed: two U+22EE glyphs pulled together by a
+       negative letter-spacing merged into one grip in Blink but stayed two
+       separate dot columns in Gecko. background-size tiles one dot per cell. */
+    .drag-grip{flex:none;width:10px;height:18px;margin-right:4px;opacity:.9;
+               background-image:radial-gradient(circle,currentColor 1px,transparent 1.3px);
+               background-size:5px 6px;}
     .card-body{padding:12px;}
     .card-body.is-flush{padding:0;}
     .scene-frame{display:block;width:100%;aspect-ratio:1;border:0;background:#303030;}
@@ -30,6 +35,25 @@
     .status-grid{display:grid;grid-template-columns:max-content 1fr;gap:8px 12px;align-items:center;margin:0 0 12px;}
     .status-grid dt{font-weight:700;}
     .status-grid dd{margin:0;min-width:0;overflow-wrap:anywhere;}
+    /* "Doing" is read from across the room, so it leaves the two-column
+       status-grid: inside a 1fr cell it could not grow past the row height. */
+    .doing-caption{margin:0 0 4px;font-size:13px;font-weight:700;color:#607d8b;
+                   text-transform:uppercase;letter-spacing:.5px;}
+    .doing-banner{margin:0 0 12px;padding:8px 6px;border-radius:6px;font-size:34px;
+                  line-height:1.1;font-weight:700;text-align:center;color:#fff;
+                  overflow-wrap:anywhere;transition:background .15s;}
+    .doing-banner.is-deictic{background:#2196f3;}   /* pointing mode */
+    .doing-banner.is-action{background:#4caf50;}    /* symbolic gesturing */
+    .doing-banner.is-other{background:#673ab7;}     /* a mode added since this page */
+    .doing-banner.is-idle{background:#607d8b;}      /* no hand / not settled */
+    .setup-grid{display:flex;flex-direction:column;gap:6px;}
+    .setup-row{display:flex;align-items:center;gap:10px;padding:6px;border-radius:4px;
+               background:#d7e1f0;}
+    .setup-mode{font-weight:700;font-size:16px;overflow-wrap:anywhere;}
+    .setup-gestures{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-left:auto;}
+    .setup-gesture{display:inline-flex;flex-direction:column;align-items:center;min-width:44px;}
+    .setup-gesture-emoji{font-size:26px;line-height:1;}
+    .setup-gesture-name{font-size:12px;font-weight:600;overflow-wrap:anywhere;}
     .reset-layout{width:100%;}
     .min-height-div{min-height:20px;border:0px solid #ccc;}
     .circle-progress{position:relative;width:50px;height:50px;border-radius:50%;background:conic-gradient(#ff0000 var(--progress),#ddd var(--progress));display:flex;align-items:center;justify-content:center;font-weight:bold;}
@@ -54,6 +78,31 @@
     .link-gesture-name{font-size:13px;font-weight:600;overflow-wrap:anywhere;}
     .link-arrow{font-size:18px;font-weight:bold;color:#000;}
     .link-action{font-weight:bold;font-size:16px;color:#000;word-break:break-word;min-width:0;}
+    .link-tool-buttons{display:inline-flex;align-items:center;gap:4px;}
+    .link-tool-button{flex:none;width:24px;height:24px;padding:0;border:1px solid rgba(255,255,255,.75);
+                     border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:20px;
+                     line-height:20px;font-weight:700;cursor:pointer;}
+    .link-tool-button:hover:not(:disabled),.link-tool-button.is-active{background:#fff;color:#0d47a1;}
+    .link-tool-button:disabled{opacity:.42;cursor:not-allowed;}
+    .catalog-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;}
+    .catalog-choice{display:inline-flex;flex-direction:column;align-items:center;justify-content:center;
+                    min-width:70px;min-height:66px;padding:6px;border:2px solid transparent;border-radius:6px;
+                    background:#e9eef5;color:#17202a;cursor:pointer;overflow-wrap:anywhere;}
+    .catalog-choice:hover{border-color:#64b5f6;}
+    .catalog-choice[aria-pressed="true"]{border-color:#0d47a1;background:#bbdefb;box-shadow:0 0 0 1px #0d47a1;}
+    .catalog-choice-emoji{font-size:32px;line-height:1;}
+    .catalog-choice-name{font-size:12px;font-weight:700;margin-top:4px;}
+    .action-catalog .catalog-choice{min-height:44px;font-size:14px;font-weight:700;}
+    .link-draft{border:2px dashed #1976d2;background:#e3f2fd;}
+    .link-draft-placeholder{color:#607d8b;font-style:italic;}
+    .link-draft-controls{display:flex;align-items:center;gap:6px;flex-wrap:wrap;justify-content:center;width:100%;}
+    .link-editor-error{width:100%;margin:0;color:#b71c1c;font-weight:600;}
+    .links-source{margin:0 0 5px;text-align:right;color:#90a4ae;font-size:10px;line-height:1.2;}
+    .link-removal-notice{margin:0;padding:7px;border-radius:4px;background:#ffebee;color:#b71c1c;
+                         text-align:center;font-size:13px;font-weight:700;}
+    .link-row.is-removable{cursor:pointer;border:2px solid transparent;border-radius:4px;}
+    .link-row.is-removable:hover,.link-row.is-removable:focus{border-color:#d32f2f;background:#ffcdd2;outline:none;}
+    .link-row.is-removing{opacity:.5;pointer-events:none;}
 
     @media (max-width:1300px){.dashboard-grid{--dashboard-columns:3;}}
     @media (max-width:900px){.dashboard-grid{--dashboard-columns:2;}}
@@ -71,7 +120,7 @@
 <main id="dashboardGrid" class="dashboard-grid">
   <section class="dashboard-card" data-card-id="pose">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Pose Detector</h2>
     </header>
     <div class="card-body">
@@ -84,7 +133,7 @@
 
   <section class="dashboard-card" data-card-id="swipe">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Swipe Detector</h2>
     </header>
     <div class="card-body">
@@ -96,7 +145,7 @@
 
   <section class="dashboard-card" data-card-id="episodes">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Episode-catched Gestures</h2>
     </header>
     <div class="card-body">
@@ -117,7 +166,7 @@
 
   <section class="dashboard-card" data-card-id="mapped-actions">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Mapped Robotic Actions</h2>
     </header>
     <div class="card-body">
@@ -138,10 +187,17 @@
 
   <section class="dashboard-card" data-card-id="gesture-meaning">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Gesture Meaning</h2>
+      <span class="link-tool-buttons">
+        <button id="removeLinkBtn" class="link-tool-button" type="button" draggable="false"
+                aria-label="Remove gesture link" title="Remove gesture link" hidden disabled>−</button>
+        <button id="addLinkBtn" class="link-tool-button" type="button" draggable="false"
+                aria-label="Add gesture link" title="Add gesture link" hidden disabled>+</button>
+      </span>
     </header>
     <div class="card-body">
+      <p id="linksSource" class="links-source">Waiting for mapping source…</p>
       <div id="linksCardBody" class="links-grid">
         <p class="empty-state">Waiting for gesture mappings…</p>
       </div>
@@ -150,7 +206,7 @@
 
   <section class="dashboard-card" data-card-id="scene">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Hand Scene</h2>
     </header>
     <div class="card-body is-flush">
@@ -160,19 +216,31 @@
     </div>
   </section>
 
+  <section class="dashboard-card" data-card-id="adaptive-setup">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true"></span>
+      <h2>Adaptive Setup</h2>
+    </header>
+    <div class="card-body">
+      <div id="adaptiveSetupBody" class="setup-grid">
+        <p class="empty-state">Waiting for adaptive setup…</p>
+      </div>
+    </div>
+  </section>
+
   <section class="dashboard-card" data-card-id="status">
     <header class="card-header" draggable="true">
-      <span class="drag-grip" aria-hidden="true">⋮⋮</span>
+      <span class="drag-grip" aria-hidden="true"></span>
       <h2>Status</h2>
     </header>
     <div class="card-body">
+      <p class="doing-caption">Doing</p>
+      <div id="statusDoing" class="doing-banner is-idle">—</div>
       <dl class="status-grid">
         <dt>FPS</dt>
         <dd><span id="statusFps" class="w3-tag w3-red w3-round">—</span></dd>
         <dt>Msg</dt>
         <dd><span id="statusMsg" class="w3-tag w3-blue w3-round">—</span></dd>
-        <dt>Doing</dt>
-        <dd><span id="statusDoing" class="w3-tag w3-black w3-round">—</span></dd>
         <dt>Status</dt>
         <dd><span id="handFrameStatus" class="w3-tag w3-amber w3-round">Connecting…</span></dd>
         <dt>User</dt>
@@ -195,9 +263,12 @@
   const topics = [
     ["/teleop_gesture_toolbox/all_states",           "std_msgs/String",      100],
     ["/teleop_gesture_toolbox/gesture_meaning_info", "std_msgs/String",      0],
-    ["/teleop_gesture_toolbox/hricommand_original",  "hri_msgs/HRICommand",  0],
-    ["/modality/gestures",                           "hri_msgs/HRICommand",  0],
+    ["/teleop_gesture_toolbox/gesture_mode",         "std_msgs/String",      100],
     ["/teleop_gesture_toolbox/hand_frame",           "gesture_msgs/Frame",   200],
+  ];
+  const hriTopics = [
+    "/teleop_gesture_toolbox/hricommand_original",
+    "/modality/gestures",
   ];
 
   /* -------------------------------------------------------------------- */
@@ -210,10 +281,41 @@
   let currentUser = null;
   let gestureIcons = {};
   let linksCardSignature = null;
+  let adaptiveSetup = null;       // {mode: [gesture, ...]} from gesture_meaning_info
+  let adaptiveSetupSignature = null;
+  let staticGestureCatalog = [];
+  let dynamicGestureCatalog = [];
+  let actionCatalog = [];
+  let linksEditable = false;
+  let linksSource = '';
+  let latestStaticHTML = '<p class="empty-state">Waiting for pose gesture data…</p>';
+  let latestDynamicHTML = '<p class="empty-state">Waiting for swipe gesture data…</p>';
+  let latestMappedActionsHTML = '<p class="empty-state">Waiting for mapped action data…</p>';
+  let latestMappedObjectsHTML = '<p class="empty-state">Waiting for mapped object data…</p>';
+  let pendingLinkServiceId = null;
+  let pendingLinkServiceTimer = null;
+  let pendingRemoveServiceId = null;
+  let pendingRemoveServiceTimer = null;
+  let linkServiceSequence = 0;
+  let linkEditor = {
+    active: false,
+    staticGesture: '',
+    dynamicGesture: '',
+    action: '',
+    saving: false,
+    error: '',
+  };
+  let linkRemoval = {
+    active: false,
+    saving: false,
+    error: '',
+    linkName: '',
+  };
 
   let lastHandFrame = 0; // ms timestamp of the most-recent frame
   let lastOrig = 0, lastMap = 0; // ms timestamps<br>
   let websocketState = 'connecting';
+  let subscribedHriType = '';
   const timeoutMs = 2000; // “stale” threshold
 
   let staticGestureNames        = [];
@@ -226,31 +328,425 @@
   let dynamicGesturesActivated  = [];
   let dynamicBiggestID          = -1;
 
+  function escapeHTML(value){
+    return String(value ?? '')
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#39;');
+  }
+
+  function subscribeHriTopics(type){
+    if (!type || type === subscribedHriType || !ws
+        || ws.readyState !== WebSocket.OPEN) return;
+    hriTopics.forEach((topic, idx)=>{
+      ws.send(JSON.stringify({op:"subscribe", id:`sub_hri_${idx}`, topic, type,
+                              throttle_rate: 0, queue_length: 1}));
+    });
+    subscribedHriType = type;
+  }
+
+  function updateLinkToolButtons(){
+    const addButton = document.getElementById('addLinkBtn');
+    const removeButton = document.getElementById('removeLinkBtn');
+    const catalogsReady = (staticGestureCatalog.length || dynamicGestureCatalog.length)
+      && actionCatalog.length;
+    const hasLinks = Boolean(linksData && linksData.links
+      && Object.keys(linksData.links).length);
+    addButton.hidden = !linksEditable;
+    removeButton.hidden = !linksEditable;
+    addButton.disabled = !linksEditable || linkEditor.saving || linkRemoval.saving
+      || websocketState !== 'connected' || !currentUser || !catalogsReady;
+    removeButton.disabled = !linksEditable || linkEditor.saving || linkRemoval.saving
+      || websocketState !== 'connected' || !currentUser || !hasLinks;
+    addButton.classList.toggle('is-active', linkEditor.active);
+    removeButton.classList.toggle('is-active', linkRemoval.active);
+    addButton.textContent = linkEditor.active ? '×' : '+';
+    removeButton.textContent = linkRemoval.active ? '×' : '−';
+    addButton.title = !linksEditable ? 'The active mapping file is read-only'
+      : !currentUser ? 'No active user'
+      : !catalogsReady ? 'Waiting for gesture and action catalogs'
+      : linkEditor.active ? 'Cancel adding link' : 'Add gesture link';
+    removeButton.title = !linksEditable ? 'The active mapping file is read-only'
+      : !hasLinks ? 'There are no gesture links to remove'
+      : linkRemoval.active ? 'Cancel removing links' : 'Remove gesture link';
+  }
+
+  function catalogChoice(kind, name, icon){
+    const selected = linkEditor[`${kind}Gesture`] === name;
+    return `<button type="button" class="catalog-choice" data-link-choice="${kind}"
+                    data-link-name="${escapeHTML(name)}" aria-pressed="${selected}">
+      <span class="catalog-choice-emoji" aria-hidden="true">${escapeHTML(icon || '👋')}</span>
+      <span class="catalog-choice-name">${escapeHTML(name)}</span>
+    </button>`;
+  }
+
+  function renderLinkEditorCatalogs(){
+    if (!linkEditor.active) return;
+    const staticBody = document.getElementById('static-gesture-container');
+    const dynamicBody = document.getElementById('dynamic-gesture-container');
+    const actionBody = document.getElementById('hricMapped1Container');
+    staticBody.innerHTML = staticGestureCatalog.length
+      ? `<div class="catalog-grid">${staticGestureCatalog.map(name=>
+          catalogChoice('static', name, gestureIcons[name])).join('')}</div>`
+      : '<p class="empty-state">No static gestures available.</p>';
+    dynamicBody.innerHTML = dynamicGestureCatalog.length
+      ? `<div class="catalog-grid">${dynamicGestureCatalog.map(name=>
+          catalogChoice('dynamic', name, gestureIcons[name])).join('')}</div>`
+      : '<p class="empty-state">No dynamic gestures available.</p>';
+    actionBody.innerHTML = actionCatalog.length
+      ? `<div class="catalog-grid action-catalog">${actionCatalog.map(name=>{
+          const selected = linkEditor.action === name;
+          return `<button type="button" class="catalog-choice" data-link-choice="action"
+                          data-link-name="${escapeHTML(name)}" aria-pressed="${selected}">
+                    ${escapeHTML(name)}</button>`;
+        }).join('')}</div>`
+      : '<p class="empty-state">No actions are configured for this user.</p>';
+    document.getElementById('hricMapped2Container').innerHTML =
+      '<p class="empty-state">Select one action above.</p>';
+    scheduleDashboardLayout();
+  }
+
+  function restoreLiveCards(){
+    document.getElementById('static-gesture-container').innerHTML = latestStaticHTML;
+    document.getElementById('dynamic-gesture-container').innerHTML = latestDynamicHTML;
+    document.getElementById('hricMapped1Container').innerHTML = latestMappedActionsHTML;
+    document.getElementById('hricMapped2Container').innerHTML = latestMappedObjectsHTML;
+  }
+
+  function setLinkEditorActive(active){
+    if (active && document.getElementById('addLinkBtn').disabled) return;
+    if (active && linkRemoval.active) setLinkRemovalActive(false);
+    if (!active && pendingLinkServiceTimer) {
+      clearTimeout(pendingLinkServiceTimer);
+      pendingLinkServiceTimer = null;
+      pendingLinkServiceId = null;
+    }
+    linkEditor = {
+      active,
+      staticGesture: '',
+      dynamicGesture: '',
+      action: '',
+      saving: false,
+      error: '',
+    };
+    if (active) renderLinkEditorCatalogs();
+    else restoreLiveCards();
+    buildLinksCard();
+    updateLinkToolButtons();
+    scheduleDashboardLayout();
+  }
+
+  function setLinkRemovalActive(active){
+    if (active && document.getElementById('removeLinkBtn').disabled) return;
+    if (active && linkEditor.active) setLinkEditorActive(false);
+    if (!active && pendingRemoveServiceTimer) {
+      clearTimeout(pendingRemoveServiceTimer);
+      pendingRemoveServiceTimer = null;
+      pendingRemoveServiceId = null;
+    }
+    linkRemoval = {
+      active,
+      saving: false,
+      error: '',
+      linkName: '',
+    };
+    buildLinksCard();
+    updateLinkToolButtons();
+    scheduleDashboardLayout();
+  }
+
+  function selectedGestureHTML(name){
+    if (!name) return '';
+    return `<span class="link-gesture">
+      <span class="link-gesture-emoji" aria-hidden="true">${escapeHTML(gestureIcons[name] || '👋')}</span>
+      <span class="link-gesture-name">${escapeHTML(name)}</span>
+    </span>`;
+  }
+
+  function buildDraftLink(){
+    if (!linkEditor.active) return '';
+    const gestures = [linkEditor.staticGesture, linkEditor.dynamicGesture].filter(Boolean);
+    const gestureHTML = gestures.length
+      ? gestures.map(selectedGestureHTML).join(' <span class="link-arrow">+</span> ')
+      : '<span class="link-draft-placeholder">Select a pose or swipe</span>';
+    const actionHTML = linkEditor.action
+      ? `<span class="link-action">${escapeHTML(linkEditor.action)}</span>`
+      : '<span class="link-draft-placeholder">Select an action</span>';
+    const canConfirm = gestures.length && linkEditor.action && !linkEditor.saving;
+    return `<div class="link-row link-draft">
+      <span class="link-gestures">${gestureHTML}</span>
+      <span class="link-arrow">➜</span>
+      ${actionHTML}
+      <div class="link-draft-controls">
+        <button type="button" class="w3-button w3-green w3-round" data-link-confirm
+                ${canConfirm ? '' : 'disabled'}>${linkEditor.saving ? 'Saving…' : 'Confirm'}</button>
+        <button type="button" class="w3-button w3-light-grey w3-border w3-round"
+                data-link-cancel ${linkEditor.saving ? 'disabled' : ''}>Cancel</button>
+        ${linkEditor.error
+          ? `<p class="link-editor-error" role="alert">${escapeHTML(linkEditor.error)}</p>` : ''}
+      </div>
+    </div>`;
+  }
+
+  function buildRemovalNotice(){
+    if (!linkRemoval.active) return '';
+    const status = linkRemoval.saving
+      ? 'Removing selected link…'
+      : 'Click a mapping below to remove it.';
+    return `<p class="link-removal-notice">${status}</p>
+      ${linkRemoval.error
+        ? `<p class="link-editor-error" role="alert">${escapeHTML(linkRemoval.error)}</p>` : ''}`;
+  }
+
+
+  function setDoing(mode){
+    // Empty is idle: the sentence maker only names a mode while a hand is
+    // visible and the detection has settled, and clears it when the episode ends.
+    const name = (mode || '').trim();
+    const banner = document.getElementById('statusDoing');
+    banner.textContent = name || '—';
+    // Grey means idle and only idle: a mode this page has no colour for yet
+    // (one implemented after this was written) must not look like no mode.
+    banner.className = 'doing-banner ' + (
+      !name             ? 'is-idle'    :
+      name === 'deictic' ? 'is-deictic' :
+      name === 'action'  ? 'is-action'  : 'is-other');
+  }
+
+  function buildAdaptiveSetupCard(){
+    // adaptive_setup is {mode: [gesture, ...]} -- showing any one of a mode's
+    // gestures puts the user in that mode. The sentence maker has already
+    // dropped modes it cannot dispatch, so every row here is a real mode.
+    const body = document.getElementById('adaptiveSetupBody');
+    const modes = Object.entries(adaptiveSetup || {});
+    if (!modes.length) {
+      body.innerHTML = '<p class="empty-state">No gesture modes are configured.</p>';
+      return;
+    }
+
+    body.innerHTML = modes.map(([mode, gestures])=>{
+      const gesturesHTML = (gestures || []).map(gesture=>`
+        <span class="setup-gesture">
+          <span class="setup-gesture-emoji" aria-hidden="true">${gestureIcons[gesture] || "👋"}</span>
+          <span class="setup-gesture-name">${gesture}</span>
+        </span>`).join('');
+
+      return `<div class="setup-row">
+        <span class="setup-mode">${mode}</span>
+        <span class="setup-gestures">${gesturesHTML}</span>
+      </div>`;
+    }).join('');
+  }
 
   function buildLinksCard(){
     if (!linksData || !linksData.links) return;
 
     const body = document.getElementById('linksCardBody');
-    const links = Object.values(linksData.links);
-    if (!links.length) {
-      body.innerHTML = '<p class="empty-state">No gesture mappings are configured.</p>';
-      return;
-    }
-
-    body.innerHTML = links.map(link=>{
-      const gesturesHTML = link.action_gestures.map(gestureGroup => gestureGroup.map(gesture=>`
+    const links = Object.entries(linksData.links);
+    const existingLinksHTML = links.map(([linkName, link])=>{
+      const gesturesHTML = (link.action_gestures || []).map(gestureGroup => {
+        const gestures = Array.isArray(gestureGroup) ? gestureGroup : [gestureGroup];
+        return gestures.map(gesture=>`
         <span class="link-gesture">
-          <span class="link-gesture-emoji" aria-hidden="true">${gestureIcons[gesture] || "👋"}</span>
-          <span class="link-gesture-name">${gesture}</span>
-        </span>`).join(' <span class="link-arrow">+</span> ')).join(', ');
+          <span class="link-gesture-emoji" aria-hidden="true">${escapeHTML(gestureIcons[gesture] || "👋")}</span>
+          <span class="link-gesture-name">${escapeHTML(gesture)}</span>
+        </span>`).join(' <span class="link-arrow">+</span> ');
+      }).join(', ');
 
-      return `<div class="link-row">
+      const removalAttributes = linkRemoval.active
+        ? `data-remove-link="${escapeHTML(linkName)}" role="button" tabindex="0"
+           aria-label="Remove ${escapeHTML(linkName)}"` : '';
+      const removalClasses = linkRemoval.active
+        ? ` is-removable${linkRemoval.linkName === linkName ? ' is-removing' : ''}` : '';
+      return `<div class="link-row${removalClasses}" ${removalAttributes}>
         <span class="link-gestures">${gesturesHTML}</span>
         <span class="link-arrow">➜</span>
-        <span class="link-action">${link.action_template}</span>
+        <span class="link-action">${escapeHTML(link.action_template)}</span>
       </div>`;
     }).join('');
+    const emptyHTML = links.length ? ''
+      : '<p class="empty-state">No gesture mappings are configured.</p>';
+    body.innerHTML = buildDraftLink() + buildRemovalNotice()
+      + existingLinksHTML + emptyHTML;
   }
+
+  function saveDraftLink(){
+    if (!linkEditor.active || linkEditor.saving || !linkEditor.action
+        || (!linkEditor.staticGesture && !linkEditor.dynamicGesture)) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      linkEditor.error = 'Dashboard is disconnected from rosbridge.';
+      buildLinksCard();
+      return;
+    }
+    linkEditor.saving = true;
+    linkEditor.error = '';
+    pendingLinkServiceId = `add_gesture_link_${++linkServiceSequence}`;
+    buildLinksCard();
+    updateLinkToolButtons();
+    ws.send(JSON.stringify({
+      op: 'call_service',
+      id: pendingLinkServiceId,
+      service: '/teleop_gesture_toolbox/add_gesture_link',
+      type: 'hri_msgs/srv/AddGestureLink',
+      args: {
+        action_template: linkEditor.action,
+        static_gesture: linkEditor.staticGesture,
+        dynamic_gesture: linkEditor.dynamicGesture,
+      },
+    }));
+    pendingLinkServiceTimer = setTimeout(()=>{
+      pendingLinkServiceTimer = null;
+      pendingLinkServiceId = null;
+      linkEditor.saving = false;
+      linkEditor.error = 'Saving timed out. Check that the sentence maker is running.';
+      buildLinksCard();
+      updateLinkToolButtons();
+    }, 8000);
+  }
+
+  function handleAddLinkServiceResponse(data){
+    if (!pendingLinkServiceId || data.op !== 'service_response'
+        || data.id !== pendingLinkServiceId) return false;
+    clearTimeout(pendingLinkServiceTimer);
+    pendingLinkServiceTimer = null;
+    pendingLinkServiceId = null;
+    const values = data.values || {};
+    if (data.result !== false && values.success) {
+      try {
+        const links = JSON.parse(values.links_json || '{}');
+        linksData = {...(linksData || {}), user: currentUser, links};
+        linksCardSignature = null;
+        setLinkEditorActive(false);
+      } catch (error) {
+        linkEditor.saving = false;
+        linkEditor.error = `Link saved, but the response was invalid: ${error.message}`;
+        buildLinksCard();
+        updateLinkToolButtons();
+      }
+    } else {
+      linkEditor.saving = false;
+      linkEditor.error = values.message || data.message || 'Unable to save the gesture link.';
+      buildLinksCard();
+      updateLinkToolButtons();
+    }
+    return true;
+  }
+
+  function removeLink(linkName){
+    if (!linkRemoval.active || linkRemoval.saving) return;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      linkRemoval.error = 'Dashboard is disconnected from rosbridge.';
+      buildLinksCard();
+      return;
+    }
+    linkRemoval.saving = true;
+    linkRemoval.error = '';
+    linkRemoval.linkName = linkName;
+    pendingRemoveServiceId = `remove_gesture_link_${++linkServiceSequence}`;
+    buildLinksCard();
+    updateLinkToolButtons();
+    ws.send(JSON.stringify({
+      op: 'call_service',
+      id: pendingRemoveServiceId,
+      service: '/teleop_gesture_toolbox/remove_gesture_link',
+      type: 'hri_msgs/srv/RemoveGestureLink',
+      args: {link_name: linkName},
+    }));
+    pendingRemoveServiceTimer = setTimeout(()=>{
+      pendingRemoveServiceTimer = null;
+      pendingRemoveServiceId = null;
+      linkRemoval.saving = false;
+      linkRemoval.linkName = '';
+      linkRemoval.error = 'Removal timed out. Check that the sentence maker is running.';
+      buildLinksCard();
+      updateLinkToolButtons();
+    }, 8000);
+  }
+
+  function handleRemoveLinkServiceResponse(data){
+    if (!pendingRemoveServiceId || data.op !== 'service_response'
+        || data.id !== pendingRemoveServiceId) return false;
+    clearTimeout(pendingRemoveServiceTimer);
+    pendingRemoveServiceTimer = null;
+    pendingRemoveServiceId = null;
+    const values = data.values || {};
+    if (data.result !== false && values.success) {
+      try {
+        const links = JSON.parse(values.links_json || '{}');
+        linksData = {...(linksData || {}), user: currentUser, links};
+        linksCardSignature = null;
+        linkRemoval.saving = false;
+        linkRemoval.linkName = '';
+        if (!Object.keys(links).length) linkRemoval.active = false;
+        buildLinksCard();
+        updateLinkToolButtons();
+        scheduleDashboardLayout();
+      } catch (error) {
+        linkRemoval.saving = false;
+        linkRemoval.linkName = '';
+        linkRemoval.error = `Link removed, but the response was invalid: ${error.message}`;
+        buildLinksCard();
+        updateLinkToolButtons();
+      }
+    } else {
+      linkRemoval.saving = false;
+      linkRemoval.linkName = '';
+      linkRemoval.error = values.message || data.message || 'Unable to remove the gesture link.';
+      buildLinksCard();
+      updateLinkToolButtons();
+    }
+    return true;
+  }
+
+  function confirmLinkRemoval(row){
+    if (!linkRemoval.active || linkRemoval.saving) return;
+    const linkName = row.dataset.removeLink;
+    const action = row.querySelector('.link-action')?.textContent || linkName;
+    if (window.confirm(`Remove gesture mapping to “${action}”?`)) removeLink(linkName);
+  }
+
+  document.getElementById('addLinkBtn').addEventListener('click', event=>{
+    event.stopPropagation();
+    setLinkEditorActive(!linkEditor.active);
+  });
+  document.getElementById('addLinkBtn').addEventListener('mousedown', event=>event.stopPropagation());
+  document.getElementById('removeLinkBtn').addEventListener('click', event=>{
+    event.stopPropagation();
+    setLinkRemovalActive(!linkRemoval.active);
+  });
+  document.getElementById('removeLinkBtn').addEventListener('mousedown', event=>event.stopPropagation());
+  document.addEventListener('click', event=>{
+    const choice = event.target.closest('[data-link-choice]');
+    if (choice && linkEditor.active && !linkEditor.saving) {
+      const kind = choice.dataset.linkChoice;
+      const name = choice.dataset.linkName;
+      if (kind === 'action') {
+        linkEditor.action = linkEditor.action === name ? '' : name;
+      } else {
+        const field = `${kind}Gesture`;
+        linkEditor[field] = linkEditor[field] === name ? '' : name;
+      }
+      linkEditor.error = '';
+      renderLinkEditorCatalogs();
+      buildLinksCard();
+      return;
+    }
+    const removable = event.target.closest('[data-remove-link]');
+    if (removable) {
+      confirmLinkRemoval(removable);
+      return;
+    }
+    if (event.target.closest('[data-link-confirm]')) saveDraftLink();
+    if (event.target.closest('[data-link-cancel]')) setLinkEditorActive(false);
+  });
+  document.addEventListener('keydown', event=>{
+    const removable = event.target.closest('[data-remove-link]');
+    if (!removable || (event.key !== 'Enter' && event.key !== ' ')) return;
+    event.preventDefault();
+    confirmLinkRemoval(removable);
+  });
 
   /* -------------------------------------------------------------------- */
   /* Persisted card ordering                                              */
@@ -263,6 +759,7 @@
     'mapped-actions',
     'gesture-meaning',
     'scene',
+    'adaptive-setup',
     'status',
   ];
   const dashboardGrid = document.getElementById('dashboardGrid');
@@ -371,6 +868,10 @@
 
   dashboardGrid.querySelectorAll('.card-header').forEach(header=>{
     header.addEventListener('dragstart', event=>{
+      if (event.target.closest('.link-tool-button')) {
+        event.preventDefault();
+        return;
+      }
       const card = header.closest('.dashboard-card');
       draggedCard = card;
       event.dataTransfer.effectAllowed = 'move';
@@ -458,6 +959,7 @@
       statusEl.textContent = 'All fine';
       statusEl.classList.add('w3-green');
     }
+    updateLinkToolButtons();
   }
 
   // One-time timers stay outside connect(), which is re-run on reconnect.
@@ -487,10 +989,13 @@
 
     ws.addEventListener("open", ()=>{
       websocketState = 'connected';
+      subscribedHriType = '';
       updateConnectionStatus();
       topics.forEach(([topic,type,throttle],idx)=>{
-        ws.send(JSON.stringify({op:"subscribe", id:`sub_${idx}`, topic, type,
-                                throttle_rate: throttle, queue_length: 1}));
+        const subscription = {op:"subscribe", id:`sub_${idx}`, topic,
+                              throttle_rate: throttle, queue_length: 1};
+        if (type) subscription.type = type;
+        ws.send(JSON.stringify(subscription));
       });
     });
 
@@ -505,8 +1010,14 @@
         const hricMapped2Container      = document.getElementById('hricMapped2Container');
 
         const data = JSON.parse(event.data);
+        if (handleAddLinkServiceResponse(data)
+            || handleRemoveLinkServiceResponse(data)) return;
 
         /* ---------------- Gesture meaning info ----------------- */
+        if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_mode") {
+          setDoing(data.msg.data);
+        }
+
         if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_meaning_info") {
           const parsed_message = JSON.parse(data.msg.data);
           let linksCardChanged = false;
@@ -517,8 +1028,10 @@
           if (parsed_message.hasOwnProperty('user')) {
             document.getElementById('statusUser').textContent = parsed_message.user || '—';
 
-            const userName = parsed_message.user;
-            if (userName && userName !== currentUser){
+            const userName = parsed_message.user || '';
+            if (userName !== currentUser){
+              if (linkEditor.active) setLinkEditorActive(false);
+              if (linkRemoval.active) setLinkRemovalActive(false);
               currentUser = userName;
               linksData = null; // user changed, rebuild links from next message
               linksCardSignature = null;
@@ -526,9 +1039,42 @@
                 '<p class="empty-state">Waiting for gesture mappings…</p>';
             }
           }
-          if (parsed_message.links){
+          if (parsed_message.hasOwnProperty('static_gestures')) {
+            staticGestureCatalog = parsed_message.static_gestures || [];
+          }
+          if (parsed_message.hasOwnProperty('dynamic_gestures')) {
+            dynamicGestureCatalog = parsed_message.dynamic_gestures || [];
+          }
+          if (parsed_message.hasOwnProperty('actions')) {
+            actionCatalog = parsed_message.actions || [];
+          }
+          if (parsed_message.hasOwnProperty('hri_command_type')) {
+            subscribeHriTopics(parsed_message.hri_command_type);
+          }
+          if (parsed_message.hasOwnProperty('links_editable')) {
+            linksEditable = Boolean(parsed_message.links_editable);
+            if (!linksEditable && linkEditor.active) setLinkEditorActive(false);
+            if (!linksEditable && linkRemoval.active) setLinkRemovalActive(false);
+          }
+          if (parsed_message.hasOwnProperty('links_source')) {
+            linksSource = parsed_message.links_source || '';
+            document.getElementById('linksSource').textContent =
+              linksSource || 'Unknown mapping source';
+          }
+          if (parsed_message.hasOwnProperty('links')){
             linksData = parsed_message;
             linksCardChanged = true;
+          }
+          if (parsed_message.hasOwnProperty('adaptive_setup')){
+            adaptiveSetup = parsed_message.adaptive_setup;
+            // Rebuilt only when it actually changes: this arrives at 1 Hz and
+            // replacing the rows every second would fight the masonry layout.
+            const nextSetupSignature = JSON.stringify([adaptiveSetup, gestureIcons]);
+            if (nextSetupSignature !== adaptiveSetupSignature) {
+              buildAdaptiveSetupCard();
+              adaptiveSetupSignature = nextSetupSignature;
+              scheduleDashboardLayout();
+            }
           }
           if (linksCardChanged && linksData) {
             const nextSignature = JSON.stringify([linksData.links, gestureIcons]);
@@ -537,6 +1083,8 @@
               linksCardSignature = nextSignature;
             }
           }
+          if (linkEditor.active) renderLinkEditorCatalogs();
+          updateLinkToolButtons();
         }
 
 
@@ -560,10 +1108,6 @@
           if (parsed_message.hasOwnProperty('seq')) {
             document.getElementById('statusMsg').textContent =
               displayStatusMetric(parsed_message.seq);
-          }
-          if (parsed_message.hasOwnProperty('gesture_type_selected')) {
-            document.getElementById('statusDoing').textContent =
-              parsed_message.gesture_type_selected ?? '—';
           }
 
           // evidence values
@@ -626,8 +1170,12 @@
             dynamicHTML = '<p class="empty-state">No swipe gestures available.</p>';
           }
 
-          staticGesturesContainer.innerHTML  = staticHTML;
-          dynamicGesturesContainer.innerHTML = dynamicHTML;
+          latestStaticHTML = staticHTML;
+          latestDynamicHTML = dynamicHTML;
+          if (!linkEditor.active) {
+            staticGesturesContainer.innerHTML  = latestStaticHTML;
+            dynamicGesturesContainer.innerHTML = latestDynamicHTML;
+          }
         }
 
         /* ---------------- HRICommand original ---------------- */
@@ -681,10 +1229,14 @@
                       `<div class="w3-light-grey w3-round"><div class="w3-container w3-round w3-blue" style="width:${perc}%;height:20px"></div></div>`;
           });
 
-          hricMapped1Container.innerHTML = inner1 ||
+          latestMappedActionsHTML = inner1 ||
             '<p class="empty-state">No mapped actions in the latest message.</p>';
-          hricMapped2Container.innerHTML = inner2 ||
+          latestMappedObjectsHTML = inner2 ||
             '<p class="empty-state">No mapped objects in the latest message.</p>';
+          if (!linkEditor.active) {
+            hricMapped1Container.innerHTML = latestMappedActionsHTML;
+            hricMapped2Container.innerHTML = latestMappedObjectsHTML;
+          }
         }
         /* ----------------------- END UI ----------------------- */
       } catch(err){
@@ -694,6 +1246,23 @@
 
     ws.addEventListener("close", ()=>{
       websocketState = 'disconnected';
+      if (linkEditor.saving) {
+        clearTimeout(pendingLinkServiceTimer);
+        pendingLinkServiceTimer = null;
+        pendingLinkServiceId = null;
+        linkEditor.saving = false;
+        linkEditor.error = 'Connection lost while saving. Verify the YAML before trying again.';
+        buildLinksCard();
+      }
+      if (linkRemoval.saving) {
+        clearTimeout(pendingRemoveServiceTimer);
+        pendingRemoveServiceTimer = null;
+        pendingRemoveServiceId = null;
+        linkRemoval.saving = false;
+        linkRemoval.linkName = '';
+        linkRemoval.error = 'Connection lost while removing. Verify the YAML before trying again.';
+        buildLinksCard();
+      }
       updateConnectionStatus();
       setTimeout(connect,1000);
     });

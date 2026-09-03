@@ -45,6 +45,7 @@ const fields = {
   hands: document.getElementById("diagHands"),
   handAge: document.getElementById("diagHandAge"),
   objects: document.getElementById("diagObjects"),
+  candidate: document.getElementById("diagCandidate"),
   selected: document.getElementById("diagSelected"),
   beamAge: document.getElementById("diagBeamAge"),
 };
@@ -71,6 +72,7 @@ function updateDiagnostics() {
   fields.hands.textContent = String(diagnostics.visibleHands);
   fields.handAge.textContent = formatAge(diagnostics.handAge, "Hand");
   fields.objects.textContent = String(diagnostics.objectCount);
+  fields.candidate.textContent = diagnostics.candidateObject || "—";
   fields.selected.textContent = diagnostics.selectedObject || "—";
   fields.beamAge.textContent = formatAge(diagnostics.beamAge, "Beam");
 }

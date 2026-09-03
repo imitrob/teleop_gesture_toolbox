@@ -7,7 +7,7 @@ from gesture_detector.utils.utils import CustomDeque
 from gesture_sentence_maker.segmentation_task.deictic_solutions_plot import deictic_solutions_plot_save
 from gesture_sentence_maker.segmentation_task.deictic_segment import find_pointed_objects_timewindowmax
 
-from hri_msgs.msg import HRICommand as HRICommandMSG
+from gesture_sentence_maker.hri_command_msg import HRICommand, HRICommandMSG
 from rclpy.qos import QoSProfile, QoSDurabilityPolicy
 
 from rclpy.node import Node

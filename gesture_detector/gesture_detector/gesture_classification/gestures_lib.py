@@ -35,6 +35,13 @@ MODEL_CONFIG_RESPONSE_TIMEOUT = 2.0
 
 rossem = threading.Semaphore()
 
+def dynamic_sample_indices(n, time_samples):
+    ''' Frame indices spanning (time_samples-1)/time_samples of the last n frames '''
+    indices = [-1]
+    indices.extend((n * np.array(range(-1, -time_samples, -1)) / time_samples).astype(int))
+    indices.sort()
+    return indices
+
 def withsem(func):
     def inner(*args, **kwargs):
         if DEBUGSEMAPHORE: print(f"ACQ, {args}, {kwargs}")
@@ -47,10 +54,12 @@ def withsem(func):
 class GestureDataDetection(Node):
     def __init__(self, 
                  silent: bool = False, # No printing
-                 activate_length: int = 10 # Time for gesture to activate 
+                 activate_length: int = 10, # Time for gesture to activate
                  # depends on gesture_detect.py:GESTURE_DETECTOR_RATE, time_to_activate = activate_length/GESTURE_DETECTOR_RATE
+                 activate_length_dynamic: int = 3 # A path stays top-1 for only a few sliding windows
                  ):
         self.activate_length = activate_length
+        self.activate_length_dynamic = activate_length_dynamic
 
         super(GestureDataDetection, self).__init__('ros_comm_main')
 
@@ -198,6 +207,9 @@ class GestureDataDetection(Node):
     def Gs_dynamic(self):
         return self.l.dynamic.Gs
 
+    def activate_length_for(self, type):
+        return self.activate_length if type == 'static' else self.activate_length_dynamic
+
     def get_gesture_type(self, gesture):
         if gesture in self.Gs_static:
             return 'static'
@@ -258,9 +270,10 @@ class GestureDataDetection(Node):
         hand = getattr(self, hand_tag)
         gs = getattr(hand, type)
         latest_gs = gs[-1]
-        if gs.n <= 2*self.activate_length:
+        activate_length = self.activate_length_for(type)
+        if gs.n <= 2*activate_length:
             return # not enough samples yet, more data needed
-        
+
         for n,g in enumerate(latest_gs):
             if g.biggest_probability_flag:
                 g_id = n
@@ -268,9 +281,9 @@ class GestureDataDetection(Node):
 
         g = latest_gs[g_id]
         # gesture was shown with no interruption
-        if gs.count_activ_evidence(g_id, self.activate_length)/self.activate_length >= 1.0:
+        if gs.count_activ_evidence(g_id, activate_length)/activate_length >= 1.0:
             # check if action was already triggered recently
-            if not gs.did_action_happened(g_id, 2*self.activate_length):
+            if not gs.did_action_happened(g_id, 2*activate_length):
                 g.action_activated = True
                 print(f"New Action gesture detected: {gs.Gs[g_id]}, {hand_tag}", flush=True)
                 self.gestures_queue.append({
@@ -403,7 +416,7 @@ class GestureDataDetection(Node):
         self.new_record(data, type='dynamic')
 
     @withsem
-    def send_g_data(self, l_hand_mode, r_hand_mode, dynamic_detection_window=1.5, time_samples = 5):
+    def send_g_data(self, l_hand_mode, r_hand_mode, dynamic_detection_window=1.5, time_samples = 10):
         ''' Sends appropriate gesture data as ROS msg
             Launched node for static/dynamic detection.
         '''
@@ -449,10 +462,7 @@ class GestureDataDetection(Node):
                         if not np.array(visibles).all():
                             return
 
-                        ''' Creates timestamp indexes starting with [-1, -x, ...] '''
-                        time_samples_series = [-1]
-                        time_samples_series.extend((n * np.array(range(-1, -time_samples, -1))  / time_samples).astype(int))
-                        time_samples_series.sort()
+                        time_samples_series = dynamic_sample_indices(n, time_samples)
 
                         ''' Compose data '''
                         data_composition = []
@@ -506,7 +516,9 @@ class GestureDataDetection(Node):
             dict_to_send["fps"] = round(self.hand_frames[-1].fps)
             dict_to_send["seq"] = self.hand_frames[-1].seq
             
-            # dict_to_send["gesture_type_selected"] = gl.sd.prev_gesture_type
+            # The mode is not available here: this node is the detector, while the
+            # mode lives in the sentence maker, which publishes it on
+            # /teleop_gesture_toolbox/gesture_mode for the dashboard's Doing sign.
             # dict_to_send["gs_state_action"] = GestureSentence.process_gesture_queue(self.gestures_queue)
             # dict_to_send["gs_state_objects"] = self.target_objects
         
@@ -555,14 +567,14 @@ class GestureDataDetection(Node):
         if self.l.dynamic and self.l.dynamic.relevant() is not None:
             try:
                 dict_to_send['l_dynamic_relevant_biggest_id'] = self.l.dynamic.relevant().activated_id
-                dict_to_send['l_dynamic_evidence'] = self.l.dynamic.count_activ_evidence(self.l.dynamic.relevant().activated_id, self.activate_length)/self.activate_length
+                dict_to_send['l_dynamic_evidence'] = self.l.dynamic.count_activ_evidence(self.l.dynamic.relevant().activated_id, self.activate_length_dynamic)/self.activate_length_dynamic
             except AttributeError:
                 dict_to_send['l_dynamic_relevant_biggest_id'] = -1
 
         if self.r.dynamic and self.r.dynamic.relevant() is not None:
             try:
                 dict_to_send['r_dynamic_relevant_biggest_id'] = self.r.dynamic.relevant().activated_id
-                dict_to_send['r_dynamic_evidence'] = self.r.dynamic.count_activ_evidence(self.r.dynamic.relevant().activated_id, self.activate_length)/self.activate_length
+                dict_to_send['r_dynamic_evidence'] = self.r.dynamic.count_activ_evidence(self.r.dynamic.relevant().activated_id, self.activate_length_dynamic)/self.activate_length_dynamic
 
             except AttributeError:
                 dict_to_send['r_dynamic_relevant_biggest_id'] = -1
