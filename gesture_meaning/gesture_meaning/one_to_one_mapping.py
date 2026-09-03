@@ -54,6 +54,29 @@ def load_links(name_user: str = "") -> dict:
         return links
 
 
+def user_settings(name_user: str, tag: str = "gesture_meaning") -> dict:
+    """A user's links file, or {} when there is none to read.
+
+    {} when no user is given, or when the file cannot be read -- the caller's
+    own defaults then apply and no gesture names an action, which is printed
+    rather than guessed at.
+
+    Every node that configures itself per user goes through here, because a
+    setting read in one process and defaulted in another is the same links file
+    meaning two different things at once: the detector's activation evidence
+    and the sentence maker's trigger both come from activate_length, and they
+    have to agree.
+    """
+    if not name_user:
+        return {}
+    try:
+        return load_links(name_user)
+    except Exception as e:  # noqa: BLE001 -- missing file or unreadable yaml
+        print(f"[{tag}] User settings for {name_user!r} not loaded ({e}), "
+              f"using defaults and no gesture meaning", flush=True)
+        return {}
+
+
 class OneToOneMapping:
     """A combination of gestures is mapped to one action command.
 

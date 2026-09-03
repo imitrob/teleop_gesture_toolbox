@@ -24,14 +24,18 @@ def generate_launch_description():
         user_name_arg,
         set_sensor_config,
         # ros2 launch gesture_detector gesture_detect_launch.py
-        IncludeLaunchDescription( 
+        IncludeLaunchDescription(
             PythonLaunchDescriptionSource(
                 os.path.join(
-                    gesture_detector.package_path, 
-                    'launch', 
+                    gesture_detector.package_path,
+                    'launch',
                     'gesture_detect_launch.py'
                 )
             ),
+            # The detector needs the user too: activate_length decides both when
+            # it reports a gesture as activated and how full the dashboard's
+            # evidence bar is drawn.
+            launch_arguments={'user_name': LaunchConfiguration('user_name')}.items(),
         ),
         # ros2 run pointing_object_selection selector_node
         Node( 

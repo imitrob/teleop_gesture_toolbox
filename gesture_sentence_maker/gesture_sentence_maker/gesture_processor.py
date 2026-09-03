@@ -14,7 +14,7 @@ from gesture_sentence_maker.hricommand_export import (
     export_mapped_to_HRICommand, export_original_to_HRICommand,
     import_original_HRICommand_to_dict)
 from gesture_meaning.gesture_icons import GESTURE_ICONS
-from gesture_meaning.one_to_one_mapping import OneToOneMapping, load_links
+from gesture_meaning.one_to_one_mapping import OneToOneMapping, user_settings
 from pointing_object_selection.pointing_object_getter import PointingObjectGetter
 from pointing_object_selection.deictic_evidence import EVIDENCE, select as select_deictic
 from gesture_sentence_maker.utils import get_dist_by_extremes
@@ -26,23 +26,6 @@ from gesture_detector.utils.utils import CustomDeque
 from hri_msgs.msg import HRICommand as HRICommandMSG
 from rclpy.qos import QoSProfile, QoSReliabilityPolicy
 import json
-
-def _user_settings(name_user: str) -> dict:
-    """The user's links file: their vocabulary, gesture links and cell settings.
-
-    {} when no user is given, or when the file cannot be read -- then the
-    defaults below apply and no gesture names an action, which is printed rather
-    than guessed at. load_links falls back to the links.yaml shipped with
-    gesture_meaning when hri_manager is not installed."""
-    if not name_user:
-        return {}
-    try:
-        return load_links(name_user)
-    except Exception as e:  # noqa: BLE001 -- missing file or unreadable yaml
-        print(f"[Gesture Processor] User settings for {name_user!r} not loaded ({e}), "
-              f"using defaults and no gesture meaning", flush=True)
-        return {}
-
 
 class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def __init__(self,
@@ -73,7 +56,7 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
 
         # Per-user settings live in links/<user>_links.yaml, so a new cell is configured by editing yaml rather than this file. The arguments above stay the defaults for when no user is given.
         self.user = self.declare_parameter("user_name", "").get_parameter_value().string_value
-        self.user_settings = _user_settings(self.user)
+        self.user_settings = user_settings(self.user, "Gesture Processor")
         self.ignored_gestures = self.user_settings.get("ignored_gestures", ignored_gestures)
         self.activate_length = self.user_settings.get("activate_length", self.activate_length)
         # A gesture means what this user linked it to and nothing else. Built once: editing the links file takes effect on the next start.
