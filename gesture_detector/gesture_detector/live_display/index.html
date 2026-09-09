@@ -29,6 +29,14 @@
     .card-body{padding:12px;}
     .card-body.is-flush{padding:0;}
     .scene-frame{display:block;width:100%;aspect-ratio:1;border:0;background:#303030;}
+    /* Maximized card fills the browser tab, not the screen: the gesture mode has
+       to be able to open it, and the Fullscreen API needs a user gesture.
+       The layout code writes width/transform inline, so those get shouted down. */
+    .dashboard-card.is-maximized{position:fixed;inset:0;z-index:20;display:flex;flex-direction:column;
+                                 width:auto!important;transform:none!important;border-radius:0;
+                                 background:#303030;}
+    .dashboard-card.is-maximized .card-body{flex:1;min-height:0;}
+    .dashboard-card.is-maximized .scene-frame{height:100%;aspect-ratio:auto;}
     /* an iframe swallows dragover, so the card cannot be a drop target while it does */
     .dashboard-grid.is-reordering .scene-frame{pointer-events:none;}
     .empty-state{margin:8px 0;color:#607d8b;font-style:italic;text-align:center;}
@@ -103,6 +111,27 @@
     .link-row.is-removable{cursor:pointer;border:2px solid transparent;border-radius:4px;}
     .link-row.is-removable:hover,.link-row.is-removable:focus{border-color:#d32f2f;background:#ffcdd2;outline:none;}
     .link-row.is-removing{opacity:.5;pointer-events:none;}
+
+    /* STT card — trimmed mirror of natural_language_processing/resource/stt_visualizer.html:
+       the sentence with its alternatives, the two waiting states, the live dot. */
+    .stt-live{flex:none;display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:700;
+              letter-spacing:.12em;color:rgba(255,255,255,.65);}
+    .stt-live::before{content:"";width:8px;height:8px;border-radius:50%;background:rgba(255,255,255,.45);}
+    .stt-live.is-live{color:#fff;}
+    .stt-live.is-live::before{background:#b9f6ca;box-shadow:0 0 0 4px rgba(185,246,202,.25);}
+    .stt-prediction{display:flex;align-items:center;justify-content:center;gap:8px;min-height:104px;
+                    overflow-x:auto;}
+    .stt-empty{color:#90a4ae;font-family:ui-serif,Georgia,serif;font-size:19px;font-style:italic;}
+    .stt-empty i{font-style:inherit;animation:stt-pulse 1.1s ease-in-out infinite;}
+    .stt-empty i:nth-child(2){animation-delay:.16s;}
+    .stt-empty i:nth-child(3){animation-delay:.32s;}
+    @keyframes stt-pulse{0%,100%{opacity:.15;}50%{opacity:1;}}
+    .stt-word{flex:0 0 auto;display:grid;grid-template-rows:32px auto 32px;justify-items:center;}
+    .stt-alts{display:flex;flex-direction:column;align-items:center;gap:2px;color:#37474f;
+              font-size:10px;white-space:nowrap;}
+    .stt-alts.above{flex-direction:column-reverse;justify-content:flex-start;}
+    .stt-alts small{margin-left:3px;font-size:.7em;font-variant-numeric:tabular-nums;}
+    .stt-chosen{font-family:ui-serif,Georgia,serif;font-size:22px;line-height:1;white-space:nowrap;}
 
     @media (max-width:1300px){.dashboard-grid{--dashboard-columns:3;}}
     @media (max-width:900px){.dashboard-grid{--dashboard-columns:2;}}
@@ -208,6 +237,11 @@
     <header class="card-header" draggable="true">
       <span class="drag-grip" aria-hidden="true"></span>
       <h2>Hand Scene</h2>
+      <span class="link-tool-buttons">
+        <button id="sceneMaximizeBtn" class="link-tool-button" type="button" draggable="false"
+                aria-label="Maximize the hand scene"
+                title="Maximize the hand scene">&#9974;</button>
+      </span>
     </header>
     <div class="card-body is-flush">
       <!-- served from the same live_display root (port 6357), so no extra server -->
@@ -251,6 +285,18 @@
       </button>
     </div>
   </section>
+  <section class="dashboard-card" data-card-id="stt">
+    <header class="card-header" draggable="true">
+      <span class="drag-grip" aria-hidden="true"></span>
+      <h2>Speech To Text</h2>
+      <span id="sttLive" class="stt-live">LIVE</span>
+    </header>
+    <div class="card-body">
+      <div id="sttPrediction" class="stt-prediction" aria-live="polite" aria-atomic="true">
+        <span class="stt-empty">Waiting for speech…</span>
+      </div>
+    </div>
+  </section>
 </main>
 
 <script>
@@ -265,6 +311,8 @@
     ["/teleop_gesture_toolbox/gesture_meaning_info", "std_msgs/String",      0],
     ["/teleop_gesture_toolbox/gesture_mode",         "std_msgs/String",      100],
     ["/teleop_gesture_toolbox/hand_frame",           "gesture_msgs/Frame",   200],
+    ["/nlp/whisper",                                 "hri_msgs/WhisperText",   0],
+    ["/nlp/speech_active",                           "std_msgs/Bool",          0],
   ];
   const hriTopics = [
     "/teleop_gesture_toolbox/hricommand_original",
@@ -312,6 +360,9 @@
     linkName: '',
   };
 
+  let lastDoing = null;      // last /gesture_mode name, see setDoing()
+  let sttListening = false;   // /nlp/speech_active
+  let sttWordsData = [];      // [{word, alternatives:[{word, probability}]}]
   let lastHandFrame = 0; // ms timestamp of the most-recent frame
   let lastOrig = 0, lastMap = 0; // ms timestamps<br>
   let websocketState = 'connecting';
@@ -513,6 +564,12 @@
       !name             ? 'is-idle'    :
       name === 'deictic' ? 'is-deictic' :
       name === 'action'  ? 'is-action'  : 'is-other');
+    // Pointing wants the scene big. Acting on the mode only when it changes
+    // leaves a manual toggle alone until the next mode arrives.
+    if (name !== lastDoing) {
+      lastDoing = name;
+      setSceneMaximized(name === 'deictic');
+    }
   }
 
   function buildAdaptiveSetupCard(){
@@ -761,6 +818,7 @@
     'scene',
     'adaptive-setup',
     'status',
+    'stt',
   ];
   const dashboardGrid = document.getElementById('dashboardGrid');
   let draggedCard = null;
@@ -770,7 +828,8 @@
 
   function layoutDashboardCards(){
     dashboardLayoutFrame = 0;
-    const cards = Array.from(dashboardGrid.querySelectorAll('.dashboard-card'));
+    const cards = Array.from(
+      dashboardGrid.querySelectorAll('.dashboard-card:not(.is-maximized)'));
     const gridStyle = getComputedStyle(dashboardGrid);
     const columnCount = Number.parseInt(
       gridStyle.getPropertyValue('--dashboard-columns'),
@@ -864,6 +923,28 @@
       .forEach(card=>cardResizeObserver.observe(card));
   }
   window.addEventListener('resize', scheduleDashboardLayout);
+
+  /* Maximized hand scene, driven both by the button and by /gesture_mode. */
+  const sceneCard = dashboardGrid.querySelector('[data-card-id="scene"]');
+  const sceneMaximizeBtn = document.getElementById('sceneMaximizeBtn');
+
+  function sceneMaximized(){
+    return sceneCard.classList.contains('is-maximized');
+  }
+
+  function setSceneMaximized(maximized){
+    if (sceneMaximized() === maximized) return;
+    sceneCard.classList.toggle('is-maximized', maximized);
+    const label = maximized ? 'Leave the maximized hand scene' : 'Maximize the hand scene';
+    sceneMaximizeBtn.title = label;
+    sceneMaximizeBtn.setAttribute('aria-label', label);
+    scheduleDashboardLayout();
+  }
+
+  sceneMaximizeBtn.addEventListener('click', ()=>setSceneMaximized(!sceneMaximized()));
+  document.addEventListener('keydown', event=>{
+    if (event.key === 'Escape') setSceneMaximized(false);
+  });
   scheduleDashboardLayout();
 
   dashboardGrid.querySelectorAll('.card-header').forEach(header=>{
@@ -946,6 +1027,93 @@
     return value === -1 || value === '-1' || value == null ? '—' : value;
   }
 
+  /* -------------------------------------------------------------------- */
+  /* Speech to text card                                                  */
+  /* -------------------------------------------------------------------- */
+  function sttProbability(value){
+    const probability = Number(value);
+    return Number.isFinite(probability) ? Math.min(1, Math.max(0, probability)) : 0;
+  }
+
+  // Mirror of prediction_payload() in stt_visualizer.py: alternatives sorted by
+  // likelihood, the selected word never repeated among them, plain transcript as
+  // the fallback when the word metadata is missing or malformed.
+  function sttWords(text, wordsJson){
+    let rawWords;
+    try {
+      rawWords = JSON.parse(wordsJson || '[]');
+    } catch (error) {
+      rawWords = [];
+    }
+    if (!Array.isArray(rawWords)) rawWords = [];
+
+    const words = [];
+    rawWords.forEach(rawWord=>{
+      const selected = String(rawWord?.word ?? '').trim();
+      if (!selected) return;
+      const alternatives = [];
+      Object.entries(rawWord?.alts ?? {}).forEach(([candidate, likelihood])=>{
+        candidate = String(candidate).trim();
+        if (!candidate || candidate.toLowerCase() === selected.toLowerCase()) return;
+        alternatives.push({word: candidate, probability: sttProbability(likelihood)});
+      });
+      alternatives.sort((a, b)=>b.probability - a.probability);
+      words.push({word: selected, alternatives});
+    });
+
+    const sentence = String(text ?? '').trim();
+    if (sentence && (!words.length || words.length !== rawWords.length)) {
+      return sentence.split(/\s+/).map(word=>({word, alternatives: []}));
+    }
+    return words;
+  }
+
+  function sttEmptyNode(text){
+    const node = document.createElement('span');
+    node.className = 'stt-empty';
+    node.textContent = text;
+    return node;
+  }
+
+  function sttWordNode(word){
+    const column = document.createElement('span');
+    column.className = 'stt-word';
+    const above = document.createElement('span');
+    above.className = 'stt-alts above';
+    const below = document.createElement('span');
+    below.className = 'stt-alts below';
+    word.alternatives.forEach((alternative, rank)=>{
+      const item = document.createElement('span');
+      item.style.opacity = .55 + alternative.probability * .45;
+      item.append(alternative.word, Object.assign(document.createElement('small'),
+        {textContent: `${Math.round(alternative.probability * 100)}%`}));
+      (rank % 2 === 0 ? above : below).append(item);
+    });
+    const chosen = document.createElement('span');
+    chosen.className = 'stt-chosen';
+    chosen.textContent = word.word;
+    column.append(above, chosen, below);
+    return column;
+  }
+
+  function renderSttCard(){
+    const container = document.getElementById('sttPrediction');
+    if (sttListening) {
+      // While speech is collected the animation replaces the words; when it ends
+      // the last accepted prediction comes back.
+      const node = sttEmptyNode('Listening');
+      for (let dot = 0; dot < 3; dot += 1) {
+        node.append(Object.assign(document.createElement('i'), {textContent: '.'}));
+      }
+      container.replaceChildren(node);
+    } else if (!sttWordsData.length) {
+      container.replaceChildren(sttEmptyNode('Waiting for speech…'));
+    } else {
+      container.replaceChildren(...sttWordsData.map(sttWordNode));
+    }
+    scheduleDashboardLayout();
+  }
+
   function updateConnectionStatus(){
     const statusEl = document.getElementById('handFrameStatus');
     statusEl.className = 'w3-tag w3-round';
@@ -959,6 +1127,8 @@
       statusEl.textContent = 'All fine';
       statusEl.classList.add('w3-green');
     }
+    document.getElementById('sttLive').classList
+      .toggle('is-live', websocketState === 'connected');
     updateLinkToolButtons();
   }
 
@@ -1016,6 +1186,20 @@
         /* ---------------- Gesture meaning info ----------------- */
         if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_mode") {
           setDoing(data.msg.data);
+        }
+
+        if (data.op === 'publish' && data.topic === "/nlp/whisper") {
+          sttWordsData = sttWords(data.msg.new_text || data.msg.all_text,
+                                  data.msg.words_json);
+          renderSttCard();
+        }
+
+        if (data.op === 'publish' && data.topic === "/nlp/speech_active") {
+          const listening = Boolean(data.msg.data);
+          if (listening !== sttListening) {
+            sttListening = listening;
+            renderSttCard();
+          }
         }
 
         if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/gesture_meaning_info") {
