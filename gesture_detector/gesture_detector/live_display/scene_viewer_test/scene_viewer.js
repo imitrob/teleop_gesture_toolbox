@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 import { ArticulatedHandRenderer } from "./articulated_hand_renderer.js";
+import { supersamplePixelRatio } from "./core/config.mjs";
 
 const CAMERA = {
   distance: 1.645825386,
@@ -66,11 +67,6 @@ export class SceneViewer {
     this.camera.up.set(0, 0, 1);
 
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
-    // Supersample: render at >=2x and let CSS downscale, so thin markers stay
-    // crisp in a small embedded card on a 1x display. Cap keeps 4K sane.
-    this.renderer.setPixelRatio(
-      Math.min(Math.max(window.devicePixelRatio, 2), 3),
-    );
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.container.appendChild(this.renderer.domElement);
 
@@ -169,6 +165,10 @@ export class SceneViewer {
     const height = Math.max(1, this.container.clientHeight);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
+    // Chosen per size: supersampling a maximized canvas costs more than it buys.
+    this.renderer.setPixelRatio(
+      supersamplePixelRatio(width, height, window.devicePixelRatio),
+    );
     this.renderer.setSize(width, height, false);
   }
 
