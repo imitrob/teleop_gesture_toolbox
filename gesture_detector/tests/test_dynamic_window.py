@@ -25,17 +25,26 @@ def _model():
     return sampler, config["gestures"]
 
 
-def _circle(t, period, radius):
-    a = 2 * np.pi * t / period
-    return [radius * 1000 * np.sin(a), 300 + radius * 1000 * (1 - np.cos(a)), 0.0]
-
-
 def _swipe_up(t, period, radius):
     return [0.0, 300 + radius * 1000 * 2 * (t / period), 0.0]
 
 
 def _swipe_left(t, period, radius):
     return [-radius * 1000 * 2 * (t / period), 300.0, 0.0]
+
+
+def _swipe_down(t, period, radius):
+    return _swipe_up(-t, period, radius)
+
+
+def _swipe_right(t, period, radius):
+    return _swipe_left(-t, period, radius)
+
+
+# The dynamic half of the demo vocabulary: grab/pinch/five pick the family, these
+# give the direction. 'circle' is gone from the model, it needed a 1.0s window.
+SWIPES = {"swipe_up": _swipe_up, "swipe_down": _swipe_down,
+          "swipe_left": _swipe_left, "swipe_right": _swipe_right}
 
 
 def _still(t, period, radius):
@@ -49,7 +58,7 @@ def _still_then_swipe_up(t, period, radius):
     return _swipe_up(min(t - 1.0, period), period, radius)
 
 
-def _classify_live(traj, period, radius, duration=6.0, time_samples=TIME_SAMPLES, window=WINDOW):
+def _classify_live(traj, period, radius, duration=6.0, window=WINDOW):
     """Replays the /teleop_gesture_toolbox/dynamic_detection_observations composition of send_g_data."""
     sampler, Gs = _model()
     points = [traj(t, period, radius) for t in np.arange(0, duration, 1 / FPS)]
@@ -58,7 +67,7 @@ def _classify_live(traj, period, radius, duration=6.0, time_samples=TIME_SAMPLES
     labels = []
     for tick in np.arange(window, duration, 1 / DETECTOR_RATE):
         frames = points[int(tick * FPS) - n : int(tick * FPS)]
-        composition = np.array([transform_leap_to_leapdynamicdetector(frames[i]) for i in dynamic_sample_indices(n, time_samples)])
+        composition = np.array([transform_leap_to_leapdynamicdetector(frames[i]) for i in dynamic_sample_indices(n, TIME_SAMPLES)])
         composition -= composition[len(composition) // 2]
         pred, _ = sampler.sample(composition.flatten())
         labels.append(Gs[pred])
@@ -102,39 +111,20 @@ def test_sample_indices_span_and_count():
     assert indices[0] == -int(150 * (TIME_SAMPLES - 1) / TIME_SAMPLES)
 
 
-# DTW cannot align a cyclic shift, so a periodic path is only recognized while the
-# window holds about one whole period: dynamic_window has to be ~1.25x the longest
-# gesture. The 0.6s default covers a swipe; a circle this slow needs the knob raised.
-CIRCLE_PERIOD = 0.8
-CIRCLE_WINDOW = 1.0
+def test_every_swipe_is_recognized_as_itself():
+    """Each direction of the vocabulary, none of them confused for another."""
+    for name, traj in SWIPES.items():
+        labels, Gs = _classify_live(traj, period=0.4, radius=0.05)
+        assert set(labels) == {name}, (name, set(labels))
+        assert _evidence(labels, Gs, name, ACTIVATE_LENGTH_DYNAMIC) >= 1.0, name
 
 
-def test_circle_becomes_top_1():
-    labels, _ = _classify_live(_circle, period=CIRCLE_PERIOD, radius=0.05, window=CIRCLE_WINDOW)
-    assert _longest_run(labels, "circle") >= ACTIVATE_LENGTH_DYNAMIC
-
-
-def test_five_samples_cannot_see_a_circle():
-    """Five samples a window is too sparse to hold circle long enough to activate."""
-    labels, Gs = _classify_live(_circle, period=CIRCLE_PERIOD, radius=0.05, time_samples=5, window=CIRCLE_WINDOW)
-    assert _longest_run(labels, "circle") < ACTIVATE_LENGTH_DYNAMIC
-    assert _evidence(labels, Gs, "circle", ACTIVATE_LENGTH_DYNAMIC) < 1.0
-
-
-def test_circle_activates_only_with_dynamic_activate_length():
-    labels, Gs = _classify_live(_circle, period=CIRCLE_PERIOD, radius=0.05, window=CIRCLE_WINDOW)
-    assert _evidence(labels, Gs, "circle", ACTIVATE_LENGTH_DYNAMIC) >= 1.0
-    assert _evidence(labels, Gs, "circle", 10) < 1.0
-
-
-def test_straight_swipe_unaffected():
-    labels, _ = _classify_live(_swipe_up, period=0.4, radius=0.05)
-    assert set(labels) == {"swipe_up"}
-
-
-def test_left_swipe_recognized():
-    labels, _ = _classify_live(_swipe_left, period=0.4, radius=0.03)
-    assert set(labels) == {"swipe_left"}
+def test_a_swipe_needs_activate_length_windows():
+    """Two windows of a swipe are not an activation, three are."""
+    for duration, activates in ((WINDOW + 0.15, False), (WINDOW + 0.25, True)):
+        labels, Gs = _classify_live(_swipe_up, period=0.4, radius=0.05, duration=duration)
+        assert len(labels) == ACTIVATE_LENGTH_DYNAMIC - (0 if activates else 1)
+        assert (_evidence(labels, Gs, "swipe_up", ACTIVATE_LENGTH_DYNAMIC) >= 1.0) is activates
 
 
 def test_swipe_amplitude_does_not_decide():
@@ -149,12 +139,9 @@ def test_a_moving_hand_is_never_resting():
 
     This is the bug: on DTW distance alone the all-zero resting template beat every
     swipe that did not fill the whole window."""
-    for traj, radius, window in ((_swipe_up, 0.05, WINDOW),
-                                 (_swipe_left, 0.03, WINDOW),
-                                 (_circle, 0.05, CIRCLE_WINDOW)):
-        labels, _ = _classify_live(traj, period=0.4 if traj is not _circle else CIRCLE_PERIOD,
-                                   radius=radius, window=window)
-        assert "no_moving" not in labels, traj.__name__
+    for name, traj in SWIPES.items():
+        labels, _ = _classify_live(traj, period=0.4, radius=0.03)
+        assert "no_moving" not in labels, name
 
 
 def test_a_resting_hand_is_the_resting_gesture():

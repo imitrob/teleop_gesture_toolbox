@@ -3,6 +3,12 @@ from collections import Counter
 from gesture_detector.utils.utils import CustomDeque
 import numpy as np
 
+# How much less the oldest gesture of an episode counts than the newest. Redoing
+# a gesture is how a user corrects themselves, so the later one has to win -- but
+# only just, or a fresh unsure detection would beat a confident earlier one.
+RECENCY_PENALTY = 0.1
+
+
 class AccumulatedGestures(CustomDeque):
     def __init__(self):
         super(CustomDeque, self).__init__(maxlen=50)
@@ -62,8 +68,21 @@ class AccumulatedGestures(CustomDeque):
         return array_max_timestamps
 
     def max_extraction(self, gestures_dict_processed):
-        all_probs = [g['probs'] for g in gestures_dict_processed]
-        return np.max(all_probs, axis=0)
+        ''' Highest probability each gesture reached in the episode, with the
+            older ones worth slightly less.
+
+        Two gestures shown in one episode both saturate at 1.0, and the sentence
+        then cannot say which of them the user meant. Weighting by age settles it
+        on the last one performed. The weight is relative to the episode, so a
+        single gesture, or several at one instant, are left untouched.
+        '''
+        probs = np.array([g['probs'] for g in gestures_dict_processed], dtype=float)
+        stamps = np.array([g['stamp'] for g in gestures_dict_processed], dtype=float)
+        span = stamps.max() - stamps.min()
+        if span == 0:
+            return np.max(probs, axis=0)
+        weights = 1 - RECENCY_PENALTY * (stamps.max() - stamps) / span
+        return np.max(probs * weights[:, None], axis=0)
 
     def get_not_ignored_gestures(self, ignored_gestures):
         gestures_queue_processed = []

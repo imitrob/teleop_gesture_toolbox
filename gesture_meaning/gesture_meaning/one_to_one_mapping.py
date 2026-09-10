@@ -84,13 +84,20 @@ class OneToOneMapping:
                     continue
                 self.combinations.append((gestures, action))
                 for gesture in gestures:
-                    first = self.gesture_actions.setdefault(gesture, action)
-                    if first != action and not quiet:
-                        print(f"Gesture {gesture!r} is linked to both {first!r} and "
-                              f"{action!r} ({name}); using {first!r}", flush=True)
+                    self.gesture_actions.setdefault(gesture, action)
         # Longest combination first, so a two-gesture link is matched before a
         # one-gesture link that shares a gesture with it.
         self.combinations.sort(key=lambda combination: -len(combination[0]))
+
+        # A gesture shared by several combinations is how a vocabulary is built:
+        # one posture carries a family of actions and the path picks which. It
+        # only loses meaning when some link also uses that gesture on its own,
+        # and then which action it names depends on which link was read first.
+        for gesture in {gestures[0] for gestures, _ in self.combinations if len(gestures) == 1}:
+            actions = sorted({action for gestures, action in self.combinations if gesture in gestures})
+            if len(actions) > 1 and not quiet:
+                print(f"Gesture {gesture!r} is linked to {actions}; shown alone it "
+                      f"means {self.gesture_actions[gesture]!r}", flush=True)
 
         # The action vocabulary the reasoner is constrained to. Given only a
         # links section, all that is known is the actions the links name.
