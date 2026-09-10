@@ -78,7 +78,9 @@ def _user_settings(name_user: str) -> dict:
 class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
     def __init__(self,
                  ignored_gestures = ['point', 'no_moving'],
-                 step_period = 0.2, # seconds
+                 # rate=10 in activated_gesture_type_to_action assumes this period:
+                 # at 0.2 a mode needed 1.0s to settle rather than the 0.5s intended.
+                 step_period = 0.1, # seconds
                  ):
         """
         Args:
@@ -295,7 +297,9 @@ class GestureSentence(PointingObjectGetter, SceneGetter, GestureDataDetection):
             self.clearing(wait=False)
 
     def gesturing_step(self):
-        activated_gestures = self.load_all_relevant_activated_gestures(relevant_time=2.0, records=3)
+        # A mode is the posture shown now: at 2.0s a finished pointing kept the
+        # user in deictic mode for two seconds after the hand had moved on.
+        activated_gestures = self.load_all_relevant_activated_gestures(relevant_time=0.4, records=3)
 
         activated_gesture_type = self.adaptive_setup.get_adaptive_gesture_type(activated_gestures)
 

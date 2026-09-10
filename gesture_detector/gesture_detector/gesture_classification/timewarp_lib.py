@@ -10,19 +10,42 @@ from scipy.spatial.distance import euclidean
 from copy import deepcopy
 
 
+def unit_scale(path):
+    ''' Path scaled to unit size, so DTW compares its shape and not its amplitude.
+
+    Without it the euclidean distance to the all-zero 'no_moving' template is the
+    smallest one for any short or slow path, whatever direction it went in. '''
+    path = np.asarray(path, dtype=float)
+    scale = np.abs(path).max()
+    return path if scale == 0 else path / scale
+
+
 class fastdtw_():
     def __init__(self):
         print(f"[TimeWarp] Init done")
 
     def init(self, model, model_config):
         self.X = model['X']
-        self.X_ProMP = model['X_ProMP']
+        # Templates go through exactly the same centring and scaling as the live
+        # path, or a template that was not stored centred (the circle) is compared
+        # against a centred path.
+        self.X_ProMP = [self.sub_mid(template) for template in model['X_ProMP']]
         self.Y = model['Y']
         self.counts = model_config['counts']
         assert len(self.X) == len(self.Y)
 
         self.Gs = model_config['gestures']
         print(f"[TimeWarp] Gs: {self.Gs}, counts: {self.counts}, records: {sum(self.counts)}")
+
+        # A resting hand is decided by how far it moved, not by DTW distance: the
+        # resting template is all zeros, so on distance alone it is the nearest one
+        # to any short or slow path, whatever direction that path went in. Below
+        # rest_displacement metres the hand is resting and that is the answer; above
+        # it the hand is moving and the resting class is out of the running. Users
+        # link the resting gesture to actions ([five, no_moving] = stop), so it has
+        # to stay reachable rather than be suppressed.
+        self.rest_id = self.Gs.index('no_moving') if 'no_moving' in self.Gs else None
+        self.rest_displacement = model_config.get('rest_displacement', 0.05)
 
         self.method = model_config['method']
         print(f"[Sample thread] DTW method is: {self.method}")
@@ -32,7 +55,7 @@ class fastdtw_():
         x0 = deepcopy(x[len(x)//2])
         for n in range(len(x)):
             x_.append(np.subtract(x[n], x0))
-        return x_
+        return unit_scale(x_)
 
     def eacheach(self):
         '''
@@ -176,6 +199,7 @@ class fastdtw_():
         elif 'promp' == self.method:
             x_result = self.sample_promp(x)
         else: raise Exception("Wrong arg flag")
+        x_result = self.apply_rest_class(x, x_result)
         if print_out: print(abs(t-time.time()))
         if print_out: print(f"Sample result: {np.argmin(x_result)}, real: {y}")
 
@@ -184,6 +208,20 @@ class fastdtw_():
             return np.argmin(x_result), np.array([list(1/x_result)]).squeeze()
         
         return np.argmin(x_result), np.array(x_result).squeeze()
+
+    def apply_rest_class(self, x, x_result):
+        ''' Decide the resting class by displacement, keeping every distance finite
+            so that the 1/distance likelihoods stay usable. '''
+        if self.rest_id is None:
+            return x_result
+        x_result = np.array(x_result, dtype=float)
+        path = np.asarray(x, dtype=float)
+        moved = np.linalg.norm(path.max(0) - path.min(0)) >= self.rest_displacement
+        if moved:
+            x_result[self.rest_id] = 2 * x_result.max()
+        else:
+            x_result[self.rest_id] = max(x_result.min(), np.finfo(float).eps) / 2
+        return x_result
 
     def evaluate(self):
         ''' Generates confusion matrix and prints accuracy

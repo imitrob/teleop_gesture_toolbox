@@ -8,7 +8,7 @@ Get timestamped data:
 self.l.static[<stamp> or index].<g1>.probability
 (gestures_lib.GestureDataDetection.GestureDataHand[float or int].static.prob)
 '''
-import collections, time
+import collections, json, time
 import numpy as np
 from copy import deepcopy
 import threading
@@ -33,6 +33,14 @@ from gesture_detector.gesture_classification.episodic_accumulation import Accumu
 DEBUGSEMAPHORE = False
 MODEL_CONFIG_RESPONSE_TIMEOUT = 2.0
 
+# Tune this first: dynamic_window + activate_length_dynamic/GESTURE_DETECTOR_RATE is
+# the time from the user starting the gesture to the action firing, and the window is
+# also the longest gesture that still fits in it. Overridable as a ROS parameter in
+# gesture_detect.py. The resting threshold that used to live here belongs to the
+# model, and is now rest_displacement in the model's json.
+DYNAMIC_WINDOW = 0.6             # s, matched to how long a swipe actually takes
+DYNAMIC_MIN_VISIBLE_RATIO = 0.9  # tolerate dropped frames rather than restart the window
+
 rossem = threading.Semaphore()
 
 def dynamic_sample_indices(n, time_samples):
@@ -41,6 +49,16 @@ def dynamic_sample_indices(n, time_samples):
     indices.extend((n * np.array(range(-1, -time_samples, -1)) / time_samples).astype(int))
     indices.sort()
     return indices
+
+def mode_posture_shown(activated_postures, mode_postures):
+    ''' True when a posture that puts the user into a mode appears in the window.
+
+    A mode owns the hand: while the user points, the path of the hand is the
+    pointing, not a dynamic gesture, and the swipe that would be read out of it is
+    a phantom. Every other posture leaves the two detectors independent, which is
+    the point -- a static gesture that was mispredicted or is not in the model
+    must not cost the dynamic stream its evidence. '''
+    return not set(activated_postures).isdisjoint(mode_postures)
 
 def withsem(func):
     def inner(*args, **kwargs):
@@ -114,6 +132,13 @@ class GestureDataDetection(Node):
         self.create_subscription(rosm.Frame, '/teleop_gesture_toolbox/hand_frame', self.hand_frame_callback, 10)
         self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/static_detection_solutions', self.save_static_detection_solutions_callback, 10)
         self.create_subscription(DetectionSolution, '/teleop_gesture_toolbox/dynamic_detection_solutions', self.save_dynamic_detection_solutions_callback, 10)
+
+        # Which postures put the user into a mode: read from the sentence maker's
+        # 1 Hz config snapshot rather than kept as a second copy of the user's
+        # adaptive_setup here, so editing the links file is enough to change it.
+        # Empty until that snapshot arrives, which leaves both detectors running.
+        self.mode_postures = set()
+        self.create_subscription(String, '/teleop_gesture_toolbox/gesture_meaning_info', self.gesture_meaning_info_callback, 1)
 
         # Gesture prediction
         self.static_gesture_action_prediction = [""] * len(self.l.static.Gs)
@@ -271,9 +296,6 @@ class GestureDataDetection(Node):
         gs = getattr(hand, type)
         latest_gs = gs[-1]
         activate_length = self.activate_length_for(type)
-        if gs.n <= 2*activate_length:
-            return # not enough samples yet, more data needed
-
         for n,g in enumerate(latest_gs):
             if g.biggest_probability_flag:
                 g_id = n
@@ -415,8 +437,13 @@ class GestureDataDetection(Node):
     def save_dynamic_detection_solutions_callback(self, data):
         self.new_record(data, type='dynamic')
 
+    def gesture_meaning_info_callback(self, data):
+        setup = json.loads(data.data).get('adaptive_setup') or {}
+        self.mode_postures = {g for gestures in setup.values() for g in gestures}
+
     @withsem
-    def send_g_data(self, l_hand_mode, r_hand_mode, dynamic_detection_window=1.5, time_samples = 10):
+    def send_g_data(self, l_hand_mode, r_hand_mode, dynamic_detection_window=DYNAMIC_WINDOW,
+                    time_samples = 10):
         ''' Sends appropriate gesture data as ROS msg
             Launched node for static/dynamic detection.
         '''
@@ -451,16 +478,22 @@ class GestureDataDetection(Node):
             
             if 'dynamic' in hand_mode[hand] and len(self.hand_frames) > time_samples:
                 if getattr(self, hand+'_present')():
+                    if mode_posture_shown(
+                            [g.activated for g in self.relevant(
+                                hand=hand, type='static',
+                                relevant_time=dynamic_detection_window, records=1000)],
+                            self.mode_postures):
+                        continue # the user is pointing: the path is not a gesture
                     try:
                         n = 1
-                        visibles = []
+                        visibles = 0
                         while True:
                             ttt = self.hand_frames[-1].stamp() - self.hand_frames[-n].stamp()
-                            visibles.append( getattr(self.hand_frames[-n], hand).visible )
-                            if ttt > 1.5: break
+                            visibles += bool(getattr(self.hand_frames[-n], hand).visible)
+                            if ttt > dynamic_detection_window: break
                             n += 1
-                        if not np.array(visibles).all():
-                            return
+                        if visibles < DYNAMIC_MIN_VISIBLE_RATIO * n:
+                            continue
 
                         time_samples_series = dynamic_sample_indices(n, time_samples)
 
@@ -475,9 +508,9 @@ class GestureDataDetection(Node):
                             data_composition_.append(transform_leap_to_leapdynamicdetector(point)) # input is list
                         data_composition = data_composition_
 
-                        ''' Check if the length of composed data is aorund 1sec '''
+                        ''' Check the composed data spans about the window '''
                         ttt = self.hand_frames[-1].stamp() - self.hand_frames[int(time_samples_series[0])].stamp()
-                        if not (0.7 <= ttt <= 2.0):
+                        if not (0.5 * dynamic_detection_window <= ttt <= 1.5 * dynamic_detection_window):
                             print(f"WARNING: data frame composed is {ttt} long")
                         ''' Subtract middle path point from all path points '''
 
@@ -734,15 +767,20 @@ class TemplateGs():
         return idx
 
     def count_activ_evidence(self, gesture_id, activation_length):
-        """Returns float (0-1) of activated  
-        """        
-        for i in range(1, activation_length+1):
+        """How many of the newest solutions, up to activation_length, had this
+        gesture as top-1 without interruption.
+
+        Both ways out of the loop used to report the index they stopped at rather
+        than the count before it, so a gesture activated one detection early (three
+        of them for an activate_length of four) and a queue too short to judge read
+        as full evidence."""
+        for i in range(activation_length):
             try:
-                if not self.data_queue[-i][gesture_id].biggest_probability_flag:
-                    break
+                if not self.data_queue[-(i + 1)][gesture_id].biggest_probability_flag:
+                    return float(i)
             except IndexError:
                 return float(i)
-        return float(i)
+        return float(activation_length)
 
     def did_action_happened(self, gesture_id, activation_length):
         """Returns float (0-1) of activated  

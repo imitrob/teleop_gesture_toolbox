@@ -9,6 +9,8 @@ import numpy as np
 import rclpy
 from rclpy.node import Node
 
+from std_msgs.msg import String
+
 from gesture_msgs.msg import DetectionSolution, DetectionObservations
 from gesture_msgs.srv import GetModelConfig
 import gesture_detector
@@ -47,6 +49,12 @@ class ClassificationSampler(Node):
         self.get_logger().info(f"[Sample thread] network is: {network_name}")
 
         self.srv = self.create_service(GetModelConfig, f"/teleop_gesture_toolbox/{self.type}_detection_info", self.send_sampler_config)
+
+        # The learned paths themselves, for the dashboard to draw: what a user has
+        # to move like to reach each gesture. Sent every second rather than once at
+        # startup, so a dashboard opened later fills in instead of staying empty.
+        self.templates_pub = self.create_publisher(String, f'/teleop_gesture_toolbox/{self.type}_gesture_templates', 1)
+        self.create_timer(1.0, self.publish_templates)
         
 
     def callback(self, data):
@@ -75,6 +83,20 @@ class ClassificationSampler(Node):
         self.pub.publish(sol)
 
         self.seq += 1
+
+    def publish_templates(self):
+        ''' The templates as the classifier compares them: centred and unit scaled,
+            so a dashboard can put the live path in the same picture. '''
+        templates = getattr(self.sample_approach, 'X_ProMP', None)
+        if templates is None:
+            return # this engine has no paths to show (the static models)
+        self.templates_pub.publish(String(data=json.dumps({
+            'gestures': list(self.gestures),
+            'templates': [np.asarray(t, dtype=float).tolist() for t in templates],
+            # The displacement this model calls resting, so a viewer can scale a
+            # resting path by it instead of by its own noise
+            'rest_displacement': getattr(self.sample_approach, 'rest_displacement', 0.0),
+        })))
 
     def send_sampler_config(self, request, response):
         response.gestures = list(self.gestures)

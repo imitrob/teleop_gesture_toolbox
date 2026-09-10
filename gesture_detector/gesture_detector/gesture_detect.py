@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from gesture_detector.gesture_classification.gestures_lib import GestureDataDetection
+from gesture_detector.gesture_classification.gestures_lib import DYNAMIC_WINDOW, GestureDataDetection
 import sys, os, time, threading, rclpy
 
 GESTURE_DETECTOR_RATE = 10
@@ -15,6 +15,13 @@ def main():
     l_hand_mode = gd.get_parameter('l_hand_mode').get_parameter_value().string_value
     gd.declare_parameter('r_hand_mode', 'static+dynamic')
     r_hand_mode = gd.get_parameter('r_hand_mode').get_parameter_value().string_value
+
+    # The longest dynamic gesture that has to fit in one window. The postures that
+    # switch off dynamic detection are not a parameter: they are the user's
+    # adaptive_setup, which gestures_lib reads from the sentence maker.
+    gd.declare_parameter('dynamic_window', DYNAMIC_WINDOW)
+    dynamic_window = gd.get_parameter('dynamic_window').get_parameter_value().double_value
+    print(f"[Gesture Detect] Dynamic gesture window {dynamic_window}s")
     
 
     spinning_thread = threading.Thread(target=spinning_threadfn, args=(gd, ), daemon=True)
@@ -24,7 +31,7 @@ def main():
     while rclpy.ok():
         # print("..")
         if gd.present():
-            gd.send_g_data(l_hand_mode, r_hand_mode)
+            gd.send_g_data(l_hand_mode, r_hand_mode, dynamic_detection_window=dynamic_window)
         gd.send_state()
         rate.sleep()
         
