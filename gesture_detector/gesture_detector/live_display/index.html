@@ -89,7 +89,8 @@
     .link-tool-buttons{display:inline-flex;align-items:center;gap:4px;}
     .link-tool-button{flex:none;width:24px;height:24px;padding:0;border:1px solid rgba(255,255,255,.75);
                      border-radius:50%;background:rgba(255,255,255,.16);color:#fff;font-size:20px;
-                     line-height:20px;font-weight:700;cursor:pointer;}
+                     line-height:1;font-weight:700;cursor:pointer;
+                     display:inline-flex;align-items:center;justify-content:center;}
     .link-tool-button:hover:not(:disabled),.link-tool-button.is-active{background:#fff;color:#0d47a1;}
     .link-tool-button:disabled{opacity:.42;cursor:not-allowed;}
     .catalog-grid{display:flex;flex-wrap:wrap;justify-content:center;gap:7px;}
@@ -140,6 +141,9 @@
       .dashboard-card.drop-before{box-shadow:0 -5px 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
       .dashboard-card.drop-after{box-shadow:0 5px 0 #0d47a1,0 2px 6px rgba(0,0,0,.12);}
     }
+    .swipe-plot-canvas{width:100%;height:260px;display:block;touch-action:none;cursor:grab;
+      background:#fbfbfb;border:1px solid #e0e0e0;border-radius:4px;}
+    .swipe-plot-canvas.is-dragging{cursor:grabbing;}
   </style>
   <link rel="stylesheet" href="https://www.w3schools.com/w3css/4/w3.css">
   <link rel="stylesheet" href="https://www.w3schools.com/lib/w3-theme-blue.css">
@@ -164,10 +168,25 @@
     <header class="card-header" draggable="true">
       <span class="drag-grip" aria-hidden="true"></span>
       <h2>Swipe Detector</h2>
+      <span class="link-tool-buttons">
+        <button id="swipePlotBtn" class="link-tool-button" type="button" draggable="false"
+                aria-label="Show the swipe paths in 3D"
+                title="Show the swipe paths in 3D"><!--
+          Drawn rather than typed: the page renders in Verdana, which has no
+          U+25C9, so the glyph came from whichever font did and sat off centre.
+          currentColor keeps it in step with the hover and active states. -->
+          <svg viewBox="0 0 24 24" width="15" height="15" aria-hidden="true" focusable="false">
+            <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" stroke-width="2.5"/>
+            <circle cx="12" cy="12" r="4.5" fill="currentColor"/>
+          </svg></button>
+      </span>
     </header>
     <div class="card-body">
       <div id="dynamic-gesture-container">
         <p class="empty-state">Waiting for swipe gesture data…</p>
+      </div>
+      <div id="dynamic-gesture-plot" hidden>
+        <canvas id="swipePlotCanvas" class="swipe-plot-canvas"></canvas>
       </div>
     </div>
   </section>
@@ -311,6 +330,9 @@
     ["/teleop_gesture_toolbox/gesture_meaning_info", "std_msgs/String",      0],
     ["/teleop_gesture_toolbox/gesture_mode",         "std_msgs/String",      100],
     ["/teleop_gesture_toolbox/hand_frame",           "gesture_msgs/Frame",   200],
+    ["/teleop_gesture_toolbox/dynamic_gesture_templates",     "std_msgs/String",  0],
+    ["/teleop_gesture_toolbox/dynamic_detection_observations",
+                                          "gesture_msgs/DetectionObservations",  100],
     ["/nlp/whisper",                                 "hri_msgs/WhisperText",   0],
     ["/nlp/speech_active",                           "std_msgs/Bool",          0],
   ];
@@ -373,6 +395,16 @@
   let staticGestureProbs        = [];
   let staticGesturesActivated   = [];
   let staticBiggestID           = -1;
+
+  // The learned paths and the live one, both in the space the classifier uses:
+  // centred on the middle of the window and scaled to unit size, so only shape is
+  // left to compare. The live path arrives only while the detector is publishing,
+  // which is why it stops moving as soon as the user points.
+  let swipeTemplates = null;      // {gestures:[name], templates:[[[x,y,z]]]}
+  let swipeRestSpan = 0;          // metres the model calls resting, from that message
+  let swipePath = [];             // the window being judged right now
+  let swipePathStamp = 0;
+  let swipeView = {yaw: -0.6, pitch: 0.35, dragging: false, x: 0, y: 0};
 
   let dynamicGestureNames       = [];
   let dynamicGestureProbs       = [];
@@ -469,6 +501,7 @@
   function setLinkEditorActive(active){
     if (active && document.getElementById('addLinkBtn').disabled) return;
     if (active && linkRemoval.active) setLinkRemovalActive(false);
+    if (active && !swipePlotBody.hidden) setSwipePlotOpen(false);
     if (!active && pendingLinkServiceTimer) {
       clearTimeout(pendingLinkServiceTimer);
       pendingLinkServiceTimer = null;
@@ -922,6 +955,179 @@
     dashboardGrid.querySelectorAll('.dashboard-card')
       .forEach(card=>cardResizeObserver.observe(card));
   }
+  /* -------------------------------------------------------------------- */
+  /* Swipe Detector: the learned paths in 3D                              */
+  /* -------------------------------------------------------------------- */
+  const swipePlotBtn    = document.getElementById('swipePlotBtn');
+  const swipePlotBody   = document.getElementById('dynamic-gesture-plot');
+  const swipeBarsBody   = document.getElementById('dynamic-gesture-container');
+  const swipeCanvas     = document.getElementById('swipePlotCanvas');
+
+  // Right, forward and up, matching transform_leap_to_leapdynamicdetector: the
+  // template axes are [leap x, -leap z, leap y], so index 2 is up on the screen.
+  function swipeProject(point, box){
+    const cosYaw = Math.cos(swipeView.yaw), sinYaw = Math.sin(swipeView.yaw);
+    const right = point[0]*cosYaw - point[1]*sinYaw;
+    const depth = point[0]*sinYaw + point[1]*cosYaw;
+    const up    = point[2]*Math.cos(swipeView.pitch) - depth*Math.sin(swipeView.pitch);
+    return [box.cx + right*box.scale, box.cy - up*box.scale];
+  }
+
+  function swipeStroke(ctx, path, box, colour, width, alpha){
+    if (!path.length) return;
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = colour;
+    ctx.lineWidth = width;
+    ctx.lineJoin = ctx.lineCap = 'round';
+    ctx.beginPath();
+    path.forEach((point,i)=>{
+      const [x,y] = swipeProject(point, box);
+      if (i) ctx.lineTo(x,y); else ctx.moveTo(x,y);
+    });
+    ctx.stroke();
+    // The end of the path, so the direction the gesture runs in is readable
+    const [hx,hy] = swipeProject(path[path.length-1], box);
+    ctx.fillStyle = colour;
+    ctx.beginPath();
+    ctx.arc(hx, hy, Math.max(2.5, width*1.4), 0, 2*Math.PI);
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // The path as the classifier sees it: centred on the middle of the window and
+  // scaled to unit size, the same two steps timewarp_lib does before comparing.
+  //
+  // Except that the classifier throws the scale away and this view has to draw it.
+  // Dividing a resting hand by its own size turns two millimetres of sensor noise
+  // into a full-width scribble, which reads as a moving hand when nothing moved.
+  // So the divisor never goes below the displacement the model calls resting
+  // (halved, because that is a span and this is a distance from the middle): a
+  // resting hand then draws as the small blob it is, and anything the model would
+  // call a gesture still fills the plot.
+  function swipeNormalize(path, restSpan = 0){
+    if (!path.length) return [];
+    const mid = path[Math.floor(path.length/2)];
+    const centred = path.map(p=>[p[0]-mid[0], p[1]-mid[1], p[2]-mid[2]]);
+    let scale = restSpan/2;
+    centred.forEach(p=>p.forEach(v=>{ scale = Math.max(scale, Math.abs(v)); }));
+    return scale ? centred.map(p=>p.map(v=>v/scale)) : centred;
+  }
+
+  function drawSwipePlot(){
+    if (swipePlotBody.hidden || !swipeCanvas.clientWidth) return;
+    const ratio = window.devicePixelRatio || 1;
+    const width = swipeCanvas.clientWidth, height = swipeCanvas.clientHeight;
+    if (swipeCanvas.width !== Math.round(width*ratio)){
+      swipeCanvas.width  = Math.round(width*ratio);
+      swipeCanvas.height = Math.round(height*ratio);
+    }
+    const ctx = swipeCanvas.getContext('2d');
+    ctx.setTransform(ratio,0,0,ratio,0,0);
+    ctx.clearRect(0,0,width,height);
+
+    if (!swipeTemplates){
+      ctx.fillStyle = '#9e9e9e';
+      ctx.font = '12px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Waiting for the loaded swipe model…', width/2, height/2);
+      return;
+    }
+
+    const box = {cx: width/2, cy: height/2, scale: Math.min(width,height)*0.32};
+
+    // The three axes, so a turned view still reads as a space
+    [[1,0,0],[0,1,0],[0,0,1]].forEach(axis=>{
+      swipeStroke(ctx, [axis.map(v=>-v*1.15), axis.map(v=>v*1.15)], box, '#bdbdbd', 1, 0.5);
+    });
+
+    const probs = dynamicGestureProbs || [];
+    const names = (dynamicGestureNames && dynamicGestureNames.length)
+      ? dynamicGestureNames : swipeTemplates.gestures;
+
+    swipeTemplates.gestures.forEach((name, i)=>{
+      const template = swipeTemplates.templates[i] || [];
+      // Probabilities are min-max normalized over the classes, so this is how
+      // likely this gesture is compared with the others right now.
+      const at = names.indexOf(name);
+      const probability = (at >= 0 && Number.isFinite(probs[at])) ? probs[at] : 0;
+      const colour = `hsl(${(i*360/swipeTemplates.gestures.length)|0},70%,45%)`;
+      const alpha  = 0.18 + 0.82*probability;
+      const isTop  = at >= 0 && at === dynamicBiggestID;
+
+      const span = template.reduce((most,p)=>Math.max(most, Math.abs(p[0]), Math.abs(p[1]), Math.abs(p[2])), 0);
+      if (span === 0){
+        // A resting template is one point: draw it as the dot it is
+        const [x,y] = swipeProject([0,0,0], box);
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = colour;
+        ctx.beginPath();
+        ctx.arc(x, y, isTop ? 9 : 6, 0, 2*Math.PI);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      } else {
+        swipeStroke(ctx, template, box, colour, isTop ? 4 : 2, alpha);
+      }
+
+      // Labels lean away from the middle, so the ones near an edge stay readable
+      const [lx,ly] = swipeProject(template[template.length-1] || [0,0,0], box);
+      const outward = lx >= box.cx;
+      ctx.globalAlpha = Math.max(alpha, 0.35);
+      ctx.fillStyle = colour;
+      ctx.font = `${isTop ? 'bold ' : ''}11px sans-serif`;
+      ctx.textAlign = outward ? 'left' : 'right';
+      ctx.fillText(`${gestureIcons[name] || ''} ${name}`,
+                   lx + (outward ? 8 : -8), ly + (span === 0 ? 16 : 4));
+      ctx.globalAlpha = 1;
+    });
+
+    // The window the classifier is judging, fading out once it stops arriving
+    const live = swipeNormalize(swipePath, swipeRestSpan);
+    const age = (Date.now() - swipePathStamp)/1000;
+    if (live.length && age < 1.5){
+      swipeStroke(ctx, live, box, '#212121', 3, Math.max(0.15, 1 - age/1.5));
+    } else {
+      ctx.fillStyle = '#9e9e9e';
+      ctx.font = '11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(swipePath.length ? 'Hand path paused' : 'Waiting for a hand', width/2, height - 8);
+    }
+  }
+
+  function setSwipePlotOpen(open){
+    if (open && linkEditor.active) setLinkEditorActive(false);
+    swipePlotBody.hidden = !open;
+    swipeBarsBody.hidden = open;
+    swipePlotBtn.classList.toggle('is-active', open);
+    const label = open ? 'Show the swipe bars' : 'Show the swipe paths in 3D';
+    swipePlotBtn.title = label;
+    swipePlotBtn.setAttribute('aria-label', label);
+    scheduleDashboardLayout();
+    drawSwipePlot();
+  }
+
+  swipePlotBtn.addEventListener('click', ()=>setSwipePlotOpen(swipePlotBody.hidden));
+
+  swipeCanvas.addEventListener('pointerdown', event=>{
+    swipeView.dragging = true;
+    swipeView.x = event.clientX;
+    swipeView.y = event.clientY;
+    swipeCanvas.classList.add('is-dragging');
+    swipeCanvas.setPointerCapture(event.pointerId);
+  });
+  swipeCanvas.addEventListener('pointermove', event=>{
+    if (!swipeView.dragging) return;
+    swipeView.yaw   += (event.clientX - swipeView.x)*0.01;
+    swipeView.pitch  = Math.max(-1.4, Math.min(1.4, swipeView.pitch + (event.clientY - swipeView.y)*0.01));
+    swipeView.x = event.clientX;
+    swipeView.y = event.clientY;
+    drawSwipePlot();
+  });
+  ['pointerup','pointercancel'].forEach(name=>swipeCanvas.addEventListener(name, ()=>{
+    swipeView.dragging = false;
+    swipeCanvas.classList.remove('is-dragging');
+  }));
+
+  window.addEventListener('resize', drawSwipePlot);
   window.addEventListener('resize', scheduleDashboardLayout);
 
   /* Maximized hand scene, driven both by the button and by /gesture_mode. */
@@ -1272,6 +1478,26 @@
         }
 
 
+        /* ---------------- Swipe paths (3D view) ----------------- */
+        if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/dynamic_gesture_templates") {
+          const parsed_message = JSON.parse(data.msg.data);
+          if (parsed_message.templates && parsed_message.templates.length){
+            swipeTemplates = parsed_message;
+            swipeRestSpan = Number(parsed_message.rest_displacement) || 0;
+            drawSwipePlot();
+          }
+        }
+
+        if (data.op === 'publish' && data.topic === "/teleop_gesture_toolbox/dynamic_detection_observations") {
+          // Exactly the numbers the classifier was handed, three per time sample
+          const flat = data.msg.observations.data || [];
+          const path = [];
+          for (let i = 0; i + 2 < flat.length; i += 3) path.push([flat[i], flat[i+1], flat[i+2]]);
+          swipePath = path;
+          swipePathStamp = Date.now();
+          drawSwipePlot();
+        }
+
         // hand-frame heartbeat
         if (data.op === 'publish' && data.topic === '/teleop_gesture_toolbox/hand_frame') {
             lastHandFrame = Date.now();
@@ -1353,6 +1579,8 @@
           if (!dynamicHTML) {
             dynamicHTML = '<p class="empty-state">No swipe gestures available.</p>';
           }
+
+          drawSwipePlot(); // the highlighting follows these probabilities
 
           latestStaticHTML = staticHTML;
           latestDynamicHTML = dynamicHTML;
