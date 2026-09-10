@@ -7,13 +7,16 @@ from launch.actions import ExecuteProcess
 from launch.actions import IncludeLaunchDescription
 from launch.conditions import IfCondition
 from launch.launch_description_sources import PythonLaunchDescriptionSource
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch.actions import DeclareLaunchArgument, SetLaunchConfiguration
+from launch_ros.parameter_descriptions import ParameterValue
 import os
 import gesture_detector
 
 def generate_launch_description():
-    sensor_arg = DeclareLaunchArgument('sensor', default_value='leap', description='Sensor leap or realsense')
+    sensor_arg = DeclareLaunchArgument(
+        'sensor', default_value='leap',
+        description='Input source: leap, realsense, or bag')
     set_sensor_config = SetLaunchConfiguration(
         'sensor', LaunchConfiguration('sensor')
     )
@@ -69,7 +72,12 @@ def generate_launch_description():
             name='sentence_maker_node',
             output='screen',
             # ignored_gestures + activate_length come from this user's links file
-            parameters=[{'user_name': LaunchConfiguration('user_name')}],
+            parameters=[{
+                'user_name': LaunchConfiguration('user_name'),
+                'replay_mode': ParameterValue(PythonExpression([
+                    "'", LaunchConfiguration('sensor'), "' == 'bag'"
+                ]), value_type=bool),
+            }],
         ),
         Node(
             package='scene_getter',
@@ -81,7 +89,6 @@ def generate_launch_description():
             condition=IfCondition(LaunchConfiguration('mocked_scene')),
         ),
     ])
-
 
 
 
