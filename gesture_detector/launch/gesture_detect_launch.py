@@ -4,7 +4,9 @@ from launch.actions import DeclareLaunchArgument, OpaqueFunction
 from launch.substitutions import LaunchConfiguration, PythonExpression
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
-from launch.actions import ExecuteProcess
+from launch.actions import ExecuteProcess, IncludeLaunchDescription
+from launch.launch_description_sources import PythonLaunchDescriptionSource
+import os
 import gesture_detector
 
 def generate_nodes(context, *args, **kwargs):
@@ -20,11 +22,10 @@ def generate_nodes(context, *args, **kwargs):
             output='screen',
         )]
     elif input_source == 'leap':
-        return [Node(
-            package='gesture_detector',
-            executable='leap',
-            name='leap_publisher_node',
-            output='screen',
+        return [IncludeLaunchDescription(
+            PythonLaunchDescriptionSource(
+                os.path.join(gesture_detector.package_path, 'launch', 'leap_launch.py')
+            ),
         )]
     elif input_source == 'bag':
         return []
