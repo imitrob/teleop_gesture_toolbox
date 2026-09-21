@@ -16,7 +16,7 @@ class HandListener():
             reliability=ReliabilityPolicy.BEST_EFFORT,
         )
         self.create_subscription(rosm.Frame, '/teleop_gesture_toolbox/hand_frame', self.hand_frame_callback, qos)
-        print("Note: `You need ros2 run gesture_detector leap` and `sudo leapd` running", flush=True)
+        print("Note: You need `ros2 run gesture_detector leap` running", flush=True)
 
     def hand_frame_callback(self, data):
         ''' Hand data received by ROS msg is saved '''
