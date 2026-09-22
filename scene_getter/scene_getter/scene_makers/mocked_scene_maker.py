@@ -7,20 +7,23 @@ from scene_getter.scene_lib.scene_object import SceneObject
 import yaml 
 import scene_getter
 
-SCENE_FILE = "scene_1"  # used when the user's links file names no scene
+SCENE_FILE = "scene_1"  # used only when no user_name is given
 
 
 def _user_scene(name_user: str) -> str:
-    """The scene named in the user's links file, or "" when no user is given or
-    hri_manager (an optional dependency) is not on the path."""
+    """The scene named in the user's links file, or "" when no user is given.
+
+    A named user that resolves to no scene raises: falling back to SCENE_FILE
+    would publish the wrong scene for a whole recorded session, and a user study
+    cannot be re-run once the participants have left.
+    """
     if not name_user:
         return ""
-    try:
-        from hri_manager.user_links import load_user_links
-        return load_user_links(name_user).get("scene", "")
-    except Exception as e:  # noqa: BLE001 -- missing package or missing file
-        print(f"[Mocked Scene] User settings for {name_user!r} not loaded ({e})", flush=True)
-        return ""
+    from hri_manager.user_links import load_user_links
+    scene = load_user_links(name_user).get("scene", "")
+    if not scene:
+        raise SystemExit(f"[Mocked Scene] links file for user {name_user!r} names no `scene`")
+    return scene
 
 class MockedScenePublisher(Node):
     def __init__(self):

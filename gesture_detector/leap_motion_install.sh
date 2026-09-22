@@ -23,6 +23,7 @@ After=network.target
 [Service]
 ExecStart=/usr/sbin/leapd
 Restart=on-failure
+TimeoutStopSec=5
 
 [Install]
 WantedBy=multi-user.target
