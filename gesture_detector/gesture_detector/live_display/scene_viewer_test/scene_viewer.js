@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+import { STLLoader } from "three/addons/loaders/STLLoader.js";
 
 import { ArticulatedHandRenderer } from "./articulated_hand_renderer.js";
 import { supersamplePixelRatio } from "./core/config.mjs";
@@ -143,6 +144,11 @@ export class SceneViewer {
     this.beam.visible = false;
     this.scene.add(this.beam);
 
+    this.meshGroup = new THREE.Group();
+    this.meshGroup.name = "scene-meshes";
+    this.scene.add(this.meshGroup);
+    this.meshKey = "[]";
+
     this.handRenderer = new ArticulatedHandRenderer(this.scene);
     this.clock = new THREE.Clock();
     this.renderFrames = [];
@@ -236,6 +242,46 @@ export class SceneViewer {
       if (center) {
         marker.position.copy(center.position);
       }
+    }
+  }
+
+  setMeshes(specs) {
+    // The same request comes again when rosbridge reconnects to the latched
+    // topic; keep the loaded meshes rather than fetching the files again.
+    const key = JSON.stringify(specs);
+    if (key === this.meshKey) {
+      return;
+    }
+    this.meshKey = key;
+    for (const mesh of [...this.meshGroup.children]) {
+      this.meshGroup.remove(mesh);
+      mesh.geometry.dispose();
+      mesh.material.dispose();
+    }
+    const loader = new STLLoader();
+    for (const spec of specs) {
+      loader.load(
+        spec.url,
+        (geometry) => {
+          if (key !== this.meshKey) {
+            geometry.dispose();
+            return;
+          }
+          const mesh = new THREE.Mesh(
+            geometry,
+            new THREE.MeshStandardMaterial({
+              color: new THREE.Color(...spec.color),
+              roughness: 0.7,
+            }),
+          );
+          mesh.position.set(...spec.position);
+          mesh.quaternion.set(...spec.orientation);
+          mesh.scale.set(...spec.scale);
+          this.meshGroup.add(mesh);
+        },
+        undefined,
+        (error) => console.error(`Unable to load mesh ${spec.url}`, error),
+      );
     }
   }
 

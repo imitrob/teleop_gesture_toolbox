@@ -21,6 +21,11 @@ publishes from the same `deictic_evidence.select` that decides what it sends —
 the viewer never runs a selection rule of its own. Use the compact
 **Stats** overlay button to reveal connection and data diagnostics.
 
+A `visualization_msgs/MarkerArray` on `/teleop_gesture_toolbox/scene_mesh`
+sets the STL meshes: each marker's `mesh_resource` is its URL relative to this
+page, `pose` and `scale` place it in `base`. For testing,
+`python3 scene_mesh_pub.py taskboard` or `... tabletop` publishes a study scene.
+
 Options:
 
 - `?hand_hz=60` changes the ROS hand-message cap from its 30 Hz default.

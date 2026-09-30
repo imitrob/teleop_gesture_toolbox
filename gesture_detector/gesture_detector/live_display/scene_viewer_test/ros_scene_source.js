@@ -22,6 +22,7 @@ const TOPICS = Object.freeze({
   selection: "/teleop_gesture_toolbox/deictic_solution",
   pendingSelection: "/teleop_gesture_toolbox/pending_object_selection",
   tfStatic: "/tf_static",
+  mesh: "/teleop_gesture_toolbox/scene_mesh",
 });
 
 function pointFromRos(point) {
@@ -36,12 +37,13 @@ function normalizeVector(vector) {
 }
 
 export class RosSceneSource {
-  constructor({ handRate, onHands, onScene, onBeam, onSelection }) {
+  constructor({ handRate, onHands, onScene, onBeam, onSelection, onMeshes }) {
     this.handRate = handRate;
     this.onHands = onHands;
     this.onScene = onScene;
     this.onBeam = onBeam;
     this.onSelection = onSelection;
+    this.onMeshes = onMeshes;
 
     this.tfGraph = new TfGraph();
     this.freshness = new FreshnessTracker(STALE_TIMEOUT_MS);
@@ -132,6 +134,12 @@ export class RosSceneSource {
           id: "scene_viewer_tf_static",
           topic: TOPICS.tfStatic,
           type: "tf2_msgs/TFMessage",
+          throttle_rate: 0,
+        },
+        {
+          id: "scene_viewer_mesh",
+          topic: TOPICS.mesh,
+          type: "visualization_msgs/MarkerArray",
           throttle_rate: 0,
         },
       ];
@@ -238,6 +246,28 @@ export class RosSceneSource {
         this.sceneSignature = signature;
         this.onScene(objects);
       }
+      return;
+    }
+
+    if (packet.topic === TOPICS.mesh) {
+      // Each message replaces the whole set. mesh_resource is an STL URL the
+      // viewer's server can reach, pose and scale place it in base
+      // (header.frame_id is not looked up). Markers other than ADD are
+      // dropped, so an empty array clears the meshes.
+      this.onMeshes(
+        (packet.msg.markers || [])
+          .filter((marker) => marker.action === 0 && marker.mesh_resource)
+          .map((marker) => {
+            const { x, y, z, w } = marker.pose.orientation;
+            return {
+              url: marker.mesh_resource,
+              position: pointFromRos(marker.pose.position),
+              orientation: [x, y, z, w],
+              scale: pointFromRos(marker.scale),
+              color: [marker.color.r, marker.color.g, marker.color.b],
+            };
+          }),
+      );
       return;
     }
 
