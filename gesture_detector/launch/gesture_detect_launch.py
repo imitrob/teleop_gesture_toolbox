@@ -42,6 +42,14 @@ def generate_launch_description():
         description='Choose an input source: "realsense", "leap", or "bag"'
     )
 
+    # Whose links file supplies activate_length. Empty means the built-in
+    # default, which is what a detector run on its own gets.
+    user_name_arg = DeclareLaunchArgument(
+        'user_name',
+        default_value='',
+        description='User whose links file supplies activate_length'
+    )
+
     rviz_config_file_arg = DeclareLaunchArgument(
         'rviz_config_file',
         default_value=gesture_detector.path+"/live_display/hand_cfg.rviz",
@@ -59,6 +67,7 @@ def generate_launch_description():
 
     return LaunchDescription([
         sensor_arg,
+        user_name_arg,
         OpaqueFunction(function=generate_nodes),
         Node(
             package='gesture_detector',
@@ -79,9 +88,12 @@ def generate_launch_description():
             executable='gesture_detect',
             name='gesture_detector_node',
             output='screen',
+            # activate_length comes from this user's links file, the same one the
+            # sentence maker reads: the bar and the trigger must agree.
             parameters=[{
                 'l_hand_mode': 'static+dynamic',
                 'r_hand_mode': 'static+dynamic',
+                'user_name': LaunchConfiguration('user_name'),
                 'replay_mode': ParameterValue(PythonExpression([
                     "'", LaunchConfiguration('sensor'), "' == 'bag'"
                 ]), value_type=bool),
