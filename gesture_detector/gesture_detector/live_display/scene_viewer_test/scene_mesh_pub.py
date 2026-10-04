@@ -27,7 +27,7 @@ CONFIGS = {
         ("models/taskboard_2pegs.stl", (0.5, -0.05, 0.0795),
          (0.0, 0.0, -0.70710678, 0.70710678), MM, GREY),
     ],
-    # x y copied from hri_benchmark data/study/scenes/study_tabletop.yaml.
+    # x y copied from the former hri_benchmark tabletop study scene (deleted).
     # models/tabletop/*.stl have their origin at the bottom centre, so z 0
     # stands them on the table. Poly Haven CC0 assets, see models/tabletop/.
     "tabletop": [
