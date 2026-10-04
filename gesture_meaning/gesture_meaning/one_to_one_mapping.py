@@ -196,24 +196,61 @@ class OneToOneMapping:
         apart from an object name, so it passes through instead of being
         dropped.
         """
+        return [[stamp, stamped_words[picked[0]][1] if action is None else action]
+                for picked, stamp, action in self._group(stamped_words, known_gestures)]
+
+    def map_stamped_probs(self, stamped_probs: list, known_gestures=None) -> list:
+        """map_stamped over [[stamp, {candidate: probability}], ...], keeping
+        the probabilities.
+
+        The highest-ranked candidates decide which events form a combination,
+        exactly as map_stamped does. The action event then scores every link
+        of that many gestures by the geometric mean of its gestures'
+        probabilities, taken from the matched events, so grab .8 + swipe_up .6
+        gives pick .69. A candidate that names no complete link (half a
+        combination, an object) scores 0 and is dropped. Nothing is
+        renormalized: what the detector doubted stays doubted.
+        """
+        top = [[stamp, max(c, key=c.get) if c else None] for stamp, c in stamped_probs]
+        out = []
+        for picked, stamp, action in self._group(top, known_gestures):
+            if action is None:
+                out.append([stamp, stamped_probs[picked[0]][1]])
+                continue
+            pooled = {}
+            for i in picked:
+                for gesture, p in stamped_probs[i][1].items():
+                    pooled[str(gesture).lower()] = max(pooled.get(str(gesture).lower(), 0.0), p)
+            actions = {}
+            # ponytail: alternatives naming the same action add up; a vocabulary
+            # with many alternative 2-gesture links could push the sum past 1.
+            for score, gestures, name in self._scores(list(pooled), list(pooled.values())):
+                if len(gestures) == len(picked) and score > 0.0:
+                    actions[name] = actions.get(name, 0.0) + score
+            out.append([stamp, actions])
+        return out
+
+    def _group(self, stamped_words: list, known_gestures=None) -> list:
+        """[(picked indices, stamp, action or None), ...] in reading order.
+        None means the word passes through unchanged."""
         known = {g.lower() for g in (known_gestures or [])}
-        pool, out = {}, []   # pool: index -> (stamp, gesture); out: (index, stamp, word)
+        pool, out = {}, []   # pool: index -> (stamp, gesture); out: (picked, stamp, action)
         for index, (stamp, word) in enumerate(stamped_words):
             if isinstance(word, str) and (word.lower() in self.gesture_actions
                                           or word.lower() in known):
                 pool[index] = (stamp, word.lower())
             else:
-                out.append((index, stamp, word))
+                out.append(([index], stamp, None))
 
         for gestures, action in self.combinations:
             while (picked := self._match(pool, gestures)) is not None:
-                out.append((min(picked), min(pool[i][0] for i in picked), action))
+                out.append((sorted(picked), min(pool[i][0] for i in picked), action))
                 for i in picked:
                     del pool[i]
 
         for index in sorted(pool):
             self._report(pool[index][1])
-        return [[stamp, word] for _, stamp, word in sorted(out, key=lambda t: t[0])]
+        return sorted(out, key=lambda t: t[0][0])
 
     def _match(self, pool: dict, gestures: tuple):
         """Indices of one occurrence of every gesture of the combination, or

@@ -277,3 +277,20 @@ def test_map_probs_spans_the_whole_vocabulary():
     actions, probs = OneToOneMapping(links, quiet=True).map_probs(GS, [1.0, 0.0, 0.0, 1.0])
     assert actions == ["pick", "push", "stop"]
     assert dict(zip(actions, probs))["stop"] == 0.0
+
+
+def test_map_stamped_probs_keeps_the_detector_scores():
+    """A rewritten event keeps its scores: one gesture passes its score on, a
+    combination takes the geometric mean, half a combination is dropped, and
+    nothing is renormalized. An event the mapping leaves alone is unchanged."""
+    links = {"links": {**LINKS["links"], "link3": {
+        "action_template": "touch", "action_gestures": [["five", "swipe_left"]]}}}
+    m = OneToOneMapping(links, quiet=True)
+    # swipe_left and swipe_right both name push; swipe_up is half of pick.
+    out = m.map_stamped_probs([[0.0, {"swipe_right": .6, "swipe_left": .2, "swipe_up": .2}]])
+    assert out == [[0.0, pytest.approx({"push": .8})]]
+    out = m.map_stamped_probs([[0.0, {"grab": .8, "five": .2}],
+                               [0.5, {"swipe_up": .6, "swipe_left": .4}],
+                               [0.9, {"cup1": .52, "bowl1": .48}]])
+    assert out == [[0.0, pytest.approx({"pick": (.8 * .6) ** .5, "touch": (.2 * .4) ** .5})],
+                   [0.9, {"cup1": .52, "bowl1": .48}]]
