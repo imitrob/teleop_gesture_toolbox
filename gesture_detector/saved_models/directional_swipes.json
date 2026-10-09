@@ -5,7 +5,7 @@
     "model_name": "directional_swipes",
     "engine": "DTW",
     "method": "promp",
-    "rest_displacement": 0.05,
+    "rest_displacement": 0.08,
     "counts": [
         1,
         1,
