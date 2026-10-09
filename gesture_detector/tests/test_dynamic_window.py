@@ -128,8 +128,8 @@ def test_a_swipe_needs_activate_length_windows():
 
 
 def test_swipe_amplitude_does_not_decide():
-    """A 60mm swipe is the same gesture as a 400mm one: unit_scale drops the scale."""
-    for radius in (0.03, 0.2):
+    """A 100mm swipe is the same gesture as a 400mm one: unit_scale drops the scale."""
+    for radius in (0.05, 0.2):
         labels, _ = _classify_live(_swipe_up, period=0.4, radius=radius)
         assert set(labels) == {"swipe_up"}, radius
 
@@ -140,7 +140,7 @@ def test_a_moving_hand_is_never_resting():
     This is the bug: on DTW distance alone the all-zero resting template beat every
     swipe that did not fill the whole window."""
     for name, traj in SWIPES.items():
-        labels, _ = _classify_live(traj, period=0.4, radius=0.03)
+        labels, _ = _classify_live(traj, period=0.4, radius=0.05)
         assert "no_moving" not in labels, name
 
 

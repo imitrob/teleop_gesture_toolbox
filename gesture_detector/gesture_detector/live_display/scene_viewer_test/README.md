@@ -25,6 +25,8 @@ A `visualization_msgs/MarkerArray` on `/teleop_gesture_toolbox/scene_mesh`
 sets the STL meshes: each marker's `mesh_resource` is its URL relative to this
 page, `pose` and `scale` place it in `base`. For testing,
 `python3 scene_mesh_pub.py taskboard` or `... tabletop` publishes a study scene.
+`mocked_scene` publishes the `mesh` of each object in its scene yaml, again on
+every scene switch (user study simple).
 
 Options:
 
