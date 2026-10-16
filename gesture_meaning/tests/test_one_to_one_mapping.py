@@ -279,6 +279,19 @@ def test_map_probs_spans_the_whole_vocabulary():
     assert dict(zip(actions, probs))["stop"] == 0.0
 
 
+def test_a_link_may_name_an_action_modifier():
+    """A modifier link becomes a candidate of the gesture event like an action,
+    so `fast` reaches the methods as the token a constructed case writes."""
+    links = {"links": {**LINKS["links"], "link3": {
+        "action_template": "fast", "action_gestures": [["five", "swipe_right"]]}},
+        "actions": ["pick", "push"]}
+    m = OneToOneMapping(links, quiet=True)
+    names, probs = ["grab", "swipe_up", "five", "swipe_right"], [0.1, 0.1, 0.9, 0.9]
+    assert m.best_combination(names, probs) == (("five", "swipe_right"), "fast")
+    assert dict(zip(*m.map_probs(names, probs)))["fast"] == pytest.approx(0.9)
+    assert m.map_stamped([[0.0, "five"], [0.1, "swipe_right"]]) == [[0.0, "fast"]]
+
+
 def test_map_stamped_probs_keeps_the_detector_scores():
     """A rewritten event keeps its scores: one gesture passes its score on, a
     combination takes the geometric mean, half a combination is dropped, and
